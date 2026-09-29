@@ -1,12 +1,13 @@
 // 사도 한 명(또는 여럿)의 기획서 글이 게임에서 **실제로 도는지** 본다.
 //
 //   node tools/check-hero.js 파일.md [파일2.md …]     새로 쓴 사도 글(### 로 시작)
-//   node tools/check-hero.js --design                  바탕화면 기획서 전체
+//   node tools/check-hero.js --design                  기획서 전체 (저장소 맨 위 트릭컬_기획서_전체.md)
 //   node tools/check-hero.js --design --only 네르,티그
 //
 // 패시브·키워드는 js/passive.js 가, 카드는 js/effects.js 가 읽는다. 여기서 못 읽은 말은
 // 게임에서 아무 일도 안 한다 — 글로만 있는 패시브를 다시 만들지 않으려고 이 검사가 있다.
 // 문법은 docs/07-스킬구성.md.
+import { DESIGN_DOC } from "./lib/paths.js";
 import fs from "node:fs";
 import { parseHeroBlock, slug } from "./lib/hero-block.js";
 import { parsePassive, parseKeyword } from "../js/passive.js";
@@ -15,7 +16,7 @@ import D from "../js/data/design.js";
 import { valueOf, baseValue, flashCost } from "./lib/card-value.js";
 
 const args = process.argv.slice(2);
-const DESIGN = "C:/Users/User/Desktop/볼더슬/트릭컬_기획서_전체.md";
+const DESIGN = DESIGN_DOC;
 const only = args.includes("--only") ? (args[args.indexOf("--only") + 1] || "").split(",").filter(Boolean) : [];
 const files = args.includes("--design") ? [DESIGN] : args.filter((a) => a.endsWith(".md"));
 if (!files.length) { console.log("쓰는 법: node tools/check-hero.js 파일.md | --design"); process.exit(2); }

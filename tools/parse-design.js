@@ -18,14 +18,15 @@
 //   - **마력탄 폭주** (1·공격, 시그니처) …
 //       - ① 강화 *마력탄 대난사*: …
 //   **궁극기 (고학년 · 덱 밖 · 비용 300%)** **돌겨어어어!!! 억⋯?** — …
+import { DESIGN_DOC } from "./lib/paths.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseHeroBlock, slug } from "./lib/hero-block.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SRC = process.argv[2] || "C:/Users/User/Desktop/볼더슬/트릭컬_기획서_전체.md";
-const text = fs.readFileSync(SRC, "utf8");
+const SRC = process.argv[2] || DESIGN_DOC;
+const text = fs.readFileSync(SRC, "utf8").replace(/\r\n/g, "\n");   // CRLF 여도 읽는다(0장 사고)
 
 
 const trouble = [];
@@ -59,7 +60,7 @@ const out = {
 const dst = path.join(HERE, "..", "js", "data", "design.js");
 fs.writeFileSync(dst, [
   "// 자동 생성 — tools/parse-design.js. 손으로 고치지 말 것.",
-  "// 원본은 바탕화면의 기획서다. 기획서를 고치고 다시 돌리면 된다.",
+  "// 원본은 저장소 맨 위의 기획서(트릭컬_기획서_전체.md)다. 기획서를 고치고 다시 돌리면 된다.",
   "export default " + JSON.stringify(out) + ";",
   "",
 ].join("\n"));

@@ -1,21 +1,22 @@
 // 새로 쓴 사도 글(.omc/redesign/*.md)을 기획서에 끼워 넣는다.
 //
 //   node tools/merge-redesign.js                 사본(.omc/redesign/_기획서.md)에 — 원본은 안 건드린다
-//   node tools/merge-redesign.js --write         바탕화면 기획서에 (먼저 _스킬재구성전.md 로 백업)
+//   node tools/merge-redesign.js --write         저장소 맨 위의 기획서에 (먼저 _스킬재구성전.md 로 백업)
 //
 // 사도는 「### 이름 (성격 · …)」 머리로 찾는다. 이름이 기획서와 한 글자라도 다르면 끼우지 않고 알린다.
 // 기획서는 LF 다 — 줄 끝을 바꾸지 않는다(한 번 CRLF 로 바꿨다가 파서가 0장을 읽은 적이 있다).
+import { DESIGN_DOC } from "./lib/paths.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..");
-const DESIGN = "C:/Users/User/Desktop/볼더슬/트릭컬_기획서_전체.md";
+const DESIGN = DESIGN_DOC;
 const DIR = path.join(ROOT, ".omc", "redesign");
 const write = process.argv.includes("--write");
 
-const src = fs.readFileSync(DESIGN, "utf8");
+const src = fs.readFileSync(DESIGN, "utf8").replace(/\r\n/g, "\n");   // 쓸 때는 LF 로
 // 「에르핀(왕도) (순수 …」 — 이름 뒤 빈칸이 경계다. 빈칸 없이 괄호까지 자르면 에르핀(왕도)가 에르핀이 된다(실제로 그랬다)
 const nameOf = (block) => (block.match(/^###\s+(.+?)\s+\(/) || [])[1];
 

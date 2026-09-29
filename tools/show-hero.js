@@ -4,6 +4,7 @@
 //
 //   ① 지금 기획서의 글   ② 설정 요약(js/data/bible.js — 나무위키를 우리 말로 줄인 것)
 //   ③ 나무위키 요약 파일 경로(.omc/research/namu/<키>.brief.md — 스킬·어사이드·평가)
+import { DESIGN_DOC } from "./lib/paths.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,11 +12,11 @@ import BIBLE from "../js/data/bible.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..");
-const DESIGN = "C:/Users/User/Desktop/볼더슬/트릭컬_기획서_전체.md";
+const DESIGN = DESIGN_DOC;
 const name = process.argv[2];
 if (!name) { console.log("쓰는 법: node tools/show-hero.js 이름   (기획서 이름 그대로 — 에르핀(왕도))"); process.exit(2); }
 
-const text = fs.readFileSync(DESIGN, "utf8");
+const text = fs.readFileSync(DESIGN, "utf8").replace(/\r\n/g, "\n");
 const lines = text.split("\n");
 const at = lines.findIndex((l) => l.startsWith(`### ${name} (`));
 if (at < 0) { console.log(`기획서에 「${name}」 이 없다`); process.exit(1); }

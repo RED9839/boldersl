@@ -2,14 +2,15 @@
 //
 // 파서는 조용히 틀린다 — 정규식이 한 줄을 못 잡으면 그 카드가 그냥 없어진다.
 // 그래서 개수와 규칙을 견준다. 기획서가 원본이니, 어긋나면 파서나 기획서 둘 중 하나가 틀린 것이다.
+import { DESIGN_DOC } from "./lib/paths.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import D from "../js/data/design.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SRC = process.argv[2] || "C:/Users/User/Desktop/볼더슬/트릭컬_기획서_전체.md";
-const raw = fs.readFileSync(SRC, "utf8");
+const SRC = process.argv[2] || DESIGN_DOC;
+const raw = fs.readFileSync(SRC, "utf8").replace(/\r\n/g, "\n");
 
 let bad = 0;
 const fail = (m) => { console.log(`  실패 ${m}`); bad++; };

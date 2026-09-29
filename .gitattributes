@@ -1,0 +1,2 @@
+# 기획서는 LF 로 둔다 — CRLF 가 되면 파서가 카드를 0장 읽은 적이 있다(체크아웃 때 core.autocrlf 가 바꾸지 못하게)
+트릭컬_*.md text eol=lf

@@ -9,17 +9,18 @@
 // (개전·종극·주도·보존·소멸). 그럴듯한 풀이를 지어 넣으면 규칙이 조용히 생겨 버린다.
 //
 //   node tools/build-keywords.js
+import { DESIGN_DOC } from "./lib/paths.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import B from "../js/data/built.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DOC = process.argv[2] || "C:/Users/User/Desktop/볼더슬/트릭컬_기획서_전체.md";
+const DOC = process.argv[2] || DESIGN_DOC;
 
 // ── ② 기획서 「상태」 줄을 읽는다 ──────────────────────────────────────
 // 손으로 옮겨 적으면 기획서가 바뀌었을 때 어긋난다. 원문에서 읽는다.
-const raw = fs.existsSync(DOC) ? fs.readFileSync(DOC, "utf8") : "";
+const raw = fs.existsSync(DOC) ? fs.readFileSync(DOC, "utf8").replace(/\r\n/g, "\n") : "";
 const statusLine = (raw.match(/^-\s*상태:\s*(.+)$/m) || [])[1] || "";
 const fromDoc = {};
 for (const m of statusLine.matchAll(/([가-힣]+)\(([^)]+)\)/g)) fromDoc[m[1]] = m[2];

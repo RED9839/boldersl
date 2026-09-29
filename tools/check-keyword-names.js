@@ -1,15 +1,16 @@
 // 사도 전용 키워드 이름이 서로 겹치거나 엔진의 상태 이름과 겹치지 않는지 본다.
 //
-//   node tools/check-keyword-names.js [기획서.md]      기본: .omc/redesign/_기획서.md (없으면 바탕화면 기획서)
+//   node tools/check-keyword-names.js [기획서.md]      기본: 저장소 맨 위의 기획서
 //
 // 키워드는 이름으로 쌓인다. 두 사도가 같은 이름을 쓰면 한 파티에서 스택 칸을 같이 쓰고,
 // 「감전」 처럼 엔진이 이미 아는 상태 이름이면 그 상태의 규칙(공격력 -10%·턴마다 1 감소)까지 섞인다.
+import { DESIGN_DOC } from "./lib/paths.js";
 import fs from "node:fs";
 import { parseHeroBlock } from "./lib/hero-block.js";
 
 const VOCAB = ["피해", "방어", "방어력", "실드", "회복", "공격력", "치명", "확률", "기절", "도발", "침묵", "취약", "약화", "무적", "드로우", "게이지", "코스트", "소모", "손패", "버리고", "파괴", "해제", "디버프", "아군", "전원", "전체", "무작위", "자신", "최대", "최저", "감소", "보존", "소멸", "개전", "이번", "전투", "턴간", "시작", "종료", "처치", "쓰러지면", "받으면", "궁극기", "연계"];
 const STATUS = ["취약", "약화", "기절", "도발", "침묵", "감전", "중독", "힘", "가시"];
-const file = process.argv[2] || (fs.existsSync(".omc/redesign/_기획서.md") ? ".omc/redesign/_기획서.md" : "C:/Users/User/Desktop/볼더슬/트릭컬_기획서_전체.md");
+const file = process.argv[2] || DESIGN_DOC;
 const text = fs.readFileSync(file, "utf8");
 const by = new Map();
 for (const raw of text.split(/^### /m).slice(1)) {
