@@ -1,0 +1,41 @@
+{
+  "name": "bolderseul",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve": "python -m http.server 8765 --bind 127.0.0.1",
+    "sim": "node tools/sim.js 400",
+    "smoke": "node tools/smoke.js",
+    "shot": "python tools/shot.py",
+    "extract": "python tools/extract-icons.py --out assets --kinds heroicons,skillicons,monster",
+    "catalog": "node tools/catalog.js",
+    "art": "node tools/build-art.js",
+    "cardart": "node tools/build-cardart.js",
+    "shrink": "python tools/shrink-cardart.py",
+    "uiicons": "python tools/extract-ui-icons.py",
+    "brief": "node tools/art-brief.js",
+    "data": "node tools/build-relations.js",
+    "bible": "node tools/build-bible.js",
+    "survey": "python tools/survey.py",
+    "balance": "node tools/balance.js",
+    "cards": "node tools/check-cards.js",
+    "short": "node tools/check-short.js",
+    "keywords": "node tools/build-keywords.js",
+    "kwcheck": "node tools/check-keywords.js",
+    "world": "node tools/world-check.js",
+    "sim:save": "node tools/sim.js 1200 --save",
+    "minimi": "python tools/build-minimi.py",
+    "spine": "node tools/build-spine.js",
+    "spine:check": "node tools/check-spine.js",
+    "talk": "node tools/build-talk.js",
+    "design": "node tools/parse-design.js",
+    "design:check": "node tools/check-design.js",
+    "effects": "node tools/check-effects.js",
+    "build": "node tools/build-cards.js",
+    "fx": "node tools/check-fx.js"
+  },
+  "dependencies": {
+    "@esotericsoftware/spine-webgl": "^4.3.13"
+  }
+}

@@ -1,0 +1,402 @@
+/* ══ 전투 화면 ═══════════════════════════════════════════════════════════
+   도감은 밝고 전투는 어둡다 — 카제나가 그렇게 갈라 놓았고, 카드가 그만큼 도드라진다.
+   네 구역: 적 · 궁극기 게이지 · 아군 상태창 · 코스트 창과 손패.
+   손패는 사도 배치 순서로 줄 선다(앞줄 사도의 카드가 왼쪽).
+   이 파일은 css/style.css 의 옛 전투 규칙 위에 덧씌운다. */
+
+.battle {
+  --bg1: #15131f;
+  --bg2: #0e0c17;
+  --line2: #3a3352;
+  --panel3: #1d1a2b;
+  --ink2: #efeaff;
+  --dim2: #a49dc2;
+  --hot2: #ffcf6b;
+  --foe: #e07a8e;
+
+  color: var(--ink2);
+  background: radial-gradient(ellipse at 50% 0%, #2a2340 0, var(--bg1) 45%, var(--bg2) 100%);
+  border-radius: 16px; padding: 14px 16px 16px; gap: 12px;
+}
+main:has(.battle) { max-width: 1240px; }
+
+/* ── ① 머리 ───────────────────────────────────────── */
+.bhead { align-items: center; padding-bottom: 2px; }
+.bwhere { font-size: 15px; font-weight: 800; letter-spacing: -.3px; color: #fff; }
+.bsub { font-size: 11px; color: var(--dim2); }
+.battle .flash {
+  font-size: 10px; padding: 2px 8px; border-radius: 99px;
+  background: #2a2340; border: 1px solid var(--line2); color: #d9cffa;
+}
+
+/* ── ② 적 ─────────────────────────────────────────── */
+.foes {
+  min-height: 210px; padding: 16px 10px 12px; gap: 22px;
+  background: radial-gradient(ellipse at 50% 118%, #e07a8e1f, transparent 68%);
+  border-bottom: 1px solid var(--line2);
+}
+.foe { width: 164px; gap: 6px; }
+.foe.boss { width: 208px; }
+.foe .art { background: transparent; }
+.foe .fname { font-size: 12.5px; font-weight: 700; color: var(--ink2); }
+.foe.tgt:hover .art { outline: 2px solid var(--hot2); outline-offset: 4px; border-radius: 10px; }
+
+.intent {
+  font-size: 11px; font-weight: 700; color: #16121f;
+  background: var(--hot2); border: 0; border-radius: 99px; padding: 3px 11px;
+  box-shadow: 0 3px 10px #0007;
+}
+.intent .iico { font-size: 11px; }
+
+/* ── ③ 궁극기 게이지 ──────────────────────────────── */
+.gauge { gap: 11px; padding: 16px 0 2px; }   /* 눈금 글자가 바 위에 선다 */
+.glabel { font-size: 10px; font-weight: 800; letter-spacing: .16em; color: var(--dim2); }
+.gbar {
+  position: relative; height: 13px; border-radius: 99px; overflow: visible;
+  background: #0a0812; border: 1px solid var(--line2);
+}
+.gbar i:not(.tick) {
+  display: block; height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, #6fb6d9, #b79bff 55%, var(--hot2));
+  transition: width .3s;
+}
+/* 비용 눈금 — 어디까지 차야 누가 쓸 수 있는지 */
+.gbar .tick {
+  position: absolute; top: -4px; bottom: -4px; width: 1px;
+  background: #ffffff38; transform: translateX(-50%);
+}
+.gbar .tick:after {
+  content: attr(data-cost) "%"; position: absolute; left: 50%; top: -14px;
+  transform: translateX(-50%); font-size: 8px; color: #8d86ab; white-space: nowrap;
+}
+.gnum { font-size: 12px; font-weight: 800; color: var(--dim2); min-width: 44px; }
+.gauge.ready .gnum { color: var(--hot2); }
+.gauge.ready .gbar { border-color: var(--hot2); box-shadow: 0 0 0 3px #ffcf6b22; }
+
+/* ── ④ 아군 상태창 ────────────────────────────────── */
+.allies { gap: 10px; }
+.ally {
+  background: linear-gradient(180deg, var(--panel3), #17142399);
+  border: 1px solid var(--line2); border-radius: 12px; padding: 10px;
+}
+.ally .art { border-radius: 10px; background: #0f0d18; }
+.ally .nm { font-size: 13.5px; font-weight: 800; }
+.ally .row { font-size: 10px; color: var(--dim2); }
+.ally.tgt { cursor: pointer; }
+.ally.tgt:hover { border-color: var(--hot2); }
+
+.ultbtn {
+  display: flex; align-items: center; gap: 7px; width: 100%; margin-top: 7px;
+  font-size: 11px; padding: 6px 10px; border-radius: 9px; text-align: left;
+  background: #2a2340; border: 1px solid var(--line2); color: #cfc7ea;
+}
+.ultbtn .ucost { font-weight: 900; color: var(--hot2); }
+.ultbtn:not(.no) { border-color: var(--hot2); background: linear-gradient(90deg, #4a3a1e, #2a2340);
+  color: #fff3cf; box-shadow: 0 0 0 2px #ffcf6b1f; }
+.ultbtn.no { opacity: .45; }
+
+/* ── ⑤ 코스트 창 · 손패 ───────────────────────────── */
+.deckrow { display: flex; align-items: center; gap: 14px; }
+.apbox {
+  display: flex; align-items: center; gap: 9px; padding: 7px 14px;
+  background: #0f0d18; border: 1px solid var(--hot2); border-radius: 99px;
+}
+.apbox .apnum { font-size: 21px; font-weight: 900; color: var(--hot2); line-height: 1; }
+.apbox .aplabel { font-size: 9px; font-weight: 800; letter-spacing: .14em; color: var(--dim2); }
+.appips { display: flex; gap: 4px; }
+.appips i { width: 9px; height: 9px; border-radius: 50%; background: #3a3352; }
+.appips i.on { background: var(--hot2); box-shadow: 0 0 6px #ffcf6b88; }
+.pile { font-size: 11px; color: var(--dim2); }
+.endturn {
+  margin-left: auto; font-size: 13px; font-weight: 800; padding: 10px 24px; border-radius: 10px;
+  background: var(--hot2); color: #221a08; border: 0;
+}
+.endturn:hover:not(:disabled) { background: #ffe09a; }
+
+/* 손패 — 도감 카드와 같은 꼴 */
+.hand { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; padding: 6px 0 2px; }
+.hand .card {
+  position: relative; display: flex; flex-direction: column; overflow: hidden;
+  width: 156px; aspect-ratio: 158 / 232; padding: 8px 9px 0; text-align: left;
+  border-radius: 10px; transition: transform .14s, box-shadow .14s;
+}
+.hand .card:hover:not(.no) { transform: translateY(-8px); box-shadow: 0 12px 26px #00000073; }
+.hand .card.sel { transform: translateY(-12px); border-color: var(--hot2);
+  box-shadow: 0 0 0 2px var(--hot2), 0 14px 30px #00000080; }
+.hand .card.no { opacity: .42; cursor: default; }
+.hand .card.no:hover { transform: none; }
+.hand .card .gtext { -webkit-line-clamp: 3; }
+/* 누구 카드인가 — 아래 가는 띠 하나 */
+.cown { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 3; }
+
+/* ── 기록 ─────────────────────────────────────────── */
+.battle .log {
+  max-height: 128px; overflow-y: auto; font-size: 12px; line-height: 1.7;
+  padding: 10px 12px; border-radius: 10px;
+  background: #0d0b15; border: 1px solid var(--line2); color: #b8b1d2;
+}
+.battle .log .combo { color: var(--hot2); }
+
+/* ── 상태 칩 ──────────────────────────────────────── */
+.battle .chip, .battle .chips span {
+  font-size: 10px; border-radius: 99px; padding: 1px 7px;
+  background: #2a2340; border: 1px solid var(--line2); color: #cfc7ea;
+}
+
+@media (max-width: 900px) {
+  .hand .card { width: 124px; }
+  .allies { grid-template-columns: 1fr; }
+  .foes { gap: 12px; }
+}
+
+/* ── 싸움터 ───────────────────────────────────────────
+   왼쪽에 아군, 오른쪽에 적. 가장자리에 덱과 버린 더미.
+   아군은 전열이 앞, 후열이 뒤 — 줄이 곧 서는 자리다. */
+.field {
+  position: relative; display: grid;
+  grid-template-columns: 62px minmax(0, 1fr) minmax(0, 1fr) 62px;
+  align-items: end; gap: 10px;
+  min-height: 268px; padding: 18px 12px 14px; border-radius: 14px;
+  background:
+    radial-gradient(ellipse at 22% 100%, #6fb6d926, transparent 58%),
+    radial-gradient(ellipse at 78% 100%, #e07a8e26, transparent 58%),
+    linear-gradient(180deg, #221c38 0, #14111f 70%, #100d1a 100%);
+  border: 1px solid var(--line2);
+  overflow: hidden;
+}
+.field:after {                       /* 바닥 — 서 있는 자리가 보여야 한다 */
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 74px;
+  background: linear-gradient(180deg, transparent, #ffffff0a 40%, #ffffff14);
+  border-top: 1px solid #ffffff1a; pointer-events: none;
+}
+
+.afield, .foes {
+  display: flex; align-items: flex-end; justify-content: center; gap: 4px;
+  position: relative; z-index: 1; background: none; border: 0; min-height: 0; padding: 0;
+}
+.afield { justify-content: flex-start; padding-left: 8px; }
+.foes { justify-content: flex-end; padding-right: 8px; }
+
+.stand { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; width: 116px; }
+.stand.rfront { margin-bottom: 0; }
+.stand.rmid { margin-bottom: 22px; transform: scale(.94); }
+.stand.rback { margin-bottom: 44px; transform: scale(.88); }
+.stand .art { background: transparent; filter: drop-shadow(0 8px 10px #0009); }
+.stand .sname { font-size: 11.5px; font-weight: 700; color: var(--ink2); text-shadow: 0 1px 3px #000c; }
+.stand.dead { opacity: .3; filter: grayscale(1); }
+.stand.sealed .art { filter: grayscale(.7) brightness(.7); }
+.stand.tgt { cursor: pointer; }
+.stand.tgt:hover .art { outline: 2px solid var(--hot2); outline-offset: 4px; border-radius: 10px; }
+.stand .hp { width: 84px; }
+
+/* 덱 더미 */
+.pile2 {
+  align-self: end; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 9px 4px; border-radius: 9px; position: relative; z-index: 1;
+  background: #0c0a16c4; border: 1px solid var(--line2);
+}
+.pile2 .pnum { font-size: 17px; font-weight: 900; color: var(--ink2); line-height: 1; }
+.pile2 .plab { font-size: 8.5px; letter-spacing: .06em; color: var(--dim2); }
+
+.turntag {
+  position: absolute; left: 50%; top: 12px; transform: translateX(-50%); z-index: 2;
+  font-size: 11px; font-weight: 800; letter-spacing: .2em; color: #cfc7ea;
+  background: #0c0a16bf; border: 1px solid var(--line2); border-radius: 99px; padding: 3px 14px;
+}
+
+/* 아군 상태창은 궁극기와 상태만 — 체력은 싸움터에 서 있는 모습 아래에 있다 */
+.ally { align-items: center; padding: 8px 10px; }
+.ally .art { width: 44px !important; height: 44px !important; }
+.ally .abody { flex: 1; min-width: 0; }
+.field { min-height: 300px; }
+.stand .hp, .stand .hpwrap { width: 92px; }
+.stand .hpwrap .nums { font-size: 10px; justify-content: center; }
+.foe .hpwrap { width: 108px; }
+
+/* 한 화면에 들어와야 한다 — 손패가 잘리면 낼 수가 없다 */
+.battle { gap: 9px; padding: 12px 14px 12px; }
+.field { min-height: 246px; padding: 14px 12px 10px; }
+.field:after { height: 62px; }
+.allies { gap: 8px; }
+.ally { padding: 7px 9px; gap: 8px; }
+.ally .art { width: 38px !important; height: 38px !important; }
+.ally .nm { font-size: 12.5px; }
+.ultbtn { margin-top: 5px; padding: 5px 9px; }
+.gauge { padding: 14px 0 0; }
+.hand { padding: 2px 0 0; }
+.hand .card { width: 148px; }
+.battle .log { max-height: 92px; }
+.deckrow { gap: 12px; }
+.apbox { padding: 6px 12px; }
+.apbox .apnum { font-size: 19px; }
+.endturn { padding: 9px 22px; }
+
+/* ── 손에 든 것처럼 펼친다 ────────────────────────────
+   가운데가 앞, 바깥으로 갈수록 기울고 내려간다. 각도는 손패 장수에 따라 js 가 준다. */
+.hand { align-items: flex-end; gap: 4px; padding-top: 16px; }
+.hand .card {
+  transform: rotate(var(--tilt, 0deg)) translateY(var(--dip, 0px));
+  transform-origin: 50% 118%;
+  margin: 0 -8px;
+}
+.hand .card:hover:not(.no) { transform: rotate(0deg) translateY(-14px) scale(1.04); z-index: 30 !important; }
+.hand .card.sel { transform: rotate(0deg) translateY(-20px) scale(1.04); z-index: 31 !important; }
+
+/* 그린 것이 없으면 그 사도의 인게임 그림을 깐다 */
+.gart.heroart { display: grid; place-items: center; }
+.gart.heroart .art { width: 84% !important; height: 84% !important; background: transparent; margin-bottom: 14%; }
+.gart.heroart img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 6px 10px #000a); }
+.gart.heroart .art-ph { width: 100%; height: 100%; font-size: 18px; }
+
+/* 더미는 누를 수 있다 */
+.pile2 { cursor: pointer; transition: .15s; }
+.pile2:hover { border-color: var(--hot2); background: #16122acc; }
+
+/* 더미 보기 쪽지 */
+.pilenote { width: min(340px, calc(100vw - 40px)); }
+.pwhy { margin: 6px 0 0 !important; font-size: 11.5px !important; color: #9d96bd !important; }
+.plist { margin-top: 10px; max-height: 46vh; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+.prow {
+  display: flex; align-items: center; gap: 7px; font-size: 12px; padding: 5px 8px;
+  background: #12101d; border: 1px solid #332c4e; border-radius: 8px; color: #ded7f2;
+}
+.prow .pcost {
+  display: grid; place-items: center; width: 17px; height: 17px; flex: none;
+  font-size: 10px; font-weight: 900; color: #16151c; background: var(--gold); border-radius: 50%;
+}
+.prow .ptype { font-size: 10px; color: #a49dc2; }
+.prow .pn { margin-left: auto; font-size: 11px; font-weight: 800; color: #ffcf6b; }
+
+/* ── 적 의도 — 카제나처럼 마름모에 숫자 ───────────── */
+.intent { display: flex; align-items: center; gap: 6px; background: none; box-shadow: none; padding: 0; color: var(--ink2); }
+.igem {
+  position: relative; width: 30px; height: 30px; display: grid; place-items: center; flex: none;
+}
+.igem:before {
+  content: ""; position: absolute; inset: 3px; transform: rotate(45deg); border-radius: 4px;
+  background: #3a3352; border: 1px solid #ffffff38; box-shadow: 0 3px 8px #0008;
+}
+.igem b { position: relative; font-size: 13px; font-weight: 900; color: #fff; }
+.i-hit .igem:before { background: linear-gradient(135deg, #e0607a, #9c2c48); border-color: #ffb3c2; }
+.i-block .igem:before { background: linear-gradient(135deg, #5a9fd0, #2c5c86); }
+.i-buff .igem:before { background: linear-gradient(135deg, #e0b35a, #8f6b1e); }
+.i-debuff .igem:before, .i-jam .igem:before { background: linear-gradient(135deg, #9a7bd6, #56408f); }
+.isay {
+  font-size: 10.5px; font-weight: 700; color: #f3eefe; text-shadow: 0 1px 3px #000c;
+  background: #0c0a16b3; padding: 2px 8px; border-radius: 99px; white-space: nowrap;
+}
+
+/* ── 턴 알림 ──────────────────────────────────────── */
+.turnban {
+  position: absolute; left: 50%; top: 46%; z-index: 5; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; line-height: 1;
+  transform: translate(-50%, -50%); color: #fff; text-shadow: 0 0 18px #8fb7ff, 0 2px 6px #000c;
+  animation: turnban 1.3s ease forwards;
+}
+.turnban small { font-size: 13px; letter-spacing: .5em; font-weight: 800; color: #cfe0ff; }
+.turnban b { font-size: 46px; font-weight: 900; }
+.turnban:before, .turnban:after {
+  content: ""; position: absolute; top: 50%; width: 220px; height: 2px;
+  background: linear-gradient(90deg, transparent, #9fc2ff);
+}
+.turnban:before { right: 100%; margin-right: 14px; }
+.turnban:after { left: 100%; margin-left: 14px; transform: scaleX(-1); }
+@keyframes turnban {
+  0% { opacity: 0; transform: translate(-50%, -40%) scale(.9); }
+  18% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -58%); }
+}
+@media (prefers-reduced-motion: reduce) { .turnban { animation: none; opacity: 0; } }
+
+/* ── 기록 — 접어 두고 최근 한 줄만 ──────────────── */
+.logwrap { display: flex; flex-direction: column; gap: 6px; }
+.loglast {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 7px 12px; border-radius: 10px; font-size: 12px;
+  background: #0d0b15; border: 1px solid var(--line2); color: #d6cff0;
+}
+.loglast:hover { border-color: var(--hot2); }
+.lglab { font-size: 10px; font-weight: 800; letter-spacing: .14em; color: var(--dim2); flex: none; }
+.lgtxt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lgmore { font-size: 10.5px; color: var(--dim2); flex: none; }
+.logwrap .log { display: none; }
+.logwrap.open .log { display: block; max-height: 180px; }
+
+/* ══ 더미 보기 ══════════════════════════════════════════════════════════
+   이름만 늘어놓으면 무엇을 하는 카드인지 모른다 — 손패와 같은 카드 꼴로 펼친다. */
+.pilemodal {
+  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px;
+  background: #07051099; backdrop-filter: blur(4px);
+}
+.pilebox {
+  width: min(1100px, 100%); max-height: calc(100vh - 48px); display: flex; flex-direction: column;
+  background: #15121f; border: 1px solid #3a3352; border-radius: 16px; color: #efeaff;
+  box-shadow: 0 30px 80px #000a; overflow: hidden;
+}
+.pilehead { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #2c2642; }
+.piletabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.ptab {
+  display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; padding: 6px 12px; border-radius: 99px;
+  background: #211c33; border: 1px solid #3a3352; color: #cfc7ea;
+}
+.ptab b { font-size: 12px; color: #ffcf6b; }
+.ptab.on { background: #ffcf6b; border-color: #ffcf6b; color: #221a08; }
+.ptab.on b { color: #221a08; }
+.pilehead .kwclose { margin: 0 0 0 auto; }
+.pilebox > .pwhy { margin: 10px 16px 0 !important; font-size: 11.5px; color: #9d96bd; }
+.pilegrid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(172px, 1fr)); gap: 14px;
+  padding: 12px 16px 18px; overflow-y: auto;
+}
+.pilecell { display: flex; flex-direction: column; gap: 6px; }
+.pilecell .rwho { background: #211c33; border-color: #3a3352; color: #efeaff; }
+.pilecell .rwho .pn { margin-left: auto; font-size: 12px; font-weight: 900; color: #ffcf6b; }
+.pilecell .gcard { width: 100%; cursor: default; }
+.pfull { margin: 0; font-size: 11.5px; line-height: 1.65; color: #cfc7ea; word-break: keep-all; }
+.pflash {
+  position: absolute; right: 7px; top: 7px; z-index: 4; font-size: 9.5px; font-weight: 800;
+  color: #221a08; background: #ffcf6b; border-radius: 4px; padding: 1px 6px;
+}
+
+/* ══ 피해 미리보기 ══════════════════════════════════════════════════════
+   카드를 고르거나 올리면 적 위에 얼마나 깎이는지 뜬다. 막대 끝에는 깎일 만큼 그림자. */
+.bar { position: relative; }
+.bar .ghost {
+  position: absolute; top: 0; bottom: 0; width: 0; text-decoration: none;
+  background: repeating-linear-gradient(45deg, #ffe08a 0 4px, #ff8a5c 4px 8px);
+  animation: pvblink 0.9s ease-in-out infinite alternate;
+}
+@keyframes pvblink { from { opacity: 0.55; } to { opacity: 1; } }
+.foe .pv {
+  position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 6;
+  display: none; flex-direction: column; align-items: center; gap: 1px; pointer-events: none;
+}
+.foe.pvon .pv { display: flex; }
+.foe .pv b {
+  font-size: 26px; font-weight: 900; color: #fff; line-height: 1;
+  -webkit-text-stroke: 1px #7a1414; text-shadow: 0 2px 0 #7a1414, 0 0 12px #ff5a3c;
+}
+.foe .pv small { font-size: 10.5px; font-weight: 800; color: #ffe08a; text-shadow: 0 1px 2px #000; }
+.foe .pv .pvhp { font-size: 12px; font-weight: 800; color: #ffd0c4; text-shadow: 0 1px 2px #000; }
+.foe .pv .pvg { font-size: 11.5px; font-weight: 800; color: #bfe0ff; text-shadow: 0 1px 2px #000; }
+.foe.pvkill .pv b { color: #ffe08a; -webkit-text-stroke: 1px #6a3a00; text-shadow: 0 2px 0 #6a3a00, 0 0 14px #ffb13c; }
+.foe.pvkill .art, .foe.pvkill canvas, .foe.pvkill img { filter: saturate(0.6) brightness(0.85); }
+
+/* 힘을 모으는 적 — 다음 턴에 크게 온다. 눈에 띄어야 대비한다 */
+.intent.i-charge .igem { background: linear-gradient(135deg, #ffb13c, #ff5a3c); animation: pvblink 0.7s ease-in-out infinite alternate; }
+.intent.i-charge .isay { color: #ffd08a; font-weight: 800; }
+.intent.i-heal .igem { background: linear-gradient(135deg, #8fe39a, #3fa35a); }
+.intent.i-guard .igem { background: linear-gradient(135deg, #9cc8ff, #4a7fc0); }
+
+/* ══ 패시브 ═════════════════════════════════════════════════════════════
+   발동하면 그 사도 위에 이름이 떠오른다 · 걸려 있는 증감은 칩 하나로 */
+.stand { position: relative; }
+.pfire {
+  position: absolute; left: 50%; top: 8px; transform: translateX(-50%); z-index: 8; white-space: nowrap;
+  font-size: 11.5px; font-weight: 900; color: #221a08; background: #ffcf6b; border-radius: 99px; padding: 2px 10px;
+  box-shadow: 0 4px 12px #0008; pointer-events: none; animation: pfire 1.6s ease-out forwards;
+}
+@keyframes pfire { 0% { opacity: 0; transform: translate(-50%, 8px); } 15% { opacity: 1; transform: translate(-50%, 0); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -18px); } }
+.chip.mod.up { background: #1f3b2a; color: #9fe3b4; border-color: #2f5d40; }
+.chip.mod.down { background: #3b1f24; color: #ffb3b3; border-color: #5d2f36; }

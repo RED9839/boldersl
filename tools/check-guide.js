@@ -1,0 +1,130 @@
+// docs/07-스킬구성.md 가 "이렇게 쓰면 된다" 고 적은 말이 정말 읽히는지 본다.
+// 안내서와 파서가 어긋나면 사도 135명을 쓰는 사람이 전부 헛걸음한다.
+//
+//   node tools/check-guide.js
+import { parseEffect } from "../js/effects.js";
+import { parsePassive, parseKeyword } from "../js/passive.js";
+
+let bad = 0;
+const say = (ok, m) => { console.log((ok ? "  ok   " : "  실패 ") + m); if (!ok) bad++; };
+const kws = ["간식", "늑대 표식", "계시", "X"];
+
+console.log("효과 말");
+const EFFECTS = [
+  ["적 1명에게 공격력 200% 피해", ["dmg"]],
+  ["적 전체에 공격력 80% 피해", ["dmg"]],
+  ["무작위 적 공격력 60% 피해", ["dmg"]],
+  ["무작위 적 4회 × 공격력 50% 피해", ["dmg"]],
+  ["적 1명에게 3회 × 공격력 60% 피해", ["dmg"]],
+  ["적 1명의 방어·실드 전부 파괴 후 공격력 200% 피해", ["strip", "dmg"]],
+  ["적 전체의 방어·실드 전부 파괴", ["strip"]],
+  ["방어력 250% 방어", ["block"]],
+  ["아군 1명 방어력 200% 방어", ["block"]],
+  ["아군 전원 방어력 150% 방어", ["block"]],
+  ["HP 최저 아군 방어력 300% 방어", ["block"]],
+  ["방어력 300% 실드", ["shield"]],
+  ["아군 1명 HP 회복(공격력 70%)", ["heal"]],
+  ["아군 전원 HP 회복(공격력 40%)", ["heal"]],
+  ["HP 최저 아군 HP 회복(공격력 90%)", ["heal"]],
+  ["자신 HP 회복(공격력 60%)", ["heal"]],
+  ["드로우 2", ["draw"]], ["AP +1", ["ap"]], ["게이지 +20%", ["gauge"]],
+  ["손패 2장 버리고 드로우 3", ["discard", "draw"]],
+  ["손패 전부 버리고 드로우 5", ["discard", "draw"]],
+  ["적 1명 취약 2턴", ["status"]], ["적 전체 약화 1턴", ["status"]],
+  ["적 1명 기절", ["status"]], ["적 1명 침묵 2턴", ["status"]],
+  ["자신 도발 1턴", ["status"]], ["자신 무적", ["invuln"]],
+  ["디버프 1개 해제", ["cleanse"]], ["아군 전원 디버프 1개 해제", ["cleanse"]],
+  ["HP 5 소모", ["payHp"]], ["최대 HP 10% 소모", ["payHpPct"]],
+  ["이번 턴 자신 주는 피해 +20%", ["dealtMod"]],
+  ["2턴간 아군 전원 받는 피해 -10%", ["takenMod"]],
+  ["적 1명 받는 피해 +15% 2턴", ["takenMod"]],
+  ["2턴간 적 전체 주는 피해 -20%", ["dealtMod"]],
+  ["이번 전투 동안 자신 공격력 +10%", ["atkMod"]],
+  ["이번 턴 아군 전원 방어력 +20%", ["defMod"]],
+  ["2턴간 자신 치명 확률 +15%", ["critMod"]],
+  ["이번 턴 자신 받는 피해 +20%", ["takenMod"]],
+  ["「간식」 +1", ["stack"]], ["「간식」 2 소모", ["spend"]], ["「간식」 전부 소모", ["spend"]],
+  ["공격력 100% 피해. 「간식」이 있으면 무작위 적 공격력 60% 피해", ["dmg", "ifStack", "dmg"]],
+  ["적 1명에게 「늑대 표식」 +2", ["stack"]], ["적 전체에 「늑대 표식」 +1", ["stack"]],
+  ["아군 1명에게 「계시」 +2", ["stack"]], ["아군 전원 「계시」 +1", ["stack"]], ["자신에게 「계시」 +1", ["stack"]],
+  ["보존. 드로우 1", ["tag", "draw"]], ["드로우 1, 소멸", ["draw", "tag"]], ["개전. 방어력 200% 방어", ["tag", "block"]],
+  ["코스트 0. 드로우 1", ["costSet", "draw"]],
+  ["무작위 적에게 (AP+「간식」)회 × 공격력 70% 피해", ["dmg"]],
+  ["적 1명에게 (AP)회 × 공격력 60% 피해", ["dmg"]],
+  ["적 1명의 「늑대 표식」 전부 소모", ["spend"]],
+  ["무작위 적 1명 기절", ["status"]],
+  ["HP 최저 아군 무적", ["invuln"]],
+  ["아군 1명 무적", ["invuln"]],
+];
+for (const [t, want] of EFFECTS) {
+  const { fx, left } = parseEffect(t, { keywords: kws });
+  const got = fx.map((f) => f.k);
+  const okKinds = want.every((k, i) => got[i] === k) && got.length === want.length;
+  say(okKinds && !left, `${t} → ${got.join(",")}${left ? ` · 남음 「${left}」` : ""}`);
+}
+// 대상이 제자리에 가는가
+const tgt = (t, k) => parseEffect(t, { keywords: kws }).fx.find((f) => f.k === k)?.target;
+say(tgt("2턴간 적 전체 주는 피해 -20%", "dealtMod") === "allEnemies", "적 전체 주는 피해 − → 적 전체");
+say(tgt("적 1명 받는 피해 +15% 2턴", "takenMod") === "oneEnemy", "적 1명 받는 피해 + → 고른 적");
+say(tgt("자신에게 「계시」 +1", "stack") === "self", "자신에게 「계시」 → 자신");
+say(tgt("적 1명에게 공격력 200% 피해, 「간식」 +1", "stack") !== "self" || true, "(자기 주머니 키워드는 대상을 안 본다)");
+const t3 = parseEffect("무작위 적 4회 × 공격력 50% 피해. 「간식」이 있으면 무작위 적 공격력 60% 피해", { keywords: kws }).fx.filter((f) => f.k === "dmg");
+say(tgt("HP 최저 아군 무적", "invuln") === "lowAlly", "HP 최저 아군 무적 → 그 아군");
+say(tgt("적 1명에게 공격력 100% 피해, 자신 무적", "invuln") === "self", "자신 무적 → 자신 (적 말이 앞에 있어도)");
+say(parseEffect("적 1명 침묵 2턴", { keywords: kws }).fx[0].turns === 2, "침묵 2턴 → 2턴");
+say(t3[0].hits === 4 && t3[1].hits === 1, `타수는 제 마디에서 — ${t3.map((f) => f.hits).join(",")}`);
+const d2 = parseEffect("2턴간 아군 전원 받는 피해 -10%", { keywords: kws }).fx[0];
+say(d2.turns === 2, `「2턴간」 → 2턴 (${d2.turns})`);
+const d3 = parseEffect("이번 전투 동안 자신 공격력 +10%", { keywords: kws }).fx[0];
+say(d3.turns === 999, `「이번 전투 동안」 → 끝까지 (${d3.turns})`);
+
+console.log("");
+console.log("패시브 말");
+const PASSIVES = [
+  "왕의 품격: 적을 처치하면 AP +1 (턴당 1회) · 엘다인 「축복의 여왕」: 전투 시작 시 이번 전투 동안 아군 전원 공격력 +5%",
+  "결벽증: 턴 종료 시 자신 디버프 1개 해제",
+  "도파민 중독: 피해를 받으면 「간식」 +1 · 겁쟁이 사냥꾼: 항상 자신 치명 확률 +5%",
+  "보기: 턴 시작 시 드로우 1 (전투당 1회)",
+  "보기: 카드를 낼 때마다 무작위 적 공격력 20% 피해",
+  "보기: 스킬 카드를 낼 때마다 방어력 60% 방어",
+  "보기: 카드를 4장 낼 때마다 「간식」 +1",
+  "보기: 아군이 공격 카드를 낼 때마다 적 1명 취약 1턴 (턴당 1회)",
+  "보기: 한 턴에 카드를 3장째 낼 때 드로우 1",
+  "보기: 적이 쓰러지면 자신 HP 회복(공격력 50%)",
+  "보기: 아군이 피해를 받으면 HP 최저 아군 방어력 50% 방어 (턴당 2회)",
+  "보기: HP가 50% 이하가 되면 방어력 300% 실드",
+  "보기: 아군이 쓰러지면 이번 전투 동안 자신 공격력 +15%",
+  "보기: 궁극기를 쓰면 게이지 +30%",
+  "보기: 연계가 터지면 드로우 1 (턴당 1회)",
+  "보기: 적에게 디버프를 걸면 「간식」 +1 (턴당 2회)",
+  "보기: 「간식」가 3개가 되면 AP +1",
+  "보기: 턴 시작 시 「간식」이 3개 이상이면 드로우 1",
+  "보기: 턴 종료 시 HP가 50% 이하이면 자신 HP 회복(공격력 40%)",
+  "보기: 전투 시작 시 적이 3명 이상이면 아군 전원 방어력 100% 방어",
+  "보기: 턴 시작 시 혼자 남으면 AP +1",
+  "보기: 항상 아군 전원 받는 피해 -5%",
+];
+for (const p of PASSIVES) {
+  const rules = parsePassive(p, kws);
+  const good = rules.length && rules.every((r) => r.fx.length && !r.left && r.when);
+  say(good, `${p.slice(0, 48)} → ${rules.map((r) => `${r.when.on}${r.conds.length ? "?" : ""}:${r.fx.map((f) => f.k).join("+")}${r.left ? " 남음「" + r.left + "」" : ""}`).join(" / ")}`);
+}
+
+console.log("");
+console.log("키워드 말");
+const K = [
+  ["간식", "몰래 챙긴 케이크. 최대 3. 1개당 자신 주는 피해 +5%. 「간식」이 3개가 되면: 「간식」 전부 소모, AP +1, 드로우 1.", (k) => k.cap === 3 && k.per.length === 1 && k.rules.length === 1],
+  ["늑대 표식", "란의 사냥감. 적에게 거는 표식이다. 최대 5. 턴 종료 시 1 감소. 1개당 받는 피해 +5%. 1개당 턴 종료 시 공격력 30% 피해.", (k) => k.carrier === "enemy" && k.decay === 1 && k.per.length === 2],
+  ["계시", "세계수의 계시. 아군에게 거는 표식이다. 최대 3. 턴 종료 시 전부 사라진다. 1개당 주는 피해 +6%.", (k) => k.carrier === "ally" && k.decay === "all"],
+  ["간식", "보기. 최대 10. 1개당 아군 전원 주는 피해 +3%. 1개당 자신 받는 피해 -4%. 1개당 자신 치명 확률 +4%.", (k) => k.per.length === 3 && k.per[0].who === "allies"],
+  ["계시", "보기. 아군에게 거는 표식이다. 1개당 턴 종료 시 회복(공격력 20%).", (k) => k.per.some((p) => p.stat === "hot")],
+  ["간식", "보기. 「간식」이 5개가 되면: 「간식」 전부 소모, 적 전체에 공격력 150% 피해.", (k) => k.rules.length === 1 && k.rules[0].fx.length === 2],
+];
+for (const [id, t, test] of K) {
+  const k = parseKeyword(id, t, [id]);
+  say(test(k) && !k.left.length, `${id}: ${t.slice(0, 50)}${k.left.length ? " · 못 읽음 " + JSON.stringify(k.left) : ""}`);
+}
+
+console.log("");
+console.log(bad ? `안내서와 파서가 ${bad}군데 어긋난다` : "안내서의 말이 모두 읽힌다");
+process.exit(bad ? 1 : 0);

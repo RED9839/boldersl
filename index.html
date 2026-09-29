@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>볼더슬</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/journey.css">
+<link rel="stylesheet" href="css/dex.css">
+<link rel="stylesheet" href="css/team.css">
+<link rel="stylesheet" href="css/battle.css">
+</head>
+<body>
+<header class="top">
+  <h1>볼더슬 <span class="ver">프로토타입</span></h1>
+  <p class="unofficial">트릭컬 리바이브 팬 게임 · 비공식 개인 제작. 공식과 무관합니다.</p>
+</header>
+
+<main id="screen"></main>
+
+<footer class="bottom">
+  <span id="hint"></span>
+</footer>
+
+<!-- 스파인 런타임 — 있으면 전투 SD·스탠딩·미니미가 움직인다. 없으면 그림 한 장으로 떨어진다.
+     Spine Runtimes 는 쓰는 사람이 각자 Spine Editor 라이선스를 가져야 한다(vendor/spine-webgl.LICENSE). -->
+<script src="vendor/spine-webgl.min.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
