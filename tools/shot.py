@@ -76,7 +76,7 @@ def main():
 
         d.execute_script("document.querySelector('.home-primary').click()"); time.sleep(2.0)
         shot(d, a.out, "2-팀편성")
-        d.find_element(By.CSS_SELECTOR, ".dexbtn").click(); time.sleep(1.2)
+        d.find_element(By.CSS_SELECTOR, ".tm-fdex").click(); time.sleep(1.2)
         shot(d, a.out, "3-도감")
 
         box = d.find_element(By.CSS_SELECTOR, ".dsearch")
@@ -98,11 +98,10 @@ def main():
         d.find_element(By.CSS_SELECTOR, ".back").click(); time.sleep(0.9)   # 사도 정보 → 도감
         d.find_element(By.CSS_SELECTOR, ".back").click(); time.sleep(0.9)   # 도감 → 편성
         for name in ("에르핀", "네르", "티그"):
-            d.find_elements(By.CSS_SELECTOR, ".tcard.empty")[0].click(); time.sleep(0.5)
-            sb = d.find_element(By.CSS_SELECTOR, ".tdrawer .dsearch")
+            sb = d.find_element(By.CSS_SELECTOR, ".tm-fsearch")
             sb.clear(); sb.send_keys(name); time.sleep(0.6)
-            for c in d.find_elements(By.CSS_SELECTOR, ".tdrawer .pcard"):
-                if c.find_element(By.CSS_SELECTOR, ".dname").text == name:
+            for c in d.find_elements(By.CSS_SELECTOR, ".tm-fcard"):
+                if c.find_element(By.CSS_SELECTOR, ".tm-fcp b").text == name:
                     c.click(); break
             time.sleep(0.6)
         go = [b for b in d.find_elements(By.CSS_SELECTOR, "button") if b.text == "떠납니다"]
@@ -152,7 +151,7 @@ def main():
         if not a.no_check:
             d.get(base + "/"); time.sleep(1.5)
             d.execute_script("document.querySelector('.home-primary').click()"); time.sleep(2.0)
-            d.find_element(By.CSS_SELECTOR, ".dexbtn").click(); time.sleep(1.4)
+            d.find_element(By.CSS_SELECTOR, ".tm-fdex").click(); time.sleep(1.4)
             # 찾던 이름이 남아 있으면 두 장만 깔린다. 지우고 봐야 전체가 보인다.
             d.execute_script("""
               const s = document.querySelector('.dsearch');

@@ -73,59 +73,58 @@ const p = ui.partyScreen((party, rows) => (started = { party, rows }));
 const count = (root, cls) => { let n = 0; (function w(x){ for (const c of x.children) { if (c.classList.contains(cls)) n++; w(c); } })(root); return n; };
 
 // 도감 — 왼쪽 세력 레일 · 초상 격자 · 위의 탭과 정렬
-// ── 팀 편성 — 큰 카드 셋 + 오른쪽 이번 싸움 ─────────────────────────
-check(p.className.includes("teamscreen"), "팀 편성으로 연다");
-check(count(p, "tcard") === 3 && count(p, "empty") === 3, `빈 자리 셋 (${count(p, "empty")})`);
-check(count(p, "tfoe") === 2, `이번에 나오는 적이 보인다 (${count(p, "tfoe")})`);
-check(/에르피엔/.test(p.textContent) && /커버러스/.test(p.textContent), "어디서 싸우고 보스가 누구인지 적는다");
+// ── 팀 편성 — 위는 무대(고른 셋이 선다), 아래는 명단(늘 펼침) ─────────────
+check(p.className.includes("teamscreen2"), "팀 편성으로 연다");
+check(count(p, "tm-fstand") === 3 && count(p, "empty") === 3, `무대에 빈 자리 셋 (${count(p, "empty")})`);
+check(count(p, "tm-fcard") === 135, `명단이 처음부터 펼쳐져 있다 (${count(p, "tm-fcard")})`);
+check(/에르피엔/.test(p.textContent) && /커버러스/.test(p.textContent), "어디서 떠나고 보스가 누구인지 적는다");
 
 const search = () => (function find(n) {
-  for (const c of n.children) { if (c.classList.contains("dsearch")) return c; const r = find(c); if (r) return r; }
+  for (const c of n.children) { if (c.classList.contains("tm-fsearch")) return c; const r = find(c); if (r) return r; }
   return null;
 })(p);
-const nameOf = (c) => { const f = (x) => { for (const y of x.children) { if (y.classList.contains("dname")) return y; const r = f(y); if (r) return r; } return null; };
+const nameOf = (c) => { const f = (x) => { for (const y of x.children) { if (y.classList.contains("tm-fcp")) return y.children[0]; const r = f(y); if (r) return r; } return null; };
   const n = f(c); return n ? n.textContent : ""; };
+const cardOf = (name) => { const sb = search(); sb.value = name; sb.oninput(); return clickAll(p, (n) => n.classList.contains("tm-fcard")).find((c) => nameOf(c) === name); };
+function take(name) { const c = cardOf(name); if (c) c.onclick(); return !!c; }
 
-function take(name) {
-  const slot = clickAll(p, (n) => n.classList.contains("empty"))[0];
-  if (!slot) return false;
-  slot.onclick();                                   // 서랍이 열린다
-  const sb = search(); sb.value = name; sb.oninput();
-  const card = clickAll(p, (n) => n.classList.contains("pcard")).find((c) => nameOf(c) === name);
-  if (card) card.onclick();
-  return !!card;
-}
-
-check(take("에르핀"), "빈 자리를 눌러 서랍에서 고른다");
-check(count(p, "empty") === 2, "고르면 자리가 찬다");
-check(count(p, "tdrawer") === 1 && !count(p, "open"), "고르면 서랍이 닫힌다");
-// 위치는 고르는 것이 아니라 정해진 것이다 — 보여 주기만 한다
-check(/후열 딜러 · 적은 전열부터 노립니다/.test(p.textContent), "정해진 위치를 알려 준다");
-{
-  const pos = clickAll(p, (n) => n.classList.contains("pbtn"));
-  check(pos.length === 0, `위치를 누를 수 없다 (누를 수 있는 것 ${pos.length})`);
-}
+check(take("에르핀"), "명단에서 눌러 무대에 올린다");
+check(count(p, "empty") === 2, "올리면 자리가 찬다");
+check(/후열 딜러/.test(p.textContent), "정해진 위치를 알려 준다");
+check(count(p, "tm-fnum") === 1, "명단에서 고른 사도에 순번이 붙는다");
+cardOf("에르핀").onclick();
+check(count(p, "empty") === 3, "한 번 더 누르면 무대에서 내린다");
+take("에르핀");
 
 for (const n of ["네르", "티그"]) check(take(n), `${n} 을 찾아 넣는다`);
 check(count(p, "empty") === 0, "세 자리가 다 찬다");
-check(/3\/3/.test(p.textContent), "머리에 몇 명 골랐는지 나온다");
+check(/3 \/ 3/.test(p.textContent), "머리에 몇 명 골랐는지 나온다");
+{
+  const extra = cardOf("셰럼"); extra.onclick();
+  check(count(p, "tm-fstand") === 3 && count(p, "empty") === 0, "넷째는 올라가지 않는다");
+}
+// 무대 순서 — 전투처럼 후열이 왼쪽
+{
+  const stands = clickAll(p, (n) => n.classList.contains("tm-fstand"));
+  check(/에르핀/.test(stands[0].textContent), "후열(에르핀)이 무대 왼쪽에 선다");
+}
 
 // 함께 가면 · 덱
 check(/각별|친함/.test(p.textContent), "사이가 보인다");
 check(!p.textContent.includes("초면"), "초면을 적지 않는다");
-check(/광기→순수→냉정→광기/.test(p.textContent), "성격 상성을 적어 준다");
+check(/광기 → 순수 → 냉정 → 광기/.test(p.textContent), "성격 상성을 적어 준다");
 check(/첫 턴 AP/.test(p.textContent), "첫 턴 AP 가 보인다");
-check(count(p, "dkcard") === 12, `덱 열두 장이 미리 보인다 (${count(p, "dkcard")})`);
+check(count(p, "tm-fdk") === 12, `덱 열두 장이 미리 보인다 (${count(p, "tm-fdk")})`);
 
-// 카드의 ⌕ 로 사도 정보에 들어갔다 온다
-clickAll(p, (n) => n.classList.contains("tlook"))[0].onclick();
-check(count(p, "side") === 1, "카드의 ⌕ 로 사도 정보에 들어간다");
+// 무대의 사도를 누르면 사도 정보에 들어갔다 온다
+clickAll(p, (n) => n.classList.contains("tm-fstand"))[0].onclick();
+check(count(p, "side") === 1, "무대의 사도를 누르면 사도 정보에 들어간다");
 check(count(p, "statgrid") === 1 && count(p, "gcard") === 0, "들어가면 능력치부터 보인다");
 clickAll(p).find((n) => n.classList.contains("back")).onclick();
-check(count(p, "tcard") === 3, "편성으로 돌아온다");
+check(count(p, "tm-fstand") === 3 && count(p, "empty") === 0, "편성으로 돌아온다 — 고른 셋 그대로");
 
 // 도감으로 갔다 온다
-clickAll(p).find((n) => n.classList.contains("dexbtn")).onclick();
+clickAll(p).find((n) => n.classList.contains("tm-fdex")).onclick();
 check(count(p, "dexgrid") === 1, "사도 도감으로 넘어간다");
 check(count(p, "dex") === 135, `도감에 135명이 깔린다 (${count(p, "dex")})`);
 check(count(p, "decho") === 19, `이격 열아홉에 표가 붙는다 (${count(p, "decho")})`);
@@ -136,10 +135,12 @@ check(count(p, "decho") === 19, `이격 열아홉에 표가 붙는다 (${count(p
 check(/에르핀 · 네르 · 티그/.test(p.textContent), "도감 아래에 고른 셋이 적힌다");
 
 {
-  const sb = search(); sb.value = "에르핀"; sb.oninput();
-  const names = clickAll(p, (n) => n.classList.contains("dex")).map(nameOf);
+  const dsearch = (function find(x) { for (const c of x.children) { if (c.classList.contains("dsearch")) return c; const r = find(c); if (r) return r; } return null; })(p);
+  const dname = (c) => { const f = (x) => { for (const y of x.children) { if (y.classList.contains("dname")) return y; const r = f(y); if (r) return r; } return null; }; const q = f(c); return q ? q.textContent : ""; };
+  dsearch.value = "에르핀"; dsearch.oninput();
+  const names = clickAll(p, (n) => n.classList.contains("dex")).map(dname);
   check(names.includes("에르핀") && names.includes("에르핀(왕도)"), `이름으로 찾으면 이격도 같이 나온다 (${names.join(", ")})`);
-  clickAll(p, (n) => n.classList.contains("dex")).find((c) => nameOf(c) === "에르핀").onclick();
+  clickAll(p, (n) => n.classList.contains("dex")).find((c) => dname(c) === "에르핀").onclick();
 }
 check(count(p, "sidebtn") === 4, `갈피 넷 (${count(p, "sidebtn")})`);
 clickAll(p, (n) => n.classList.contains("sidebtn")).find((b) => b.textContent === "카드").onclick();
@@ -168,7 +169,7 @@ check(/게이지 \d+% 를 씁니다/.test(p.textContent), "고학년 스킬에 �
 clickAll(p).find((n) => n.classList.contains("back")).onclick();
 check(count(p, "dexgrid") === 1, "도감으로 돌아온다");
 clickAll(p).find((n) => n.classList.contains("back")).onclick();
-check(count(p, "tcard") === 3, "다시 편성으로 돌아온다");
+check(count(p, "tm-fstand") === 3, "다시 편성으로 돌아온다");
 
 const goBtn = clickAll(p).find((n) => n.textContent === "떠납니다");
 check(goBtn && !goBtn.disabled, "셋을 고르면 떠날 수 있다");

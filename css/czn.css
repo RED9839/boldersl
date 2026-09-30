@@ -1192,3 +1192,189 @@ body:has(#screen.mapscreen) .top { display: none; }
   45% { transform: translate(0, -30px) scale(1); opacity: 1; }
   100% { transform: translate(var(--dx), var(--dy)) scale(.4); opacity: .3; }
 }
+
+/* ══ 팀 편성 — 위는 무대, 아래는 명단 ═══════════════════════════════════════
+   전투 · 지도와 같은 옷: 1층 싸움터(--stagebg) · 어두운 유리 · 금선.
+   무대에는 고른 셋이 전투처럼 스파인으로 선다(후열이 왼쪽). 명단은 늘 펼쳐 두고 눌러서 올리고 내린다. */
+body:has(#screen.teamscreen2) .top { display: none; }
+#screen.teamscreen2 {
+  position: fixed; inset: 0; z-index: 1; max-width: none; margin: 0; padding: 0; border-radius: 0;
+  height: var(--app-h, 100vh); overflow: hidden; color: #f4f1ff;
+  --dockh: 318px; --sidew: 390px;
+  background:
+    linear-gradient(180deg, #0a0814cc 0, #0a081440 16%, #0a081400 40%, #0a081499 62%, #0a0814 78%),
+    var(--stagebg, none) 50% 72% / max(115%, calc(var(--app-h, 100vh) * 1.15 * 16 / 9)) auto no-repeat,
+    radial-gradient(ellipse at 50% 20%, #2a2340, #0e0c17 80%);
+}
+/* 머리 */
+.tm-fhead {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 5; display: flex; align-items: center; gap: 16px;
+  padding: 14px 20px; background: linear-gradient(180deg, #0d0b16e6, #0d0b1600);
+}
+.tm-fback, .tm-fdex {
+  min-height: 0; padding: 9px 16px; border-radius: 10px; font-size: 14px; font-weight: 800;
+  background: #0d0b16c7; border: 1px solid #ffffff2e; color: #f4f1ff; backdrop-filter: blur(4px);
+}
+.tm-fback { padding: 9px 14px; }
+.tm-fback:hover:not(:disabled), .tm-fdex:hover:not(:disabled) { transform: none; border-color: #f6d58e; }
+.tm-ftitle { display: flex; align-items: baseline; gap: 10px; }
+.tm-ftitle b { font-size: 24px; font-weight: 900; text-shadow: 0 2px 8px #000; }
+.tm-fcount2 { font-size: 15px; font-weight: 800; color: #f6d58e; }
+.tm-fwhere { margin-right: auto; font-size: 13px; color: #d9d2f2; text-shadow: 0 1px 4px #000; }
+
+/* 무대 — 발밑이 명단 바로 위 */
+.tm-fstage { position: absolute; left: 0; right: var(--sidew); top: 64px; bottom: var(--dockh); }
+.tm-fstands {
+  position: absolute; left: 70px; right: 40px; bottom: 6px; top: 0;
+  display: flex; align-items: flex-end; justify-content: center; gap: 34px;
+}
+.tm-fstand {
+  position: relative; width: 230px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  cursor: pointer; animation: fstandin .35s ease-out;
+}
+@keyframes fstandin { from { opacity: 0; transform: translateY(14px); } }
+.tm-fstand .art { width: 230px !important; height: 300px !important; position: relative; }
+.tm-fstand .art:after {
+  content: ""; position: absolute; left: 14%; right: 14%; bottom: 0; height: 9%; z-index: -1;
+  border-radius: 50%; background: radial-gradient(closest-side, #000b, transparent);
+}
+.tm-fstand:not(.empty):hover .art { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--tint) 70%, transparent)); }
+.tm-fplate {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 14px; border-radius: 12px;
+  background: #0d0b16cc; border: 1px solid color-mix(in srgb, var(--tint, #fff) 55%, transparent); backdrop-filter: blur(4px);
+}
+.tm-fpt { display: flex; align-items: center; gap: 6px; }
+.tm-fpt b { font-size: 16px; font-weight: 900; }
+.tm-fnat { width: 20px; height: 20px; }
+.tm-fps { font-size: 12px; color: #d9d2f2; }
+.tm-fx {
+  position: absolute; top: 4px; right: 18px; z-index: 3; min-height: 0; width: 30px; height: 30px; padding: 0; border-radius: 50%;
+  font-size: 14px; background: #0d0b16d9; border: 1px solid #ffffff40; color: #fff; opacity: 0; transition: opacity .15s;
+}
+.tm-fstand:hover .tm-fx, .touch .tm-fx { opacity: 1; }
+.tm-fx:hover:not(:disabled) { transform: none; border-color: #ff8a8a; color: #ff8a8a; }
+/* 빈 자리 — 흐린 실루엣 */
+.tm-fstand.empty {
+  height: 300px; justify-content: flex-end; padding: 0 0 18px; min-height: 0; border: 0; background: none; color: #d9d2f2;
+}
+.tm-fstand.empty:hover:not(:disabled) { transform: none; }
+.tm-fghost {
+  position: absolute; left: 50%; bottom: 60px; width: 150px; height: 210px; transform: translateX(-50%);
+  border-radius: 75px 75px 26px 26px; border: 2px dashed #ffffff40; background: radial-gradient(ellipse at 50% 40%, #ffffff14, #ffffff05 70%);
+}
+.tm-fplus { position: relative; font-size: 34px; font-weight: 300; color: #ffffffaa; margin-bottom: 70px; }
+.tm-fwho { position: relative; font-size: 13px; font-weight: 700; padding: 5px 12px; border-radius: 99px; background: #0d0b16b3; border: 1px solid #ffffff26; }
+
+/* 오른쪽 — 함께 가면 · 시작 덱 · 떠납니다 */
+.tm-fside {
+  position: absolute; right: 16px; top: 72px; bottom: calc(var(--dockh) + 10px); width: calc(var(--sidew) - 32px); z-index: 4;
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 14px; overflow: hidden;
+  background: #0d0b16d9; border: 1px solid #ffffff26; backdrop-filter: blur(6px); box-shadow: 0 10px 26px #000a;
+}
+.tm-flabel { font-size: 12px; font-weight: 900; letter-spacing: .08em; color: #f6d58e; }
+.tm-fnote { margin: 0; font-size: 12.5px; line-height: 1.5; color: #b9b2d6; }
+.tm-fsyn { display: flex; flex-direction: column; gap: 7px; }
+.tm-fbond { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.tm-fbond b { font-weight: 800; }
+.tm-ftier { padding: 1px 8px; border-radius: 99px; font-size: 11.5px; font-weight: 800; background: #ffffff1a; border: 1px solid #ffffff33; }
+.tm-fwhy { font-size: 11.5px; color: #b9b2d6; }
+.tm-fnats { display: flex; gap: 6px; flex-wrap: wrap; }
+.tm-fnatc {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px 3px 4px; border-radius: 99px; font-size: 12px; font-weight: 800;
+  background: color-mix(in srgb, var(--tint) 22%, #0d0b16); border: 1px solid color-mix(in srgb, var(--tint) 60%, transparent);
+}
+.tm-fci { width: 18px; height: 18px; }
+.tm-fap { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.tm-fap b { font-size: 22px; font-weight: 900; color: #f6d58e; }
+.tm-fdeck2 { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.tm-fdkrow { display: flex; gap: 8px; align-items: flex-start; }
+.tm-fdkwho { flex: none; width: 58px; font-size: 12px; font-weight: 800; padding-top: 3px; }
+.tm-fdkcards { display: flex; flex-wrap: wrap; gap: 4px; }
+.tm-fdk {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 3px; border-radius: 7px; font-size: 11.5px;
+  background: #ffffff0f; border: 1px solid #ffffff22;
+}
+.tm-fdk i { font-style: normal; width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 900; background: #2c2544; color: #f6d58e; }
+.tm-fdk.t공격 { border-color: #d9737f66; } .tm-fdk.t방어 { border-color: #7fb7f566; } .tm-fdk.t스킬 { border-color: #9fe3b466; } .tm-fdk.t강화 { border-color: #f5dc5a66; }
+.tm-fgo {
+  flex: none; min-height: 0; padding: 14px; border-radius: 12px; font-size: 18px; font-weight: 900; letter-spacing: .04em;
+  background: linear-gradient(180deg, #ffe7a8, #f0b94a); color: #2a1a05; border: 1px solid #fff3; box-shadow: 0 0 22px #f0b94a66, 0 6px 14px #0008;
+}
+.tm-fgo:disabled { background: #2c2544; color: #9d96bd; box-shadow: none; }
+.tm-fgo:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.05); }
+
+/* 명단 — 아래 전체, 늘 펼침 */
+.tm-fdock {
+  position: absolute; left: 0; right: 0; bottom: 0; height: var(--dockh); z-index: 3;
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 16px 12px;
+  background: linear-gradient(180deg, #0d0b16cc, #0d0b16f2 30%); border-top: 1px solid #f6d58e44; backdrop-filter: blur(6px);
+}
+.tm-fbar { display: flex; align-items: center; gap: 10px; }
+.tm-fchips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-right: auto; }
+.tm-fchip {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 0; padding: 5px 11px; border-radius: 99px; font-size: 12.5px; font-weight: 700;
+  background: #ffffff0d; border: 1px solid #ffffff26; color: #e8e3ff;
+}
+.tm-fchip.on { background: #f6d58e26; border-color: #f6d58e; color: #fff; }
+.tm-fchip:hover:not(:disabled) { transform: none; border-color: #f6d58e99; }
+.tm-fgap { width: 12px; }
+.tm-fsearch {
+  width: 200px; padding: 8px 12px; border-radius: 10px; font-size: 13px;
+  background: #0d0b16; border: 1px solid #ffffff2e; color: #f4f1ff;
+}
+.tm-froster {
+  flex: 1; min-height: 0; overflow-y: auto; display: grid; gap: 8px; padding: 2px 2px 6px;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); align-content: start;
+}
+.tm-fcard {
+  position: relative; height: 128px; min-height: 0; padding: 0; overflow: hidden; border-radius: 10px;
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--tint) 30%, #1a1628), #0d0b16 85%);
+  border: 1.5px solid #ffffff22; transition: border-color .15s, transform .15s;
+}
+.tm-fcard .art { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+.tm-fcard .art img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 15%; }
+.tm-fcard:hover:not(:disabled) { transform: translateY(-2px); border-color: color-mix(in srgb, var(--tint) 80%, #fff); }
+.tm-fcard.on { border-color: #f6d58e; box-shadow: 0 0 0 1px #f6d58e, 0 0 14px #f6d58e66; }
+.tm-fcard.on .art { filter: brightness(.55); }
+.tm-ffade { position: absolute; left: 0; right: 0; bottom: 0; height: 55%; background: linear-gradient(180deg, transparent, #0d0b16f2); }
+.tm-fbadges { position: absolute; left: 4px; top: 4px; display: flex; flex-direction: column; gap: 2px; }
+.tm-fb { width: 20px; height: 20px; filter: drop-shadow(0 1px 2px #000); }
+.tm-fcp { position: absolute; left: 0; right: 0; bottom: 5px; display: flex; flex-direction: column; align-items: center; gap: 0; }
+.tm-fcp b { font-size: 13px; font-weight: 800; text-shadow: 0 1px 3px #000; white-space: nowrap; }
+.tm-fcp span { font-size: 10.5px; color: #d9d2f2; }
+.tm-fnum {
+  position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); width: 38px; height: 38px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 20px; font-weight: 900; color: #2a1a05; background: linear-gradient(180deg, #ffe7a8, #f0b94a); box-shadow: 0 0 14px #f0b94a99;
+}
+.tm-fecho { position: absolute; right: 4px; top: 4px; padding: 1px 6px; border-radius: 6px; font-size: 10px; font-weight: 800; background: #9a8cc0cc; }
+.tm-fnone { grid-column: 1 / -1; padding: 24px; text-align: center; color: #b9b2d6; }
+
+/* 휴대폰 — 높이 540. 무대를 줄이고 명단은 두 줄 */
+.phone #screen.teamscreen2 { --dockh: 206px; --sidew: 300px; }
+.phone .tm-fhead { padding: 8px 12px; gap: 10px; }
+.phone .tm-ftitle b { font-size: 18px; }
+.phone .tm-fwhere { display: none; }
+.phone .tm-fstage { top: 46px; }
+.phone .tm-fstands { left: 20px; right: 10px; gap: 6px; }
+.phone .tm-fstand { width: 150px; }
+.phone .tm-fstand .art { width: 150px !important; height: 190px !important; }
+.phone .tm-fstand.empty { height: 190px; padding-bottom: 8px; }
+.phone .tm-fghost { width: 100px; height: 130px; bottom: 44px; }
+.phone .tm-fplus { margin-bottom: 40px; }
+.phone .tm-fplate { padding: 3px 10px; }
+.phone .tm-fside { top: 50px; padding: 10px 12px; gap: 6px; }
+.phone .tm-fdk { font-size: 10.5px; }
+.phone .tm-fgo { padding: 10px; font-size: 16px; }
+.phone .tm-fcard { height: 86px; }
+.phone .tm-froster { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; }
+.phone .tm-fchip { padding: 4px 8px; font-size: 11px; }
+.phone .tm-fsearch { width: 130px; }
+/* 성격 · 역할 아이콘 — <i><img></i>. 그림은 칸에 맞춘다 */
+#screen.teamscreen2 i.tm-fnat, #screen.teamscreen2 i.tm-fb, #screen.teamscreen2 i.tm-fci { display: inline-grid; place-items: center; flex: none; font-style: normal; font-size: 11px; font-weight: 900; }
+#screen.teamscreen2 i.tm-fnat > img, #screen.teamscreen2 i.tm-fb > img, #screen.teamscreen2 i.tm-fci > img { width: 100%; height: 100%; object-fit: contain; }
+/* 오른쪽 판이 넘치면 속만 넘긴다 — 「떠납니다」는 늘 보인다 */
+.tm-fsyn { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+.tm-fgo { margin-top: auto; }
+.phone .tm-fside .tm-fnote, .phone .tm-fside > .tm-flabel, .phone .tm-fdeck2 { display: none; }
+.phone .tm-fbond { font-size: 12px; gap: 5px; }
+.phone .tm-fwhy { display: none; }

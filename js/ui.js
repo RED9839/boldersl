@@ -416,265 +416,223 @@ export function partyScreen(onStart, onBack) {
   // 카제나 얼개다 — 큰 세로 카드 셋을 가운데 세우고, 오른쪽에 이번 싸움을 적는다.
   // 트릭컬 쪽을 얹는다: 카드마다 정해진 위치(전열·중열·후열)를 보여 준다. 고르는 것이 아니다.
   // 빈 자리를 누르면 사도를 고르는 서랍이 열린다.
-  let drawerFor = -1;                    // 서랍이 열린 자리. -1 이면 닫혀 있다.
 
+  // ── 편성 — 위는 무대(고른 셋이 싸움터에 선다), 아래는 명단(늘 펼쳐 둔다) ─────────────
+  // 전투 화면과 같은 옷: 1층 싸움터 배경 · 어두운 유리 · 금선. 사도는 전투처럼 스파인으로 같은 배율.
+  // 무대의 자리는 전투와 같다 — 후열이 왼쪽, 전열이 가운데 쪽(적을 본다). 자리는 기획서가 정한 대로(고르지 않는다).
   function formScreen() {
     s.innerHTML = "";
-    s.className = "teamscreen";
+    s.className = "teamscreen2";
+    const bg = `assets/bg/${BATTLE_BG[1].fight}.jpg`;
+    s.style.setProperty("--stagebg", `url("${typeof location === "object" ? new URL(bg, location.href).href : bg}")`);
 
-    const bar = el("div", "dbar2");
-    if (onBack) { const b = el("button", "iconbtn back", "◁"); b.onclick = onBack; bar.appendChild(b); }
-    bar.appendChild(el("h1", "dtitle", "팀 편성"));
-    const count = el("span", "fcount");
-    bar.appendChild(count);
-    const dexBtn = el("button", "dexbtn", "사도 도감 ↗");
-    dexBtn.onclick = () => { filter.q = ""; view = "도감"; render(); };
-    bar.appendChild(dexBtn);
-    const go = el("button", "go", "떠납니다");
-    go.onclick = () => { for (const k of picked) rows[k] = rows[k] || HERO_DATA[k].row; onStart(picked, rows); };
-    bar.appendChild(go);
-    s.appendChild(bar);
-
-    const body = el("div", "tbody");
-    const stage = el("div", "tstage");
-    const side = el("aside", "tside");
-    body.appendChild(stage);
-    body.appendChild(side);
-    s.appendChild(body);
-
-    const slots = el("div", "tslots");
-    stage.appendChild(slots);
-    const synBox = el("div", "tsyn");
-    stage.appendChild(synBox);
-
-    // ── 오른쪽 — 이번 싸움 ─────────────────────────────────────────────
+    // ① 머리
+    const head = el("div", "tm-fhead");
+    if (onBack) { const b = el("button", "tm-fback", "◁"); b.title = "처음으로"; b.onclick = onBack; head.appendChild(b); }
+    const title = el("div", "tm-ftitle");
+    title.appendChild(el("b", null, "팀 편성"));
+    const count = el("span", "tm-fcount2");
+    title.appendChild(count);
+    head.appendChild(title);
     const floor = FLOORS[0];
-    side.appendChild(el("div", "tchap", `${floor.n}층 · ${floor.name}`));
-    side.appendChild(el("h2", "tmission", "첫 번째 싸움"));
-    side.appendChild(el("p", "twhere", floor.sub));
+    head.appendChild(el("span", "tm-fwhere", `${floor.n}층 · ${floor.name} — 지도에서 길을 골라 12칸 끝의 보스(${floor.boss.map((id) => ENEMIES[id].ko).join(" · ")})까지`));
+    const dexBtn = el("button", "tm-fdex", "사도 도감");
+    dexBtn.onclick = () => { filter.q = ""; view = "도감"; render(); };
+    head.appendChild(dexBtn);
+    s.appendChild(head);
 
-    const foeHead = el("div", "tlabel", "나오는 적");
-    side.appendChild(foeHead);
-    const foeBox = el("div", "tfoes");
-    for (const id of floor.fights[0]) {
-      const e = ENEMIES[id];
-      const n = el("div", "tfoe");
-      n.appendChild(art.portrait(id, { ko: e.ko, tint: e.tint, size: 44, slot: "battle", still: true }));
-      const t = el("div");
-      t.appendChild(el("b", null, e.ko));
-      t.appendChild(el("span", "why", `체력 ${e.hp} · ${ROWS_KO[e.row] || e.row}`));
-      n.appendChild(t);
-      foeBox.appendChild(n);
-    }
-    side.appendChild(foeBox);
+    // ② 무대
+    const stage = el("div", "tm-fstage");
+    const stands = el("div", "tm-fstands");
+    stage.appendChild(stands);
+    s.appendChild(stage);
 
-    side.appendChild(el("div", "tlabel", "이 층을 지나려면"));
-    const goals = el("div", "tgoals");
-    for (const [mark, text] of [
-      ["★", "싸움 셋을 이기고 보스를 넘습니다"],
-      ["★", `보스는 ${floor.boss.map((id) => ENEMIES[id].ko).join(" · ")}`],
-      ["★", "쓰러진 사도는 주말농장으로 갑니다 — 그 판에서 다시 못 씁니다"],
-    ]) {
-      const g = el("div", "tgoal");
-      g.appendChild(el("i", null, mark));
-      g.appendChild(el("span", null, text));
-      goals.appendChild(g);
-    }
-    side.appendChild(goals);
-
-    const deckHead = el("div", "tlabel");
+    // ③ 오른쪽 — 함께 가면
+    const side = el("aside", "tm-fside");
+    const synBox = el("div", "tm-fsyn");
+    side.appendChild(synBox);
+    const deckHead = el("div", "tm-flabel");
     side.appendChild(deckHead);
-    const deckBox = el("div", "fdeck");
+    const deckBox = el("div", "tm-fdeck2");
     side.appendChild(deckBox);
+    const go = el("button", "tm-fgo", "떠납니다");
+    go.onclick = () => { for (const k of picked) rows[k] = rows[k] || HERO_DATA[k].row; onStart(picked, rows); };
+    side.appendChild(go);
+    s.appendChild(side);
 
-    // ── 서랍 — 사도 고르기 ────────────────────────────────────────────
-    const drawer = el("div", "tdrawer");
-    s.appendChild(drawer);
+    // ④ 명단
+    const dock = el("div", "tm-fdock");
+    const bar = el("div", "tm-fbar");
+    const chips = el("div", "tm-fchips");
+    bar.appendChild(chips);
+    const search = el("input", "tm-fsearch");
+    search.placeholder = "이름으로 찾기";
+    search.value = filter.q;
+    search.oninput = () => { filter.q = search.value.trim(); fillRoster(); };
+    bar.appendChild(search);
+    dock.appendChild(bar);
+    const grid = el("div", "tm-froster");
+    dock.appendChild(grid);
+    s.appendChild(dock);
 
-    // ── 큰 카드 한 장 ─────────────────────────────────────────────────
-    function slotCard(i) {
-      const key = picked[i];
-      if (!key) {
-        const n = el("button", "tcard empty");
-        n.appendChild(el("span", "tplus", "+"));
-        n.appendChild(el("span", "twho", `${i + 1}번째 사도`));
-        n.onclick = () => { drawerFor = i; fill(); };
-        return n;
-      }
+    const toggle = (key) => {
+      const i = picked.indexOf(key);
+      if (i >= 0) { picked.splice(i, 1); delete rows[key]; }
+      else if (picked.length < 3) { picked.push(key); rows[key] = HERO_DATA[key].row; if (filter.q) { filter.q = ""; search.value = ""; } }
+      else return hint("셋까지만 데려갈 수 있습니다 — 무대의 사도를 먼저 빼 주세요");
+      hint("");
+      fill();
+    };
+
+    // 무대에 선 한 명 — 누르면 사도 정보, ✕ 로 뺀다
+    function standOf(key) {
       const h = HERO_DATA[key];
-      const n = el("div", "tcard");
-
-      const face = el("div", "tface");
-      face.appendChild(art.portrait(key, { ko: h.ko, tint: NTINT[h.nature], size: 0, slot: "event", still: true }));
-      face.appendChild(el("div", "dfade"));
-      const badges = el("div", "dbadges");
-      badges.appendChild(uiIcon("역할", h.role, "brole", h.role.slice(0, 1)));
-      const bn = uiIcon("성격", h.nature, "bnat n" + h.nature, h.nature.slice(0, 1));
-      bn.style.setProperty("--tint", NTINT[h.nature]);
-      badges.appendChild(bn);
-      badges.appendChild(uiIcon("종족", h.race, "brace", h.race.slice(0, 1)));
-      face.appendChild(badges);
-
-      const look = el("button", "tlook", "⌕");
-      look.title = `${h.ko} 사도 정보`;
-      look.onclick = () => { cameFrom = null; view = key; tab = "능력치"; render(); };
-      face.appendChild(look);
-
-      const star = el("span", "tstar", "★".repeat(h.star));
-      face.appendChild(star);
-
-      const plate = el("div", "tplate");
-      plate.appendChild(el("b", null, h.ko));
-      plate.appendChild(el("span", "tsub", `${h.race} · ${h.dmgType || ""}`));
-      face.appendChild(plate);
-      n.appendChild(face);
-
-      // 위치는 기획서가 정한 대로 고정이다 — 고르는 것이 아니라 알려 주는 것이다.
-      // 기본 스탯이 위치에서 나오므로(전열 탱커 HP 90 · 후열 딜러 HP 55) 줄만 옮길 수는 없다.
-      const pos = el("div", "tpos");
-      for (const r of C.ROWS) {
-        const b = el("span", "pbtn" + (r === h.row ? " on" : ""), ROWS_KO[r]);
-        pos.appendChild(b);
-      }
-      n.appendChild(pos);
-      n.appendChild(el("div", "thome", `${ROWS_KO[h.row]} ${h.role} · 적은 전열부터 노립니다`));
-
-      const x = el("button", "tdrop", "빼기");
-      x.onclick = () => { picked.splice(i, 1); delete rows[key]; fill(); };
+      const n = el("div", "tm-fstand");
+      n.style.setProperty("--tint", NTINT[h.nature]);
+      const x = el("button", "tm-fx", "✕");
+      x.title = "빼기";
+      x.onclick = (e) => { e.stopPropagation(); toggle(key); };
       n.appendChild(x);
-      return n;
-    }
-
-    // ── 서랍 한 장 ────────────────────────────────────────────────────
-    function pickNode(key, h) {
-      const on = picked.includes(key);
-      const n = el("button", "pcard" + (on ? " on" : ""));
-      n.appendChild(art.portrait(key, { ko: h.ko, tint: NTINT[h.nature], size: 0, slot: "event", still: true }));
-      n.appendChild(el("div", "dfade"));
-      const badges = el("div", "dbadges");
-      badges.appendChild(uiIcon("역할", h.role, "brole", h.role.slice(0, 1)));
-      const bn = uiIcon("성격", h.nature, "bnat n" + h.nature, h.nature.slice(0, 1));
-      bn.style.setProperty("--tint", NTINT[h.nature]);
-      badges.appendChild(bn);
-      n.appendChild(badges);
-      const plate = el("div", "dplate");
-      plate.appendChild(el("span", "dname", h.ko));
-      plate.appendChild(el("span", "dsub", `${ROWS_KO[h.row]} · ${h.race}`));
+      n.appendChild(art.portrait(key, { ko: h.ko, tint: NTINT[h.nature], size: 200, slot: "battle", flip: true }));
+      const plate = el("div", "tm-fplate");
+      const top = el("div", "tm-fpt");
+      top.appendChild(uiIcon("성격", h.nature, "tm-fnat", h.nature.slice(0, 1)));
+      top.appendChild(el("b", null, h.ko));
+      plate.appendChild(top);
+      plate.appendChild(el("span", "tm-fps", `${ROWS_KO[h.row]} ${h.role} · ${"★".repeat(h.star)}`));
       n.appendChild(plate);
-      if (on) n.appendChild(el("span", "dmark", "편성"));
-      n.onclick = () => {
-        const i = picked.indexOf(key);
-        if (i >= 0) { picked.splice(i, 1); delete rows[key]; }
-        else if (picked.length < 3) { picked.push(key); rows[key] = h.row; drawerFor = -1; filter.q = ""; }
-        else return hint("셋까지만 데려갈 수 있습니다");
-        hint("");
-        fill();
-      };
+      n.title = `${h.ko} — 눌러서 사도 정보`;
+      n.onclick = () => { cameFrom = null; view = key; tab = "능력치"; render(); };
+      return n;
+    }
+    function emptyStand(i) {
+      const n = el("button", "tm-fstand empty");
+      n.appendChild(el("span", "tm-fghost"));
+      n.appendChild(el("span", "tm-fplus", "+"));
+      n.appendChild(el("span", "tm-fwho", `${i + 1}번째 사도`));
+      n.onclick = () => { search.focus && search.focus(); hint("아래 명단에서 사도를 눌러 무대에 올립니다"); };
       return n;
     }
 
-    // ── 다시 채우기 ───────────────────────────────────────────────────
-    function fill() {
-      slots.innerHTML = "";
-      for (let i = 0; i < 3; i++) slots.appendChild(slotCard(i));
-      count.textContent = `${picked.length}/3`;
-      go.disabled = picked.length !== 3;
+    // 명단 한 장
+    function rosterCard(key, h) {
+      const at = picked.indexOf(key);
+      const n = el("button", "tm-fcard" + (at >= 0 ? " on" : ""));
+      n.style.setProperty("--tint", NTINT[h.nature]);
+      n.appendChild(art.portrait(key, { ko: h.ko, tint: NTINT[h.nature], size: 0, slot: "event", still: true }));
+      n.appendChild(el("div", "tm-ffade"));
+      const badges = el("div", "tm-fbadges");
+      badges.appendChild(uiIcon("성격", h.nature, "tm-fb", h.nature.slice(0, 1)));
+      badges.appendChild(uiIcon("역할", h.role, "tm-fb", h.role.slice(0, 1)));
+      n.appendChild(badges);
+      const plate = el("div", "tm-fcp");
+      plate.appendChild(el("b", null, h.ko));
+      plate.appendChild(el("span", null, `${ROWS_KO[h.row]} · ${h.race}`));
+      n.appendChild(plate);
+      if (at >= 0) n.appendChild(el("span", "tm-fnum", String(at + 1)));
+      if (isEcho(key)) n.appendChild(el("span", "tm-fecho", "이격"));
+      n.onclick = () => toggle(key);
+      n.oncontextmenu = (e) => { e.preventDefault(); cameFrom = null; view = key; tab = "능력치"; render(); };
+      n.title = `${h.ko} — 눌러서 편성 · 오른쪽 클릭으로 사도 정보`;
+      return n;
+    }
 
-      // 함께 가면
-      synBox.innerHTML = "";
-      const bonds = C.partyBonds(picked).filter((b) => b.n);
-      if (!picked.length) synBox.appendChild(el("div", "why", "사도를 고르면 사이와 성격이 여기 뜹니다."));
-      for (const bd of bonds) {
-        const line = el("span", "sline");
-        line.appendChild(el("b", null, `${HERO_DATA[bd.a].ko} · ${HERO_DATA[bd.b].ko}`));
-        line.appendChild(el("span", "t" + bd.tier.id, bd.tier.id));
-        line.appendChild(el("span", "why", `${bd.n}편`));
-        synBox.appendChild(line);
-      }
-      if (picked.length) {
-        const nat = el("span", "sline");
-        nat.appendChild(el("b", null, "성격"));
-        for (const k of picked) {
-          const tag = el("span", "mtag");
-          tag.appendChild(uiIcon("성격", HERO_DATA[k].nature, "mico", ""));
-          tag.appendChild(el("span", null, HERO_DATA[k].nature));
-          nat.appendChild(tag);
-        }
-        nat.appendChild(el("span", "why", "광기→순수→냉정→광기 · 활발↔우울"));
-        synBox.appendChild(nat);
-
-        const plus = Math.min(1, bonds.reduce((a, b) => a + b.tier.sp, 0));
-        const ap = el("span", "sline");
-        ap.appendChild(el("b", null, "첫 턴 AP"));
-        ap.appendChild(el("span", "apnum2", String(3 + plus)));
-        ap.appendChild(el("span", "why", plus ? `매 턴 3 · 사이가 좋아 +${plus}` : "매 턴 3"));
-        synBox.appendChild(ap);
-      }
-
-      // 덱
-      deckBox.innerHTML = "";
-      let n = 0;
-      for (const k of picked) {
-        const row = el("div", "dkrow");
-        row.appendChild(el("span", "dkwho", HERO_DATA[k].ko));
-        for (const c of kitOf(k).start) {
-          const chip = el("span", "dkcard");
-          chip.appendChild(el("i", null, c.xcost ? "X" : String(c.cost)));
-          chip.appendChild(el("span", null, c.name));
-          chip.title = c.text;
-          row.appendChild(chip);
-          n++;
-        }
-        deckBox.appendChild(row);
-      }
-      deckHead.textContent = n ? `덱 ${n}장 — 사도마다 시작 카드 넉 장` : "덱 — 사도를 고르면 만들어집니다";
-
-      // 서랍
-      drawer.innerHTML = "";
-      drawer.classList.toggle("open", drawerFor >= 0);
-      if (drawerFor < 0) return;
-
-      const dhead = el("div", "dhead3");
-      dhead.appendChild(el("b", null, `${drawerFor + 1}번째 사도 고르기`));
-      const search = el("input", "dsearch");
-      search.placeholder = "이름으로 찾기";
-      search.value = filter.q;
-      search.oninput = () => { filter.q = search.value.trim(); fill(); };
-      dhead.appendChild(search);
-      const close = el("button", "dclose", "닫기");
-      close.onclick = () => { drawerFor = -1; filter.q = ""; fill(); };
-      dhead.appendChild(close);
-      drawer.appendChild(dhead);
-
-      const chips = el("div", "chiprow");
-      const chipGroup = (vals, key) => {
-        const all = el("button", "chip" + (filter[key] ? "" : " on"), "전체");
-        all.onclick = () => { filter[key] = null; fill(); };
+    function fillChips() {
+      chips.innerHTML = "";
+      const group = (vals, key, icon) => {
+        const all = el("button", "tm-fchip" + (filter[key] ? "" : " on"), "전체");
+        all.onclick = () => { filter[key] = null; fillChips(); fillRoster(); };
         chips.appendChild(all);
         for (const v of vals) {
-          const b = el("button", "chip" + (filter[key] === v ? " on" : "") + (key === "nature" ? " n" + v : ""));
-          if (key === "nature") b.appendChild(uiIcon("성격", v, "cico", ""));
+          const b = el("button", "tm-fchip" + (filter[key] === v ? " on" : ""));
+          b.appendChild(uiIcon(icon, v, "tm-fci", ""));
           b.appendChild(el("span", null, v));
-          b.onclick = () => { filter[key] = filter[key] === v ? null : v; fill(); };
+          b.onclick = () => { filter[key] = filter[key] === v ? null : v; fillChips(); fillRoster(); };
           chips.appendChild(b);
         }
-        chips.appendChild(el("span", "chipgap"));
+        chips.appendChild(el("span", "tm-fgap"));
       };
-      chipGroup(NATURES, "nature");
-      chipGroup(ROLES, "role");
-      drawer.appendChild(chips);
-
-      const grid = el("div", "pgrid");
+      group(NATURES, "nature", "성격");
+      group(ROLES, "role", "역할");
+    }
+    function fillRoster() {
+      grid.innerHTML = "";
       const list = roster.filter(([k, h]) => {
         if (filter.nature && h.nature !== filter.nature) return false;
         if (filter.role && h.role !== filter.role) return false;
         if (filter.q && !h.ko.includes(filter.q)) return false;
         return true;
-      });
-      for (const [k, h] of list) grid.appendChild(pickNode(k, h));
-      if (!list.length) grid.appendChild(el("div", "more", "맞는 사도가 없습니다."));
-      drawer.appendChild(grid);
+      }).sort(SORTS.성급);
+      for (const [k, h] of list) grid.appendChild(rosterCard(k, h));
+      if (!list.length) grid.appendChild(el("div", "tm-fnone", "맞는 사도가 없습니다."));
     }
+
+    function fill() {
+      // 무대 — 후열부터 왼쪽에. 빈 자리는 오른쪽 끝(전열 쪽)부터 채워 보이게
+      stands.innerHTML = "";
+      const order = [...picked].sort((a, b) => C.ROWS.indexOf(HERO_DATA[b].row) - C.ROWS.indexOf(HERO_DATA[a].row));
+      for (let i = picked.length; i < 3; i++) stands.appendChild(emptyStand(i));
+      for (const k of order) stands.appendChild(standOf(k));
+      count.textContent = `${picked.length} / 3`;
+      go.disabled = picked.length !== 3;
+      go.textContent = picked.length === 3 ? "떠납니다" : `사도 ${3 - picked.length}명 더`;
+
+      // 함께 가면 — 사이 · 성격 · 첫 턴 AP
+      synBox.innerHTML = "";
+      synBox.appendChild(el("div", "tm-flabel", "함께 가면"));
+      if (!picked.length) synBox.appendChild(el("p", "tm-fnote", "사도를 고르면 서로의 사이와 성격이 여기 뜹니다. 사이가 좋으면 연계가 터지고 첫 턴 AP 가 늡니다."));
+      const bonds = C.partyBonds(picked).filter((b) => b.n);
+      for (const bd of bonds) {
+        const line = el("div", "tm-fbond");
+        line.appendChild(el("b", null, `${HERO_DATA[bd.a].ko} · ${HERO_DATA[bd.b].ko}`));
+        line.appendChild(el("span", "tm-ftier t" + bd.tier.id, bd.tier.id));
+        line.appendChild(el("span", "tm-fwhy", `함께한 이야기 ${bd.n}편`));
+        synBox.appendChild(line);
+      }
+      if (picked.length) {
+        const nat = el("div", "tm-fnats");
+        for (const k of picked) {
+          const t = el("span", "tm-fnatc");
+          t.style.setProperty("--tint", NTINT[HERO_DATA[k].nature]);
+          t.appendChild(uiIcon("성격", HERO_DATA[k].nature, "tm-fci", ""));
+          t.appendChild(el("span", null, HERO_DATA[k].nature));
+          nat.appendChild(t);
+        }
+        synBox.appendChild(nat);
+        synBox.appendChild(el("p", "tm-fnote", "성격 상성 — 광기 → 순수 → 냉정 → 광기 · 활발 ↔ 우울"));
+        const plus = Math.min(1, bonds.reduce((a, b) => a + b.tier.sp, 0));
+        const ap = el("div", "tm-fap");
+        ap.appendChild(el("span", null, "첫 턴 AP"));
+        ap.appendChild(el("b", null, String(3 + plus)));
+        ap.appendChild(el("span", "tm-fwhy", plus ? `사이가 좋아 +${plus}` : "매 턴 3"));
+        synBox.appendChild(ap);
+      }
+
+      // 시작 덱
+      deckBox.innerHTML = "";
+      let n = 0;
+      for (const k of picked) {
+        const row = el("div", "tm-fdkrow");
+        row.appendChild(el("span", "tm-fdkwho", HERO_DATA[k].ko));
+        const cards = el("div", "tm-fdkcards");
+        for (const c of kitOf(k).start) {
+          const chip = el("span", "tm-fdk t" + (c.type || ""));
+          chip.appendChild(el("i", null, c.xcost ? "X" : String(c.cost)));
+          chip.appendChild(el("span", null, c.name));
+          chip.title = c.text;
+          cards.appendChild(chip);
+          n++;
+        }
+        row.appendChild(cards);
+        deckBox.appendChild(row);
+      }
+      deckHead.textContent = n ? `시작 덱 ${n}장` : "시작 덱";
+      if (!n) deckBox.appendChild(el("p", "tm-fnote", "사도마다 시작 카드 넉 장. 고유 카드는 싸우며 은총으로 얻습니다."));
+
+      fillRoster();
+    }
+
+    fillChips();
     fill();
   }
 
