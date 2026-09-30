@@ -481,9 +481,9 @@ console.log("\n장비");
 {
   const { EQUIP } = await import("../js/cardbook.js");
   const ids = Object.keys(EQUIP);
-  check(ids.length === 103, `기획서의 장비 103종을 읽는다 (${ids.length})`);
+  check(ids.length === 87 && ids.every((id) => !EQUIP[id].global), `기획서의 장비 87종을 읽는다 — 글로벌 전용은 없다 (${ids.length})`);
   const slots = {}; for (const id of ids) slots[EQUIP[id].slot] = (slots[EQUIP[id].slot] || 0) + 1;
-  check(slots["무기"] === 35 && slots["방어구"] === 23 && slots["장신구"] === 45, `칸: 무기 ${slots["무기"]} · 방어구 ${slots["방어구"]} · 장신구 ${slots["장신구"]}`);
+  check(slots["무기"] === 30 && slots["방어구"] === 20 && slots["장신구"] === 37, `칸: 무기 ${slots["무기"]} · 방어구 ${slots["방어구"]} · 장신구 ${slots["장신구"]}`);
   check(ids.every((id) => Object.values(EQUIP[id].stats).some(Boolean)), "모든 장비에 스탯 줄이 있다");
   const r = R.newRun(run.party.slice(), { ...run.rows }, 31);
   const k = r.party[0];

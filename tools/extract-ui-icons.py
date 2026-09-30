@@ -149,7 +149,7 @@ def main():
         x, y, w, h = int(r.x), int(r.y), int(round(r.width)), int(round(r.height))
         # 유니티 텍스처는 왼쪽 아래가 0 이다. PIL 은 왼쪽 위다.
         piece = im.crop((x, im.height - y - h, x + w, im.height - y))
-        rot = (d.settingsRaw >> 1) & 7          # 0 없음 1 좌우 2 상하 3 180도 4 90도
+        rot = (d.settingsRaw >> 2) & 0xF        # SpriteSettings: 1비트 packed · 1비트 mode · 4비트 rotation(0 없음 1 좌우 2 상하 3 180도 4 90도)
         if rot == 1: piece = piece.transpose(Image.FLIP_LEFT_RIGHT)
         elif rot == 2: piece = piece.transpose(Image.FLIP_TOP_BOTTOM)
         elif rot == 3: piece = piece.transpose(Image.ROTATE_180)

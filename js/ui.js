@@ -1091,7 +1091,7 @@ export function fightScreen(run, onDone, onQuit) {
     row.appendChild(equipIcon(e, 34));
     const t = el("div");
     t.appendChild(el("b", null, e.ko));
-    t.appendChild(el("span", null, `${e.slot} · ${e.global ? "전설(글로벌)" : e.grade} — 가방으로`));
+    t.appendChild(el("span", null, `${e.slot} · ${e.grade} — 가방으로`));
     row.appendChild(t);
     addLoot(row);
   }
@@ -2482,12 +2482,14 @@ export function equipIcon(e, size = 48) {
   n.style.width = n.style.height = size + "px";
   if (!e) return n;
   n.style.setProperty("--gc", GRADE_COLOR[e.grade] || "#a8adbf");
-  n.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor">${GEAR_GLYPH[gearKind(e)]}</svg>`;
+  const gp = CARDART.pic[e.id];
+  if (gp) { n.classList.add("haspic"); n.appendChild(img(gp)); }
+  else n.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor">${GEAR_GLYPH[gearKind(e)]}</svg>`;
   if (e.affinity) {
     const pic = CARDART.pic[e.affinity + "_ult"];
     if (pic) { const f = el("span", "eaffface"); f.appendChild(img(pic)); f.title = `${e.affinityKo} 애착`; n.appendChild(f); }
   }
-  n.title = `${e.ko} · ${e.slot} · ${e.global ? "전설(글로벌)" : e.grade}`;
+  n.title = `${e.ko} · ${e.slot} · ${e.grade}`;
   return n;
 }
 // 빈 칸 — 그 칸의 모양만 흐리게
@@ -2527,7 +2529,7 @@ function equipCard(id, extra) {
   head.appendChild(equipIcon(e, 44));
   head.appendChild(el("span", "eslot", e.slot));
   head.appendChild(el("b", null, e.ko));
-  head.appendChild(el("span", "egrade", e.global ? "전설(글로벌)" : e.grade));
+  head.appendChild(el("span", "egrade", e.grade));
   n.appendChild(head);
   n.appendChild(el("p", "eqstat", statText(e.stats) || "스탯 없음"));
   // 효과 · 애착은 낀 사도의 패시브가 된다(docs/13-장비와 중립.md). 다 읽히지 않는 줄은 「아직 안 돕니다」로 흐리게

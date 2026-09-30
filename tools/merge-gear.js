@@ -38,7 +38,7 @@ if (process.argv.includes("--split")) {
   const eq = doc.slice(ea, eb), ne = doc.slice(na, nb);
   const bySub = (sec, subs) => subs.map((s) => { const a = sec.indexOf(s); const b = sec.indexOf("\n### ", a + 4); return sec.slice(a, b < 0 ? sec.length : b); }).join("\n");
   const files = {
-    "장비_전설.md": bySub(eq, ["### 전설 (", "### 전설 · 글로벌"]),
+    "장비_전설.md": bySub(eq, ["### 전설 ("]),
     "장비_희귀.md": bySub(eq, ["### 희귀"]),
     "장비_고급일반.md": bySub(eq, ["### 고급", "### 일반"]),
     "중립.md": ne.slice(ne.indexOf("### ")),

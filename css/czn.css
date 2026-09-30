@@ -1176,3 +1176,6 @@ body:has(#screen.mapscreen) .top { display: none; }
 .eeff.on { color: inherit; }
 .eeff.on .eoff { background: #f6d58e26; color: #f6d58e; }
 #screen.rewardscreen .eeff.on, .gearmodal .eeff.on { color: #f4f1ff; }
+
+/* 장비 그림 — 원작 아티팩트 아이콘이 있으면 무늬 대신 그림(tools/extract-gear-icons.py) */
+.eicon.haspic > img { width: 86%; height: 86%; object-fit: contain; filter: drop-shadow(0 2px 3px #000b); pointer-events: none; }

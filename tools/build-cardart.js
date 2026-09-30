@@ -69,6 +69,24 @@ for (const [key, en] of Object.entries(ARTMAP.art)) {
   }
 }
 
+// 장비 · 중립 카드 — 원작 「차원 대충돌」 아티팩트 · 스펠 아이콘(tools/extract-gear-icons.py).
+// 번호와 이름의 짝은 tools/gear-icons.json(그림을 보고 맞춘 것). 그림이 없으면 빠진다 — 화면은 등급 무늬로 떨어진다
+const GI = (() => { try { return JSON.parse(fs.readFileSync(path.join(HERE, "gear-icons.json"), "utf8")); } catch { return { equip: {}, neutral: {} }; } })();
+const gearPic = (sub, name) => {
+  if (!name) return null;
+  const rel = `assets/${sub}/${name}.webp`;
+  return fs.existsSync(path.join(ROOT, rel)) ? rel : null;
+};
+const gearFrom = { equip: 0, neutral: 0, equipNone: [], neutralNone: [] };
+for (const [id, e] of Object.entries(B.equip || {})) {
+  const p = gearPic("gear", GI.equip[e.ko]);
+  if (p) { pic[id] = p; gearFrom.equip++; } else gearFrom.equipNone.push(e.ko);
+}
+for (const [id, c] of Object.entries(B.neutral || {})) {
+  const p = gearPic("spell", GI.neutral[c.ko]);
+  if (p) { pic[id] = p; gearFrom.neutral++; } else gearFrom.neutralNone.push(c.ko);
+}
+
 const out = {
   _meta: {
     source: "assets/cardart(우리가 그린 것) 이 먼저, 없으면 assets/skillicons(원작 아이콘).",
@@ -103,6 +121,10 @@ if (from.drawn) {
   console.log(`  그린 것 무게 ${mb.toFixed(1)}MB · 장당 ${per.toFixed(0)}KB · 이 속도면 ${total}장에 ${all.toFixed(1)}GB`);
   if (per > 300) console.log(`  ! 장당 300KB 가 넘습니다. 카드는 화면에서 152px 입니다 — python tools/shrink-cardart.py`);
 }
+console.log(`  장비 그림 ${gearFrom.equip}/${Object.keys(B.equip || {}).length} · 중립 카드 그림 ${gearFrom.neutral}/${Object.keys(B.neutral || {}).length}`
+  + (gearFrom.equip + gearFrom.neutral ? "" : " — python tools/extract-gear-icons.py 부터"));
+if (gearFrom.equipNone.length && gearFrom.equip) console.log(`    그림 없는 장비: ${gearFrom.equipNone.join(", ")}`);
+if (gearFrom.neutralNone.length && gearFrom.neutral) console.log(`    그림 없는 중립 카드: ${gearFrom.neutralNone.join(", ")}`);
 if (missing.length) {
   const s = missing.filter((id) => id.includes("_s")).length;
   const u = missing.length - s;
