@@ -31,12 +31,16 @@ export function parseHeroBlock(raw, warn = () => {}) {
   const name = m[1].trim();
   const [nature, race, roleRaw, starRaw] = tags;
   const eldain = tags.includes("엘다인");
-  const rm = (roleRaw || "").match(/^(전열|중열|후열)\s+(\S+)$/);
+  // 「모든 열 딜러 · … · 기본 전열」 — 원작에서 어느 열에나 서는 사도(티그(영웅) · 죠안). 편성에서 열을 고른다
+  const anyM = (roleRaw || "").match(/^모든\s*열\s+(\S+)$/);
+  const home = (tags.map((t) => t.match(/^기본\s*(전열|중열|후열)$/)).find(Boolean) || [])[1] || "중열";
+  const any = anyM ? [roleRaw, home, anyM[1]] : null;
+  const rm = any || (roleRaw || "").match(/^(전열|중열|후열)\s+(\S+)$/);
   if (!rm) { warn(`${name} — 위치·역할을 못 읽었다: ${roleRaw}`); return null; }
 
   const h = {
     ko: name, nature, race,
-    row: ROW_KO[rm[1]], rowKo: rm[1], role: rm[2],
+    row: ROW_KO[rm[1]], rowKo: rm[1], role: rm[2], anyRow: !!any,
     star: Number(((starRaw || "").match(/(\d)성/) || [])[1] || 3),
     eldain,
     blurb: (body.split("\n")[0] || "").trim(),

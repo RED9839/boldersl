@@ -1709,3 +1709,80 @@ body:has(#screen.detailscreen) #hint:not(:empty), body:has(#screen.dexscreen) #h
 .phone #screen.detailscreen .ultbig { padding: 16px 18px; gap: 18px; }
 .phone #screen.detailscreen .hex.big { width: 150px; height: 150px; }
 .phone body:has(#screen.detailscreen) .bottom, .phone body:has(#screen.dexscreen) .bottom { bottom: 56px; }
+
+/* ── 편성 무대의 열 — 후열 · 중열 · 전열을 늘 깔고, 같은 열끼리는 ⇄ 로 자리를 바꾼다 ── */
+.tm-fstands { gap: 14px; }
+.tm-flane { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 150px; }
+.tm-flanehero { display: flex; align-items: flex-end; gap: 0; }
+.tm-flane .tm-fstand { width: 210px; }
+.tm-flane .tm-fstand .art { width: 210px !important; height: 290px !important; }
+.tm-flane.none .tm-flanehero { height: 290px; width: 150px; }
+.tm-floor {
+  display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 140px; padding: 4px 16px; border-radius: 8px;
+  background: linear-gradient(180deg, #0d0b16aa, #0d0b16dd); border: 1px solid #ffffff2e; border-top: 2px solid var(--rowc, #ffffff55);
+}
+.tm-floor b { font-size: 14px; font-weight: 900; letter-spacing: .12em; color: var(--rowc, #fff); }
+.tm-floor span { font-size: 11px; color: #b9b2d6; white-space: nowrap; }
+.tm-flane.rback { --rowc: #9fc3ff; } .tm-flane.rmid { --rowc: #b7f0c8; } .tm-flane.rfront { --rowc: #ffb4a0; }
+.tm-flane.none .tm-floor { opacity: .45; }
+.tm-fswap {
+  align-self: center; margin: 0 -14px 90px; z-index: 4; min-height: 0; width: 40px; height: 40px; padding: 0; border-radius: 50%;
+  font-size: 20px; font-weight: 900; color: #2a1a05; background: linear-gradient(180deg, #ffe7a8, #f0b94a);
+  border: 1px solid #fff4; box-shadow: 0 0 14px #f0b94a88, 0 4px 10px #000a;
+}
+.tm-fswap:hover:not(:disabled) { transform: scale(1.1); }
+/* 빈 자리 — 열 밖, 왼쪽 끝에 작게 */
+.tm-fstands > .tm-fstand.empty { width: 120px; height: 290px; padding-bottom: 46px; }
+.tm-fstands > .tm-fstand.empty .tm-fghost { width: 100px; height: 150px; bottom: 90px; }
+.tm-fstands > .tm-fstand.empty .tm-fplus { margin-bottom: 44px; }
+/* 휴대폰 */
+.phone .tm-fstands { gap: 6px; }
+.phone .tm-flane { min-width: 90px; gap: 4px; }
+.phone .tm-flane .tm-fstand { width: 140px; }
+.phone .tm-flane .tm-fstand .art { width: 140px !important; height: 180px !important; }
+.phone .tm-flane.none .tm-flanehero { height: 180px; width: 80px; }
+.phone .tm-floor { min-width: 80px; padding: 2px 8px; }
+.phone .tm-floor b { font-size: 12px; }
+.phone .tm-floor span { display: none; }
+.phone .tm-fswap { width: 34px; height: 34px; min-height: 0; font-size: 17px; margin: 0 -12px 60px; }
+.phone .tm-fstands > .tm-fstand.empty { width: 70px; height: 180px; padding-bottom: 30px; }
+.phone .tm-fstands > .tm-fstand.empty .tm-fghost { width: 60px; height: 90px; bottom: 60px; }
+.phone .tm-fstands > .tm-fstand.empty .tm-fwho { display: none; }
+
+/* ── 편성 — 명단을 세 줄(FHD), 시작 덱은 눌러 본다 ── */
+#screen.teamscreen2 { --dockh: 420px; }
+.tm-fcard { height: 104px; }
+.tm-froster { gap: 6px; }
+.tm-fstands { bottom: 4px; }
+.tm-flane .tm-fstand .art { height: 250px !important; }
+.tm-flane.none .tm-flanehero { height: 250px; }
+.tm-fstands > .tm-fstand.empty { height: 250px; }
+.tm-fstand .tm-fplate { padding: 4px 12px; }
+.tm-fswap { margin-bottom: 70px; }
+.tm-fside > .tm-flabel { display: flex; align-items: center; justify-content: space-between; }
+.tm-fdkbig {
+  min-height: 0; padding: 3px 10px; border-radius: 99px; font-size: 11.5px; font-weight: 800; letter-spacing: 0;
+  background: #f6d58e1f; border: 1px solid #f6d58e88; color: #f6d58e;
+}
+.tm-fdkbig:hover:not(:disabled) { transform: none; background: #f6d58e33; }
+button.tm-fdk { min-height: 0; color: #f4f1ff; cursor: pointer; }
+button.tm-fdk:hover:not(:disabled) { transform: none; border-color: #f6d58e; background: #f6d58e14; }
+/* 휴대폰은 그대로 두 줄 — 높이 540 에 무대가 있어야 한다 */
+.phone #screen.teamscreen2 { --dockh: 206px; }
+.phone .tm-fcard { height: 86px; }
+.phone .tm-flane .tm-fstand .art { height: 180px !important; }
+.phone .tm-flane.none .tm-flanehero, .phone .tm-fstands > .tm-fstand.empty { height: 180px; }
+.phone .tm-fswap { margin-bottom: 60px; }
+
+/* 「모든 열」 사도 — 이름표 밑에서 설 열을 고른다 */
+.tm-frow { display: flex; gap: 3px; padding: 3px; border-radius: 99px; background: #0d0b16d9; border: 1px solid #f6d58e66; }
+.tm-frowb {
+  min-height: 0; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 800;
+  background: transparent; border: 0; color: #b9b2d6;
+}
+.tm-frowb.on { background: linear-gradient(180deg, #ffe7a8, #f0b94a); color: #2a1a05; }
+.tm-frowb:hover:not(:disabled):not(.on) { transform: none; color: #fff; background: #ffffff14; }
+.phone .tm-frowb { padding: 2px 7px; font-size: 11px; min-height: 0; }
+/* 열 고르기가 없는 사도도 같은 높이에 서게 — 이름표 줄을 맞춘다 */
+.tm-flane .tm-fstand:not(:has(.tm-frow)) { padding-bottom: 34px; }
+.phone .tm-flane .tm-fstand:not(:has(.tm-frow)) { padding-bottom: 26px; }

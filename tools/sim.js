@@ -1,13 +1,12 @@
 // 화면 없이 전투를 돌린다. 규칙이 스스로 굴러가는지 보는 용도.
 //   node tools/sim.js               한 판 자세히
 //   node tools/sim.js 200           200판 돌려 승률만
-import { newCombat, endTurn, playCard, canPlay, costOf, buildDeck, alive, partyBonds } from "../js/combat.js";
+import { newCombat, endTurn, playCard, canPlay, costOf, buildDeck, alive } from "../js/combat.js";
 import { TRAITS } from "../js/data/traits.js";
 import { CARDS, EXTRA } from "../js/data/cards.js";
 import { FLOORS } from "../js/data/enemies.js";
 
 const N = +(process.argv[2] || 0);
-const NOBOND = process.argv.includes("--no-bond");   // 관계를 끄고 재기
 const NONAT = process.argv.includes("--no-nature"); // 성격 상성을 끄고 재기
 const SAVE  = process.argv.includes("--save");      // 본색을 쓰려고 SP 를 아끼는 손
 // --hp 1.4 — 적 체력 배율을 바꿔 잰다(기본은 rules.js ENEMY_HP)
@@ -46,7 +45,7 @@ function autoPlay(s) {
 }
 
 function runFight(partyKeys, enemyIds, hp, seed, traits, maxHp) {
-  const s = newCombat({ partyKeys, deck: buildDeck(partyKeys), enemyIds, hp, maxHp, seed, noBonds: NOBOND, noNature: NONAT, traits, enemyHp: HPX });
+  const s = newCombat({ partyKeys, deck: buildDeck(partyKeys), enemyIds, hp, maxHp, seed, noNature: NONAT, traits, enemyHp: HPX });
   let t = 0;
   while (!s.over && t++ < 40) { autoPlay(s); endTurn(s); }
   return s;
@@ -80,7 +79,6 @@ const PARTY4 = ["네르", "마요", "에르핀"];      // 광기 둘 + 각별 �
 
 if (!N) {
   console.log("편성:", PARTY.join(", "));
-  for (const b of partyBonds(PARTY)) console.log(`  ${b.a}–${b.b} ${b.n}편 → ${b.tier.id}`);
   const s = runFight(PARTY, FLOORS[0].fights[1], null, 12345);
   console.log("\n--- 기록 ---");
   for (const l of s.log) console.log(" ", l);
@@ -89,7 +87,7 @@ if (!N) {
   process.exit(0);
 }
 
-console.log(`한 층(전투 3 + 보스)을 무작위 손으로 ${N}번${NOBOND ? " · 관계 끔" : ""}${NONAT ? " · 성격 끔" : ""}${SAVE ? " · SP 아끼는 손" : ""} — 이게 100%면 너무 쉽고, 0%면 너무 어렵다.`);
+console.log(`한 층(전투 3 + 보스)을 무작위 손으로 ${N}번${NONAT ? " · 성격 끔" : ""}${SAVE ? " · SP 아끼는 손" : ""} — 이게 100%면 너무 쉽고, 0%면 너무 어렵다.`);
 for (const [label, party] of [["가까운 셋 ", PARTY], ["남남인 셋 ", PARTY2], ["냉정 셋  ", PARTY3], ["광기+각별", PARTY4]]) {
   let win = 0, turns = 0, combos = 0, reach = 0, egos = 0;
   for (let i = 0; i < N; i++) {

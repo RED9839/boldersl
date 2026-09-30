@@ -139,7 +139,7 @@ console.log("");
 console.log("135명 훑기 — 여덟 장 전부 넣고 자동으로 싸운다");
 {
   const keys = Object.keys(HERO_DATA);
-  const RARE = new Set(["lowHp", "allyDown", "ult", "debuff", "combo"]);
+  const RARE = new Set(["lowHp", "allyDown", "ult", "debuff"]);
   let crashed = 0;
   const silent = [], rare = [];
   const ENEMY_SETS = [["gluttonbear", "fairymobcloserange", "ginseng"], ["elfsoldiercloserange", "drones"], ["curburus"]];

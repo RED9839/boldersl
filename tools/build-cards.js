@@ -41,7 +41,7 @@ for (const h of wanted) {
 
   heroes[key] = {
     ko: h.ko, nature: h.nature, race: h.race,
-    row: h.row || ROW[h.rowKo], role: h.role, star: h.star, eldain: h.eldain,
+    row: h.row || ROW[h.rowKo], anyRow: !!h.anyRow, role: h.role, star: h.star, eldain: h.eldain,
     hp: h.hp, atk: h.atk, def: h.def, crit: h.crit, dmgType: h.dmgType,
     blurb: h.blurb, passive: h.passive, source: h.source || null,
     keyword: h.keyword || null,

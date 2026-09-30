@@ -8,7 +8,7 @@ import { CARDS as OLD_CARDS, EXTRA } from "./data/cards.js";
 import { CARDS, NEUTRAL_IDS, EQUIP, flashed } from "./cardbook.js";
 import { FLOORS } from "./data/enemies.js";
 import * as R from "./rules.js";
-import { buildDeck, makeRng, partyBonds } from "./combat.js";
+import { buildDeck, makeRng } from "./combat.js";
 
 export function newRun(partyKeys, rows, seed = Date.now()) {
   const hp = {}, maxHp = {};
@@ -30,7 +30,7 @@ export function newRun(partyKeys, rows, seed = Date.now()) {
     deck: buildDeck(partyKeys),
     floor: 0, node: 0,            // node 0..2 전투, 3 보스
     bench: Object.keys(HERO_DATA).filter((k) => !partyKeys.includes(k)),
-    met: {},                      // 함께 싸운 짝 — 다음 판에 '안면'이 된다
+
     done: null,
   };
 }
@@ -46,7 +46,6 @@ export function currentEnemies(run) {
   return (at && at.foes) || f.fights[run.node];
 }
 
-export function bonds(run) { return partyBonds(run.party); }
 
 // 전투가 끝난 뒤 — 체력을 남기고, 만난 짝을 적어 둔다
 export function afterFight(run, combat) {
@@ -58,9 +57,6 @@ export function afterFight(run, combat) {
     run.hp[u.key] = u.dead ? 0 : u.hp;
     run.maxHp[u.key] = u.maxHp;
   }
-  for (let i = 0; i < run.party.length; i++)
-    for (let j = i + 1; j < run.party.length; j++)
-      run.met[[run.party[i], run.party[j]].sort().join("|")] = true;
 }
 
 // 보상 — 편성한 사도의 카드 중 아직 없는 것에서 셋

@@ -39,7 +39,6 @@ const TRIGGERS = [
   [/HP가\s*(\d+)\s*%\s*이하가\s*되면/, (m) => ({ on: "lowHp", pct: Number(m[1]) / 100 })],
   [/아군이\s*쓰러지면/, () => ({ on: "allyDown" })],
   [/(?:고학년\s*스킬을|궁극기를)\s*쓰면/, () => ({ on: "ult" })],   // 옛 이름(궁극기)도 읽는다
-  [/연계가\s*터지면/, () => ({ on: "combo" })],
   [/적에게\s*(?:취약|약화|기절|디버프)을?를?\s*걸면/, () => ({ on: "debuff" })],
   [/「(.+?)」\s*(?:이|가)?\s*(\d+)\s*개?\s*가?\s*되면/, (m) => ({ on: "stackReach", id: m[1], n: Number(m[2]) })],
   [/항상/, () => ({ on: "always" })],
@@ -51,6 +50,8 @@ const CONDS = [
   [/HP가\s*(\d+)\s*%\s*이하이면/, (m) => ({ c: "hp", pct: Number(m[1]) / 100 })],
   [/적이\s*(\d+)\s*명\s*이상이면/, (m) => ({ c: "foes", n: Number(m[1]) })],
   [/혼자\s*남으면/, () => ({ c: "alone" })],
+  // 선 열 — 「모든 열」 사도가 편성에서 고른 열에 따라 다른 줄이 켜진다
+  [/(전열|중열|후열)에\s*서\s*있으면/, (m) => ({ c: "row", row: { 전열: "front", 중열: "mid", 후열: "back" }[m[1]] })],
 ];
 
 const LIMIT = /\(?\s*(턴당|전투당)\s*(\d+)\s*회\s*\)?/;
@@ -246,6 +247,7 @@ function condOk(s, owner, r, info) {
     if (c.c === "hp" && owner.hp / owner.maxHp > c.pct) return false;
     if (c.c === "foes" && s.enemies.filter((e) => !e.dead).length < c.n) return false;
     if (c.c === "alone" && s.party.filter((u) => !u.dead && u !== owner).length) return false;
+    if (c.c === "row" && owner.row !== c.row) return false;
   }
   return true;
 }
@@ -262,7 +264,7 @@ function matches(s, owner, w, ev, info) {
     case "hurt": return w.who === "any" ? info.who.side === "party" : info.who === owner;
     case "lowHp": return info.who === owner && info.before > w.pct && info.after <= w.pct;
     case "allyDown": return info.who !== owner;
-    case "ult": case "combo": return info.hero === owner.key || (info.heroes || []).includes(owner.key);
+    case "ult": return info.hero === owner.key || (info.heroes || []).includes(owner.key);
     case "debuff": return info.by === owner.key;
     case "stackReach": return w.id === info.id && info.before < w.n && info.after >= w.n && (!info.owner || info.owner === owner.key);
     default: return true;

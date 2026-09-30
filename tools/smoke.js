@@ -109,11 +109,23 @@ check(/3 \/ 3/.test(p.textContent), "머리에 몇 명 골랐는지 나온다");
   check(/에르핀/.test(stands[0].textContent), "후열(에르핀)이 무대 왼쪽에 선다");
 }
 
+// 열 — 후열 · 중열 · 전열이 늘 깔리고, 같은 열(네르 · 티그 전열)끼리는 ⇄ 로 자리를 바꾼다
+{
+  check(count(p, "tm-flane") === 3 && count(p, "tm-floor") === 3, "무대에 열 셋이 깔린다");
+  const frontNames = () => clickAll(p, (n) => n.classList.contains("tm-fstand")).map((n) => n.textContent).filter((t) => /전열/.test(t)).map((t) => (t.match(/네르|티그/) || [""])[0]);
+  const sw = clickAll(p, (n) => n.classList.contains("tm-fswap"));
+  check(sw.length === 1, `같은 열 둘 사이에 ⇄ 하나 (${sw.length})`);
+  const before = frontNames().join(",");
+  sw[0].onclick({ stopPropagation() {} });
+  const after = frontNames().join(",");
+  check(before === "네르,티그" && after === "티그,네르", `⇄ 로 같은 열 둘의 자리가 바뀐다 (${before} → ${after})`);
+}
+
 // 함께 가면 · 덱
-check(/각별|친함/.test(p.textContent), "사이가 보인다");
+check(!/각별|친함|안면|함께한 이야기/.test(p.textContent), "짝마다의 사이는 적지 않는다");
 check(!p.textContent.includes("초면"), "초면을 적지 않는다");
 check(/광기 → 순수 → 냉정 → 광기/.test(p.textContent), "성격 상성을 적어 준다");
-check(/첫 턴 AP/.test(p.textContent), "첫 턴 AP 가 보인다");
+check(!/첫 턴 AP/.test(p.textContent), "사이가 없으니 첫 턴 AP 줄도 없다(늘 3)");
 check(count(p, "tm-fdk") === 12, `덱 열두 장이 미리 보인다 (${count(p, "tm-fdk")})`);
 
 // 무대의 사도를 누르면 사도 정보에 들어갔다 온다
@@ -132,7 +144,7 @@ check(count(p, "decho") === 19, `이격 열아홉에 표가 붙는다 (${count(p
   const cls = clickAll(p, (n) => n.classList.contains("dex")).map((c) => c.className);
   check(!cls.some((c) => /\bs[123]\b/.test(c)), "이름표 위 성급 띠를 없앴다");
 }
-check(/에르핀 · 네르 · 티그/.test(p.textContent), "도감 아래에 고른 셋이 적힌다");
+check(/에르핀 · 티그 · 네르/.test(p.textContent), "도감 아래에 고른 셋이 (바꾼 순서대로) 적힌다");
 
 {
   const dsearch = (function find(x) { for (const c of x.children) { if (c.classList.contains("dsearch")) return c; const r = find(c); if (r) return r; } return null; })(p);
@@ -175,6 +187,41 @@ const goBtn = clickAll(p).find((n) => n.textContent === "떠납니다");
 check(goBtn && !goBtn.disabled, "셋을 고르면 떠날 수 있다");
 goBtn.onclick();
 check(started && started.party.length === 3, "편성이 넘어온다");
+check(started.party.join(",") === "에르핀,티그,네르", `자리를 바꾼 순서대로 넘어간다 (${started.party.join(",")})`);
+// 「모든 열」 사도(티그(영웅) · 죠안) — 선 열에 따라 패시브의 그 열 줄만 켜진다
+{
+  const P = await import("../js/passive.js");
+  const B = (await import("../js/data/built.js")).default;
+  check(B.heroes["죠안"].anyRow && B.heroes["티그_영웅"].anyRow && !B.heroes["티그"].anyRow, "모든 열 사도는 둘(티그(영웅) · 죠안)");
+  const lit = (row) => {
+    const t = C2.newCombat({ partyKeys: ["죠안", "에르핀", "네르"], rows: { 죠안: row }, deck: [], enemyIds: ["fairymobcloserange"], seed: 3 });
+    const log = t.log.join("\n");
+    C2.endTurn(t);                                   // 다음 턴 시작 — 턴 시작 줄이 돈다
+    return { row: t.party[0].row, gauge: t.gauge, log: t.log.join("\n") };
+  };
+  const mid = lit("mid"), back = lit("back"), front = lit("front");
+  check(mid.row === "mid" && /꿈결 기도/.test(mid.log) && !/후열 축복/.test(mid.log), `죠안 중열 — 중열 줄만 (게이지 ${mid.gauge}%)`);
+  check(back.row === "back" && /후열 축복/.test(back.log) && !/꿈결 기도/.test(back.log), "죠안 후열 — 후열 줄만");
+  check(front.row === "front" && !/꿈결 기도|후열 축복/.test(front.log), "죠안 전열 — 중열 · 후열 줄은 꺼진다");
+}
+
+// 같은 열이면 적 쪽(파티 순서가 뒤)이 먼저 맞는다 — 에르핀(후열) · 티그 · 네르(둘 다 전열, 네르가 적 쪽)
+{
+  let hitNer = 0, hitTig = 0, early = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    const t = C2.newCombat({ partyKeys: ["에르핀", "티그", "네르"], rows: {}, deck: [], enemyIds: ["fairymobcloserange"], seed });
+    const [, tig, ner] = t.party;
+    for (let k = 0; k < 4 && !t.over; k++) {
+      const h0 = [tig.hp, ner.hp];
+      C2.endTurn(t);
+      const dT = h0[0] - tig.hp, dN = h0[1] - ner.hp;
+      if (dN > 0) hitNer++;
+      if (dT > 0) hitTig++;
+      if (dT > 0 && dN === 0 && !ner.dead) early++;     // 네르가 멀쩡히 서 있는데 티그만 맞았다
+    }
+  }
+  check(hitNer > 0 && early === 0, `같은 열이면 적 쪽(네르)이 먼저 맞는다 (네르 ${hitNer}번 · 네르를 두고 티그만 ${early}번)`);
+}
 
 console.log("\n전투 화면");
 const run = R.newRun(started.party, started.rows, 4242);

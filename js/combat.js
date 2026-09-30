@@ -20,16 +20,8 @@ const HERO = (k) => HERO_DATA[k] || HEROES[k] || { ko: k, row: "mid" };
 export const ROWS = ["front", "mid", "back"];
 export const ROW_KO = (r) => (r === "front" ? "앞" : r === "mid" ? "가운데" : "뒤");
 
-// ── 관계 ───────────────────────────────────────────────────────────────
-// 동반 등장 횟수를 네 단계로 나눈다. 경계값의 근거는 docs/01-규칙.md.
-export function tierOf(n) {
-  if (n >= 20) return { id: "각별", mult: 1.35, flat: 0, sp: 1 };
-  if (n >= 8) return { id: "친함", mult: 1.2, flat: 0, sp: 0 };
-  if (n >= 1) return { id: "안면", mult: 1.0, flat: 2, sp: 0 };
-  return { id: "초면", mult: 1.0, flat: 0, sp: 0 };
-}
-// 각별한 짝이 여럿이어도 첫 턴 SP 는 하나까지. 쌓이면 관계가 사실상 필수가 된다.
-export const MAX_START_SP = 1;
+// 사이(관계 · 연계 · 각별한 짝의 첫 턴 AP)는 걷어 냈다 — 음성 대사에 함께 나온 횟수로 매겼는데,
+// 135명 가운데 짝이 있는 사도가 몰려 있고(각별 7짝 · 초면 95%) 그걸 풀어 줄 이벤트도 없었다.
 // ── 성격 (원작의 속성 체계) ────────────────────────────────────────────
 // 기획서는 **상성**이다 — 광기 → 순수 → 냉정 → 광기, 활발 ↔ 우울.
 // (한때 "같은 성격을 모을수록 강해진다"는 시너지로 만들었는데, 기획서가 시너지를 없애고
@@ -37,28 +29,12 @@ export const MAX_START_SP = 1;
 export const natureOf = (k) => (designOf(k) || {}).nature || REL.nature[k] || null;
 export const natureEdge = R.natureEdge;
 
-const pairKey = (a, b) => [a, b].sort().join("|");
-export const pairCount = (a, b) => REL.pairs[pairKey(a, b)] || 0;
-export const tierBetween = (a, b) => tierOf(pairCount(a, b));
-// b 가 a 를 부르는 말 (연계는 뒤에 낸 쪽이 앞사람을 부른다)
-export const callForm = (b, a) => ((REL.calls[b] || {})[a] || {}).form || null;
-
-export function partyBonds(keys) {
-  const out = [];
-  for (let i = 0; i < keys.length; i++)
-    for (let j = i + 1; j < keys.length; j++) {
-      const n = pairCount(keys[i], keys[j]);
-      out.push({ a: keys[i], b: keys[j], n, tier: tierOf(n) });
-    }
-  return out;
-}
 
 // ── 난수 (씨앗을 주면 같은 판이 재현된다) ───────────────────────────────
 export function makeRng(seed = Date.now()) {
   let s = seed >>> 0 || 1;
   return () => ((s ^= s << 13), (s ^= s >>> 17), (s ^= s << 5), (s >>> 0) / 4294967296);
 }
-const pick = (rng, arr) => arr[Math.floor(rng() * arr.length)];
 
 // ── 상태 이상 ──────────────────────────────────────────────────────────
 const BAD = ["취약", "약화", "감전", "중독"];
@@ -66,7 +42,7 @@ const st = (u, id) => u.status[id] || 0;
 const addSt = (u, id, v) => { u.status[id] = Math.max(0, st(u, id) + v); if (!u.status[id]) delete u.status[id]; };
 
 // ── 전투 시작 ──────────────────────────────────────────────────────────
-export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noBonds, noNature, traits, gear, gearFx, flash, enemyHp, next, shin, glow }) {
+export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noNature, traits, gear, gearFx, flash, enemyHp, next, shin, glow }) {
   const rng = makeRng(seed);
   const party = partyKeys.map((key, i) => {
     // 스탯은 기획서가 원본이다. 기획서에 없는 사도만 옛 heroes.js 를 본다.
@@ -96,14 +72,14 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
   });
 
   const s = {
-    rng, party, enemies, bonds: partyBonds(partyKeys),
+    rng, party, enemies,
     // AP — 파티 공용, 매 턴 3, **남으면 사라진다**(기획서).
     turn: 0, ap: 0, apPerTurn: R.AP_PER_TURN, apJam: 0, tentacles: 0,
     // 고학년 게이지 — 파티 공용 0~300%. 카드에 쓴 AP 1당 +10%. 0코는 충전 없음.
     gauge: 0, lastUlt: null,
     partyDmg: 0, crit: 0, rearBuff: 0, overdrive: false,
     draw: shuffle(rng, deck.slice()), hand: [], discard: [], gone: [],
-    lastHero: null, combosThisTurn: {}, nextCheaper: 0, taunt: null,
+    lastHero: null, nextCheaper: 0, taunt: null,
     poisonKills: 0, log: [], over: null,
     traits: (traits || []).slice(),
   };
@@ -112,19 +88,13 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
   s.book = {};
   for (const [id, n] of Object.entries(s.flash)) if (CARDS[id]) s.book[id] = flashed(CARDS[id], n);
 
-  // 관계를 끈 채로도 돌릴 수 있게 해 둔다 — 관계가 승률에 얼마나 기여하는지 재려면 필요하다
-  s.noBonds = !!noBonds;
-
   // 위치는 기획서가 정한 제 자리로 고정이다. 옮길 수 없다 —
   // 기본 스탯이 위치에서 나오기 때문이다(전열 탱커 HP 90 · 후열 딜러 HP 55).
 
   s.noNature = !!noNature;   // 상성을 끄고 재려면 필요하다
 
-  // 각별한 짝은 첫 턴에 SP 를 하나 얹어 준다
-  s.startSp = s.noBonds ? 0 : Math.min(MAX_START_SP, s.bonds.reduce((a, b) => a + b.tier.sp, 0));
-
-  for (const b of s.bonds) if (!s.noBonds && b.tier.id !== "초면")
-    say(s, `${HERO(b.a).ko}–${HERO(b.b).ko} — ${b.tier.id} (함께 나온 이야기 ${b.n}편)`);
+  // 첫 턴에 더 받는 AP — 이벤트의 「다음 전투: 첫 턴 AP +1」만 얹는다
+  s.startSp = 0;
   // 신탁 '눈치' — 첫 손패가 한 장 많다
   s.opening = tr(s, "opening");
   // 전투를 열며 한 명이 말한다
@@ -210,7 +180,7 @@ function beginTurn(s) {
   if (s.apJam) say(s, `방해로 AP -${s.apJam}`);
   s.apJam = 0;
   s.ap = gain;
-  s.lastHero = null; s.combosThisTurn = {}; s.nextCheaper = 0; s.erpinSp = 0; s.nerWorked = false;
+  s.lastHero = null; s.nextCheaper = 0; s.erpinSp = 0; s.nerWorked = false;
   s.playedThisTurn = 0;
   // 무적은 적의 차례까지 간다 — 전에는 적이 치기 전에 풀려서 아무것도 막지 못했다
   for (const u of s.party) u.invuln = false;
@@ -368,12 +338,17 @@ function enemyPhase(s) {
 }
 
 // 앞줄이 먼저 맞는다. 뒤를 노리는 수(back)는 거꾸로 뒷줄부터.
-// 티그의 시비(taunt)가 걸려 있으면 어느 쪽이든 티그가 맞는다 — 뒷줄을 지키는 값이 된다.
+// 같은 열이면 **적 쪽에 선 사도가 먼저** 맞는다 — 편성에서 ⇄ 로 정한 자리(파티 순서가 뒤일수록 적 쪽).
+// 뒤를 노리는 수는 같은 열에서도 가장 안쪽(파티 순서가 앞)부터. 열이 주는 효과 · 조건은 자리와 상관없이 열만 본다.
+// 도발이 걸려 있으면 어느 쪽이든 그 사도가 맞는다.
 function pickTarget(s, fromBack) {
   const live = alive(s.party); if (!live.length) return null;
   if (s.taunt) { const t = live.find((u) => u.key === s.taunt); if (t) return t; }
   const order = fromBack ? ROWS.slice().reverse() : ROWS;
-  for (const r of order) { const inRow = live.filter((u) => u.row === r); if (inRow.length) return pick(s.rng, inRow); }
+  for (const r of order) {
+    const inRow = live.filter((u) => u.row === r);
+    if (inRow.length) return inRow.reduce((a, b) => (fromBack ? (b.idx < a.idx ? b : a) : (b.idx > a.idx ? b : a)));
+  }
   return live[0];
 }
 
@@ -589,7 +564,6 @@ export function playCard(s, handIdx, targetIdx) {
   const c = cardOf(s, cardId);
   // 중립 카드는 주인이 없다 — 기획서: 따로 적지 않으면 **공격력·방어력이 가장 높은 아군 기준**
   const owner = c.hero ? s.party.find((u) => u.key === c.hero) : c.neutral ? bestAlly(s, "atk") : null;
-  const combo = resolveCombo(s, c);
 
   // X 코스트는 남은 AP 를 전부 쓴다. 그 수가 곧 X 다.
   const paid = c.xcost ? s.ap : costOf(s, cardId);
@@ -604,7 +578,7 @@ export function playCard(s, handIdx, targetIdx) {
 
   // 기적 — true(이벤트의 옛 값) · "power" 는 피해 ×1.3
   const sh = s.shin && s.shin[cardId];
-  const ctx = { owner, combo, targetIdx, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null, shin: sh === true || sh === "power" };
+  const ctx = { owner, combo: null, targetIdx, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null, shin: sh === true || sh === "power" };
   s.acting = c.hero || null;
   if (c.built) {
     // 기획서에서 읽은 카드 — 효과 조각을 run-fx 가 실행한다(스탯 기반 %)
@@ -634,25 +608,19 @@ export function playCard(s, handIdx, targetIdx) {
     const coffer = tr(s, "snacksp");          // 신탁 '곳간'
     if (coffer) { s.ap += coffer; say(s, `곳간 — AP +${coffer}`); }
   }
-  // 연계가 터지면 — 옛 신탁 '말이 통한다'(sim.js 전용)
-  if (combo) {
-    const talk = tr(s, "combo");              // 신탁 '말이 통한다'
-    if (talk) draw(s, talk);
-  }
 
   if (c.temp || hasTag(c, "소멸")) s.gone.push(cardId); else s.discard.push(cardId);
   if (sh === "draw") draw(s, 1);                 // 기적 「내면 드로우 +1」
-  // 패시브 — 「카드를 낼 때마다」「한 턴에 N장째」「연계가 터지면」
+  // 패시브 — 「카드를 낼 때마다」「한 턴에 N장째」
   s.playedThisTurn = (s.playedThisTurn || 0) + 1;
   const tgt = s.enemies.find((e) => e.idx === targetIdx && !e.dead) || null;
   emit(s, "play", { hero: c.hero, type: c.type, nth: s.playedThisTurn, target: tgt });
-  if (combo) emit(s, "combo", { heroes: [s.lastHero, c.hero] });
   s.acting = null;
   if (c.ego && c.hero) speak(s, c.hero, "ego");
   if (c.hero === "ner") s.nerWorked = true;
   if (c.hero) s.lastHero = c.hero;
   checkOver(s);
-  return { ok: true, combo };
+  return { ok: true };
 }
 
 // ── 미리보기 ───────────────────────────────────────────────────────────
@@ -689,26 +657,9 @@ export function previewCard(s, handIdx, targetIdx) {
   });
 }
 
-// 앞사람과 다른 사도의 카드를 이어 내면 연계가 터진다. 같은 짝은 한 턴에 한 번.
-function resolveCombo(s, c) {
-  if (s.noBonds) return null;
-  const prev = s.lastHero;
-  if (!c.hero || !prev || prev === c.hero) return null;
-  if (!s.party.some((u) => u.key === prev)) return null;
-  const k = pairKey(prev, c.hero);
-  if (s.combosThisTurn[k]) return null;
-  const tier = tierBetween(prev, c.hero);
-  if (tier.id === "초면") return null;
-  s.combosThisTurn[k] = true;
-  const form = callForm(c.hero, prev);
-  const quip = form ? `${HERO(c.hero).ko}: "${form}!"` : `${이가(HERO(c.hero).ko)} 이어받는다`;
-  say(s, `연계 · ${tier.id} — ${quip}`);
-  return { tier, from: prev, to: c.hero, form, quip };
-}
 
 const boost = (v, combo, owner, s) => {
   let out = v;
-  if (combo) out = out * combo.tier.mult + combo.tier.flat;
   if (owner) out = dealt(owner, out);
   // 사도별 보정 (강화 평타)
   if (owner && owner.key === "erpin" && s.erpinChain > 0) out += 4;
@@ -735,7 +686,7 @@ function applyFx(s, c, f, ctx) {
   switch (f.k) {
     case "damage": { const t = one(); if (t) hurt(s, t, boost(f.v, combo, owner, s), { from: owner }); break; }
     case "aoe": { const d = boost(f.v, combo, owner, s); for (const t of reachable.slice()) hurt(s, t, d, { from: owner }); break; }
-    case "block": if (owner) owner.block += Math.round(f.v * (combo ? combo.tier.mult : 1)) + tr(s, "block"); break;
+    case "block": if (owner) owner.block += Math.round(f.v) + tr(s, "block"); break;
     case "blockAlly": { const t = ally(); if (t) { t.block += f.v; speak(s, t.key, "heal"); } break; }
     case "blockAll": for (const u of alive(s.party)) u.block += f.v; break;
     case "heal": if (owner) owner.hp = Math.min(owner.maxHp, owner.hp + f.v); break;
@@ -826,7 +777,7 @@ function applyFx(s, c, f, ctx) {
 
     case "healAll": for (const u of alive(s.party)) u.hp = Math.min(u.maxHp, u.hp + f.v); break;
     case "status": {
-      let v = f.v + (combo && f.id === "중독" ? 1 : 0)
+      let v = f.v
         + (f.id === "중독" ? s.poisonKills + tr(s, "poison") : 0);   // 신탁 '독한 마음'
       // 아멜리아가 있으면 엘레나의 감전이 한 턴 더 간다 (원작: 4초 → 8초)
       if (f.id === "감전" && s.party.some((u) => u.key === "amelia" && !u.dead)) v += 1;

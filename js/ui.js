@@ -25,6 +25,16 @@ const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls)
 const ROW_KO = { front: "전열", mid: "중열", back: "후열" };
 
 let kwNote = null;                 // 낱말 풀이 쪽지 — 한 번에 하나만 뜬다
+// 쪽지(낱말 풀이 · 카드 쪽지 · 더미 창)는 「닫기」 말고도 바깥을 누르거나 Esc 로 닫는다.
+// 누르기 시작(pointerdown)에 닫으니, 다른 낱말을 누르면 앞의 쪽지가 닫히고 새 쪽지가 뜬다
+if (typeof document === "object" && document.addEventListener) {
+  document.addEventListener("pointerdown", (e) => {
+    if (kwNote && !kwNote.contains(e.target)) { kwNote.remove(); kwNote = null; }
+  }, true);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && kwNote) { kwNote.remove(); kwNote = null; }
+  });
+}
 export function hint(t) { $("#hint").textContent = t || ""; }
 function screen() {
   // 화면이 바뀌면 아래 안내도 지운다 — 전투에서 뜬 「도울 아군을 고릅니다」 가
@@ -44,6 +54,8 @@ function screen() {
 
 const NATURES = ["순수", "광기", "냉정", "우울", "활발", "공명"];
 const ROWS_KO = { front: "전열", mid: "중열", back: "후열" };
+// 명단 · 도감에 적는 자리 — 「모든 열」 사도는 그렇게 적는다
+const rowLabel = (h) => (h && h.anyRow ? "모든 열" : ROWS_KO[h && h.row] || "");
 const ROLES = ["탱커", "딜러", "서포터"];
 const NTINT = { 순수: "#7fd3a8", 광기: "#d9737f", 냉정: "#7fd6f5", 우울: "#9a8cc0", 활발: "#f5dc5a", 공명: "#c9c9d6" };
 // 카드 타입 — 원작 도감처럼 한 글자 표시와 빛깔을 준다
@@ -481,10 +493,12 @@ export function partyScreen(onStart, onBack) {
     dock.appendChild(grid);
     s.appendChild(dock);
 
+    // 선 열 — 「모든 열」 사도는 편성에서 고른 열, 나머지는 기획서의 제 열
+    const rowOf = (k) => rows[k] || HERO_DATA[k].row;
     const toggle = (key) => {
       const i = picked.indexOf(key);
       if (i >= 0) { picked.splice(i, 1); delete rows[key]; }
-      else if (picked.length < 3) { picked.push(key); rows[key] = HERO_DATA[key].row; if (filter.q) { filter.q = ""; search.value = ""; } }
+      else if (picked.length < 3) { picked.push(key); rows[key] = rows[key] || HERO_DATA[key].row; if (filter.q) { filter.q = ""; search.value = ""; } }
       else return hint("셋까지만 데려갈 수 있습니다 — 무대의 사도를 먼저 빼 주세요");
       hint("");
       fill();
@@ -505,10 +519,35 @@ export function partyScreen(onStart, onBack) {
       top.appendChild(uiIcon("성격", h.nature, "tm-fnat", h.nature.slice(0, 1)));
       top.appendChild(el("b", null, h.ko));
       plate.appendChild(top);
-      plate.appendChild(el("span", "tm-fps", `${ROWS_KO[h.row]} ${h.role} · ${"★".repeat(h.star)}`));
+      plate.appendChild(el("span", "tm-fps", `${ROWS_KO[rowOf(key)]} ${h.role} · ${"★".repeat(h.star)}`));
       n.appendChild(plate);
+      // 「모든 열」 사도 — 어느 열에 설지 고른다. 선 열에 따라 패시브의 다른 줄이 켜진다
+      if (h.anyRow) {
+        const pick = el("div", "tm-frow");
+        for (const r of [...C.ROWS].reverse()) {
+          const b = el("button", "tm-frowb" + (rowOf(key) === r ? " on" : ""), ROWS_KO[r]);
+          // 그 열에서 켜지는 패시브 줄을 안내로 — 「후열에 서 있으면」 이 든 마디
+          const line = (h.passive || "").split(" · ").filter((x) => x.includes(`${ROWS_KO[r]}에 서 있으면`)).join(" · ");
+          b.title = line ? `${ROWS_KO[r]}에 서면 — ${line}` : `${ROWS_KO[r]}에 선다`;
+          b.onclick = (e) => { e.stopPropagation(); rows[key] = r; fill(); };
+          pick.appendChild(b);
+        }
+        n.appendChild(pick);
+      }
       n.title = `${h.ko} — 눌러서 사도 정보`;
       n.onclick = () => { cameFrom = null; view = key; tab = "능력치"; render(); };
+      return n;
+    }
+    // 같은 열의 두 사도 사이 — 누르면 둘의 자리를 바꾼다(편성 순서 = 전투에서 선 순서 · 손패 순서)
+    function swapBtn(a, b) {
+      const n = el("button", "tm-fswap", "⇄");
+      n.title = `${HERO_DATA[a].ko} ↔ ${HERO_DATA[b].ko} 자리 바꾸기`;
+      n.onclick = (e) => {
+        e.stopPropagation();
+        const i = picked.indexOf(a), j = picked.indexOf(b);
+        [picked[i], picked[j]] = [picked[j], picked[i]];
+        fill();
+      };
       return n;
     }
     function emptyStand(i) {
@@ -533,7 +572,7 @@ export function partyScreen(onStart, onBack) {
       n.appendChild(badges);
       const plate = el("div", "tm-fcp");
       plate.appendChild(el("b", null, h.ko));
-      plate.appendChild(el("span", null, `${ROWS_KO[h.row]} · ${h.race}`));
+      plate.appendChild(el("span", null, `${rowLabel(h)} · ${h.race}`));
       n.appendChild(plate);
       if (at >= 0) n.appendChild(el("span", "tm-fnum", String(at + 1)));
       if (isEcho(key)) n.appendChild(el("span", "tm-fecho", "이격"));
@@ -574,11 +613,26 @@ export function partyScreen(onStart, onBack) {
     }
 
     function fill() {
-      // 무대 — 후열부터 왼쪽에. 빈 자리는 오른쪽 끝(전열 쪽)부터 채워 보이게
+      // 무대 — 열 셋(후열 · 중열 · 전열)을 늘 깔고, 사도는 제 열에 선다. 전투처럼 후열이 왼쪽, 전열이 적 쪽.
+      // 같은 열에 둘 이상이면 그 사이의 ⇄ 로 자리를 바꾼다. 빈 자리는 무대 왼쪽 끝에 흐리게.
       stands.innerHTML = "";
-      const order = [...picked].sort((a, b) => C.ROWS.indexOf(HERO_DATA[b].row) - C.ROWS.indexOf(HERO_DATA[a].row));
       for (let i = picked.length; i < 3; i++) stands.appendChild(emptyStand(i));
-      for (const k of order) stands.appendChild(standOf(k));
+      for (const r of [...C.ROWS].reverse()) {
+        const inRow = picked.filter((k) => rowOf(k) === r);   // 편성 순서 그대로 — 왼쪽이 먼저 고른 사도
+        const lane = el("div", "tm-flane r" + r + (inRow.length ? "" : " none"));
+        const who = el("div", "tm-flanehero");
+        inRow.forEach((k, i) => {
+          if (i) who.appendChild(swapBtn(inRow[i - 1], k));
+          who.appendChild(standOf(k));
+        });
+        lane.appendChild(who);
+        const floorTag = el("div", "tm-floor");
+        floorTag.appendChild(el("b", null, ROWS_KO[r]));
+        if (inRow.length > 1) floorTag.appendChild(el("span", null, `${inRow.length}명 · 오른쪽(적 쪽)이 먼저 맞는다`));
+        else if (r === "front") floorTag.appendChild(el("span", null, inRow.length ? "적이 먼저 노린다" : "비면 다음 열이 맞는다"));
+        lane.appendChild(floorTag);
+        stands.appendChild(lane);
+      }
       count.textContent = `${picked.length} / 3`;
       go.disabled = picked.length !== 3;
       go.textContent = picked.length === 3 ? "떠납니다" : `사도 ${3 - picked.length}명 더`;
@@ -586,15 +640,7 @@ export function partyScreen(onStart, onBack) {
       // 함께 가면 — 사이 · 성격 · 첫 턴 AP
       synBox.innerHTML = "";
       synBox.appendChild(el("div", "tm-flabel", "함께 가면"));
-      if (!picked.length) synBox.appendChild(el("p", "tm-fnote", "사도를 고르면 서로의 사이와 성격이 여기 뜹니다. 사이가 좋으면 연계가 터지고 첫 턴 AP 가 늡니다."));
-      const bonds = C.partyBonds(picked).filter((b) => b.n);
-      for (const bd of bonds) {
-        const line = el("div", "tm-fbond");
-        line.appendChild(el("b", null, `${HERO_DATA[bd.a].ko} · ${HERO_DATA[bd.b].ko}`));
-        line.appendChild(el("span", "tm-ftier t" + bd.tier.id, bd.tier.id));
-        line.appendChild(el("span", "tm-fwhy", `함께한 이야기 ${bd.n}편`));
-        synBox.appendChild(line);
-      }
+      if (!picked.length) synBox.appendChild(el("p", "tm-fnote", "사도를 고르면 셋의 성격이 여기 뜹니다."));
       if (picked.length) {
         const nat = el("div", "tm-fnats");
         for (const k of picked) {
@@ -606,12 +652,6 @@ export function partyScreen(onStart, onBack) {
         }
         synBox.appendChild(nat);
         synBox.appendChild(el("p", "tm-fnote", "성격 상성 — 광기 → 순수 → 냉정 → 광기 · 활발 ↔ 우울"));
-        const plus = Math.min(1, bonds.reduce((a, b) => a + b.tier.sp, 0));
-        const ap = el("div", "tm-fap");
-        ap.appendChild(el("span", null, "첫 턴 AP"));
-        ap.appendChild(el("b", null, String(3 + plus)));
-        ap.appendChild(el("span", "tm-fwhy", plus ? `사이가 좋아 +${plus}` : "매 턴 3"));
-        synBox.appendChild(ap);
       }
 
       // 시작 덱
@@ -622,17 +662,28 @@ export function partyScreen(onStart, onBack) {
         row.appendChild(el("span", "tm-fdkwho", HERO_DATA[k].ko));
         const cards = el("div", "tm-fdkcards");
         for (const c of kitOf(k).start) {
-          const chip = el("span", "tm-fdk t" + (c.type || ""));
+          const chip = el("button", "tm-fdk t" + (c.type || ""));
           chip.appendChild(el("i", null, c.xcost ? "X" : String(c.cost)));
           chip.appendChild(el("span", null, c.name));
-          chip.title = c.text;
+          chip.title = `${c.text} — 눌러서 자세히`;
+          chip.onclick = (e) => { e.stopPropagation(); showCard(c, k); };
           cards.appendChild(chip);
           n++;
         }
         row.appendChild(cards);
         deckBox.appendChild(row);
       }
-      deckHead.textContent = n ? `시작 덱 ${n}장` : "시작 덱";
+      deckHead.innerHTML = "";
+      deckHead.appendChild(el("span", null, n ? `시작 덱 ${n}장` : "시작 덱"));
+      if (n) {
+        const big = el("button", "tm-fdkbig", "크게 보기");
+        const ids = picked.flatMap((k) => kitOf(k).start.map((c) => c.id));
+        big.onclick = (e) => {
+          e.stopPropagation();
+          showPiles([{ key: "start", label: "시작 덱", ids, why: "사도마다 시작 카드 넉 장 — 고유 카드는 싸우며 은총으로 얻습니다." }], "start", (id) => CARDS[id], null);
+        };
+        deckHead.appendChild(big);
+      }
       if (!n) deckBox.appendChild(el("p", "tm-fnote", "사도마다 시작 카드 넉 장. 고유 카드는 싸우며 은총으로 얻습니다."));
 
       fillRoster();
@@ -657,7 +708,7 @@ export function partyScreen(onStart, onBack) {
     if (on) b.appendChild(el("span", "dmark", "편성"));
     const plate = el("div", "dplate");
     plate.appendChild(el("span", "dname", h.ko));
-    plate.appendChild(el("span", "dsub", `${ROWS_KO[h.row]} · ${h.race}`));
+    plate.appendChild(el("span", "dsub", `${rowLabel(h)} · ${h.race}`));
     if (isEcho(key)) b.appendChild(el("span", "decho", "이격"));
     b.appendChild(plate);
     b.onclick = () => { cameFrom = "도감"; view = key; tab = "능력치"; render(); };
@@ -737,7 +788,7 @@ export function partyScreen(onStart, onBack) {
     if (h.eldain) t.appendChild(el("span", "eldain", "엘다인"));
     info.appendChild(t);
     const meta = el("div", "stmeta");
-    for (const [kind, name] of [["성격", h.nature], ["종족", h.race], ["위치", ROWS_KO[h.row]], ["역할", h.role]]) {
+    for (const [kind, name] of [["성격", h.nature], ["종족", h.race], ["위치", rowLabel(h)], ["역할", h.role]]) {
       const tag = el("span", "mtag");
       tag.appendChild(uiIcon(kind, name, "mico", ""));
       tag.appendChild(el("span", null, name));
@@ -760,22 +811,7 @@ export function partyScreen(onStart, onBack) {
     // 능력 글은 오른쪽 기둥에 잇는다 — 입상은 왼쪽에 서 있고 글만 내려 읽는다
     if (h.passive) info.appendChild(line("패시브", h.passive, "", key));
     if (h.keyword) info.appendChild(line(h.keyword.ko, h.keyword.text, "key", key));
-    // 원작에서 무엇을 가져왔는지 — 나무위키를 읽고 다시 쓴 근거(docs/07-스킬구성.md)
-    if (h.source) info.appendChild(line("원작", h.source, "src", key));
-
-    // 고른 사람들과의 사이 — 없으면 아무 말도 안 한다
-    const others = picked.filter((k) => k !== key);
-    const bonds = C.partyBonds([key, ...others]).filter((b2) => b2.n && (b2.a === key || b2.b === key));
-    if (bonds.length) {
-      info.appendChild(el("h3", "psec", "고른 사도와의 사이"));
-      for (const b2 of bonds) {
-        const other = b2.a === key ? b2.b : b2.a;
-        const l = el("div", "bond");
-        l.appendChild(el("b", null, HERO_DATA[other].ko));
-        l.appendChild(el("span", "why", `함께 나온 이야기 ${b2.n}편 · ${b2.tier.id}`));
-        info.appendChild(l);
-      }
-    }
+    // 원작 대조(h.source)와 고른 사도와의 사이는 싣지 않는다 — 사이는 편성 화면 「함께 가면」에 있다
     return w;
   }
 
@@ -1349,7 +1385,7 @@ export function fightScreen(run, onDone, onQuit) {
     apBox.appendChild(el("span", "apnum", String(st.ap)));
     apBox.appendChild(el("span", "aplabel", "AP"));
     apBox.title = st.turn === 1 && st.startSp
-      ? `매 턴 ${st.apPerTurn} · 사이가 좋아 첫 턴 +${st.startSp}`
+      ? `매 턴 ${st.apPerTurn} · 이번 전투 첫 턴 +${st.startSp}`
       : `매 턴 ${st.apPerTurn} · 남으면 사라집니다`;
     // 눈금 — 몇 개 남았는지 숫자보다 빨리 읽힌다
     const pips = el("span", "appips");
@@ -1954,7 +1990,6 @@ export function fightScreen(run, onDone, onQuit) {
     const r = C.playCard(st, selCard, targetIdx);
     selCard = -1;
     if (!r.ok) say(r.why);
-    else if (r.combo) say(r.combo.quip);
     draw();
   }
 
@@ -2954,14 +2989,8 @@ export function swapScreen(run, onDone) {
     n.appendChild(badges);
     const plate = el("div", "dplate");
     plate.appendChild(el("span", "dname", h.ko));
-    // 남는 두 사람과의 사이 — 없는 사이는 적지 않는다
-    const bonds = run.party.filter((p) => p !== outKey)
-      .map((p) => ({ p, t: C.tierBetween(k, p) })).filter((x) => x.t.id !== "초면");
-    plate.appendChild(el("span", "dsub", bonds.length
-      ? bonds.map((x) => `${HERO(x.p).ko} ${x.t.id}`).join(" · ")
-      : `${RK[h.row] || ""} · ${h.race || ""}`));
+    plate.appendChild(el("span", "dsub", `${RK[h.row] || ""} · ${h.race || ""}`));
     n.appendChild(plate);
-    if (bonds.length) n.appendChild(el("span", "dmark bondmark", "사이"));
     n.onclick = () => { R.swapHero(run, outKey, k); onDone(); };
     return n;
   }
@@ -3012,15 +3041,15 @@ export function swapScreen(run, onDone) {
     inBox.appendChild(grid);
     function fillGrid() {
       grid.innerHTML = "";
-      // 사이가 있는 사도를 앞에 둔다 — 132명을 이름 차례로 늘어놓으면 찾을 수가 없다
+      // 성급 · 이름 차례
       const list = run.bench.filter((k) => {
         const h = HERO_DATA[k] || HERO(k);
         if (q.nature && h.nature !== q.nature) return false;
         if (q.role && h.role !== q.role) return false;
         if (q.text && !(h.ko || "").includes(q.text)) return false;
         return true;
-      }).map((k) => ({ k, n: run.party.filter((p) => p !== outKey).reduce((a, p) => a + C.pairCount(k, p), 0) }))
-        .sort((a, b) => b.n - a.n || (HERO(a.k).ko || "").localeCompare(HERO(b.k).ko || ""));
+      }).map((k) => ({ k, star: (HERO_DATA[k] || {}).star || 0 }))
+        .sort((a, b) => b.star - a.star || (HERO(a.k).ko || "").localeCompare(HERO(b.k).ko || ""));
       for (const { k } of list) grid.appendChild(inCard(k));
       if (!list.length) grid.appendChild(el("div", "more", "맞는 사도가 없습니다."));
     }
@@ -3332,24 +3361,6 @@ export function endScreen(kind, run, onRestart) {
     body.appendChild(row);
   }
 
-  // 사이 — 이 판에 함께 싸운 짝. 없는 사이는 적지 않는다.
-  const met = Object.keys(run.met).filter((k) => {
-    const [x, y] = k.split("|");
-    return C.tierBetween(x, y).id !== "초면";
-  });
-  if (met.length) {
-    body.appendChild(sec2("이번 판에 함께 싸운 사이", "다음 판에는 더 가까운 데서 시작합니다"));
-    const bn = el("div", "erow");
-    for (const k of met) {
-      const [x, y] = k.split("|");
-      const t = C.tierBetween(x, y);
-      const line = el("span", "sline");
-      line.appendChild(el("b", null, `${HERO(x).ko} · ${HERO(y).ko}`));
-      line.appendChild(el("span", "t" + t.id, t.id));
-      bn.appendChild(line);
-    }
-    body.appendChild(bn);
-  }
 
   function sec2(label, why) {
     const d = el("div", "rsec");
