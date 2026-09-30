@@ -4,7 +4,7 @@
 //
 // 사도 한 명을 넣고, 나머지 둘은 돌아가며 바꾼다(한 사람 운에 휘둘리지 않게).
 // 덱은 여덟 장 전부(시작 4 + 고유 4) — 판 중반의 모습이다. 1층(전투 셋 + 보스)을 무작위 손으로 싸운다.
-// 결과: 완주율이 높은/낮은 사도 열 명씩, 그리고 전체 분포.
+// 결과: 완주율이 높은/낮은 사도 열 명씩, 그리고 전체 분포. --rows 는 전원 순위(ROW 줄)
 import { newCombat, endTurn, playCard, canPlay, useUlt, canUlt } from "../js/combat.js";
 import { kitOf, HERO_DATA } from "../js/cardbook.js";
 import { FLOORS } from "../js/data/enemies.js";
@@ -62,6 +62,8 @@ rows.sort((a, b) => b[1] - a[1]);
 const pct = (v) => (v * 100).toFixed(0).padStart(3) + "%";
 const avg = rows.reduce((a, r) => a + r[1], 0) / rows.length;
 console.log(`사도 ${rows.length}명 · 한 사람당 ${N}판 · 평균 완주 ${pct(avg)}`);
+// --rows — 전원 순위(낮은 사도를 찾을 때)
+if (process.argv.includes("--rows")) for (const r of rows) console.log(`ROW	${r[0]}	${Math.round(r[1] * 100)}	${r[2]}	${HERO_DATA[keys.find((k) => HERO_DATA[k].ko === r[0])].eldain ? "엘다인" : ""}`);
 console.log("\n센 쪽 열");
 for (const r of rows.slice(0, 10)) console.log(`  ${pct(r[1])}  ${r[0]} (${r[2]})`);
 console.log("\n약한 쪽 열");
