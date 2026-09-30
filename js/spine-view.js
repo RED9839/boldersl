@@ -55,7 +55,9 @@ async function loadAtlas(sp, gl, dir, atlasFile, pages) {
 // (카드 열다섯 장에 이백 개 — 브라우저는 열여섯 개쯤에서 오래된 것을 버린다). 쉬는 동작도 매번 처음부터 다시 시작했다.
 // 그래서 화면에서 떨어진 캔버스를 모아 두었다가, 같은 사도·같은 크기를 다시 그릴 때 새 자리로 옮겨 붙인다.
 const pool = [];
-const POOL_MAX = 14;
+// 브라우저는 WebGL 컨텍스트를 열여섯 개쯤까지만 들고 있다. 화면에 선 것(전투 6~8) + 쉬는 것이 그 안에 들어와야
+// 오래된 것이 버려지지 않는다 — 14 로 두었을 때 창을 오가면 사도가 하얗게 또는 그림 한 장으로 바뀌었다.
+const POOL_MAX = 6;
 
 function evict() {
   while (pool.length > POOL_MAX) {
@@ -70,9 +72,9 @@ function evict() {
 // skin — 입힐 스킨. 적은 성격마다 한 벌씩(Skin_Naive·Skin_Mad…) 들고 있고 기본 스킨이 비어 있기도 하다.
 // unit — 칸 높이가 게임 세계로 몇 단위인가. 주면 **모두 같은 배율**로 그린다(원작 전투처럼).
 //   안 주면 그림 전체(날개·무기·이펙트까지)를 칸에 꽉 맞추는데, 그러면 장식이 큰 사도일수록 몸이 작아졌다.
-//   같은 배율로 그리면 날개·지팡이는 칸 밖으로 나간다 — 그래서 캔버스를 칸보다 크게(가로 2배·세로 2배) 잡고
+//   같은 배율로 그리면 날개·지팡이는 칸 밖으로 나간다 — 그래서 캔버스를 칸보다 크게(가로 3배·세로 2배) 잡고
 //   발(뼈대 원점)을 칸 바닥 가운데에 세운다. 칸 크기와 자리 잡기는 그대로라 배치가 흔들리지 않는다.
-export const OVER_W = 2, OVER_H = 2;
+export const OVER_W = 3, OVER_H = 2;
 export async function spineView(el, kind, key, { scale = 1, anim, flip = false, skin, unit = 0 } = {}) {
   const sp = spine();
   if (!sp) return null;
@@ -84,7 +86,11 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
   // 넣어 두었더니 싸움터 높이에 따라 크기가 바뀌는 전투 화면에서 다시 쓰질 못하고 카드 한 장마다 컨텍스트가 늘어 하얗게 버려졌다.
   const id = `${kind}|${key}|${scale}|${anim || ""}|${flip ? "f" : ""}|${skin || ""}|${unit}`;
   const spare = pool.find((v) => v.id === id && !v.canvas.isConnected);
-  if (spare) { el.appendChild(spare.canvas); spare.wake(); return spare.api; }
+  if (spare) {
+    // 새 칸에도 「넘쳐도 된다」 표시를 단다 — 빠뜨렸더니 옮겨 붙인 캔버스가 칸(둥근 네모)에 잘려 보였다
+    if (unit) el.classList.add("art-over");
+    el.appendChild(spare.canvas); spare.wake(); return spare.api;
+  }
 
   const set = kind === "minimi" ? manifest.minimi : manifest[kind][key];
   const dir = kind === "minimi" ? `${ROOT}/minimi` : `${ROOT}/${kind}/${key}`;
@@ -196,6 +202,13 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
   };
   // 멈춰 있던 동안의 시간은 건너뛴다 — 한꺼번에 몰아 돌리면 동작이 튄다
   const wake = () => { if (!dead && !raf) { last = performance.now(); raf = requestAnimationFrame(loop); } };
+  // 컨텍스트를 브라우저가 거둬 가면(창을 오갈 때 · 너무 많을 때) 그 자리에 새로 그린다
+  canvas.addEventListener("webglcontextlost", (e) => {
+    e.preventDefault();
+    const host = canvas.parentElement;
+    api.dispose();
+    if (host && host.isConnected) spineView(host, kind, key, { scale, anim, flip, skin, unit });
+  }, { once: true });
   pool.push({ id, canvas, api, wake });
   evict();
   return api;

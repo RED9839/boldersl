@@ -42,7 +42,7 @@ body:has(#screen.battle) #hint:not(:empty) {
 .phone .battle .field {
   position: absolute; inset: 0; z-index: 1; min-height: 0;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px;
-  padding: 70px 200px 318px 250px;
+  padding: 60px 200px 372px 250px;   /* 발밑 = 화면 아래에서 372 — 그 밑은 손패 몫 */
   background: none; border: 0; border-radius: 0; overflow: visible;
 }
 .battle .field:after { display: none; }
@@ -85,8 +85,8 @@ body:has(#screen.battle) #hint:not(:empty) {
   position: absolute; z-index: 6; width: 62px; padding: 8px 4px 7px;
   background: #0c0a16c4; backdrop-filter: blur(4px); border-radius: 10px;
 }
-.battle .pile2.draw { left: 20px; bottom: 312px; }
-.battle .pile2.disc { right: 34px; bottom: 196px; }
+.battle .pile2.draw { left: 20px; bottom: 330px; }
+.battle .pile2.disc { right: 34px; bottom: 200px; }
 .pile2:before {                                  /* 카드 뭉치 모양 */
   content: ""; position: absolute; inset: -4px 4px auto; height: 6px; border-radius: 6px 6px 0 0;
   background: #3a3352; border: 1px solid #ffffff1f; border-bottom: 0;
@@ -140,10 +140,10 @@ body:has(#screen.battle) #hint:not(:empty) {
 /* ── 손패 — 가운데 아래 부채꼴 ──────────────────────────────────────────── */
 .battle .hand,
 .phone .battle .hand {
-  position: absolute; left: 260px; right: 190px; bottom: 58px; z-index: 10;
+  position: absolute; left: 260px; right: 190px; bottom: 54px; z-index: 10;
   display: flex; flex-wrap: nowrap; justify-content: center; align-items: flex-end; gap: 0; padding: 0;
 }
-.battle .hand .card { flex: 0 1 150px; width: 150px; min-width: 0; margin: 0 -6px; box-shadow: 0 10px 22px #0009; }
+.battle .hand .card { flex: 0 1 184px; width: 184px; min-width: 0; margin: 0 -6px; box-shadow: 0 10px 22px #0009; }
 
 /* ── AP — 손패 밑 가운데, 숫자를 크게 ───────────────────────────────────── */
 .battle .deckrow { position: static; display: block; }
@@ -182,14 +182,14 @@ body:has(#screen.battle) #hint:not(:empty) {
 /* ══ 휴대폰 가로 — 높이 540 ══════════════════════════════════════════════ */
 .phone body:has(#screen.battle) .top { top: 6px; right: 8px; }
 .phone body:has(#screen.battle) .bottom { top: auto; bottom: 196px; }
-.phone .battle .field { padding: 46px 150px 212px 196px; gap: 20px; }
+.phone .battle .field { padding: 40px 150px 234px 196px; gap: 20px; }
 .phone .battle .bhead { left: 12px; top: 8px; max-width: 34%; }
 .phone .bwhere { font-size: 15px; }
 .phone .bsub, .phone .bflash { display: none; }
 .phone .turntag { top: 8px; }
 
 .phone .battle .pile2 { width: 52px; padding: 5px 2px; }
-.phone .battle .pile2.draw { left: 12px; bottom: 198px; }
+.phone .battle .pile2.draw { left: 12px; bottom: 206px; }
 .phone .battle .pile2.disc { right: 22px; bottom: 128px; }
 
 .phone .battle .gauge { left: 10px; bottom: 10px; height: 178px; width: 34px; }
@@ -201,7 +201,7 @@ body:has(#screen.battle) #hint:not(:empty) {
 .phone .battle .ally .ultbtn { min-height: 26px; font-size: 11px; padding: 2px 6px; margin-top: 2px; }
 
 .phone .battle .hand { left: 206px; right: 120px; bottom: 44px; }
-.phone .battle .hand .card { flex: 0 1 106px; width: 106px; margin: 0 -4px; }
+.phone .battle .hand .card { flex: 0 1 122px; width: 122px; margin: 0 -4px; }
 .phone .battle .apbox { bottom: 4px; padding: 2px 12px 2px 4px; gap: 7px; }
 .phone .battle .apbox .apnum { width: 34px; height: 34px; font-size: 20px; }
 .phone .battle .deckrow .pile { display: none; }
@@ -215,12 +215,12 @@ body:has(#screen.battle) #hint:not(:empty) {
 .battle .field { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 90px; padding-left: 100px; padding-right: 110px; }
 .battle .afield { gap: 0; }
 .battle .foes { gap: 6px; }
-.battle .stand, .battle .foe:not(.boss) { width: clamp(96px, 40cqh, 230px); }
+.battle .stand, .battle .foe:not(.boss) { width: clamp(96px, 42cqh, 230px); }
 .battle .stand .art, .battle .foe:not(.boss) .art {
-  width: clamp(90px, 40cqh, 230px) !important; height: clamp(100px, 50cqh, 290px) !important;
+  width: clamp(90px, 42cqh, 230px) !important; height: clamp(100px, 60cqh, 300px) !important;
 }
 .battle .foe.boss { width: clamp(150px, 56cqh, 360px); }
-.battle .foe.boss .art { width: clamp(140px, 56cqh, 360px) !important; height: clamp(100px, 50cqh, 290px) !important; }
+.battle .foe.boss .art { width: clamp(140px, 60cqh, 380px) !important; height: clamp(100px, 60cqh, 300px) !important; }
 .battle .foe .intent { margin-bottom: 2cqh; }
 .battle .foe.boss .intent { margin-bottom: 20cqh; }
 .battle .stand .bubble { margin-bottom: 2cqh; }
@@ -245,3 +245,166 @@ body:has(#screen.battle) .bottom,
 
 /* 성격 표시는 배경 그림 위에 뜬다 — 어두운 바탕을 깔아 색이 읽히게 */
 .battle .nature { background: #0c0a16b8; }
+
+/* ══ 결 — 어두운 유리 · 가는 금선 ═══════════════════════════════════════════
+   판은 반투명 어둠에 흐림, 테두리는 1px 흰 선, 강조는 금빛 하나만. 글자는 흰색에 그림자.
+   (크림·밤색 굵은 테두리로 원작 흉내를 냈더니 촌스러웠다 — 배경 그림과 사도가 주인공이다) */
+.battle {
+  --ui-glass: #0d0b16c7; --ui-glass2: #1a1628e6; --ui-line: #ffffff26; --ui-line2: #ffffff14;
+  --ui-gold: #f6d58e; --ui-gold2: #d9a54a; --ui-ink: #f4f1ff; --ui-dim: #b9b2d6;
+  --ui-turn: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 4h2.2l7.6 8-7.6 8H5l7.6-8L5 4zm6 0h2.2l7.6 8-7.6 8H11l7.6-8L11 4z'/%3E%3C/svg%3E");
+}
+
+/* ── 사도를 띄운다 — 아군 칸을 넓히고 셋을 고르게 벌린다 ─────────────────── */
+.battle .field { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 50px; padding-left: 96px; }
+.battle .afield { justify-content: space-evenly; gap: 0; }
+.phone .battle .field { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 24px; padding-left: 64px; }
+/* 스파인이 안 뜨고 그림 한 장으로 떨어졌을 때도 발을 바닥에 — 네모 칸에 잘리지 않게 */
+.battle .stand .art:not(.art-spine), .battle .foe .art:not(.art-spine) { overflow: visible; border-radius: 0; background: none; }
+.battle .stand .art > img, .battle .foe .art > img { object-fit: contain; object-position: 50% 100%; }
+
+/* ── 고학년 게이지 — 가는 막대, 푸른빛에서 금빛으로 ─────────────────────── */
+.battle .gauge .glabel {
+  writing-mode: horizontal-tb; white-space: nowrap; letter-spacing: .12em;
+  font-size: 10px; font-weight: 800; color: var(--ui-dim); text-shadow: 0 1px 3px #000;
+}
+.battle .gauge .gbar {
+  width: 8px; background: #0a0812b3; border: 1px solid var(--ui-line);
+  box-shadow: 0 0 0 1px #0006, 0 2px 8px #0008;
+}
+.battle .gauge .gbar i:not(.tick) { background: linear-gradient(0deg, #6fb6e6, #b79bff 55%, var(--ui-gold)); border-radius: 99px; box-shadow: 0 0 8px #b79bff88; }
+.battle .gauge .gbar .tick { background: #ffffff55; left: -3px !important; right: -3px; }
+.battle .gauge .gbar .tick:after { display: none; }
+.battle .gauge .gnum { font-size: 12px; font-weight: 800; color: var(--ui-ink); text-shadow: 0 1px 3px #000; }
+.battle .gauge.ready .gnum { color: var(--ui-gold); }
+.gwho { position: absolute; left: 0; top: 0; width: 100% !important; height: 100%; pointer-events: none; }
+.gface {
+  position: absolute; left: calc(50% - 11px - var(--k, 0) * 14px); width: 22px; height: 22px; transform: translateY(50%);
+  border-radius: 50%; overflow: hidden; border: 1.5px solid #ffffff66; background: #1a1628;
+  box-shadow: 0 2px 6px #000a; filter: grayscale(.9) brightness(.6); transition: filter .25s, border-color .25s;
+  display: grid; place-items: center; font-size: 10px; font-weight: 800; color: var(--ui-ink);
+}
+.gface img { width: 130%; height: 130%; object-fit: cover; object-position: 50% 30%; }
+.gface.on { filter: none; border-color: var(--ui-gold); box-shadow: 0 0 0 1px #0008, 0 0 10px #f6d58eaa; }
+
+/* ── 사도 칸 — 판 없이 둥근 고학년 아이콘과 이름만 ───────────────────────── */
+.battle .ally,
+.phone .battle .ally {
+  position: relative; min-height: 62px; padding: 4px 8px 4px 70px; gap: 0;
+  background: linear-gradient(90deg, #0d0b16b3 0, #0d0b1666 70%, transparent);
+  border: 0; border-left: 2px solid var(--ui-line); border-radius: 0 10px 10px 0; box-shadow: none;
+}
+.battle .ally .nm { color: var(--ui-ink); font-size: 13.5px; font-weight: 800; text-shadow: 0 1px 3px #000; }
+.battle .ally .abody { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.battle .ally .ultbtn.grad,
+.phone .battle .ally .ultbtn.grad {
+  margin: 1px 0 0; padding: 0; min-height: 0; border: 0; background: none; box-shadow: none; animation: none;
+  display: flex; align-items: baseline; gap: 5px; font-size: 10.5px; opacity: 1; color: var(--ui-dim);
+}
+.battle .ally .ultbtn.grad .ucost { color: var(--ui-dim); font-weight: 800; }
+.battle .ally .ultbtn.grad .uname { color: var(--ui-dim); font-weight: 600; }
+.battle .ally .ultbtn.grad:not(.no) .ucost, .battle .ally .ultbtn.grad:not(.no) .uname { color: var(--ui-gold); }
+/* 둥근 아이콘 — 둘레 고리가 게이지만큼 찬다(--pct) */
+.uface {
+  position: absolute; left: 6px; top: 50%; width: 56px; height: 56px; transform: translateY(-50%);
+  border-radius: 50%; padding: 3px;
+  background: conic-gradient(var(--ui-gold) calc(var(--pct, 0) * 1%), #ffffff22 0);
+  box-shadow: 0 3px 10px #000a;
+}
+.uface img {
+  width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 50%;
+  border: 2px solid #0d0b16; filter: grayscale(.55) brightness(.7); transition: filter .25s;
+}
+.ultbtn.grad:not(.no) .uface { animation: gradready 1.2s ease-in-out infinite alternate; }
+.ultbtn.grad:not(.no) .uface img { filter: none; }
+@keyframes gradready {
+  from { box-shadow: 0 0 0 1px #f6d58e66, 0 0 8px #f6d58e66; }
+  to   { box-shadow: 0 0 0 2px #f6d58ecc, 0 0 20px #f6d58ecc; }
+}
+.battle .ally .ultbtn.grad:not(.no) { cursor: pointer; }
+.battle .ally:has(.ultbtn.grad:not(.no)) { border-left-color: var(--ui-gold); }
+.ultbtn.grad.no { cursor: default; }
+.battle .ally.dead { filter: grayscale(1); opacity: .45; }
+
+/* ── 턴 넘기기 — 어두운 원, 금빛 고리, 겹화살 ───────────────────────────── */
+.battle .endturn,
+.phone .battle .endturn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  color: var(--ui-ink); font-weight: 800; font-size: 14px; letter-spacing: .02em;
+  background: radial-gradient(circle at 50% 35%, #2c2544 0, #15121f 70%);
+  border: 2px solid var(--ui-gold);
+  box-shadow: inset 0 0 0 5px #15121f, inset 0 0 0 6px #f6d58e40, 0 0 0 1px #0008, 0 0 22px #f6d58e33, 0 10px 24px #000b;
+  transition: box-shadow .2s, transform .1s;
+}
+.battle .endturn:before {
+  content: ""; width: 30%; aspect-ratio: 1; flex: none; background: var(--ui-gold);
+  -webkit-mask: var(--ui-turn) center / contain no-repeat; mask: var(--ui-turn) center / contain no-repeat;
+}
+.battle .endturn:hover:not(:disabled) {
+  background: radial-gradient(circle at 50% 35%, #3a3158 0, #1a1628 70%); filter: none;
+  box-shadow: inset 0 0 0 5px #1a1628, inset 0 0 0 6px #f6d58e80, 0 0 0 1px #0008, 0 0 34px #f6d58e66, 0 10px 24px #000b;
+}
+.battle .endturn:active:not(:disabled) { transform: scale(.96); }
+.battle .endturn:disabled { filter: grayscale(.8) brightness(.7); }
+
+/* ── AP — 금테 마름모 안에 큰 숫자, 옆에 비스듬한 눈금 ──────────────────── */
+.battle .apbox,
+.phone .battle .apbox {
+  gap: 10px; padding: 4px 16px 4px 8px; border-radius: 10px;
+  background: var(--ui-glass); backdrop-filter: blur(6px);
+  border: 1px solid var(--ui-line); box-shadow: 0 8px 18px #000a;
+}
+.battle .apbox .apnum {
+  position: relative; display: grid; place-items: center; width: 44px; height: 44px; margin: -10px 2px -10px 0;
+  font-size: 22px; font-weight: 900; color: #fff; text-shadow: 0 0 10px #f6d58e, 0 1px 2px #000;
+  background: none; box-shadow: none; isolation: isolate;
+}
+.battle .apbox .apnum:before {
+  content: ""; position: absolute; inset: 6px; z-index: -1; transform: rotate(45deg); border-radius: 6px;
+  background: linear-gradient(135deg, #3a3158, #15121f);
+  border: 2px solid var(--ui-gold); box-shadow: 0 0 14px #f6d58e66, 0 4px 10px #000b;
+}
+.battle .apbox .aplabel { color: var(--ui-dim); font-weight: 800; letter-spacing: .18em; font-size: 9.5px; }
+.battle .appips { gap: 4px; }
+.battle .appips i { width: 7px; height: 16px; border-radius: 2px; transform: skewX(-18deg); background: #ffffff1f; }
+.battle .appips i.on { background: linear-gradient(180deg, #fff1c4, var(--ui-gold2)); box-shadow: 0 0 6px #f6d58e99; }
+
+/* 더미 · 기록 · 층 이름도 같은 결로 */
+.battle .pile2 { background: var(--ui-glass); border: 1px solid var(--ui-line); border-radius: 8px; }
+.battle .pile2:before { background: #2a2440; border-color: var(--ui-line); }
+.battle .loglast, .turntag { background: var(--ui-glass); border: 1px solid var(--ui-line); }
+
+/* 휴대폰 — 칸이 작다 */
+.phone .battle .ally { min-height: 50px; padding: 3px 8px 3px 56px; }
+.phone .uface { width: 46px; height: 46px; left: 4px; }
+.phone .battle .apbox .apnum { width: 38px; height: 38px; font-size: 19px; }
+.phone .gface { width: 20px; height: 20px; left: calc(50% - 10px - var(--k, 0) * 12px); }
+
+/* ══ 카드 끌어서 내기 ═══════════════════════════════════════════════════════
+   끄는 카드는 손패 자리에 흐리게 남고, 그 모양이 손을 따라온다. 카드에서 금빛 화살이 뻗는다.
+   대상 위에 올라가면(.dover) 대상이 금빛으로 테를 두르고 화살 끝이 굵어진다. */
+.battle .hand .card { touch-action: none; }          /* 손가락으로 끌 때 화면이 끌려가지 않게 */
+.battle .hand .card.dragging { opacity: .25; transform: rotate(var(--tilt, 0deg)) translateY(var(--dip, 0px)) !important; }
+.dragfx { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
+.dragfx svg { position: absolute; left: 0; top: 0; width: var(--app-w, 100vw); height: var(--app-h, 100vh); overflow: visible; }
+.dragfx path {
+  fill: none; stroke: #f6d58e; stroke-width: 5; stroke-linecap: round; stroke-dasharray: 2 12;
+  filter: drop-shadow(0 0 6px #f6d58e) drop-shadow(0 2px 3px #000a);
+  animation: dragdash .6s linear infinite;
+}
+.dragfx.armed path { stroke: #fff4cf; stroke-width: 7; stroke-dasharray: none; }
+@keyframes dragdash { to { stroke-dashoffset: -14; } }
+.dghost {
+  position: fixed !important; margin: 0 !important; width: 150px; transform: translate(-50%, -60%) rotate(-3deg) scale(.9);
+  box-shadow: 0 18px 40px #000c, 0 0 0 2px #f6d58e !important; pointer-events: none; opacity: .95;
+  transition: transform .12s;
+}
+.dragfx.armed .dghost { transform: translate(18px, 14px) rotate(0deg) scale(.55); transform-origin: 0 0; opacity: .85; }   /* 대상 위 피해 숫자를 가리지 않게 손 오른쪽 아래로 비킨다 */
+/* 대상이 없는 카드 — 위로 올라오면 "놓으면 쓴다" */
+.dragfx.armed:not(:has(svg)) .dghost { transform: translate(-50%, -60%) scale(1); transform-origin: 50% 50%; box-shadow: 0 0 0 3px #f6d58e, 0 0 30px #f6d58ecc, 0 18px 40px #000c !important; }
+
+/* 끌 수 있는 대상 · 올라간 대상 */
+.battle .foe.dtgt .art, .battle .stand.dtgt .art { filter: drop-shadow(0 0 6px #f6d58e88); }
+.battle .foe.dover .art, .battle .stand.dover .art { filter: drop-shadow(0 0 3px #fff4cf) drop-shadow(0 0 14px #f6d58e); }
+.battle .foe.dover .fname, .battle .stand.dover .sname { color: #f6d58e; }
+.phone .dghost { width: 118px; }

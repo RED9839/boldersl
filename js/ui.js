@@ -15,6 +15,7 @@ import * as RULES from "./rules.js";
 import * as R from "./run.js";
 import * as EV from "./events.js";
 import * as art from "./art.js";
+import { getZoom } from "./stage.js";
 
 const $ = (sel) => document.querySelector(sel);
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
@@ -959,8 +960,11 @@ export function fightScreen(run, onDone) {
     tick.dataset.cost = String(cost);
     gaugeBar.appendChild(tick);
   }
-  gaugeBox.appendChild(el("span", "glabel", "궁극기"));
+  gaugeBox.appendChild(el("span", "glabel", "고학년"));
   gaugeBox.appendChild(gaugeBar);
+  // 누가 어디까지 차면 쓰는가 — 사도의 고학년 아이콘을 그 비용 높이에 붙인다
+  const gaugeWho = el("div", "gwho");
+  gaugeBar.appendChild(gaugeWho);
   const gaugeNum = el("span", "gnum");
   gaugeBox.appendChild(gaugeNum);
   s.appendChild(gaugeBox);
@@ -1012,6 +1016,7 @@ export function fightScreen(run, onDone) {
     // 쓰러진 적에게는 표적 표시를 안 한다 — 눌러도 아무 일이 없는데 누를 수 있어 보였다.
     const pick = clickable && !u.dead;
     const n = el("div", "foe" + (u.dead ? " dead" : "") + (pick ? " tgt" : "") + (u.boss ? " boss" : ""));
+    n.dataset.idx = String(u.idx);          // 카드를 끌어 놓을 때 누구인지
     if (u.sealed) n.classList.add("sealed");
 
     // 의도 — 무엇을 하려는가. 카제나도 적 위에 붙인다.
@@ -1059,6 +1064,7 @@ export function fightScreen(run, onDone) {
   function standNode(u, clickable, onPick) {
     const pick = clickable && !u.dead;
     const n = el("div", "stand r" + u.row + (u.dead ? " dead" : "") + (pick ? " tgt" : ""));
+    n.dataset.idx = String(u.idx);
     if (u.sealed) n.classList.add("sealed");
     n.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: 104, slot: "battle", flip: true }));
     const tag = el("div", "sname");
@@ -1075,7 +1081,8 @@ export function fightScreen(run, onDone) {
   function allyNode(u, clickable, onPick) {
     // 체력은 싸움터에 서 있는 모습 아래에 있다. 여기 또 두면 같은 숫자가 두 번 뜬다.
     const n = el("div", "ally" + (u.dead ? " dead" : "") + (clickable ? " tgt" : ""));
-    n.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: 44, slot: "battle", flip: true }));
+    const ultPic = CARDART.pic[u.key + "_ult"];
+    if (!ultPic || !C.ultOf(u.key)) n.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: 44, slot: "battle", flip: true }));
 
     const box = el("div", "abody");
     const top = el("div", "atop");
@@ -1090,7 +1097,14 @@ export function fightScreen(run, onDone) {
     const ult = C.ultOf(u.key);
     if (ult && !u.dead) {
       const why = C.canUlt(st, u.key);
-      const b = el("button", "ultbtn" + (why ? " no" : ""));
+      const b = el("button", "ultbtn" + (why ? " no" : "") + (ultPic ? " grad" : ""));
+      if (ultPic) {
+        // 고학년 스킬 단추 — 둥근 얼굴 아이콘. 둘레 고리가 게이지만큼 차고, 다 차면 빛난다
+        const face = el("span", "uface");
+        face.appendChild(img(ultPic));
+        face.style.setProperty("--pct", Math.min(100, (st.gauge / ult.cost) * 100).toFixed(1));   // 둘레 고리가 이만큼 찬다
+        b.appendChild(face);
+      }
       b.appendChild(el("span", "ucost", `${ult.cost}%`));
       b.appendChild(el("span", "uname", ult.ko));
       b.title = why || ult.text;
@@ -1255,12 +1269,27 @@ export function fightScreen(run, onDone) {
     // 눈금 — 몇 개 남았는지 숫자보다 빨리 읽힌다
     const pips = el("span", "appips");
     const most = Math.max(st.ap, st.apPerTurn || RULES.AP_PER_TURN);
-    for (let k = 0; k < most; k++) pips.appendChild(el("i", k < st.ap ? "on" : ""));
+    for (let k = 0; k < most; k++) pips.appendChild(el("i", k < st.ap ? "on" : ""));   // 모양은 css 가 별로 깎는다
     apBox.appendChild(pips);
     piles.textContent = `덱 ${st.draw.length + st.discard.length}장`;
 
     gaugeFill.style.width = (st.gauge / 300) * 100 + "%";
     gaugeBox.style.setProperty("--g", (st.gauge / 300) * 100 + "%");
+    gaugeWho.innerHTML = "";
+    const seen = {};
+    for (const u of st.party) {
+      const ult = C.ultOf(u.key);
+      if (!ult || u.dead) continue;
+      const k = seen[ult.cost] = (seen[ult.cost] || 0) + 1;       // 같은 비용이면 옆으로 비껴 선다
+      const g = el("span", "gface" + (st.gauge >= ult.cost ? " on" : ""));
+      g.style.bottom = (ult.cost / 300) * 100 + "%";
+      g.style.setProperty("--k", String(k - 1));
+      g.title = `${u.ko} · ${ult.ko} (${ult.cost}%)`;
+      const pic = CARDART.pic[u.key + "_ult"];
+      if (pic) g.appendChild(img(pic));
+      else g.appendChild(el("b", null, u.ko.slice(0, 1)));
+      gaugeWho.appendChild(g);
+    }
     gaugeNum.textContent = `${st.gauge}%`;
     gaugeBox.classList.toggle("ready", st.party.some((u) => !u.dead && C.canUlt(st, u.key) === null));
 
@@ -1311,7 +1340,9 @@ export function fightScreen(run, onDone) {
       b.title = why || "";
       b.onmouseenter = () => { if (!why) paintPreview(i, null); };
       b.onmouseleave = () => paintPreview(selCard, null);
+      b.onpointerdown = (e) => { if (!why) startDrag(e, i, id, b); };
       b.onclick = () => {
+        if (dragDone) return;                 // 방금 끌어서 낸 카드 — 뒤따라오는 click 은 버린다
         if (why) return hint(why);
         hint("");
         const want = targetsNeeded(id);
@@ -1358,6 +1389,96 @@ export function fightScreen(run, onDone) {
 
     paintPreview(selCard, null);
     if (st.over) finish();
+  }
+
+  // ── 끌어서 내기 ──────────────────────────────────────────────────────
+  // 카드를 끌어 적(또는 아군) 위에 놓으면 그 대상에게 낸다. 대상이 없는 카드는 손패 위로 끌어 올려 놓으면 낸다.
+  // 끄는 동안: 카드가 손을 따라오고, 카드에서 화살이 뻗고, 칠 수 있는 대상이 빛나고, 올린 대상에 피해 미리보기가 뜬다.
+  // 눌러서 고르는 방식은 그대로 된다 — 10px 넘게 움직여야 끌기로 본다.
+  // 화면은 CSS zoom 이 걸려 있어 fixed 좌표를 배율로 나눈다(clientX 는 실제 화면 좌표).
+  let drag = null, dragDone = false;
+  const zoomNow = () => (typeof getZoom === "function" && getZoom()) || 1;
+  function startDrag(e, i, id, card) {
+    if (st.over || (e.pointerType === "mouse" && e.button !== 0)) return;
+    drag = { i, id, card, x0: e.clientX, y0: e.clientY, on: false, over: null, need: targetsNeeded(id) };
+    try { card.setPointerCapture(e.pointerId); } catch { /* 가짜 DOM */ }
+    card.onpointermove = moveDrag;
+    card.onpointerup = endDrag;
+    card.onpointercancel = () => stopDrag(true);
+  }
+  function beginDrag() {
+    drag.on = true;
+    const z = zoomNow();
+    const r = drag.card.getBoundingClientRect();
+    drag.ax = (r.left + r.width / 2) / z; drag.ay = r.top / z;
+    drag.card.classList.add("dragging");
+    const fx = el("div", "dragfx");
+    if (drag.need) {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      svg.appendChild(path); fx.appendChild(svg); drag.path = path;
+    }
+    const ghost = drag.card.cloneNode(true);
+    ghost.className = drag.card.className.replace(/\b(dragging|sel)\b/g, "") + " dghost";
+    ghost.removeAttribute("style");
+    fx.appendChild(ghost);
+    drag.fx = fx; drag.ghost = ghost;
+    document.body.appendChild(fx);
+    // 칠 수 있는 대상을 빛낸다 — draw() 로 다시 그리면 끄는 카드가 사라지니 표시만 단다
+    if (drag.need === "enemy") for (const [, { n }] of foeEls) { if (!n.classList.contains("dead")) n.classList.add("tgt", "dtgt"); }
+    if (drag.need === "party") for (const [, n] of standEls) { if (!n.classList.contains("dead")) n.classList.add("tgt", "dtgt"); }
+    hint(drag.need === "enemy" ? "칠 적 위에 놓습니다" : drag.need === "party" ? "도울 아군 위에 놓습니다" : "위로 끌어 올려 놓으면 씁니다");
+    if (!drag.need) paintPreview(drag.i, null);
+  }
+  function moveDrag(e) {
+    if (!drag) return;
+    if (!drag.on) {
+      if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 10) return;
+      beginDrag();
+    }
+    const z = zoomNow(), x = e.clientX / z, y = e.clientY / z;
+    drag.ghost.style.left = x + "px"; drag.ghost.style.top = y + "px";
+    if (drag.path) {
+      const cx = (drag.ax + x) / 2, cy = Math.min(drag.ay, y) - 140;
+      drag.path.setAttribute("d", `M${drag.ax},${drag.ay} Q${cx},${cy} ${x},${y}`);
+    }
+    // 손 밑에 무엇이 있나 — 끌리는 그림과 화살은 pointer-events 가 없어 밑이 잡힌다
+    let t = null;
+    if (drag.need) {
+      const hit = document.elementFromPoint(e.clientX, e.clientY);
+      t = hit && hit.closest(drag.need === "enemy" ? ".foe.dtgt" : ".stand.dtgt");
+    } else {
+      const hr = hand.getBoundingClientRect();
+      t = e.clientY < hr.top - 10 ? drag.fx : null;       // 손패 위로 올라왔다
+    }
+    if (t !== drag.over) {
+      if (drag.over && drag.over !== drag.fx) drag.over.classList.remove("dover");
+      drag.over = t;
+      if (t && t !== drag.fx) t.classList.add("dover");
+      drag.fx.classList.toggle("armed", !!t);
+      if (drag.need === "enemy") paintPreview(drag.i, t ? Number(t.dataset.idx) : null);
+    }
+  }
+  function stopDrag(cancel) {
+    const d = drag; drag = null;
+    if (!d) return;
+    d.card.onpointermove = d.card.onpointerup = d.card.onpointercancel = null;
+    if (!d.on) return;
+    dragDone = true; setTimeout(() => { dragDone = false; }, 0);
+    d.fx.remove();
+    d.card.classList.remove("dragging");
+    for (const n of document.querySelectorAll(".dtgt, .dover")) n.classList.remove("dtgt", "dover", ...(selCard >= 0 ? [] : ["tgt"]));
+    if (cancel) { hint(""); paintPreview(selCard, null); }
+  }
+  function endDrag() {
+    const d = drag;
+    if (!d || !d.on) return stopDrag(false);
+    const over = d.over;
+    stopDrag(!over);
+    if (!over) return;
+    hint("");
+    selCard = d.i;
+    play(d.need ? Number(over.dataset.idx) : 0);
   }
 
   function play(targetIdx) {

@@ -17,8 +17,8 @@ const MODES = ["placeholder", "sd", "custom"];
 // 자리 → 어느 스파인을 쓰는가. 런타임과 자료가 둘 다 있을 때만 움직이는 그림이 된다.
 const SPINE_KIND = { battle: "ingame", foe: "enemy", event: "standing", map: "minimi" };
 // 칸 높이 = 게임 세계 몇 단위. 전투 SD 135명의 머리 꼭대기가 가운데값 707 · 상위 10% 917 이다
-// (tools 로 잰 값 — 뼈대 원점이 발). 780 이면 보통 사도의 머리가 칸 위끝 가까이(약 90%) 오고, 큰 사도·날개·무기는 칸 밖으로 넘친다.
-const SPINE_UNIT = 780;
+// (tools 로 잰 값 — 뼈대 원점이 발). 740 이면 보통 사도의 머리가 칸 위끝 가까이 오고, 큰 사도·날개·무기는 칸 밖으로 넘친다.
+const SPINE_UNIT = 740;
 let useSpine = true;
 export function setSpine(on) { useSpine = !!on; }
 let mode = "placeholder";
