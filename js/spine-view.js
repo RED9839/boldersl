@@ -19,6 +19,10 @@ const spine = () => globalThis.spine || null;
 
 export function hasRuntime() { return !!spine(); }
 
+// 그래픽 품질 — 캔버스를 화면 픽셀의 몇 배로 그리나(1 · 0.75 · 0.5). 낮추면 흐려지는 대신 가볍다(js/settings.js)
+let renderScale = 1;
+export function setRenderScale(f) { renderScale = f > 0 && f <= 1 ? f : 1; }
+
 export async function loadSpineManifest() {
   if (manifest || failed) return manifest;
   try {
@@ -75,7 +79,8 @@ function evict() {
 //   같은 배율로 그리면 날개·지팡이는 칸 밖으로 나간다 — 그래서 캔버스를 칸보다 크게(가로 3배·세로 2배) 잡고
 //   발(뼈대 원점)을 칸 바닥 가운데에 세운다. 칸 크기와 자리 잡기는 그대로라 배치가 흔들리지 않는다.
 export const OVER_W = 3, OVER_H = 2;
-export async function spineView(el, kind, key, { scale = 1, anim, flip = false, skin, unit = 0 } = {}) {
+// mix — 동작이 바뀔 때 섞는 시간(초). 0 이면 바로 바뀐다(전투). 로비의 메인 사도는 부드럽게 섞는다
+export async function spineView(el, kind, key, { scale = 1, anim, flip = false, skin, unit = 0, mix = 0 } = {}) {
   const sp = spine();
   if (!sp) return null;
   await loadSpineManifest();
@@ -84,7 +89,7 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
   const w = el.clientWidth || 200, h = el.clientHeight || 200;
   // 크기는 열쇠에 넣지 않는다 — 캔버스 크기는 그리는 고리가 매 프레임 화면에 맞춰 다시 잡는다.
   // 넣어 두었더니 싸움터 높이에 따라 크기가 바뀌는 전투 화면에서 다시 쓰질 못하고 카드 한 장마다 컨텍스트가 늘어 하얗게 버려졌다.
-  const id = `${kind}|${key}|${scale}|${anim || ""}|${flip ? "f" : ""}|${skin || ""}|${unit}`;
+  const id = `${kind}|${key}|${scale}|${anim || ""}|${flip ? "f" : ""}|${skin || ""}|${unit}|${mix}`;
   const spare = pool.find((v) => v.id === id && !v.canvas.isConnected);
   if (spare) {
     // 새 칸에도 「넘쳐도 된다」 표시를 단다 — 빠뜨렸더니 옮겨 붙인 캔버스가 칸(둥근 네모)에 잘려 보였다
@@ -149,14 +154,18 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
       }
     }
     if (wear) { skeleton.setSkin(wear); skeleton.setSlotsToSetupPose(); }
-    state = new sp.AnimationState(new sp.AnimationStateData(data));
+    const stateData = new sp.AnimationStateData(data);
+    stateData.defaultMix = mix;
+    state = new sp.AnimationState(stateData);
   } catch { drop(); return null; }
 
   // 동작 이름은 스켈레톤마다 대소문자가 섞여 있다 — 이름으로 찾되 대소문자는 안 가린다
   const findAnim = (name) => name && (skeleton.data.findAnimation(name)
     || skeleton.data.animations.find((a) => a.name.toLowerCase() === name.toLowerCase()));
   // 쉬는 동작. 전투 SD 는 135명 모두 Idle 이 있다. 없으면 첫 동작으로.
-  const rest = findAnim(anim) || findAnim("Idle") || skeleton.data.animations[0];
+  // 스탠딩은 「Idle」이 없고 Idle_1 · Idle_2 … 뿐이다 — 없으면 Idle_1, 그다음 Idle_ 로 시작하는 첫 것. 첫 동작(Angry_1 따위)으로 떨어지면 화난 채 서 있다
+  const rest = findAnim(anim) || findAnim("Idle") || findAnim("Idle_1")
+    || skeleton.data.animations.find((a) => /^Idle_\d+$/i.test(a.name)) || skeleton.data.animations[0];
   if (rest) state.setAnimation(0, rest.name, true);
 
   // 크기와 자리는 쉬는 자세로 한 번만 잰다. 매 프레임 재면 휘두르는 동작마다 몸이 커졌다 작아졌다 한다.
@@ -165,15 +174,32 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
   skeleton.getBounds(off, size, []);
 
   let raf = 0, last = performance.now(), dead = false;
+  // 교감 본 — held 동안은 끌린 만큼, 놓으면 짧게 줄어 제자리로. max = 스켈레톤 단위, 고무줄처럼 부드럽게 제한
+  const grab = { bone: null, max: 120, dx: 0, dy: 0, held: false };
+  function grabApply(dt) {
+    const b = grab.bone;
+    if (!grab.held) {
+      const f = Math.exp(-dt / 0.06); grab.dx *= f; grab.dy *= f;
+      if (Math.abs(grab.dx) + Math.abs(grab.dy) < 0.5) { grab.bone = null; return; }
+    }
+    const pa = b.parent; if (!pa) return;
+    const det = pa.a * pa.d - pa.b * pa.c; if (!det) return;
+    let lx = (grab.dx * pa.d - grab.dy * pa.b) / det, ly = (grab.dy * pa.a - grab.dx * pa.c) / det;
+    const R = grab.max, len = Math.hypot(lx, ly);
+    if (len > 1e-3) { const k = R * (1 - Math.exp(-len / R)) / len; lx *= k; ly *= k; }
+    b.x += lx; b.y += ly;
+  }
   const loop = (now) => {
     raf = 0;
     // 화면에서 떨어지면 멈춘다. 다시 붙을 때 wake() 가 이어 돌린다.
     if (dead || !canvas.isConnected) return;
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    if (grab.bone) { grab.bone.x = grab.bone.data.x; grab.bone.y = grab.bone.data.y; }
     state.update(dt); state.apply(skeleton);
+    if (grab.bone) grabApply(dt);
     // 캔버스는 화면에 실제로 찍히는 픽셀만큼 잡는다. renderer.resize() 는 CSS 크기 × devicePixelRatio 로 잡아서
     // 화면 배율(js/stage.js 의 zoom — QHD 1.6배)을 모르고, 그러면 사도가 뿌옇게 늘어난다.
-    const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    const r = canvas.getBoundingClientRect(), dpr = (window.devicePixelRatio || 1) * renderScale;
     const cw = Math.max(1, Math.round(r.width * dpr)), ch = Math.max(1, Math.round(r.height * dpr));
     if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
     ctx.gl.viewport(0, 0, cw, ch);
@@ -207,16 +233,44 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
   const api = {
     // 한 번만 하는 동작(공격·피격)은 끝나면 쉬는 동작으로 돌아온다. 없는 이름이면 아무 일도 없다.
     // then — 끝나면 이어서 할 동작 하나(골디의 Touch_Idle → Touch_End 처럼 짝을 이룬 것). 그것까지 하고 쉰다.
-    play(name, loopIt = false, then) {
+    // hold — 끝나도 쉬는 동작으로 가지 않고 마지막 자세로 멈춰 있는다(대사가 끝날 때까지 붙들기). 돌아갈 때는 toRest()
+    play(name, loopIt = false, then, { hold = false } = {}) {
       const a = findAnim(name);
       if (!a) return false;
       state.setAnimation(0, a.name, loopIt);
       const b = !loopIt && findAnim(then);
       if (b) state.addAnimation(0, b.name, false, 0);
-      if (!loopIt && rest) state.addAnimation(0, rest.name, true, 0);
+      if (!loopIt && !hold && rest) state.addAnimation(0, rest.name, true, 0);
       return true;
     },
+    toRest() { if (rest) state.setAnimation(0, rest.name, true); },
+    // 교감 본을 잡는다 — re 에 맞는 본이 있으면 true. drag 는 누른 자리부터 움직인 양(화면 px), letGo 로 놓는다
+    grab(re, max = 120) {
+      const b = skeleton.bones.find((x) => re.test(x.data.name));
+      if (!b) return false;
+      if (grab.bone && grab.bone !== b) { grab.bone.x = grab.bone.data.x; grab.bone.y = grab.bone.data.y; }
+      Object.assign(grab, { bone: b, max, dx: 0, dy: 0, held: true });
+      return true;
+    },
+    drag(dxClient, dyClient) {
+      if (!grab.bone || !grab.held) return;
+      const r = canvas.getBoundingClientRect();
+      const kx = r.width ? canvas.width / r.width : 1, ky = r.height ? canvas.height / r.height : 1;
+      grab.dx = dxClient * kx; grab.dy = -dyClient * ky;          // 화면은 y 아래로, 스켈레톤은 위로
+    },
+    letGo() { grab.held = false; },
     animations: () => skeleton.data.animations.map((a) => a.name),
+    has: (name) => !!findAnim(name),
+    current: () => { const t = state.getCurrent(0); return t && t.animation ? t.animation.name : null; },
+    duration: (name) => { const a = findAnim(name); return a ? a.duration : 0; },
+    // 교감(로비의 메인 사도) — 본을 찾고, 누른 자리를 스켈레톤 좌표로 바꾼다.
+    // 카메라는 캔버스 가운데가 원점(y 위로)이고 스켈레톤 좌표는 캔버스 픽셀이다
+    get skeleton() { return skeleton; },
+    toWorld(clientX, clientY) {
+      const r = canvas.getBoundingClientRect();
+      if (!r.width || !r.height) return null;
+      return { x: (clientX - r.left) / r.width * canvas.width - canvas.width / 2, y: canvas.height / 2 - (clientY - r.top) / r.height * canvas.height };
+    },
     dispose() {
       dead = true; cancelAnimationFrame(raf); drop();
       const i = pool.findIndex((v) => v.api === api);

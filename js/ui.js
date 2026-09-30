@@ -19,6 +19,7 @@ import { spineView } from "./spine-view.js";
 import * as M from "./map.js";
 import { getZoom, toggleFullscreen } from "./stage.js";
 import { getSettings, setSetting } from "./settings.js";
+import { settingsPanel } from "./settings-panel.js";
 
 const $ = (sel) => document.querySelector(sel);
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
@@ -1937,6 +1938,15 @@ export function fightScreen(run, onDone, onQuit) {
       body.appendChild(row);
       return;
     }
+    if (page === "settings") {
+      body.appendChild(el("h3", "bmname", "설정"));
+      // 사도 움직임을 바꾸면 싸움터를 다시 그린다 — 창을 닫고 그린 뒤 이 쪽으로 다시 연다
+      body.appendChild(settingsPanel({ onSpine: () => { closeModal(); draw(); openMenu("settings"); } }));
+      const back = el("button", "bmclose", "메뉴로");
+      back.onclick = () => openMenu();
+      body.appendChild(back);
+      return;
+    }
     body.appendChild(el("h3", "bmname", "메뉴"));
     body.appendChild(el("span", "bmkind", `${floor.n}층 · ${floor.name} · ${st.turn}턴`));
     const list = el("div", "mlist");
@@ -1950,22 +1960,8 @@ export function fightScreen(run, onDone, onQuit) {
     };
     item("이어하기", null, closeModal, "main");
     item("도움말", "상성 · 열 · AP · 신탁 · 드랍 · 장비 · 지도", () => { closeModal(); openHelp("상성"); });
-    // 설정 — 켜고 끄는 단추. 누르면 바로 걸린다
-    const set = getSettings();
-    const toggle = (label, sub, on, fn) => {
-      const b = item(label, sub, fn, "tog" + (on ? " on" : ""));
-      b.appendChild(el("i", "sw"));
-      return b;
-    };
-    const fsOn = typeof document === "object" && !!document.fullscreenElement;
-    if (typeof document === "object" && document.documentElement && document.documentElement.requestFullscreen) {
-      toggle("전체화면", "주소창 · 작업 표시줄을 숨깁니다", fsOn, async () => { await toggleFullscreen(); openMenu(); });
-    }
-    toggle("사도 움직임", "끄면 그림 한 장 — 느린 기계에서 가볍습니다", set.spine !== false, () => {
-      setSetting("spine", !(set.spine !== false)); closeModal(); draw(); openMenu();
-    });
-    toggle("움직임 줄이기", "반짝임 · 튀는 효과를 끕니다", !!set.calm, () => { setSetting("calm", !set.calm); openMenu(); });
-    toggle("글자 크게", "이름 · 카드 글 · 체력 숫자를 한 치수 더", !!set.big, () => { setSetting("big", !set.big); openMenu(); });
+    // 설정 — 로비와 같은 창(js/settings-panel.js): 해상도 · 그래픽 품질 · 전체화면 · 움직임 · 글자 · 음량
+    item("설정", "해상도 · 그래픽 · 소리 · 글자", () => openMenu("settings"));
     body.appendChild(list);
     if (onQuit) {
       const q = el("div", "mlist");
@@ -2315,6 +2311,17 @@ export function mapScreen(run, onEnter, onQuit) {
     const go = el("button", "mitem main"); go.appendChild(el("b", null, "이어하기")); go.onclick = closeCenter; list.appendChild(go);
     const hp = el("button", "mitem"); hp.appendChild(el("b", null, "도움말")); hp.appendChild(el("span", null, "상성 · 열 · AP · 신탁 · 드랍 · 장비 · 지도"));
     hp.onclick = () => { closeCenter(); openHelp("지도"); }; list.appendChild(hp);
+    // 설정 — 로비 · 전투와 같은 창
+    const sp = el("button", "mitem"); sp.appendChild(el("b", null, "설정")); sp.appendChild(el("span", null, "해상도 · 그래픽 · 소리 · 글자"));
+    sp.onclick = () => {
+      const b2 = centerModal("menumodal");
+      const bd = el("div", "bmbody");
+      bd.appendChild(el("h3", "bmname", "설정"));
+      bd.appendChild(settingsPanel());
+      const cl = el("button", "bmclose", "닫기"); cl.onclick = closeCenter; bd.appendChild(cl);
+      b2.appendChild(bd);
+    };
+    list.appendChild(sp);
     if (onQuit) {
       const q = el("button", "mitem quit"); q.appendChild(el("b", null, "메인화면으로")); q.appendChild(el("span", null, "이 판은 저장되지 않습니다"));
       q.onclick = () => { closeCenter(); onQuit(); };

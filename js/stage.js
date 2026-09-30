@@ -14,6 +14,8 @@ const DESK_W = 1600, DESK_H = 900;
 const PHONE_H = 540;
 const root = document.documentElement;
 let zoom = 1;
+let resPref = "auto";                 // 설정의 화면 해상도 — "auto" 거나 "1280x720" 꼴
+let ready = false;
 
 // 손가락으로 하는 작은 화면인가. 창을 좁힌 PC 는 휴대폰이 아니다.
 const isPhone = () => matchMedia("(pointer: coarse)").matches && Math.min(innerWidth, innerHeight) <= 600;
@@ -30,7 +32,12 @@ function fit() {
 
   if (portrait) zoom = 1;                                  // 돌려 달라는 안내만 보인다
   else if (phone) zoom = H / PHONE_H;
-  else zoom = Math.max(0.5, Math.min(W / DESK_W, H / DESK_H));
+  else {
+    zoom = Math.max(0.5, Math.min(W / DESK_W, H / DESK_H));
+    // 해상도를 골랐으면 그 크기 기준 배율로 — 창보다 크면 창에 맞춘다(넘쳐 잘리지 않게). 남는 자리는 배치가 채운다
+    const m = /^(\d+)x(\d+)$/.exec(resPref);
+    if (m) zoom = Math.max(0.5, Math.min(zoom, Math.min(+m[1] / DESK_W, +m[2] / DESK_H)));
+  }
   // 소수 끝자리가 길면 테두리가 뭉개진다 — 1/100 로 끊는다
   zoom = Math.floor(zoom * 100) / 100;
 
@@ -43,10 +50,17 @@ function fit() {
 export function initStage() {
   // 가짜 DOM(tools/smoke.js)에는 창 크기가 없다 — 그때는 배율 없이 돈다
   if (typeof innerWidth !== "number" || typeof matchMedia !== "function") return;
+  ready = true;
   fit();
   addEventListener("resize", fit);
   // 휴대폰은 돌릴 때 resize 가 늦게 오기도 한다
   addEventListener("orientationchange", () => setTimeout(fit, 150));
+}
+
+// 설정의 화면 해상도를 건다(js/settings.js 의 applySettings). 휴대폰은 늘 창에 맞춘다
+export function setResolution(res) {
+  resPref = typeof res === "string" ? res : "auto";
+  if (ready) fit();
 }
 
 // 전체화면 — 휴대폰은 주소창이 화면을 먹어서 사실상 이게 있어야 한다. 되면 가로로 잠근다.

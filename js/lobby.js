@@ -1,7 +1,11 @@
-// 메인 로비 — 트릭컬 · 카제나 로비처럼 비서 사도 한 명이 크게 서 있고, 오른쪽에 메뉴가 세로로 선다.
-//   비서   스탠딩 스파인. 누르면 쓰다듬기 · 말풍선(js/data/talk.js — 우리가 쓴 대사) · 목소리(assets/voice, 있으면)
-//          「비서 바꾸기」로 누구든 세울 수 있고, 고른 사도는 설정(localStorage)에 남는다
-//   메뉴   모험 시작 · 사도 도감 · 도움말 · 설정
+// 메인 로비 — 트릭컬 · 카제나 로비처럼 메인 사도 한 명이 크게 서 있고, 오른쪽에 메뉴가 세로로 선다.
+//   메인 사도   스탠딩 스파인. 사도 데스크의 교감을 그대로 가져왔다 — 누른 자리(본으로 가른 머리 · 얼굴 · 몸)와 손짓에 따라
+//               머리 톡 = 꿀밤(Smash_End_1 → _2 · dutchrubend1 → 2) · 머리 끌기 = 쓰다듬기(Pat_Idle → Pat_End · touch2)
+//               얼굴 끌기 = 볼 당기기(Touch_Idle → Touch_End · touch1) · 몸 문지르기 = 간지럽히기(Tickle · 웃음)
+//               몸 · 얼굴 톡 = 가벼운 반응 동작 + 그 동작에 맞는 목소리(js/motion-voice.js — 사도 데스크의 표)
+//               가만히 두면 잡담 동작(Talk · Blank · Thinking …)에 맞는 목소리. 말풍선은 우리가 쓴 대사(js/data/talk.js)
+//               「메인 사도 바꾸기」로 누구든 세울 수 있고, 고른 사도는 설정(localStorage)에 남는다
+//   메뉴        모험 시작 · 사도 도감 · 도움말 · 설정(js/settings-panel.js — 전투와 같은 창)
 // 그림 · 목소리가 없는 곳(추출 자료 없이 받은 사람)에서도 돈다 — 스파인이 없으면 그림 한 장, 그마저 없으면 이름 칸.
 // 이름이 다른 화면과 겹쳐 데인 적이 있어(.fcard · .top) 모두 #screen.lobby2 아래 · lb- 로 시작한다.
 import * as art from "./art.js";
@@ -9,46 +13,48 @@ import { HERO_DATA } from "./cardbook.js";
 import { FLOORS } from "./data/enemies.js";
 import TALK from "./data/talk.js";
 import { spineView, loadSpineManifest } from "./spine-view.js";
-import { getSettings, setSetting } from "./settings.js";
+import { getSettings, setSetting, voiceVolume, onSettings } from "./settings.js";
 import { toggleFullscreen } from "./stage.js";
+import { voiceCatsFor, voicePoolFor } from "./motion-voice.js";
+import { settingsPanel } from "./settings-panel.js";
 
 const node = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const TONES = { 순수: "#a8d8b5", 광기: "#e89e94", 냉정: "#99cadc", 우울: "#bfb2e0", 활발: "#edce86", 공명: "#dbd2bb" };
 const DEFAULT_HERO = "에르핀";
 const BG = "assets/bg/stage1_1.jpg";          // 1층 에르피엔 — 세계수 아래 요정 마을
+const IDLE_AFTER = 18000;                      // 이만큼 안 건드리면 잡담 동작
+const TAP_PX = 8;                              // 이보다 덜 움직이고 떼면 「톡」
+const RUB_TRAVEL = 70;                         // 몸을 이만큼 좌우로 문지르면 간지럽히기
 
-// 비서의 몸짓 — 스탠딩 스파인의 동작 이름. 사도마다 조금씩 달라서 없는 이름은 조용히 넘어간다(spine-view play)
-const ANIM = {
-  enter: ["Happy_1", "Smile_1", "Happy_2"],
-  pet: [["Touch_Idle", "Touch_End"], ["Pat_Idle", "Pat_End"]],
-  joy: ["Happy_1", "Happy_2", "Smile_1", "Smile_2", "Shy_1", "Laugh_1"],
-  idle: ["Sad_1", "Sulky_1", "Smile_1"],
-};
-// 목소리 갈래 — assets/voice/index.json 의 이름
-const VOICE = { enter: ["greeting", "callplayer"], pet: ["touch", "pleasure", "joy"], idle: ["callplayer", "hmm"] };
-// 대사가 없는 사도(스탠딩만 있는 이격 등)에게 — 이름만 바꿔 쓴다
+// 대사가 없는 사도(스탠딩만 있는 이격 등)에게
 const PLAIN = {
   start: ["교주님, 오늘도 모험 가요?", "준비는 다 됐어요. 언제든지요!"],
   pet: ["헤헤, 간지러워요.", "교주님 손, 따뜻하네요.", "또 쓰다듬어 주시는 거예요?"],
+  ouch: ["아얏! 왜 때려요!", "머리는 안 돼요!"],
+  tickle: ["아하하! 그, 그만요!", "간지러워요, 히히!"],
   idle: ["교주님? …자는 거 아니죠?", "심심하면 모험이라도 가요."],
 };
-
-// 비서의 대사 — 이격(에르핀_왕도)은 본디 사도(에르핀)의 것을 빌린다
+// 메인 사도의 대사 — 이격(에르핀_왕도)은 본디 사도(에르핀)의 것을 빌린다
 function linesOf(key) {
   const L = (TALK && TALK.lines) || {};
   const t = L[key] || L[String(key).split("_")[0]] || null;
   const from = (...ms) => (t ? ms.flatMap((m) => t[m] || []) : []);
+  const or = (a, b) => (a.length ? a : b);
   return {
-    start: from("start").length ? from("start") : from("win").length ? from("win") : PLAIN.start,
-    pet: from("heal", "win", "kill").length ? from("heal", "win", "kill") : PLAIN.pet,
-    idle: from("idle").length ? from("idle") : PLAIN.idle,
+    start: or(from("start"), or(from("win"), PLAIN.start)),
+    pet: or(from("heal", "win", "kill"), PLAIN.pet),
+    ouch: or(from("hit", "down"), PLAIN.ouch),
+    tickle: or(from("heal", "kill"), PLAIN.tickle),
+    idle: or(from("idle"), PLAIN.idle),
   };
 }
 
 // ── 목소리 ─────────────────────────────────────────────────────────────
 // 스탠딩 아틀라스 이름(vivi.atlas)이 목소리 폴더 이름(assets/voice/vivi)과 같다
 let voiceIndex = null, voiceFailed = false, voiceNow = null, voiceGen = 0;
+let lastFile = null, lastAt = 0;
+const NO_REPEAT_MS = 12000;                    // 대사가 하나뿐인 갈래 — 이 사이에 또 누르면 소리 없이 동작만
 async function loadVoices() {
   if (voiceIndex || voiceFailed) return voiceIndex;
   try {
@@ -58,32 +64,85 @@ async function loadVoices() {
   } catch { voiceFailed = true; }
   return voiceIndex;
 }
-async function voiceFolder(key) {
-  const m = await loadSpineManifest();
+// 한 사도의 목소리 묶음 — 스탠딩은 Normal 스킨이라 스킨 전용(_skinN)은 뺀다.
+// touch · dutchrubend 는 사도 데스크처럼 둘로 가른다: touch1 볼 당기기 · touch2 쓰다듬기 · dutchrubend1 맞는 소리 · 2 대사
+async function voiceSet(key) {
+  const [idx, m] = await Promise.all([loadVoices(), loadSpineManifest()]);
   const e = m && m.standing && m.standing[key];
-  return e ? e.atlas.replace(/\.atlas$/, "").toLowerCase() : null;
+  const dir = e ? e.atlas.replace(/\.atlas$/, "").toLowerCase() : null;
+  const base = idx && dir && idx[dir] && idx[dir].base;
+  if (!base) return null;
+  const cats = {};
+  for (const [c, l] of Object.entries(base)) cats[c] = l.filter((f) => !/_skin\d/.test(f));
+  const only = (list, re) => (list || []).filter((f) => re.test(f));
+  cats.cheek = only(cats.touch, /touch1(?:_\d+)?\.ogg$/);
+  cats.pat = only(cats.touch, /touch2(?:_\d+)?\.ogg$/);
+  cats.smashHit = only(cats.dutchrubend, /dutchrubend1(?:_\d+)?\.ogg$/);
+  cats.smashLine = only(cats.dutchrubend, /dutchrubend2(?:_\d+)?\.ogg$/);
+  return cats;
 }
 function hush() {
   if (voiceNow) { try { voiceNow.pause(); } catch { /* 이미 멈췄다 */ } voiceNow = null; }
 }
 // 멈춤 — 지금 소리도, 자료를 읽는 중이던 부름도(차례표를 넘겨 무효로)
 export function stopVoice() { voiceGen++; hush(); }
-async function speak(key, kinds, alive = () => true) {
-  if (getSettings().voice === false || typeof Audio !== "function") return;
+// 갈래 목록에서 앞에서부터 있는 것 하나(사도 데스크의 voicePoolFor). 기다리는 사이 새 부름이 왔거나 로비를 떠났으면 안 튼다.
+// 방금 튼 파일은 되도록 피한다 — 하나뿐이면 12초 안에는 안 튼다(웃음처럼 되풀이해도 되는 것은 repeat)
+// 튼 Audio 를 돌려준다(막혔거나 없으면 null) — 부른 쪽이 대사가 끝날 때까지 자세를 붙든다
+async function speak(key, cats, alive = () => true, { repeat = false } = {}) {
+  if (!cats || !cats.length || voiceVolume() <= 0 || typeof Audio !== "function") return null;
   const my = ++voiceGen;
-  const [idx, dir] = await Promise.all([loadVoices(), voiceFolder(key)]);
-  if (my !== voiceGen || !alive()) return;   // 그사이 새 부름이 왔거나 로비를 떠났다
-  const set = idx && dir && idx[dir] && idx[dir].base;
-  if (!set) return;
-  // 「-01」 같은 조각 파일은 뺀다 — 한 마디가 여러 토막으로 나뉜 것의 뒤쪽이다
-  const files = kinds.flatMap((k) => (set[k] || []).filter((f) => !/-\d+\.ogg$/.test(f) && !/_skin\d/.test(f)));
-  if (!files.length) return;
+  const set = await voiceSet(key);
+  if (my !== voiceGen || !alive() || !set) return null;
+  let pool = voicePoolFor(set, cats);
+  if (!pool.length) return null;
+  if (!repeat) {
+    if (pool.length > 1) pool = pool.filter((f) => f !== lastFile);
+    else if (pool[0] === lastFile && Date.now() - lastAt < NO_REPEAT_MS) return null;
+  }
   hush();
-  const a = new Audio("assets/voice/" + pick(files));
-  a.volume = 0.7;
-  voiceNow = a;
+  const f = pick(pool);
+  const a = new Audio("assets/voice/" + f);
+  a.volume = voiceVolume();
+  voiceNow = a; lastFile = f; lastAt = Date.now();
   // 브라우저는 사용자가 한 번도 누르지 않은 페이지의 소리를 막는다 — 첫 인사가 막히면 조용히 넘어간다
-  try { await a.play(); } catch { /* 막혔다 */ }
+  try { await a.play(); } catch { if (voiceNow === a) voiceNow = null; return null; }
+  return a;
+}
+// 대사가 끝나면(다 읽거나 · 끊기거나 · 못 읽거나) 풀리는 약속. 길어도 10초에서 놓는다
+const voiceDone = (a) => (a ? new Promise((r) => {
+  const f = () => r();
+  a.addEventListener("ended", f, { once: true }); a.addEventListener("error", f, { once: true }); a.addEventListener("pause", f, { once: true });
+  setTimeout(f, 10000);
+}) : Promise.resolve());
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// 음량을 밀면 울리는 중인 목소리에도 바로
+onSettings(() => { if (voiceNow) voiceNow.volume = voiceVolume(); if (voiceVolume() <= 0) hush(); });
+
+// ── 교감 영역 — 사도 데스크(mascot.js headGeom · zoneAt)를 옮겼다 ──
+// 머리 본(목) · 눈 본(얼굴 높이) · 게임의 교감 기준점(Character_Pat = 머리선, Character_Ball_Move = 볼)으로
+// 「눈썹 위 = 머리 · 턱~눈썹 = 얼굴 · 나머지 = 몸」. 모자 · 뿔 때문에 테두리 상단은 쓰지 않는다
+function zoneOf(sk, p) {
+  if (!sk || !p) return "body";
+  const bones = sk.bones || [];
+  const find = (re, not) => bones.find((b) => re.test(b.data.name) && !(not && not.test(b.data.name)));
+  const hb = find(/^(S\d_)?Head$/i) || find(/head/i, /hair|ac|ct|rct/i);
+  const eyes = bones.filter((b) => /eye/i.test(b.data.name) && !/brow|lash|light|shadow|ac/i.test(b.data.name));
+  const pat = find(/^Character_Pat$/), ball = find(/^Character_Ball_Move$/);
+  const k = Math.abs(sk.scaleY) || 1;
+  let neckY, headX;
+  if (hb) { neckY = hb.worldY; headX = pat ? pat.worldX : hb.worldX; }
+  else if (ball) { neckY = ball.worldY - 45 * k; headX = pat ? pat.worldX : ball.worldX; }
+  else return "body";
+  let d = eyes.length ? eyes.reduce((a, b) => a + b.worldY, 0) / eyes.length - neckY : 0;
+  if (d < 20 * k) d = 65 * k;
+  const u = Math.max(d, 60 * k);
+  let browY = neckY + d + 0.6 * u;
+  if (pat && ball && pat.worldY > ball.worldY) browY = Math.min(browY, pat.worldY - 0.1 * (pat.worldY - ball.worldY));
+  const dx = Math.abs(p.x - headX);
+  if (p.y < neckY - 0.2 * u || dx > 3.2 * u) return "body";
+  if (p.y <= browY) return dx <= 2.2 * u ? "cheek" : "body";
+  return "head";
 }
 
 // ── 로비 ──────────────────────────────────────────────────────────────
@@ -96,6 +155,7 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
 
   const set0 = getSettings();
   let heroKey = HERO_DATA[set0.lobbyHero] ? set0.lobbyHero : HERO_DATA[DEFAULT_HERO] ? DEFAULT_HERO : Object.keys(HERO_DATA)[0];
+  // 로비 한 벌마다 표 — 같은 #screen 에 로비가 다시 서면 옛 타이머 · 옛 부름은 제 것이 아님을 안다
   const me = {};
   s._lobby = me;
   const alive = () => s._lobby === me && s.className === "lobby2";
@@ -115,7 +175,7 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
   top.append(fs, gear);
   s.appendChild(top);
 
-  // ② 가운데 — 비서
+  // ② 가운데 — 메인 사도
   const stage = node("section", "lb-stage");
   const bubble = node("div", "lb-bubble");
   const who = node("b");
@@ -125,10 +185,10 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
   stand.type = "button";
   const plate = node("div", "lb-plate");
   const plateName = node("b");
-  const swap = node("button", "lb-swap", "비서 바꾸기");
+  const swap = node("button", "lb-swap", "메인 사도 바꾸기");
   swap.type = "button";
   swap.onclick = () => openPicker();
-  plate.append(plateName, node("span", null, "누르면 쓰다듬습니다"), swap);
+  plate.append(plateName, node("span", null, "톡 · 쓰다듬기 · 볼 당기기 · 간지럽히기"), swap);
   stage.append(stand, bubble, plate);
   s.appendChild(stage);
 
@@ -152,7 +212,7 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
   };
   if (onDex) item("❖", "사도 도감", "135명의 능력 · 카드 · 신탁", leave(onDex), "lb-dex");
   if (onHelp) item("?", "도움말", "상성 · 줄 · 은총과 신탁 · 드랍", () => onHelp(), "lb-help");
-  item("⚙", "설정", "움직임 · 글자 · 목소리", () => openSettings(), "lb-set");
+  item("⚙", "설정", "해상도 · 그래픽 · 소리 · 글자", () => openSettings(), "lb-set");
   // 여정 — 세 층
   const route = node("div", "lb-route");
   route.appendChild(node("small", null, "여정"));
@@ -168,63 +228,179 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
 
   s.appendChild(node("p", "lb-legal", "트릭컬 리바이브 팬 게임 · 비공식 개인 제작. 공식과 무관합니다."));
 
-  // ── 비서 세우기 ──
-  let body = null, lines = null, pats = 0, standGen = 0;
+  // ── 메인 사도 세우기 ──
+  let body = null, lines = null, standGen = 0, lastTouch = Date.now();
   function say(t) {
     line.textContent = t;
     bubble.classList.remove("pop");
     void bubble.offsetWidth;
     bubble.classList.add("pop");
   }
-  function act(kind) {
-    if (!body) return;
-    const a = pick(ANIM[kind]);
-    if (Array.isArray(a)) body.play(a[0], false, a[1]) || body.play(pick(ANIM.joy));
-    else body.play(a);
+  const has = (n) => !!(body && n && body.has(n));
+  const firstOf = (...names) => names.find(has) || null;
+  const animsOf = () => (body ? body.animations() : []);
+  // 짧은 동작 가운데 이 이름꼴인 것(사도 데스크 anim-pools 의 sdPools 처럼 길이로 거른다)
+  const pool = (re, maxDur = 3.5) => animsOf().filter((n) => re.test(n) && body.duration(n) <= maxDur);
+
+  // 반응 하나 — 동작(then 이 있으면 이어서) + 목소리. 끝나도 바로 쉬지 않고, 동작과 대사 가운데 늦게 끝나는 쪽까지
+  // 마지막 자세로 붙들고 있다가 쉬는 동작으로 섞여 돌아간다(대사 도중에 대기로 튀지 않게). 새 반응이 오면 앞의 것은 무효
+  let actGen = 0;
+  async function act(anim, { then, voice, repeat = false, voice2 } = {}) {
+    if (!body || !anim) return;
+    const my = ++actGen;
+    const v = body;
+    v.play(anim, false, then, { hold: true });
+    const animMs = (v.duration(anim) + (then ? v.duration(then) : 0)) * 1000;
+    const t0 = Date.now();
+    const audio = voice ? await speak(heroKey, voice, alive, { repeat }) : null;
+    // 꿀밤처럼 두 마디 — 첫 동작이 끝날 즈음 둘째 대사
+    let audio2 = null;
+    if (voice2 && then) {
+      await Promise.all([voiceDone(audio), sleep(Math.max(0, v.duration(anim) * 1000 - (Date.now() - t0)))]);
+      if (my !== actGen || !alive()) return;
+      audio2 = await speak(heroKey, voice2, alive);
+    }
+    await Promise.all([voiceDone(audio2 || audio), sleep(Math.max(0, animMs - (Date.now() - t0)))]);
+    await sleep(150);
+    if (my === actGen && alive() && body === v && !g.down) v.toRest();
   }
+  const cancelAct = () => { actGen++; };
+
   function standUp(key, greet) {
     const gen = ++standGen;
     heroKey = key;
     const h = HERO_DATA[key];
     lines = linesOf(key);
+    cancelAct();
     if (body) body.dispose?.();
     body = null;
     stand.replaceChildren();
     stand.className = "lb-stand";
     stand.style.setProperty("--tone", TONES[h.nature] || "#d8cfa8");
-    stand.setAttribute("aria-label", `${h.ko} 쓰다듬기`);
+    stand.setAttribute("aria-label", `${h.ko} — 누르거나 쓰다듬기`);
     who.textContent = h.ko;
     plateName.textContent = h.ko;
     say(pick(lines.start));
     // 화면에 붙은 뒤에 그린다(크기를 재야 한다). 스파인이 없으면 그림 한 장 → 이름 칸
     const wantSpine = getSettings().spine !== false;
-    (wantSpine ? spineView(stand, "standing", key, { anim: "Idle" }) : Promise.resolve(null)).then((v) => {
+    (wantSpine ? spineView(stand, "standing", key, { anim: "Idle_1", mix: 0.25 }) : Promise.resolve(null)).then((v) => {
       if (gen !== standGen || !alive()) { v?.dispose?.(); return; }
-      if (!v) { stand.classList.add("still"); stand.appendChild(art.portrait(key, { ko: h.ko, tint: TONES[h.nature], size: 0, slot: "event", still: true })); return; }
-      body = v; stand.classList.add("live");
-      act("enter");
+      if (!v) {
+        stand.classList.add("still");
+        stand.appendChild(art.portrait(key, { ko: h.ko, tint: TONES[h.nature], size: 0, slot: "event", still: true }));
+        if (greet) speak(key, ["greeting", "callplayer"], alive);
+        return;
+      }
+      body = v; stand.spine = v; stand.classList.add("live");   // stand.spine — 시험 도구가 동작을 읽는다
+      // 들어올 때 — 반기는 동작 + 인사(인사가 끝날 때까지 그 자세로)
+      const hi = pick(pool(/^(Happy|Smile)_\d+$/, 3));
+      if (hi) act(hi, { voice: greet ? ["greeting", "callplayer"] : null });
+      else if (greet) speak(key, ["greeting", "callplayer"], alive);
     });
-    if (greet) speak(key, VOICE.enter, alive);
   }
-  stand.onclick = () => {
-    pats++;
-    say(pick(lines.pet));
-    act(pats % 3 === 0 ? "joy" : "pet");
-    speak(heroKey, VOICE.pet, alive);
+
+  // ── 교감 — 누르고 · 끌고 · 떼기(사도 데스크 mascot.js 의 onDown · onMove · onUp) ──
+  // g.state: touch(누름, 아직 모름) · pat(머리 쓰다듬기) · cheek(볼 잡기) · tickle(간지럽히기)
+  // 볼 · 머리는 게임의 교감 본(Character_Ball_Move · Character_Pat)을 손가락이 끌고 다닌다 — Touch_Idle · Pat_Idle 이
+  // 얼굴을 그 본에 묶어 두어서, 끌면 볼이 늘어나고 쓰다듬는 손을 얼굴이 따라온다
+  const g = { down: false, state: null, zone: "body", sx: 0, sy: 0, moved: 0, rubLast: 0, rubDir: 0, rubTravel: 0, rubTurns: 0, tickleT0: 0, lastLaugh: 0 };
+  let fromPointer = false;
+  stand.addEventListener?.("pointerdown", (e) => {
+    if (!body || e.button > 0) return;
     lastTouch = Date.now();
+    g.down = true; g.state = "touch"; g.sx = e.clientX; g.sy = e.clientY; g.moved = 0;
+    g.rubLast = e.clientX; g.rubDir = 0; g.rubTravel = 0; g.rubTurns = 0;
+    g.zone = zoneOf(body.skeleton, body.toWorld(e.clientX, e.clientY));
+    try { stand.setPointerCapture(e.pointerId); } catch { /* 없어도 된다 */ }
+    // 얼굴은 누른 순간 볼이 잡힌다. 머리 · 몸은 떼거나 끌어야 정해진다
+    if (g.zone === "cheek" && has("Touch_Idle")) {
+      cancelAct(); g.state = "cheek";
+      body.play("Touch_Idle", true);
+      body.grab(/^Character_Ball_Move$/, 150);
+    }
+  });
+  stand.addEventListener?.("pointermove", (e) => {
+    if (!g.down || !body) return;
+    const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
+    g.moved = Math.max(g.moved, Math.hypot(dx, dy));
+    if (g.state === "cheek" || g.state === "pat") { body.drag(dx, dy); return; }
+    if (g.state === "touch" && g.moved > 6 && g.zone === "head" && has("Pat_Idle")) {
+      cancelAct(); g.state = "pat";
+      body.play("Pat_Idle", true);
+      body.grab(/^Character_Pat$/, 110);
+      body.drag(dx, dy);
+      return;
+    }
+    if ((g.state === "touch" && g.zone === "body") || g.state === "tickle") {
+      const d = e.clientX - g.rubLast; g.rubLast = e.clientX;
+      if (Math.abs(d) >= 3) { const sg = Math.sign(d); if (g.rubDir && sg !== g.rubDir) g.rubTurns++; g.rubDir = sg; g.rubTravel += Math.abs(d); }
+      const tIdle = firstOf("Tickle_Idle_1", "Tickle_Idle");
+      if (g.state === "touch" && g.rubTurns >= 1 && g.rubTravel >= RUB_TRAVEL && tIdle) {
+        cancelAct(); g.state = "tickle"; g.tickleT0 = g.lastLaugh = Date.now();
+        body.play(tIdle, true);
+        speak(heroKey, ["ticklestart", "tickleduring"], alive, { repeat: true });
+        say(pick(lines.tickle));
+      } else if (g.state === "tickle" && Date.now() - g.lastLaugh > 2500) {
+        g.lastLaugh = Date.now();                       // 계속 간지럽히면 계속 웃는다
+        speak(heroKey, ["tickleduring", "ticklestart"], alive, { repeat: true });
+      }
+    }
+  });
+  const release = () => {
+    if (!g.down || !body) return;
+    g.down = false; fromPointer = true;
+    lastTouch = Date.now();
+    body.letGo();
+    const st = g.state; g.state = null;
+    if (st === "pat") {                               // 쓰다듬기 끝 → touch2 대사
+      say(pick(lines.pet));
+      act(firstOf("Pat_End") || pick(pool(/^(Happy|Smile)_\d+$/)), { voice: ["pat", "pleasure", "joy"] });
+    } else if (st === "tickle") {                     // 간지럽히기 끝. 웃음은 좀 간지럽혔을 때만
+      act(firstOf("Tickle_End") || pick(pool(/^(Happy|Laugh)_\d+$/)), { voice: Date.now() - g.tickleT0 > 600 ? ["tickleduring", "ticklestart", "joy"] : null, repeat: true });
+    } else if (st === "cheek" && g.moved >= TAP_PX) { // 볼을 끌었을 때만 → touch1 대사("당기지 마!")
+      say(pick(lines.ouch));
+      act(firstOf("Touch_End") || pick(pool(/^(Angry|Sulky)_\d+$/)), { voice: ["cheek", "anger"] });
+    } else if (st === "touch" && g.zone === "head" && firstOf("Smash_End_1", "Smash_End")) {
+      // 머리 톡 → 꿀밤. 게임처럼 2단 — Smash_End_1(맞는 순간 「아얏」) → Smash_End_2(머리 감싸기 · 대사)
+      say(pick(lines.ouch));
+      const a2 = firstOf("Smash_End_2");
+      act(firstOf("Smash_End_1", "Smash_End"), { then: a2 || undefined, voice: ["smashHit", "hit", "surprise"], voice2: a2 ? ["smashLine", "anger", "surprise"] : null });
+    } else {
+      react();                                        // 몸 · 얼굴 톡 → 가벼운 반응
+    }
   };
-  // 한동안 안 누르면 혼잣말
-  let lastTouch = Date.now();
+  stand.addEventListener?.("pointerup", release);
+  stand.addEventListener?.("pointercancel", release);
+  // 가벼운 반응 — 웃음 · 수줍음 · 뽐내기 동작만(놀람 · 아파하는 소리는 빼고), 목소리는 그 동작에 맞춰(js/motion-voice.js)
+  function react() {
+    say(pick(lines.pet));
+    if (!body) { speak(heroKey, ["greeting", "line", "joy", "pleasure", "pat"], alive); return; }
+    const soft = pool(/^(Happy|Smile|Laugh|Shy|Proud|Excited|Taunt)_\d+$/, 3);
+    const a = pick(soft.length ? soft : pool(/^(Happy|Smile)/, 4));
+    if (a) act(a, { voice: voiceCatsFor(a) || ["greeting", "line", "joy", "pleasure"] });
+    else speak(heroKey, ["greeting", "line", "joy", "pleasure", "pat"], alive);
+  }
+  // 누르기(마우스 없이 · 키보드 Enter · 시험) — 끌기가 없으니 가벼운 반응
+  stand.onclick = () => {
+    if (fromPointer) { fromPointer = false; return; }
+    lastTouch = Date.now();
+    react();
+  };
+
+  // 한동안 안 건드리면 — 잡담 동작 + 그에 맞는 목소리(line · hmm …) + 혼잣말
   const idleTimer = setInterval(() => {
     if (!alive()) { clearInterval(idleTimer); if (!s._lobby) stopVoice(); return; }
-    if (Date.now() - lastTouch < 25000) return;
+    if (g.down || Date.now() - lastTouch < IDLE_AFTER) return;
     lastTouch = Date.now();
     say(pick(lines.idle));
-    act("idle");
-  }, 5000);
+    const acts = pool(/^(Talk|Blank|Thinking|Think|Question|Curious|Taunt|Smile|Happy|Shy|Proud|Serious|Tired)_?\d*$/, 4);
+    const a = pick(acts);
+    if (a) act(a, { voice: voiceCatsFor(a) || ["line", "hmm", "callplayer"] });
+    else speak(heroKey, ["line", "callplayer", "hmm"], alive);
+  }, 4000);
   idleTimer?.unref?.();              // 시험(node)에서 이 타이머가 프로세스를 붙잡지 않게
 
-  // ── 창 — 한 번에 하나. ×  · 바깥 · Esc 로 닫고, 닫을 때 Esc 듣기도 같이 뗀다 ──
+  // ── 창 — 한 번에 하나. × · 바깥 · Esc 로 닫고, 닫을 때 Esc 듣기도 같이 뗀다 ──
   let modalClose = null;
   function closeModal() { if (modalClose) modalClose(); }
   function openModal(back, x) {
@@ -239,12 +415,12 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
     return close;
   }
 
-  // ── 비서 고르기 ──
+  // ── 메인 사도 고르기 ──
   function openPicker() {
     const back = node("div", "lb-modal");
     const box = node("div", "lb-box lb-picker");
     const head = node("div", "lb-boxhead");
-    head.appendChild(node("b", null, "비서 바꾸기"));
+    head.appendChild(node("b", null, "메인 사도 바꾸기"));
     const q = node("input", "lb-search");
     q.placeholder = "이름";
     head.appendChild(q);
@@ -257,8 +433,8 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
     back.appendChild(box);
     const close = openModal(back, x);
     loadSpineManifest().then((m) => {
-      const has = (k) => !m || !m.standing || !!m.standing[k];
-      const all = Object.entries(HERO_DATA).filter(([k]) => has(k)).sort((a, b) => a[1].ko.localeCompare(b[1].ko));
+      const hasStand = (k) => !m || !m.standing || !!m.standing[k];
+      const all = Object.entries(HERO_DATA).filter(([k]) => hasStand(k)).sort((a, b) => a[1].ko.localeCompare(b[1].ko));
       const draw = () => {
         grid.replaceChildren();
         const f = (q.value || "").trim();
@@ -279,7 +455,7 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
     });
   }
 
-  // ── 설정 ──
+  // ── 설정 — 전투와 같은 창(js/settings-panel.js) ──
   function openSettings() {
     const back = node("div", "lb-modal");
     const box = node("div", "lb-box lb-settings");
@@ -289,20 +465,7 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
     x.type = "button";
     head.appendChild(x);
     box.appendChild(head);
-    const set = getSettings();
-    const toggle = (label, why, on, fn) => {
-      const b = node("button", "lb-toggle" + (on ? " on" : ""));
-      b.type = "button";
-      const t = node("span");
-      t.append(node("b", null, label), node("small", null, why));
-      b.append(t, node("i", null, on ? "켬" : "끔"));
-      b.onclick = () => { fn(); openSettings(); };
-      box.appendChild(b);
-    };
-    toggle("사도 목소리", "로비에서 비서가 말할 때 목소리를 냅니다", set.voice !== false, () => { setSetting("voice", set.voice === false); if (set.voice !== false) stopVoice(); });
-    toggle("사도 움직임", "끄면 그림 한 장 — 느린 기계에서 가볍습니다", set.spine !== false, () => { setSetting("spine", !(set.spine !== false)); standUp(heroKey, false); });
-    toggle("움직임 줄이기", "반짝임 · 튀는 효과를 끕니다", !!set.calm, () => setSetting("calm", !set.calm));
-    toggle("글자 크게", "이름 · 카드 글 · 체력 숫자를 한 치수 더", !!set.big, () => setSetting("big", !set.big));
+    box.appendChild(settingsPanel({ onSpine: () => standUp(heroKey, false) }));
     back.appendChild(box);
     openModal(back, x);
   }

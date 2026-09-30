@@ -756,16 +756,16 @@ console.log("로비와 프로필");
   let went = 0, dex = 0, help = 0;
   const byCls = (root, cls) => (function f(n) { for (const c of n.children) { if (c.classList.contains(cls)) return c; const r = f(c); if (r) return r; } return null; })(root);
   L.lobbyScreen(() => went++, { onDex: () => dex++, onHelp: () => help++ });
-  check(s3.className === "lobby2", "로비는 비서 + 메뉴 화면이다");
+  check(s3.className === "lobby2", "로비는 메인 사도 + 메뉴 화면이다");
   const plate = byCls(s3, "lb-plate");
-  check(!!plate && plate.textContent.includes("에르핀"), "처음 비서는 에르핀");
+  check(!!plate && plate.textContent.includes("에르핀"), "처음 메인 사도는 에르핀");
   const line = byCls(s3, "lb-line");
-  check(!!line && line.textContent.length > 3, `비서가 인사한다 (「${line && line.textContent}」)`);
+  check(!!line && line.textContent.length > 3, `메인 사도가 인사한다 (「${line && line.textContent}」)`);
   const stand = clickAll(s3, (n) => n.classList.contains("lb-stand"))[0];
   const before = line.textContent;
   let changed = false;
   for (let i = 0; i < 6 && !changed; i++) { stand.onclick(); changed = line.textContent !== before; }
-  check(changed, "비서를 누르면 다른 말을 한다");
+  check(changed, "메인 사도를 누르면 다른 말을 한다");
   check(/에르피엔[\s\S]*모나티엄[\s\S]*벨리티엔/.test(s3.textContent), "여정이 FLOORS 차례와 같다");
   clickAll(s3, (n) => n.classList.contains("lb-help"))[0].onclick();
   check(help === 1, "도움말 단추");
@@ -777,33 +777,46 @@ console.log("로비와 프로필");
   prim.onclick();
   check(went === 1, "누르면 편성으로 넘어간다");
 
-  // 비서 바꾸기 — 고르면 그 사도가 서고, 다음에 켜도 그대로
+  // 메인 사도 바꾸기 — 고르면 그 사도가 서고, 다음에 켜도 그대로
   L.lobbyScreen(() => {}, {});
   clickAll(s3, (n) => n.classList.contains("lb-swap"))[0].onclick();
   for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));   // 스파인 목록을 읽는 동안(가짜 setTimeout 은 바로 돈다)
   const modal = docBody.children.find((n) => n.classList.contains("lb-modal"));
   const picks = modal ? clickAll(modal, (n) => n.classList.contains("lb-pick")) : [];
-  check(picks.length >= 100, `비서 후보 ${picks.length}명`);
+  check(picks.length >= 100, `메인 사도 후보 ${picks.length}명`);
   const other = picks.find((b) => !b.textContent.includes("에르핀"));
   const otherKo = other.children[other.children.length - 1].textContent;   // 이름 칸(초상 자리표시 글자는 뺀다)
   other.onclick();
   check(!docBody.children.includes(modal), "고르면 창이 닫힌다");
-  check(byCls(s3, "lb-plate").textContent.includes(otherKo), `고른 비서가 선다 (${otherKo})`);
+  check(byCls(s3, "lb-plate").textContent.includes(otherKo), `고른 메인 사도가 선다 (${otherKo})`);
   L.lobbyScreen(() => {}, {});
-  check(byCls(s3, "lb-plate").textContent.includes(otherKo), "다시 켜도 고른 비서 그대로");
+  check(byCls(s3, "lb-plate").textContent.includes(otherKo), "다시 켜도 고른 메인 사도 그대로");
   const { setSetting } = await import("../js/settings.js");
   setSetting("lobbyHero", "에르핀");
 
-  // 설정 — 목소리 켜고 끄기
+  // 설정 — 로비 · 전투가 같은 창(settings-panel): 해상도 · 그래픽 품질 · 켜고 끄기 · 음량
+  const SET = await import("../js/settings.js");
+  const all = (root, cls) => { const out = []; (function f(n) { for (const c of n.children) { if (c.classList.contains(cls)) out.push(c); f(c); } })(root); return out; };
   clickAll(s3, (n) => n.classList.contains("lb-set"))[0].onclick();
-  const sm = docBody.children.find((n) => n.classList.contains("lb-modal"));
-  const tg = clickAll(sm, (n) => n.classList.contains("lb-toggle"));
-  check(tg.length === 4 && tg[0].textContent.includes("목소리"), "설정 — 목소리 · 움직임 · 줄이기 · 글자");
-  tg[0].onclick();
-  const sm2 = docBody.children.find((n) => n.classList.contains("lb-modal"));
-  check(!clickAll(sm2, (n) => n.classList.contains("lb-toggle"))[0].classList.contains("on"), "목소리를 끄면 꺼진다");
-  clickAll(sm2, (n) => n.classList.contains("lb-toggle"))[0].onclick();
-  docBody.children.find((n) => n.classList.contains("lb-modal")).remove();
+  let sm = docBody.children.find((n) => n.classList.contains("lb-modal"));
+  const opts = all(sm, "sp-opt");
+  check(opts.length === 8 && opts.map((o) => o.textContent).join(" ").includes("1280×720") && opts.some((o) => o.textContent === "낮음"),
+    `설정 — 해상도 다섯 · 그래픽 품질 셋 (${opts.map((o) => o.textContent).join(" ")})`);
+  check(all(sm, "sp-tog").length >= 3 && all(sm, "sp-range").length === 2, "켜고 끄기 셋 이상 · 음량 둘(전체 · 목소리)");
+  opts.find((o) => o.textContent === "1280×720").onclick();
+  check(SET.getSettings().res === "1280x720", "해상도를 고르면 설정에 남는다");
+  sm = docBody.children.find((n) => n.classList.contains("lb-modal"));
+  check(all(sm, "sp-opt").find((o) => o.textContent === "1280×720").classList.contains("on"), "고른 해상도에 불이 들어온다");
+  all(sm, "sp-opt").find((o) => o.textContent === "낮음").onclick();
+  check(SET.getSettings().quality === "low", "그래픽 품질 — 낮음");
+  const vr = all(sm, "sp-range")[1];
+  vr.value = "0"; vr.oninput();
+  check(SET.getSettings().volVoice === 0 && SET.voiceVolume() === 0, "목소리 음량 0 이면 말하지 않는다");
+  vr.value = "50"; vr.oninput();
+  check(Math.abs(SET.voiceVolume() - SET.getSettings().volMaster / 100 * 0.5) < 1e-9, "목소리 음량 = 전체 × 목소리");
+  SET.setSetting("res", "auto"); SET.setSetting("quality", "high"); SET.setSetting("volVoice", 100);
+  clickAll(sm, (n) => n.classList.contains("lb-x"))[0].onclick();
+  check(!docBody.children.some((n) => n.classList.contains("lb-modal")), "× 로 닫힌다");
 
   // 프로필 — 편성 단추 없이 열면 읽기만
   H.profileScreen(Object.keys(HERO_DATA)[0]);
