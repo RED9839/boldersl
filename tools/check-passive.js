@@ -68,7 +68,7 @@ console.log("본보기 — 네르");
   // 도발 — 적이 네르만 친다
   const s2 = fight(["에르핀", "네르", "티그"], ["fairymoblongrange"]); tough(s2);
   for (const u of s2.party) { u.maxHp = u.hp = 999; }
-  play(s2, idOf("네르", "내 여왕님 건드리지 마!"));
+  play(s2, idOf("네르", "여왕님께 손대지 마세요!"));
   s2.enemies[0].intent = { t: "back", v: 7, say: "뒤로 파고든다" };
   endTurn(s2);
   // 방어가 막아 체력이 안 깎일 수 있다 — 누구를 노렸는지는 기록으로 본다
@@ -77,7 +77,7 @@ console.log("본보기 — 네르");
   // 무적은 적의 차례까지 간다
   const s3 = fight(["에르핀", "네르", "티그"], ["fairymobcloserange"]); tough(s3);
   const nerU = s3.party.find((u) => u.key === "네르");
-  const awake = Object.keys(CARDS).find((id) => CARDS[id].hero === "네르" && CARDS[id].name === "내 여왕님 건드리지 마!");
+  const awake = Object.keys(CARDS).find((id) => CARDS[id].hero === "네르" && CARDS[id].name === "여왕님께 손대지 마세요!");
   s3.book = s3.book || {};
   const inv = { ...CARDS[awake], fx: [{ k: "invuln", target: "self" }, { k: "status", id: "도발", v: 1, turns: 1, target: "self" }] };
   s3.book[awake] = inv;
