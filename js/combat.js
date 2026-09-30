@@ -53,7 +53,7 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
     const g = (gear && gear[key]) || { atk: 0, def: 0, crit: 0 };
     return {
       key, side: "party",
-      ko: base.ko || key,
+      ko: base.ko || key, role: base.role || null,
       tint: (HEROES[key] || {}).tint || "#8a8a9a",
       maxHp: (maxHp && maxHp[key]) || baseHp,
       hp: hp && hp[key] != null ? hp[key] : (maxHp && maxHp[key]) || baseHp,
@@ -187,7 +187,7 @@ function beginTurn(s) {
   for (const u of alive(s.party)) u.block = 0;
   // 「이번 턴」 버프는 적의 차례까지 간다 — 막아 주는 버프가 적이 치기 전에 풀리면 안 된다.
   // 그래서 다음 내 턴이 시작될 때 줄인다(방어도 여기서 사라진다).
-  if (s.turn > 1) P.tickMods(s);
+  if (s.turn > 1) { P.tickMods(s); P.decayKeywords(s); }   // 버프 시간 · 키워드 겹 — 적의 차례가 끝난 뒤에 줄인다
 
   // 원작의 중독은 지속 피해가 아니라 공격력을 깎는 것이다. 그래서 턴 시작에 아무 일도 안 한다.
   // 촉수는 턴이 끝날 때 때린다(프리클) — 아래 endTurn 에 있다.

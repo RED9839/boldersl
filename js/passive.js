@@ -20,6 +20,7 @@
 //                     1개당 자신 주는 피해 +N%. 1개당 턴 종료 시 공격력 N% 피해. 「X」가 N개가 되면: …
 
 import { parseEffect } from "./effects.js";
+import { HEAL_ROLE } from "./rules.js";
 
 // ── 읽기 ───────────────────────────────────────────────────────────────
 
@@ -323,21 +324,28 @@ export function tickTurnEnd(s, hurt, say) {
         for (const u of holders) {
           const n = kw.carrier === "self" ? (((s.stacks || {})[kw.owner] || {})[kw.id] || 0) : (u.status || {})[kw.id] || 0;
           if (!n || u.dead) continue;
-          const v = Math.max(1, Math.round(owner.atk * p.ratio * n));
+          const v = Math.max(1, Math.round(owner.atk * (HEAL_ROLE[owner.role] || 1) * p.ratio * n));   // 회복 역할 보정(rules.js)
           u.hp = Math.min(u.maxHp, u.hp + v);
         }
       }
     }
-    if (kw.decay) {
-      const cut = (n) => (kw.decay === "all" ? 0 : Math.max(0, n - kw.decay));
-      if (kw.carrier === "self") {
-        const pool = (s.stacks || {})[kw.owner];
-        if (pool && pool[kw.id]) pool[kw.id] = cut(pool[kw.id]);
-      } else {
-        for (const u of [...s.party, ...s.enemies]) if (u.status && u.status[kw.id]) {
-          u.status[kw.id] = cut(u.status[kw.id]);
-          if (!u.status[kw.id]) delete u.status[kw.id];
-        }
+  }
+}
+
+// 키워드 겹 줄이기(「턴 종료 시 N 감소」) — 버프 시간처럼 **다음 내 턴이 시작될 때** 부른다.
+// 전에는 내 턴 끝(적의 차례 앞)에 줄여서, 「받는 피해 -8%」 같은 막는 표식이 적이 치기 전에 한 겹씩 빠졌다 —
+// 한 겹짜리는 한 번도 막지 못했다(우이(기억)의 세잎클로버). 공격 쪽 표식은 내 턴에만 쓰이니 달라지지 않는다
+export function decayKeywords(s) {
+  for (const kw of Object.values(s.kw || {})) {
+    if (!kw.decay) continue;
+    const cut = (n) => (kw.decay === "all" ? 0 : Math.max(0, n - kw.decay));
+    if (kw.carrier === "self") {
+      const pool = (s.stacks || {})[kw.owner];
+      if (pool && pool[kw.id]) pool[kw.id] = cut(pool[kw.id]);
+    } else {
+      for (const u of [...s.party, ...s.enemies]) if (u.status && u.status[kw.id]) {
+        u.status[kw.id] = cut(u.status[kw.id]);
+        if (!u.status[kw.id]) delete u.status[kw.id];
       }
     }
   }

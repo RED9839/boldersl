@@ -101,7 +101,8 @@ export function runFx(s, fxList, ctx, api) {
       // 방어·실드는 방어력 기준 — 중립 카드는 방어력이 가장 높은 아군(defOwner)을 본다
       case "block": for (const t of resolve(s, ctx, f.target)) t.block += Math.max(1, Math.round(defOf(api, ctx.defOwner || owner) * f.ratio)); break;
       case "shield": for (const t of resolve(s, ctx, f.target)) t.shield = (t.shield || 0) + Math.max(1, Math.round(defOf(api, ctx.defOwner || owner) * f.ratio)); break;
-      case "heal": for (const t of resolve(s, ctx, f.target)) t.hp = Math.min(t.maxHp, t.hp + Math.max(1, Math.round(atkOf(api, owner) * f.ratio))); break;
+      // 회복은 역할 보정을 곱한다 — 서포터 ×1.8 · 탱커 ×1.3 (rules.js HEAL_ROLE)
+      case "heal": for (const t of resolve(s, ctx, f.target)) t.hp = Math.min(t.maxHp, t.hp + Math.max(1, Math.round(atkOf(api, owner) * (R.HEAL_ROLE[owner && owner.role] || 1) * f.ratio))); break;
 
       // ── 능력치 증감 — 주는/받는 피해 · 공격력 · 방어력 · 치명 (이번 턴 · N턴간 · 이번 전투) ──
       case "dealtMod": case "takenMod": case "atkMod": case "defMod": case "critMod": {

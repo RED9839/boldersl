@@ -113,6 +113,9 @@ export const FRAIL = 0.10;
 // 유리하면 주는 피해 +10%, 받는 피해 -5%.
 const BEATS = { 광기: "순수", 순수: "냉정", 냉정: "광기", 활발: "우울", 우울: "활발" };
 export const NATURE_DMG = 0.10;
+// 회복 기준 — 카드는 「HP 회복(공격력 N%)」 로 적지만, 공격력이 낮은 서포터 · 탱커가 치료를 맡으면 양이 너무 작았다
+// (공격력 8 서포터의 「아군 전원 HP 회복(공격력 30%)」 = 2.4). 치료는 역할의 몫이라 역할마다 공격력에 곱해 센다
+export const HEAL_ROLE = { 서포터: 1.8, 탱커: 1.3, 딜러: 1 };
 export const NATURE_DEF = 0.05;
 export function natureEdge(attacker, defender) {
   if (!attacker || !defender) return 0;
