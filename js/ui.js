@@ -81,6 +81,45 @@ function uiIcon(kind, name, cls, fallback) {
   return n;
 }
 
+// 성격 상성 그림 — 광기 → 순수 → 냉정 → 광기 는 삼각형, 활발 ↔ 우울 은 세로 한 줄.
+// 화살표가 가리키는 쪽에 강하다(rules.js BEATS). on: 빛낼 성격들(편성에 든 사도의 성격)
+function natureChart(on = new Set()) {
+  const W = 250, H = 150, R = 20;
+  const at = { 광기: [62, 16], 순수: [114, 94], 냉정: [10, 94], 활발: [196, 16], 우울: [196, 94] };
+  const box = el("div", "natchart");
+  box.style.width = W + "px"; box.style.height = H + "px";
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = typeof document === "object" && document.createElementNS ? document.createElementNS(NS, "svg") : el("svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("width", String(W)); svg.setAttribute("height", String(H));
+  svg.innerHTML = `<defs><marker id="natarr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#f6d58e"/></marker></defs>`;
+  // 화살 — 원 둘레에서 둘레까지
+  const arrow = (a, b, both) => {
+    const [x1, y1] = at[a].map((v) => v + R), [x2, y2] = at[b].map((v) => v + R);
+    const d = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / d, uy = (y2 - y1) / d;
+    const hot = on.has(a) || on.has(b);
+    const line = typeof document === "object" && document.createElementNS ? document.createElementNS(NS, "line") : el("line");
+    line.setAttribute("x1", String(x1 + ux * (R + 3))); line.setAttribute("y1", String(y1 + uy * (R + 3)));
+    line.setAttribute("x2", String(x2 - ux * (R + 5))); line.setAttribute("y2", String(y2 - uy * (R + 5)));
+    line.setAttribute("class", hot ? "hot" : "");
+    line.setAttribute("marker-end", "url(#natarr)");
+    if (both) line.setAttribute("marker-start", "url(#natarr)");
+    svg.appendChild(line);
+  };
+  arrow("광기", "순수"); arrow("순수", "냉정"); arrow("냉정", "광기"); arrow("활발", "우울", true);
+  box.appendChild(svg);
+  for (const [nat, [x, y]] of Object.entries(at)) {
+    const n = el("div", "natnode" + (on.has(nat) ? " on" : on.size ? " off" : "") + (y < 50 ? " ntop" : ""));   // 위 줄은 이름을 원 위에
+    n.style.left = x + "px"; n.style.top = y + "px";
+    n.style.setProperty("--tint", NTINT[nat]);
+    n.appendChild(uiIcon("성격", nat, "natico", nat.slice(0, 1)));
+    n.appendChild(el("span", "natname", nat));
+    box.appendChild(n);
+  }
+  return box;
+}
+
 function img(src, cls) {
   const n = el("img", cls);
   n.src = src; n.loading = "lazy"; n.alt = "";
@@ -640,7 +679,7 @@ export function partyScreen(onStart, onBack) {
       // 함께 가면 — 사이 · 성격 · 첫 턴 AP
       synBox.innerHTML = "";
       synBox.appendChild(el("div", "tm-flabel", "함께 가면"));
-      if (!picked.length) synBox.appendChild(el("p", "tm-fnote", "사도를 고르면 셋의 성격이 여기 뜹니다."));
+      if (!picked.length) synBox.appendChild(el("p", "tm-fnote", "사도를 고르면 셋의 성격이 아래 그림에서 빛납니다."));
       if (picked.length) {
         const nat = el("div", "tm-fnats");
         for (const k of picked) {
@@ -651,8 +690,10 @@ export function partyScreen(onStart, onBack) {
           nat.appendChild(t);
         }
         synBox.appendChild(nat);
-        synBox.appendChild(el("p", "tm-fnote", "성격 상성 — 광기 → 순수 → 냉정 → 광기 · 활발 ↔ 우울"));
       }
+      // 상성 그림 — 고른 셋의 성격이 빛난다
+      synBox.appendChild(natureChart(new Set(picked.map((k) => HERO_DATA[k].nature))));
+      synBox.appendChild(el("p", "tm-fnote natnote", "화살표가 가리키는 쪽에 강합니다 — 주는 피해 +10% · 받는 피해 -5%. 공명은 상성이 없습니다."));
 
       // 시작 덱
       deckBox.innerHTML = "";

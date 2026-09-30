@@ -124,7 +124,7 @@ check(/3 \/ 3/.test(p.textContent), "머리에 몇 명 골랐는지 나온다");
 // 함께 가면 · 덱
 check(!/각별|친함|안면|함께한 이야기/.test(p.textContent), "짝마다의 사이는 적지 않는다");
 check(!p.textContent.includes("초면"), "초면을 적지 않는다");
-check(/광기 → 순수 → 냉정 → 광기/.test(p.textContent), "성격 상성을 적어 준다");
+check(count(p, "natchart") === 1 && count(p, "natnode") === 5 && count(p, "on") >= 3, "성격 상성을 그림으로 — 고른 성격이 빛난다");
 check(!/첫 턴 AP/.test(p.textContent), "사이가 없으니 첫 턴 AP 줄도 없다(늘 3)");
 check(count(p, "tm-fdk") === 12, `덱 열두 장이 미리 보인다 (${count(p, "tm-fdk")})`);
 

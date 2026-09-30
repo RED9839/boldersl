@@ -1786,3 +1786,34 @@ button.tm-fdk:hover:not(:disabled) { transform: none; border-color: #f6d58e; bac
 /* 열 고르기가 없는 사도도 같은 높이에 서게 — 이름표 줄을 맞춘다 */
 .tm-flane .tm-fstand:not(:has(.tm-frow)) { padding-bottom: 34px; }
 .phone .tm-flane .tm-fstand:not(:has(.tm-frow)) { padding-bottom: 26px; }
+
+/* 성격 상성 그림 — 삼각형(광기 · 순수 · 냉정) + 세로 한 줄(활발 ↔ 우울) */
+.natchart { position: relative; flex: none; margin: 2px auto 0; }
+.natchart svg { position: absolute; inset: 0; overflow: visible; }
+.natchart line { stroke: #f6d58e66; stroke-width: 2; }
+.natchart line.hot { stroke: #f6d58e; stroke-width: 2.5; filter: drop-shadow(0 0 3px #f6d58e88); }
+.natnode {
+  position: absolute; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--tint) 35%, #1a1628), #0d0b16 80%);
+  border: 2px solid color-mix(in srgb, var(--tint) 70%, transparent); transition: opacity .2s, box-shadow .2s;
+}
+.natnode.on { box-shadow: 0 0 0 2px #f6d58e, 0 0 14px color-mix(in srgb, var(--tint) 80%, transparent); }
+.natnode.off { opacity: .45; }
+.natnode i.natico { width: 24px; height: 24px; display: grid; place-items: center; font-style: normal; font-weight: 900; font-size: 13px; }
+.natnode i.natico > img { width: 100%; height: 100%; object-fit: contain; }
+.natname {
+  position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 1px;
+  font-size: 11px; font-weight: 800; white-space: nowrap; color: #f4f1ff; text-shadow: 0 1px 3px #000;
+}
+.natnode.off .natname { color: #b9b2d6; }
+.natnote { font-size: 11.5px !important; margin-top: 8px !important; }
+.phone .natchart, .phone .natnote { display: none; }
+/* 상성 그림 크기 · 자리 — 그림이 있으니 성격 칩 줄은 휴대폰(그림을 숨기는 곳)에서만 */
+.natnode { width: 40px; height: 40px; }
+.natnode i.natico { width: 22px; height: 22px; }
+.tm-fsyn { flex: none; overflow: visible; }
+.natchart { margin: 0 auto 16px; }
+.tm-fnats { display: none; }
+.phone .tm-fnats { display: flex; }
+.natnode.ntop .natname { top: auto; bottom: 100%; margin: 0 0 1px; }
+.natchart { margin-bottom: 10px; }
