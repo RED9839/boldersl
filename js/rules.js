@@ -24,12 +24,16 @@ export const ENEMY_HP = 1.3;
 export const FLASH_CHANCE = 0.35;        // 옛 규칙(보상 신탁) — 이제는 전투 중 신탁(아래)이 대신한다. tools/sim.js 만 본다
 
 // ── 신탁 — 카제나처럼 전투 중에 터진다(docs/12-신탁.md) ──────────────────
-// 싸움을 열 때 굴려서 덱의 카드 하나가 빛난다. 그 카드를 내는 순간 신탁 — 그 자리에서 셋 중 하나를 고른다.
+// 싸움을 열 때 **사도마다 따로** 굴려서 덱의 카드가 빛난다(카제나처럼 — 운이 좋으면 셋 모두).
+// 그 카드를 내는 순간 신탁 — 그 자리에서 셋 중 하나를 고른다.
 //   은총  그 사도의 기본 카드가 빛난다 → 아직 없는 고유 카드 셋 중 하나를 얻는다(그 턴 비용 0)
 //   카드 신탁    가진 고유 카드가 빛난다 → 신탁 다섯 중 셋 가운데 하나가 붙는다(이번에 내는 것은 비용 0)
 //   기적      카드 신탁 선택지 셋 가운데 하나에 드물게 — 카드 종류마다 다른 덤이 붙는다
-export const EPI_HERO = { fight: 0.55, elite: 1, boss: 1, event: 0.4 };
-export const EPI_CARD = { fight: 0.4, elite: 1, boss: 0.6, event: 0.3 };
+// 한 사도당 확률. 카드 신탁은 사도마다 + 중립 카드 몫 하나를 따로 굴린다.
+// EPI_SURE — 그 칸에서 아무도 안 빛났으면 하나는 반드시(엘리트 · 보스의 몫을 지킨다)
+export const EPI_HERO = { fight: 0.2, elite: 0.5, boss: 0.6, event: 0.15 };
+export const EPI_CARD = { fight: 0.15, elite: 0.4, boss: 0.3, event: 0.1 };
+export const EPI_SURE = { hero: ["elite", "boss"], card: ["elite"] };
 export const DIVINE = 0.1;
 // 기적의 덤 — power 피해 ×1.3 · cost 비용 -1(1 이상일 때) · draw 내면 1장 더 뽑는다
 export const DIVINE_KINDS = { 공격: ["power", "cost"], 스킬: ["draw", "cost"], 방어: ["draw", "cost"], 회복: ["draw", "cost"], 강화: ["cost", "draw"] };

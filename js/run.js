@@ -79,18 +79,25 @@ export function rollEpiphany(run) {
   const pick = (a) => a[Math.floor(run.rng() * a.length)];
   const draw3 = (pool) => { const p = pool.slice(), out = []; while (out.length < 3 && p.length) out.push(...p.splice(Math.floor(run.rng() * p.length), 1)); return out; };
   const glow = {};
-  // 은총 — 아직 얻을 고유 카드가 남은 사도의 기본 카드 하나
-  const heroes = run.party.filter((k) => (run.hp[k] || 0) > 0 && uniquesLeft(run, k).length);
-  if (heroes.length && run.rng() < (R.EPI_HERO[kind] || 0)) {
-    const k = pick(heroes);
+  // 은총 — 사도마다 따로 굴린다(카제나). 아직 얻을 고유 카드가 남은 사도의 기본 카드 하나가 빛난다
+  const heroes = run.party.filter((k) => (run.hp[k] || 0) > 0 && uniquesLeft(run, k).length
+    && run.deck.some((id) => CARDS[id] && CARDS[id].hero === k && !CARDS[id].unique));
+  const grace = (k) => {
     const base = run.deck.filter((id) => CARDS[id] && CARDS[id].hero === k && !CARDS[id].unique);
     // 고르지 않는다 — 그 사도의 고유 카드 넷 가운데 아직 없는 것에서 무작위 하나
-    if (base.length) glow[pick(base)] = { kind: "hero", hero: k, options: [pick(uniquesLeft(run, k))] };
-  }
-  // 카드 신탁 — 신탁이 아직 없는 고유 카드 하나. 프리클이 몰래 챙겨 둔 것(rewardFlash)이 있으면 반드시
+    glow[pick(base)] = { kind: "hero", hero: k, options: [pick(uniquesLeft(run, k))] };
+  };
+  for (const k of heroes) if (run.rng() < (R.EPI_HERO[kind] || 0)) grace(k);
+  if (heroes.length && R.EPI_SURE.hero.includes(kind) && !Object.keys(glow).length) grace(pick(heroes));
+  // 카드 신탁 — 신탁이 아직 없는 카드. 사도마다(그 사도의 고유 카드) + 중립 카드 몫을 따로 굴린다.
+  // 프리클이 몰래 챙겨 둔 것(rewardFlash)이 있거나 반드시 뜨는 칸인데 아무것도 안 빛났으면 하나는 반드시
   const able = flashTargets(run).filter((id) => !glow[id]);
-  if (able.length && (run.rewardFlash || run.rng() < (R.EPI_CARD[kind] || 0))) {
-    const cardId = pick(able);
+  const owners = {};
+  for (const id of able) (owners[CARDS[id].hero || "neutral"] ||= []).push(id);
+  const lit = Object.values(owners).filter(() => run.rng() < (R.EPI_CARD[kind] || 0)).map(pick);
+  if (able.length && !lit.length && (run.rewardFlash || R.EPI_SURE.card.includes(kind))) lit.push(pick(able));
+  if (lit.length) run.rewardFlash = false;
+  for (const cardId of lit) {
     const c = CARDS[cardId];
     const options = draw3([1, 2, 3, 4, 5].filter((n) => (c.flash || [])[n - 1])).sort((a, b) => a - b).map((n) => ({ n, shin: null }));
     // 기적 — 셋 가운데 하나에 드물게
@@ -101,7 +108,6 @@ export function rollEpiphany(run) {
       o.shin = pick(kinds.length ? kinds : ["draw"]);
     }
     if (options.length) glow[cardId] = { kind: "card", options };
-    run.rewardFlash = false;
   }
   return glow;
 }

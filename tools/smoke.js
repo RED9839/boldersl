@@ -369,6 +369,23 @@ console.log("\n이후 화면");
     check(!back, "빼 버린 고유 카드는 은총으로 다시 오지 않는다(그 사도는 은총이 안 빛난다)");
   }
 
+  // 사도마다 따로 굴린다 — 한 전투에 여럿 · 셋 모두 은총이 빛날 수 있고, 한 사도에 은총은 하나
+  {
+    const r9 = R.newRun(run.party, run.rows, 97);
+    let all3 = 0, twice = 0, empty = 0;
+    for (let i = 0; i < 400; i++) {
+      r9.rng = C.makeRng(i + 1); r9.elite = false;
+      const hs = Object.values(R.rollEpiphany(r9)).filter((g) => g.kind === "hero").map((g) => g.hero);
+      if (new Set(hs).size === 3) all3++;
+      if (new Set(hs).size !== hs.length) twice++;
+      r9.elite = true;
+      if (!Object.values(R.rollEpiphany(r9)).some((g) => g.kind === "hero")) empty++;
+    }
+    r9.elite = false;
+    check(all3 > 0 && twice === 0, `사도마다 따로 — 셋 모두 은총이 빛난 싸움 ${all3}/400, 한 사도에 둘은 없다`);
+    check(empty === 0, "엘리트는 은총이 적어도 하나 빛난다");
+  }
+
   // 카드 신탁 — 가진 고유 카드가 빛나고, 신탁 다섯 중 셋. 고르면 바로 바뀌고 이번에는 비용 0
   const r4 = R.newRun(run.party, run.rows, 77);
   r4.deck.push(R.uniqueIdsOf(run.party[0])[0]);
