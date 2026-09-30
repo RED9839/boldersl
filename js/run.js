@@ -5,7 +5,7 @@ import { HERO_DATA } from "./cardbook.js";
 // 스탯은 기획서가 원본이다. 기획서에 없는 사도만 옛 heroes.js 를 본다.
 const base = (k) => HERO_DATA[k] || HEROES[k] || { hp: 50, row: "mid" };
 import { CARDS as OLD_CARDS, EXTRA } from "./data/cards.js";
-import { CARDS, NEUTRAL_IDS, EQUIP } from "./cardbook.js";
+import { CARDS, NEUTRAL_IDS, EQUIP, flashed } from "./cardbook.js";
 import { FLOORS } from "./data/enemies.js";
 import * as R from "./rules.js";
 import { buildDeck, makeRng, partyBonds } from "./combat.js";
@@ -16,8 +16,8 @@ export function newRun(partyKeys, rows, seed = Date.now()) {
   return {
     seed, rng: makeRng(seed),
     party: partyKeys.slice(), rows: { ...rows }, hp, maxHp,
-    traits: [],                   // 옛 번뜩임 체계 — 지금은 안 쓴다(tools/sim.js 가 아직 잰다)
-    flash: {},                    // 카드 id → 번뜩임 번호(1~5). 카드마다 하나만.
+    traits: [],                   // 옛 신탁 체계 — 지금은 안 쓴다(tools/sim.js 가 아직 잰다)
+    flash: {},                    // 카드 id → 신탁 번호(1~5). 카드마다 하나만.
     reward: null,                 // 이번 보상에서 굴린 것 — 다시 그려도 안 바뀐다
     bag: [],                      // 얻었지만 안 낀 장비 id
     gear: {},                     // { 사도키: { 무기: id, 방어구: id, 장신구: id } }
@@ -50,6 +50,10 @@ export function bonds(run) { return partyBonds(run.party); }
 
 // 전투가 끝난 뒤 — 체력을 남기고, 만난 짝을 적어 둔다
 export function afterFight(run, combat) {
+  const g = combat.gained || { cards: [], flash: [] };
+  for (const id of g.cards) if (!run.deck.includes(id)) run.deck.push(id);
+  for (const f of g.flash) { run.flash[f.cardId] = f.n; if (f.shin) (run.shin = run.shin || {})[f.cardId] = f.shin; }
+  run.lastGained = { cards: g.cards.slice(), flash: g.flash.slice() };
   for (const u of combat.party) {
     run.hp[u.key] = u.dead ? 0 : u.hp;
     run.maxHp[u.key] = u.maxHp;
@@ -66,10 +70,56 @@ export function afterFight(run, combat) {
 export function rewardCards(run) {
   const pool = [];
   for (const k of run.party)
-    for (const id of uniqueIdsOf(k)) if (!run.deck.includes(id)) pool.push(id);
+    for (const id of uniquesLeft(run, k)) pool.push(id);
   const out = [];
   while (out.length < 3 && pool.length) out.push(...pool.splice(Math.floor(run.rng() * pool.length), 1));
   return out;
+}
+
+// ── 신탁 — 싸움을 열 때 어느 카드가 빛날지 굴린다(rules.js EPI_*) ─────────────────
+// 돌려주는 것: { 카드id: { kind: "hero", hero, options: [고유 카드 id ×3] } | { kind: "card", options: [{ n, shin }] ×3 } }
+export function rollEpiphany(run) {
+  const kind = run.eventFight ? "event" : isBoss(run) ? "boss" : run.elite ? "elite" : "fight";
+  const pick = (a) => a[Math.floor(run.rng() * a.length)];
+  const draw3 = (pool) => { const p = pool.slice(), out = []; while (out.length < 3 && p.length) out.push(...p.splice(Math.floor(run.rng() * p.length), 1)); return out; };
+  const glow = {};
+  // 은총 — 아직 얻을 고유 카드가 남은 사도의 기본 카드 하나
+  const heroes = run.party.filter((k) => (run.hp[k] || 0) > 0 && uniquesLeft(run, k).length);
+  if (heroes.length && run.rng() < (R.EPI_HERO[kind] || 0)) {
+    const k = pick(heroes);
+    const base = run.deck.filter((id) => CARDS[id] && CARDS[id].hero === k && !CARDS[id].unique);
+    // 고르지 않는다 — 그 사도의 고유 카드 넷 가운데 아직 없는 것에서 무작위 하나
+    if (base.length) glow[pick(base)] = { kind: "hero", hero: k, options: [pick(uniquesLeft(run, k))] };
+  }
+  // 카드 신탁 — 신탁이 아직 없는 고유 카드 하나. 프리클이 몰래 챙겨 둔 것(rewardFlash)이 있으면 반드시
+  const able = flashTargets(run).filter((id) => !glow[id]);
+  if (able.length && (run.rewardFlash || run.rng() < (R.EPI_CARD[kind] || 0))) {
+    const cardId = pick(able);
+    const c = CARDS[cardId];
+    const options = draw3([1, 2, 3, 4, 5].filter((n) => (c.flash || [])[n - 1])).sort((a, b) => a - b).map((n) => ({ n, shin: null }));
+    // 기적 — 셋 가운데 하나에 드물게
+    if (options.length && run.rng() < R.DIVINE) {
+      // 「비용 -1」은 신탁을 얹은 뒤에도 비용이 1 이상인 선택지에만(②경량은 이미 0 일 수 있다)
+      const o = pick(options);
+      const kinds = (R.DIVINE_KINDS[c.type] || ["draw"]).filter((x) => x !== "cost" || flashed(c, o.n).cost >= 1);
+      o.shin = pick(kinds.length ? kinds : ["draw"]);
+    }
+    if (options.length) glow[cardId] = { kind: "card", options };
+    run.rewardFlash = false;
+  }
+  return glow;
+}
+
+// 아직 얻을 수 있는 고유 카드 — 덱에 있는 것 · 한 번 빼 버린 것(run.dropped)은 빠진다.
+// 은총 · 상점이 같이 쓴다. 빼 버린 카드가 은총으로 다시 돌아오지 않게(사용자가 정한 규칙)
+export function uniquesLeft(run, heroKey) {
+  const gone = new Set(run.dropped || []);
+  return uniqueIdsOf(heroKey).filter((id) => !run.deck.includes(id) && !gone.has(id));
+}
+// 덱에서 카드를 뺄 때 — 고유 카드면 적어 둔다
+export function forgetCard(run, cardId) {
+  if (CARDS[cardId] && CARDS[cardId].unique) (run.dropped = run.dropped || []).push(cardId);
+  if (run.flash) delete run.flash[cardId];
 }
 
 export function uniqueIdsOf(heroKey) {
@@ -84,17 +134,17 @@ export function rollReward(run) {
   const base = isBoss(run) ? R.GOLD_BOSS : lo + Math.floor(run.rng() * (hi - lo + 1)) + run.floor * 5;
   const gold = run.elite ? Math.round(base * R.ELITE_GOLD) : base;
   const lastBoss = isBoss(run) && run.floor >= FLOORS.length - 1;
-  // 엘리트 — 장비 셋 가운데 하나 · 번뜩임은 확률 없이
+  // 엘리트 — 장비 셋 가운데 하나 · 신탁은 확률 없이
   const equipFrom = isBoss(run) && !lastBoss ? R.BOSS_EQUIP[run.floor] || R.BOSS_EQUIP[0] : run.elite ? R.ELITE_EQUIP[run.floor] || R.ELITE_EQUIP[0] : null;
   run.reward = {
     equip: equipFrom ? offerEquip(run, equipFrom, 3) : null,
     equipTaken: null,
     gold, goldTaken: false,
-    cards: rewardCards(run),
-    // 프리클이 「다음 보상에서 몰래」 챙겨 둔 번뜩임(이벤트 B2)은 확률 없이 뜬다
-    flash: run.rewardFlash || run.elite || run.rng() < R.FLASH_CHANCE ? offerFlash(run) : null,
+    // 고유 카드 · 신탁은 이제 **전투 중 신탁**으로 얻는다(카제나) — 보상은 골드와 장비(엘리트 · 보스)
+    cards: [],
+    flash: null,
+    gained: run.lastGained || { cards: [], flash: [] },
   };
-  if (run.rewardFlash && run.reward.flash) run.rewardFlash = false;   // 몰래 챙긴 번뜩임은 한 번
   return run.reward;
 }
 
@@ -142,7 +192,7 @@ export function campRest(run) {
   return null;
 }
 
-// 수련 — 가진 고유 카드 하나에 번뜩임(다섯 중 셋)
+// 수련 — 가진 고유 카드 하나에 신탁(다섯 중 셋)
 export function campTrain(run, pick) {
   const st = run.stops[run.camp && run.camp.key];
   if (!st || st.used) return "이번 캠프에서는 이미 골랐습니다";
@@ -162,7 +212,7 @@ export function rollShop(run) {
     neutral.push(...pool.splice(i, 1));
   }
   const upool = [];
-  for (const k of run.party) for (const id of uniqueIdsOf(k)) if (!has.has(id)) upool.push(id);
+  for (const k of run.party) for (const id of uniquesLeft(run, k)) if (!has.has(id)) upool.push(id);
   const unique = [];
   while (unique.length < R.SHOP_UNIQUE && upool.length) unique.push(...upool.splice(Math.floor(run.rng() * upool.length), 1));
   run.shop = {
@@ -217,12 +267,12 @@ export function removeCard(run, cardId) {
   run.deck.splice(i, 1);
   run.removals = (run.removals || 0) + 1;
   run.shop.removeUsed = true;
-  if (run.flash) delete run.flash[cardId];
+  forgetCard(run, cardId);
   return null;
 }
 
-// 번뜩임 — **이미 가진 고유 카드**에만 붙는다(기획서: 고유 카드마다 번뜩임 다섯).
-// 번뜩임 자리에서 그중 한 장을 골라, 다섯 중 **무작위 셋**을 보여 주고 하나를 고르게 한다.
+// 신탁 — **이미 가진 고유 카드**에만 붙는다(기획서: 고유 카드마다 신탁 다섯).
+// 신탁 자리에서 그중 한 장을 골라, 다섯 중 **무작위 셋**을 보여 주고 하나를 고르게 한다.
 // 한 카드에 하나만 붙는다 — 이미 붙은 카드는 다시 안 나온다.
 export function flashTargets(run) {
   return run.deck.filter((id, i) => run.deck.indexOf(id) === i)
@@ -231,7 +281,7 @@ export function flashTargets(run) {
 
 export function offerFlash(run) {
   const able = flashTargets(run);
-  if (!able.length) return null;                       // 고유 카드가 없으면 번뜩임도 없다
+  if (!able.length) return null;                       // 고유 카드가 없으면 신탁도 없다
   const cardId = able[Math.floor(run.rng() * able.length)];
   const all = [1, 2, 3, 4, 5];
   const picks = [];
@@ -258,6 +308,23 @@ export function statsOf(equipId, heroKey) {
   return out;
 }
 export function gearOf(run, heroKey) { return (run.gear && run.gear[heroKey]) || {}; }
+// 장비 효과 — 낀 장비의 「효과」 줄과, 애착 사도가 꼈으면 「애착」 줄. 둘 다 패시브 문법이라
+// 전투를 열 때 그 사도의 패시브 뒤에 붙는다(js/passive.js setupPassives). 다 읽히는 줄만 켠다(build-cards 의 effectRead · affinityRead)
+export function gearPassives(run) {
+  const out = {};
+  for (const k of run.party) {
+    const parts = [];
+    for (const id of Object.values(gearOf(run, k))) {
+      const e = EQUIP[id];
+      if (!e) continue;
+      if (e.effect && e.effectRead) parts.push(e.effect.includes(":") ? e.effect : `${e.ko}: ${e.effect}`);
+      if (e.affinity === k && e.affinityPassive && e.affinityRead) parts.push(e.affinityPassive.includes(":") ? e.affinityPassive : `${e.ko}(애착): ${e.affinityPassive}`);
+    }
+    if (parts.length) out[k] = parts.join(" · ");
+  }
+  return out;
+}
+
 export function gearStats(run) {
   const out = {};
   for (const k of run.party) {

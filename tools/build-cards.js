@@ -55,7 +55,7 @@ for (const h of wanted) {
     cards[id] = mk(id, key, c, kw, `${h.ko}/시작/${c.ko}`, { start: true });
     mine.push(id);
   });
-  // 고유 카드 — 번뜩임 다섯을 함께 들고 있는다
+  // 고유 카드 — 신탁 다섯을 함께 들고 있는다
   h.unique.forEach((u, i) => {
     const id = `${key}_u${i}`;
     cards[id] = {
@@ -110,16 +110,17 @@ let nEquip = 0, nEffRead = 0;
 const heroByKo = Object.fromEntries(Object.entries(heroes).map(([k, h]) => [h.ko, k]));
 for (const e of Object.values(D.equip || {})) {
   const id = "장비_" + e.ko.replace(/\s+/g, "").replace(/[\[\]()]/g, "");
-  let effectRead = false;
-  if (e.effect) {
-    const rs = parsePassive("효과: " + e.effect.replace(/\s*\[[^\]]+\]/g, ""));
-    effectRead = rs.length > 0 && rs.every((r) => r.fx.length && !(r.left || "").replace(/이 사도가?|고학년(?:\s*스킬)?|궁극기|^사$|[\s.,·()%+\-]/g, ""));
-  }
+  // 효과 · 애착은 패시브 문법이다(docs/13-장비와 중립.md). 한 글자라도 못 읽으면 켜지 않는다 — tools/check-gear.js 가 막는다
+  const strict = (t, kw = []) => { if (!t) return false; const rs = parsePassive(t.includes(":") ? t : "효과: " + t, kw); return rs.length > 0 && rs.every((r) => r.fx.length && !r.left); };
+  const effect = e.effect && !/^없음/.test(e.effect) ? e.effect.replace(/\s*\[[^\]]+\]/g, "").trim() : null;
+  const affinityPassive = e.affinityText ? e.affinityText.replace(/\s*Lv\.3:.*$/, "").trim() || null : null;
+  const affKw = e.affinity && heroes[heroByKo[e.affinity]] && heroes[heroByKo[e.affinity]].keyword ? [heroes[heroByKo[e.affinity]].keyword.ko] : [];
+  const effectRead = strict(effect), affinityRead = strict(affinityPassive, affKw);
   nEquip++; if (effectRead) nEffRead++;
   equip[id] = {
     id, ko: e.ko, grade: e.grade, global: e.global, slot: e.slot, blurb: e.blurb,
     affinity: e.affinity ? heroByKo[e.affinity] || null : null, affinityKo: e.affinity,
-    stats: e.stats, effect: e.effect, effectRead, affinityText: e.affinityText, affinityLv3: e.affinityLv3,
+    stats: e.stats, effect, effectRead, affinityText: e.affinityText, affinityPassive, affinityRead, affinityLv3: e.affinityLv3,
   };
 }
 
@@ -144,5 +145,5 @@ const withFx = Object.values(cards).filter((c) => c.fx.length).length;
 console.log(`사도 ${nH}명 · 카드 ${nCard}장 → js/data/built.js (${(fs.statSync(dst).size / 1024).toFixed(0)}KB)`);
 console.log(`  효과가 붙은 카드 ${withFx}/${nCard} (${((withFx / nCard) * 100).toFixed(1)}%)`);
 console.log(`  글자를 다 못 읽은 곳 ${nUnparsed}`);
-console.log(`  장비 ${nEquip}종 — 스탯 줄 전부 · 효과 줄이 다 읽히는 것 ${nEffRead}종(아직 안 켬)`);
+console.log(`  장비 ${nEquip}종 — 스탯 줄 전부 · 효과가 전투에서 켜지는 것 ${nEffRead}종(나머지는 스탯만)`);
 console.log(`  중립 카드 ${nNeutral}장 중 효과가 다 도는 것 ${nPlayable}장 — 상점은 이것만 판다`);

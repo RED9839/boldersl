@@ -78,7 +78,7 @@ fs.writeFileSync(dst, [
 const n = Object.keys(heroes).length;
 const byNature = {};
 for (const h of Object.values(heroes)) byNature[h.nature] = (byNature[h.nature] || 0) + 1;
-console.log(`사도 ${n}명 · 카드 ${nCard}장 · 번뜩임 ${nFlash}개 → js/data/design.js (${(fs.statSync(dst).size / 1024).toFixed(0)}KB)`);
+console.log(`사도 ${n}명 · 카드 ${nCard}장 · 신탁 ${nFlash}개 → js/data/design.js (${(fs.statSync(dst).size / 1024).toFixed(0)}KB)`);
 console.log(`  중립 카드 ${Object.keys(neutral).length}장 (상점용) · 장비 ${Object.keys(equip).length}종`);
 console.log(`  성격: ${Object.entries(byNature).map(([k, v]) => `${k} ${v}`).join(" · ")}`);
 if (trouble.length) {

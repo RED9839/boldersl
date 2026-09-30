@@ -89,7 +89,7 @@ def main():
             if cards: cards[0].click()
         time.sleep(1.5)
         shot(d, a.out, "4-사도정보-능력치")   # 들어가면 능력치가 먼저 뜬다
-        for tab in ("카드", "번뜩임", "고학년 스킬"):
+        for tab in ("카드", "신탁", "고학년 스킬"):
             for b in d.find_elements(By.CSS_SELECTOR, ".sidebtn"):
                 if b.text == tab:
                     b.click(); time.sleep(1.0); shot(d, a.out, f"5-사도정보-{tab}"); break
@@ -127,7 +127,11 @@ def main():
             # 이길 때까지 눌러 보고 보상 화면을 찍는다
             from selenium.common.exceptions import StaleElementReferenceException
             for _ in range(160):
-                if d.find_elements(By.CSS_SELECTOR, ".rewardscreen"): break
+                if d.find_elements(By.CSS_SELECTOR, ".lootbox.done"):
+                    time.sleep(0.6); shot(d, a.out, "7-승리"); break
+                if d.find_elements(By.CSS_SELECTOR, ".rewardscreen, .mapscreen, .endscreen"): break
+                if d.find_elements(By.CSS_SELECTOR, ".epimodal .epiopt"):
+                    d.execute_script("document.querySelector('.epimodal .epiopt').click()"); time.sleep(0.3); continue
                 # 손패는 낼 때마다 다시 그려진다 — 잡고 있던 요소가 사라지면 다시 잡는다
                 try:
                     hand = [c for c in d.find_elements(By.CSS_SELECTOR, ".hand .card") if "no" not in c.get_attribute("class")]

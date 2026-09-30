@@ -184,6 +184,14 @@ def step_map(d, By, notes, step):
 
 
 def step_battle(d, By, notes):
+    # 신탁 창 — 빛나는 카드를 내면 뜬다. 셋 가운데 하나를 고른다
+    epi = d.find_elements(By.CSS_SELECTOR, ".epimodal .epiopt")
+    if epi:
+        kind = "카드 신탁"
+        notes[f"{kind}이 터졌다"] += 1
+        if d.find_elements(By.CSS_SELECTOR, ".epimodal .epiopt.shin"): notes["기적 선택지가 떴다"] += 1
+        d.execute_script("arguments[0].click()", epi[step_battle.k % len(epi)]); step_battle.k += 1; time.sleep(0.3)
+        return True
     able = [c for c in d.find_elements(By.CSS_SELECTOR, ".hand .card") if "no" not in c.get_attribute("class")]
     if able:
         d.execute_script("arguments[0].click()", able[0]); time.sleep(0.1)
@@ -235,22 +243,22 @@ def step_battle(d, By, notes):
 
 
 def step_reward(d, By, notes):
-    cards = d.find_elements(By.CSS_SELECTOR, ".rpick .gcard")
+    cards = d.find_elements(By.CSS_SELECTOR, ".rpick:not(.rgot) .gcard")   # rgot = 이 전투에서 이미 얻은 것(보기만)
     flashes = d.find_elements(By.CSS_SELECTOR, ".fcard")
-    # 누르면 가운데에 자세히가 뜬다 — 거기서 「덱에 넣습니다」 · 「이 번뜩임을 붙입니다」
+    # 누르면 가운데에 자세히가 뜬다 — 거기서 「덱에 넣습니다」 · 「이 신탁을 붙입니다」
     def confirm():
         time.sleep(0.2)
         use = d.find_elements(By.CSS_SELECTOR, ".bmodal .bmuse")
         if use: d.execute_script("arguments[0].click()", use[0])
         else: notes["보상 자세히 창이 안 떴다"] += 1
     if flashes:
-        notes["번뜩임이 떴다"] += 1
+        notes["신탁이 떴다"] += 1
         d.execute_script("arguments[0].click()", flashes[0]); confirm(); return
     if cards:
         notes["고유 카드를 얻었다"] += 1
         d.execute_script("arguments[0].click()", cards[0]); confirm(); return
     notes["보상에 고를 것이 없었다"] += 1
-    skip = [b for b in d.find_elements(By.CSS_SELECTOR, "button") if b.text == "그냥 갑니다"]
+    skip = [b for b in d.find_elements(By.CSS_SELECTOR, "button") if b.text in ("그냥 갑니다", "계속합니다")]
     if skip: d.execute_script("arguments[0].click()", skip[0])
 
 
@@ -261,7 +269,7 @@ def click_text(d, By, *texts):
 
 
 def step_event(d, By, notes, step):
-    # 고를 것이 있으면 먼저 — 카드 · 번뜩임 · 사도 · 골라 받기
+    # 고를 것이 있으면 먼저 — 카드 · 신탁 · 사도 · 골라 받기
     pick = d.find_elements(By.CSS_SELECTOR, ".evpick")
     if pick:
         for sel in (".evpick .fcard", ".evpick .rpick .gcard", ".evpick .evpickhero", ".evpick .evopt"):
@@ -303,7 +311,7 @@ def step_shop(d, By, notes):
 
 def step_swap(d, By, notes):
     notes["사도를 바꿀 기회가 왔다"] += 1
-    keep = [b for b in d.find_elements(By.CSS_SELECTOR, "button") if b.text in ("그대로 갑니다", "그냥 갑니다")]
+    keep = [b for b in d.find_elements(By.CSS_SELECTOR, "button") if b.text in ("그대로 갑니다", "그냥 갑니다", "계속합니다")]
     if keep: d.execute_script("arguments[0].click()", keep[0]); return
     outs = d.find_elements(By.CSS_SELECTOR, ".hero")
     if outs: d.execute_script("arguments[0].click()", outs[0])
@@ -313,6 +321,8 @@ def shot(d, a, name):
     if not a.shots: return
     d.save_screenshot(os.path.join(a.shots, name + ".png"))
 
+
+step_battle.k = 0
 
 if __name__ == "__main__":
     main()

@@ -166,7 +166,8 @@ export function parseKeyword(id, text, keywords = []) {
 // combat.js 가 이 함수들을 부른다. 실제 효과 실행은 combat 이 넘겨 주는 run(owner, fx, ctx) 로 한다.
 
 // 사도 key → { rules, kw } 를 전투 시작에 한 번 만든다
-export function setupPassives(s, heroOf) {
+// gearFx — { 사도키: "이름: 효과 · 이름: 효과" } 낀 장비의 효과 · 애착(run.js gearPassives). 그 사도의 패시브로 붙는다
+export function setupPassives(s, heroOf, gearFx = {}) {
   s.passives = {};
   s.kw = {};
   for (const u of s.party) {
@@ -174,7 +175,8 @@ export function setupPassives(s, heroOf) {
     if (!h) continue;
     const kws = h.keyword ? [h.keyword.ko] : [];
     const kw = h.keyword ? (h.keywordRules || parseKeyword(h.keyword.ko, h.keyword.text, kws)) : null;
-    const rules = [...(h.passiveRules || parsePassive(h.passive, kws)), ...(kw ? kw.rules : [])];
+    const gearRules = gearFx[u.key] ? parsePassive(gearFx[u.key], kws).filter((r) => r.fx.length && !r.left).map((r) => ({ ...r, gear: true })) : [];
+    const rules = [...(h.passiveRules || parsePassive(h.passive, kws)), ...(kw ? kw.rules : []), ...gearRules];
     s.passives[u.key] = rules;
     if (kw) s.kw[kw.id] = { ...kw, owner: u.key };
   }
@@ -196,7 +198,12 @@ export function statMod(s, u, stat) {
   if (!u) return 0;
   let v = 0;
   for (const m of u.mods || []) if (m.stat === stat) v += m.v;
-  if (u.side === "party" && s.always) for (const m of s.always[u.key] || []) if (m.stat === stat) v += m.v;
+  // 「항상 HP가 50% 이하이면 …」 처럼 조건이 붙은 항상은 조건이 맞을 때만(주인 기준으로 본다)
+  if (u.side === "party" && s.always) for (const m of s.always[u.key] || []) {
+    if (m.stat !== stat) continue;
+    if (m.cond && m.cond.length) { const owner = s.party.find((x) => x.key === m.owner); if (!owner || !condOk(s, owner, { conds: m.cond }, {})) continue; }
+    v += m.v;
+  }
   for (const kw of Object.values(s.kw || {})) {
     for (const p of kw.per) {
       if (p.stat !== stat) continue;

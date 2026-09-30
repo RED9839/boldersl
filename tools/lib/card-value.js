@@ -36,7 +36,7 @@ export function valueOf(fx) {
 
 export const baseValue = (cost) => 0.5 + (cost === "X" ? 3 : cost);
 
-// 번뜩임을 골랐을 때의 코스트 — 글 앞의 「코스트 N.」 이 있으면 그것, 없으면 기본 카드 코스트
+// 신탁을 골랐을 때의 코스트 — 글 앞의 「코스트 N.」 이 있으면 그것, 없으면 기본 카드 코스트
 export function flashCost(baseCost, fx) {
   const set = (fx || []).find((f) => f.k === "costSet");
   if (set) return set.v;

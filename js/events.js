@@ -3,12 +3,12 @@
 //
 // 결과는 두 갈래로 나뉜다.
 //   바로 되는 것  골드 · HP · 최대 HP · 장비(무작위 한 점) · 다음 전투 효과 · 골칫거리 · 지도 공개 …
-//   고르는 것    카드 제거 · 카드 복제 · 고유 카드 · 중립 카드 · 번뜩임 · 사도 1명 — 화면이 하나씩 묻는다
+//   고르는 것    카드 제거 · 카드 복제 · 고유 카드 · 중립 카드 · 신탁 · 사도 1명 — 화면이 하나씩 묻는다
 
 import { EVENTS, CURSES } from "./data/events.js";
 import { CARDS, NEUTRAL_IDS, EQUIP, HERO_DATA } from "./cardbook.js";
 import * as R from "./rules.js";
-import { rewardCards, offerFlash, offerEquip } from "./run.js";
+import { rewardCards, offerFlash, offerEquip, forgetCard } from "./run.js";
 
 export { EVENTS };
 const koOf = (k) => (HERO_DATA[k] || {}).ko || k;
@@ -27,13 +27,13 @@ const RULES_OUT = [
   [/^고유\s*카드\s*선택$/, () => ({ k: "unique" })],
   [new RegExp(`^중립\\s*카드(?:\\s*\\((${GRADES})\\))?$`), (m) => ({ k: "neutral", grade: m[1] || null })],
   [new RegExp(`^장비\\s*\\((${GRADES})\\)$`), (m) => ({ k: "equip", grade: m[1] })],
-  [/^번뜩임\s*1$/, () => ({ k: "flash" })],
-  [/^신뜩임\s*(\d+)\s*%$/, (m) => ({ k: "shin", p: Number(m[1]) / 100 })],
-  [/^신뜩임\s*막힘$/, () => ({ k: "noShin" })],
+  [/^신탁\s*1$/, () => ({ k: "flash" })],
+  [/^기적\s*(\d+)\s*%$/, (m) => ({ k: "shin", p: Number(m[1]) / 100 })],
+  [/^기적\s*막힘$/, () => ({ k: "noShin" })],
   [/^골칫거리\s*「(.+)」$/, (m) => ({ k: "curse", name: m[1] })],
   [/^지도\s*공개$/, () => ({ k: "scout" })],
   [new RegExp(`^다음\\s*상점:\\s*장비\\s*\\((${GRADES})\\)$`), (m) => ({ k: "shopGift", grade: m[1] })],
-  [/^다음\s*보상:\s*번뜩임\s*1$/, () => ({ k: "rewardFlash" })],
+  [/^다음\s*보상:\s*신탁\s*1$/, () => ({ k: "rewardFlash" })],
   [/^다음\s*전투:\s*첫\s*턴\s*AP\s*([+\-])\s*(\d+)$/, (m) => ({ k: "next", ap: (m[1] === "-" ? -1 : 1) * Number(m[2]) })],
   [/^다음\s*전투:\s*게이지\s*\+\s*(\d+)\s*%$/, (m) => ({ k: "next", gauge: Number(m[1]) })],
   [/^다음\s*전투:\s*첫\s*손패\s*\+\s*(\d+)$/, (m) => ({ k: "next", hand: Number(m[1]) })],
@@ -264,7 +264,7 @@ export function apply(run, ops) {
       case "flash": {
         const offer = offerFlash(run);
         if (offer) E.pending.push({ k: "flash", offer });
-        else E.log.push("번뜩임을 붙일 고유 카드가 없습니다 — 고유 카드를 먼저 얻으세요");
+        else E.log.push("신탁을 붙일 고유 카드가 없습니다 — 고유 카드를 먼저 얻으세요");
         break;
       }
       case "shin": E.shinChance = (E.shinChance || 0) + o.p; break;
@@ -276,7 +276,7 @@ export function apply(run, ops) {
       }
       case "scout": run.scout = true; E.log.push("지도 공개 — 다음 이벤트 칸에서 둘 중 하나를 고릅니다"); break;
       case "shopGift": run.shopGift = o.grade; E.log.push(`다음 상점에서 ${o.grade} 장비 하나를 공짜로 받습니다`); break;
-      case "rewardFlash": run.rewardFlash = true; E.log.push("다음 보상에서 번뜩임이 꼭 뜹니다"); break;
+      case "rewardFlash": run.rewardFlash = true; E.log.push("다음 보상에서 신탁이 꼭 뜹니다"); break;
       case "next": {
         const n = (run.nextFight = run.nextFight || {});
         for (const f of ["ap", "gauge", "hand", "weak", "hpCut"]) if (o[f] != null) n[f] = (n[f] || 0) + o[f];
@@ -321,7 +321,7 @@ export function resolve(run, value) {
       const i = run.deck.indexOf(value);
       if (i < 0) return "덱에 없는 카드입니다";
       run.deck.splice(i, 1);
-      if (run.flash) delete run.flash[value];
+      forgetCard(run, value);              // 뺀 고유 카드는 은총 · 상점에 다시 안 나온다
       E.log.push(`「${CARDS[value].name}」 — 덱에서 뺐습니다`);
       break;
     }
@@ -339,16 +339,16 @@ export function resolve(run, value) {
       break;
     }
     case "flash": {
-      if (value == null) { E.log.push("번뜩임 — 받지 않았습니다"); break; }
-      if (!p.offer.picks.includes(value)) return "고를 수 없는 번뜩임입니다";
+      if (value == null) { E.log.push("신탁 — 받지 않았습니다"); break; }
+      if (!p.offer.picks.includes(value)) return "고를 수 없는 신탁입니다";
       run.flash[p.offer.cardId] = value;
       const f = CARDS[p.offer.cardId].flash[value - 1];
       E.log.push(`「${CARDS[p.offer.cardId].name}」 — ${"①②③④⑤"[value - 1]} ${f.kind} 「${f.ko}」`);
-      // 신뜩임 — 번뜩임 위에 드물게 한 줄 더(배율 ×1.3). 「꽃을 꺾으면」 이번 판은 안 뜬다
+      // 기적 — 신탁 위에 드물게 한 줄 더(배율 ×1.3). 「꽃을 꺾으면」 이번 판은 안 뜬다
       if (E.shinChance && !run.noShin && run.rng() < E.shinChance) {
         run.shin = run.shin || {};
         run.shin[p.offer.cardId] = true;
-        E.log.push("신뜩임! 번뜩임 위에 한 줄이 더 얹혔습니다 (피해 ×1.3)");
+        E.log.push("기적! 신탁 위에 한 줄이 더 얹혔습니다 (피해 ×1.3)");
       }
       break;
     }

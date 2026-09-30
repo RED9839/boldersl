@@ -119,7 +119,7 @@ const RULES = [
     re: /공격력\s*(\d+)\s*%\s*(?:의\s*)?피해/g,
     make: (m, text) => ({ k: "dmg", ratio: Number(m[1]) / 100, target: pickTarget(text, "oneEnemy", m, "dmg"), hits: hitsOf(near(text, m)), ...xOf(near(text, m)) }),
   },
-  // 타격당 공격력 N% — 번뜩임에서 타수는 그대로 두고 배율만 바꾸는 꼴
+  // 타격당 공격력 N% — 신탁에서 타수는 그대로 두고 배율만 바꾸는 꼴
   {
     re: /타격당\s*공격력\s*(\d+)\s*%/g,
     make: (m, text) => ({ k: "dmg", ratio: Number(m[1]) / 100, target: pickTarget(text, "randomEnemy", m, "dmg"), hits: hitsOf(text), perHit: true }),
@@ -152,12 +152,12 @@ const RULES = [
   { re: /기절\s*(\d+)?\s*회?턴?/g, make: (m, text) => ({ k: "status", id: "기절", v: 1, turns: Number(m[1] || 1), target: pickTarget(text, "oneEnemy", m, "status") }) },
   { re: /도발\s*(\d+)?\s*턴?/g, make: (m, text) => ({ k: "status", id: "도발", v: 1, turns: Number(m[1] || 1), target: "self" }) },
   // 공용 키워드
-  // 「소멸 제거」 — 번뜩임 글은 바뀐 뒤의 전문이라 떼는 말은 그냥 안 쓰면 된다. 읽은 것으로만 친다
+  // 「소멸 제거」 — 신탁 글은 바뀐 뒤의 전문이라 떼는 말은 그냥 안 쓰면 된다. 읽은 것으로만 친다
   { re: /(보존|종극|주도|개전|소멸)\s*(?:을|를)?\s*(?:제거|없앰|뗌)/g, make: () => null },
   { re: /(보존|종극|주도|개전|소멸)/g, make: (m) => ({ k: "tag", id: m[1] }) },
 
   // ── 못 읽은 문장에서 자주 나온 꼴들 ─────────────────────────────────
-  // "방어력 440%" 처럼 방어/실드라는 말 없이 수치만 적힌 줄 (번뜩임 강화에 흔하다)
+  // "방어력 440%" 처럼 방어/실드라는 말 없이 수치만 적힌 줄 (신탁 강화에 흔하다)
   {
     re: /방어력\s*(\d+)\s*%(?!\s*(방어|실드))/g,
     make: (m, text) => { const k = /실드/.test(near(text, m)) ? "shield" : "block"; return { k, ratio: Number(m[1]) / 100, target: pickTarget(text, "self", m, k) }; },
@@ -250,7 +250,7 @@ export function parseEffect(text, { keyword, keywords } = {}) {
   if (!text) return { fx: [], left: "" };
   // 「2턴간 안개: …」 — 카드 화면이 「하는 일(2턴간 안개) + 안개 풀이」 로 펼치는 이름표다.
   // 이름표는 효과가 아니다. 길이 말(2턴간)은 남겨 두어 뒤의 증감이 읽게 한다
-  // 앞에 「코스트 0.」「보존.」 이 붙은 번뜩임 글에서도 걷는다(그윈 스노우포그 ② 경량)
+  // 앞에 「코스트 0.」「보존.」 이 붙은 신탁 글에서도 걷는다(그윈 스노우포그 ② 경량)
   text = text.replace(/^(\s*(?:코스트\s*\d+\s*\.\s*|(?:보존|소멸|개전)\s*\.\s*)*(?:\d+\s*턴간|이번 전투 동안|이번 턴)\s*)[가-힣]{2,5}\s*:\s*/, "$1");
   // 낫표(「간식」)는 사람이 읽으라고 두른 것이다 — 효과 읽기는 맨 낱말로 한다
   const words = [...new Set([...(keywords || []), ...(keyword ? [keyword] : [])])];
@@ -296,7 +296,7 @@ export function parseEffect(text, { keyword, keywords } = {}) {
   return { fx, left: rest };
 }
 
-// 카드 한 장 — 시작·고유·번뜩임·고학년 스킬 모두 같은 꼴로 읽는다
+// 카드 한 장 — 시작·고유·신탁·고학년 스킬 모두 같은 꼴로 읽는다
 export function parseCard(card, hero) {
   const keyword = hero && hero.keyword ? hero.keyword.ko : null;
   const { fx, left } = parseEffect(card.text, { keyword });

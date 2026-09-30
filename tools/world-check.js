@@ -110,7 +110,7 @@ for (const ev of EVENTS) {
   LINES.push([`이벤트 ${ev.id}`, null, `${ev.name} ${ev.scene}`]);
   for (const o of ev.options) LINES.push([`이벤트 ${ev.id}`, null, [o.label, o.say, o.judge && o.judge.passSay, ...(o.gamble || []).map((g) => g.say)].filter(Boolean).join(" ")]);
 }
-for (const t of Object.values(TRAITS)) LINES.push([`번뜩임 ${t.ko}`, null, `${t.ko} ${t.text}`]);
+for (const t of Object.values(TRAITS)) LINES.push([`신탁 ${t.ko}`, null, `${t.ko} ${t.text}`]);
 // 사도의 말 — 여기가 세계 규칙에 가장 잘 걸리는 자리다(사도가 직접 하는 말이라서)
 for (const [hero, moments] of Object.entries(TALK.lines || {}))
   for (const [m, texts] of Object.entries(moments))

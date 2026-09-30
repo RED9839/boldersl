@@ -28,7 +28,7 @@ const cards = H.reduce((a, h) => a + h.start.length + h.unique.length, 0);
 cards === H.length * 8 ? ok(`카드 ${cards}장 — 사도당 여덟`) : fail(`카드 ${cards}장 (${H.length * 8} 이어야 한다)`);
 
 const flash = H.reduce((a, h) => a + h.unique.reduce((b, u) => b + u.flash.length, 0), 0);
-flash === H.length * 20 ? ok(`번뜩임 ${flash}개 — 고유 카드마다 다섯`) : fail(`번뜩임 ${flash}개 (${H.length * 20} 이어야 한다)`);
+flash === H.length * 20 ? ok(`신탁 ${flash}개 — 고유 카드마다 다섯`) : fail(`신탁 ${flash}개 (${H.length * 20} 이어야 한다)`);
 
 // ── 빠진 것 ────────────────────────────────────────────────────────────
 console.log("");
@@ -56,13 +56,13 @@ const badUlt = H.filter((h) => h.ult && !COSTS.includes(h.ult.cost));
 badUlt.length ? fail(`고학년 스킬 비용이 규칙 밖인 사도 ${badUlt.length}: ${badUlt.slice(0, 3).map((h) => `${h.ko} ${h.ult.cost}%`).join(", ")}`)
               : ok("고학년 스킬 비용이 모두 150/200/250/300%");
 
-// 번뜩임은 ①강화 ②경량 ③연계 ④변형 ⑤각성 순서
+// 신탁은 ①강화 ②경량 ③연계 ④변형 ⑤각성 순서
 const KIND = ["강화", "경량", "연계", "변형", "각성"];
 const badFlash = [];
 for (const h of H) for (const u of h.unique)
   u.flash.forEach((f, i) => { if (f.n !== i + 1 || f.kind !== KIND[i]) badFlash.push(`${h.ko}/${u.ko} ${f.n}${f.kind}`); });
-badFlash.length ? fail(`번뜩임 순서가 어긋난 곳 ${badFlash.length}: ${badFlash.slice(0, 3).join(", ")}`)
-                : ok("번뜩임이 모두 ①강화 ②경량 ③연계 ④변형 ⑤각성 순서");
+badFlash.length ? fail(`신탁 순서가 어긋난 곳 ${badFlash.length}: ${badFlash.slice(0, 3).join(", ")}`)
+                : ok("신탁이 모두 ①강화 ②경량 ③연계 ④변형 ⑤각성 순서");
 
 // 시작 카드는 역할별 구성이 정해져 있다(딜러 기본2·강1·방어1 / 서포터 기본2·회복2 / 탱커 기본2·방어2)
 const roleBad = H.filter((h) => h.start.length !== 4);

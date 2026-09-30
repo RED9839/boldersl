@@ -66,7 +66,7 @@ const st = (u, id) => u.status[id] || 0;
 const addSt = (u, id, v) => { u.status[id] = Math.max(0, st(u, id) + v); if (!u.status[id]) delete u.status[id]; };
 
 // ── 전투 시작 ──────────────────────────────────────────────────────────
-export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noBonds, noNature, traits, gear, flash, enemyHp, next, shin }) {
+export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noBonds, noNature, traits, gear, gearFx, flash, enemyHp, next, shin, glow }) {
   const rng = makeRng(seed);
   const party = partyKeys.map((key, i) => {
     // 스탯은 기획서가 원본이다. 기획서에 없는 사도만 옛 heroes.js 를 본다.
@@ -107,7 +107,7 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
     poisonKills: 0, log: [], over: null,
     traits: (traits || []).slice(),
   };
-  // 이 판에서 고른 번뜩임을 얹은 장부. 카드를 읽는 곳은 전부 cardOf 를 쓴다.
+  // 이 판에서 고른 신탁을 얹은 장부. 카드를 읽는 곳은 전부 cardOf 를 쓴다.
   s.flash = { ...(flash || {}) };
   s.book = {};
   for (const [id, n] of Object.entries(s.flash)) if (CARDS[id]) s.book[id] = flashed(CARDS[id], n);
@@ -125,14 +125,14 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
 
   for (const b of s.bonds) if (!s.noBonds && b.tier.id !== "초면")
     say(s, `${HERO(b.a).ko}–${HERO(b.b).ko} — ${b.tier.id} (함께 나온 이야기 ${b.n}편)`);
-  // 번뜩임 '눈치' — 첫 손패가 한 장 많다
+  // 신탁 '눈치' — 첫 손패가 한 장 많다
   s.opening = tr(s, "opening");
   // 전투를 열며 한 명이 말한다
   const opener = s.party[Math.floor(rng() * s.party.length)];
   if (opener) speak(s, opener.key, "start");
 
   // 패시브와 키워드 — 기획서의 글을 js/passive.js 가 읽어 둔 것을 건다
-  P.setupPassives(s, (k) => HERO_DATA[k]);
+  P.setupPassives(s, (k) => HERO_DATA[k], gearFx || {});   // 장비 효과 · 애착도 그 사도의 패시브로
   for (const kw of Object.values(s.kw)) if (kw.carrier === "self" && kw.cap != null) {
     s.stackCap = s.stackCap || {};
     (s.stackCap[kw.owner] = s.stackCap[kw.owner] || {})[kw.id] = kw.cap;
@@ -141,8 +141,13 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
   // 개전 카드는 첫 손패에 든다 — 뽑을 더미는 끝에서부터 뽑으니 끝으로 옮긴다
   const opening = s.draw.filter((id) => hasTag(cardOf(s, id), "개전"));
   if (opening.length) s.draw = [...s.draw.filter((id) => !opening.includes(id)), ...opening];
-  // 신뜩임이 붙은 카드 — 피해 배율 ×1.3(rules.js SHIN). 이벤트에서 얻는다
+  // 기적이 붙은 카드 — 피해 배율 ×1.3(rules.js SHIN). 이벤트에서 얻는다
   s.shin = { ...(shin || {}) };
+  // 신탁 — 빛나는 카드(run.js rollEpiphany). 내는 순간 화면이 셋 중 하나를 고르게 하고 applyEpiphany 로 건다
+  s.glow = JSON.parse(JSON.stringify(glow || {}));
+  s.gained = { cards: [], flash: [] };     // 이 전투에서 얻은 것 — 끝나면 run.js afterFight 가 판에 남긴다
+  s.freeOnce = {};                          // 신탁이 붙은 카드 — 이번에 내는 것은 비용 0
+  s.freeTurn = {};                          // 은총으로 얻은 카드 — 그 턴 비용 0
   // 이벤트가 걸어 둔 「다음 전투」 효과(docs/08-이벤트.md) — 이 전투에서 한 번
   if (next) {
     if (next.ap) { s.startSp += next.ap; say(s, `이벤트 — 첫 턴 AP ${next.ap > 0 ? "+" : ""}${next.ap}`); }
@@ -171,7 +176,7 @@ function emit(s, ev, info) {
   });
 }
 
-// 번뜩임 값 — 없으면 0
+// 신탁 값 — 없으면 0
 const tr = (s, at) => traitSum(s.traits, at);
 
 function shuffle(rng, a) {
@@ -218,7 +223,7 @@ function beginTurn(s) {
   // 촉수는 턴이 끝날 때 때린다(프리클) — 아래 endTurn 에 있다.
   for (const e of alive(s.enemies)) rollIntent(s, e);
 
-  // 번뜩임 '성급한 손' — SP 를 더 받는 대신 손패가 한 장 적다
+  // 신탁 '성급한 손' — SP 를 더 받는 대신 손패가 한 장 적다
   draw(s, 5 + (s.turn === 1 ? (s.opening || 0) : 0) - tr(s, "handdown"));
   emit(s, "turnStart", {});
   checkOver(s);
@@ -261,6 +266,7 @@ export function intentHit(e) {
 }
 
 export function endTurn(s) {
+  s.freeTurn = {};                          // 은총으로 얻은 카드의 「그 턴 비용 0」은 여기까지
   if (s.over) return s;
   emit(s, "turnEnd", {});
   P.tickTurnEnd(s, (t, v, o) => hurt(s, t, v, o), (t) => say(s, t));
@@ -446,11 +452,11 @@ function checkOver(s) {
 }
 
 // ── 카드 ───────────────────────────────────────────────────────────────
-// 이 판에서 그 카드가 실제로 무엇인가 — 번뜩임을 골랐으면 바뀐 쪽이다.
+// 이 판에서 그 카드가 실제로 무엇인가 — 신탁을 골랐으면 바뀐 쪽이다.
 export const cardOf = (s, id) => (s.book && s.book[id]) || CARDS[id];
 
 // 카드의 태그 — 개전(첫 손패에 든다) · 보존(턴이 끝나도 손에 남는다) · 소멸(내면 이 전투에서 사라진다).
-// 번뜩임을 고른 카드는 번뜩임 글이 전문이다 — 머리의 태그는 기본 카드의 것이라 보지 않는다.
+// 신탁을 고른 카드는 신탁 글이 전문이다 — 머리의 태그는 기본 카드의 것이라 보지 않는다.
 // (주도·종극은 기획서에 풀이가 없어 아직 아무 일도 안 한다)
 export function hasTag(c, id) {
   if (!c) return false;
@@ -524,7 +530,36 @@ export function useUlt(s, heroKey, targetIdx = 0) {
 
 export function costOf(s, cardId) {
   const c = cardOf(s, cardId);
-  return Math.max(0, c.cost - s.nextCheaper);
+  if ((s.freeOnce && s.freeOnce[cardId]) || (s.freeTurn && s.freeTurn[cardId])) return 0;
+  const divine = s.shin && s.shin[cardId] === "cost" ? 1 : 0;      // 기적 「비용 -1」
+  return Math.max(0, c.cost - divine - s.nextCheaper);
+}
+
+// ── 신탁 ─────────────────────────────────────────────────────────────
+export const glowOf = (s, cardId) => (s.glow && s.glow[cardId]) || null;
+// 고른 것을 건다 — choice 는 options 의 번호. 카드 신탁은 그 카드가 바로 바뀌고 이번에는 비용 0,
+// 은총은 고른 고유 카드가 손에 들어온다(그 턴 비용 0). 빛나던 카드는 그대로 낸다.
+export function applyEpiphany(s, cardId, choice) {
+  const g = glowOf(s, cardId);
+  if (!g) return null;
+  const opt = g.options[choice];
+  if (opt == null) return null;
+  delete s.glow[cardId];
+  if (g.kind === "card") {
+    s.flash[cardId] = opt.n;
+    s.book[cardId] = flashed(CARDS[cardId], opt.n);
+    if (opt.shin) s.shin[cardId] = opt.shin;
+    s.freeOnce[cardId] = true;
+    s.gained.flash.push({ cardId, n: opt.n, shin: opt.shin || null });
+    const f = (CARDS[cardId].flash || [])[opt.n - 1] || {};
+    say(s, `신탁! 「${CARDS[cardId].name}」 → ${f.kind || ""} ${f.ko || ""}${opt.shin ? " · 기적" : ""}`);
+  } else {
+    if (s.hand.length < R.HAND_MAX) s.hand.push(opt); else s.discard.push(opt);
+    s.freeTurn[opt] = true;
+    s.gained.cards.push(opt);
+    say(s, `은총! ${HERO(g.hero).ko} — 「${CARDS[opt].name}」`);
+  }
+  return g.kind;
 }
 
 // 낼 수 있는가 — 낼 수 없으면 왜인지 돌려준다(화면이 그대로 보여 준다)
@@ -564,9 +599,12 @@ export function playCard(s, handIdx, targetIdx) {
     s.gauge = Math.min(R.GAUGE_MAX, s.gauge + paid * R.GAUGE_PER_AP);
   }
   s.nextCheaper = 0;
+  if (s.freeOnce) delete s.freeOnce[cardId];
   s.hand.splice(handIdx, 1);
 
-  const ctx = { owner, combo, targetIdx, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null, shin: !!(s.shin && s.shin[cardId]) };
+  // 기적 — true(이벤트의 옛 값) · "power" 는 피해 ×1.3
+  const sh = s.shin && s.shin[cardId];
+  const ctx = { owner, combo, targetIdx, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null, shin: sh === true || sh === "power" };
   s.acting = c.hero || null;
   if (c.built) {
     // 기획서에서 읽은 카드 — 효과 조각을 run-fx 가 실행한다(스탯 기반 %)
@@ -593,16 +631,17 @@ export function playCard(s, handIdx, targetIdx) {
   if (c.snack) {
     const erpin = s.party.find((u) => u.key === "erpin" && !u.dead);
     if (erpin) { addSt(erpin, "힘", 1); say(s, "에르핀: 잘 먹었다 (힘 +1)"); }
-    const coffer = tr(s, "snacksp");          // 번뜩임 '곳간'
+    const coffer = tr(s, "snacksp");          // 신탁 '곳간'
     if (coffer) { s.ap += coffer; say(s, `곳간 — AP +${coffer}`); }
   }
-  // 연계가 터지면 — 옛 번뜩임 '말이 통한다'(sim.js 전용)
+  // 연계가 터지면 — 옛 신탁 '말이 통한다'(sim.js 전용)
   if (combo) {
-    const talk = tr(s, "combo");              // 번뜩임 '말이 통한다'
+    const talk = tr(s, "combo");              // 신탁 '말이 통한다'
     if (talk) draw(s, talk);
   }
 
   if (c.temp || hasTag(c, "소멸")) s.gone.push(cardId); else s.discard.push(cardId);
+  if (sh === "draw") draw(s, 1);                 // 기적 「내면 드로우 +1」
   // 패시브 — 「카드를 낼 때마다」「한 턴에 N장째」「연계가 터지면」
   s.playedThisTurn = (s.playedThisTurn || 0) + 1;
   const tgt = s.enemies.find((e) => e.idx === targetIdx && !e.dead) || null;
@@ -678,8 +717,8 @@ const boost = (v, combo, owner, s) => {
   }
   out += s.partyDmg;                                             // 네르 '사제장의 축복'
   if (s.crit) out *= 1 + s.crit / 100;                           // 네르 '치명의 기도'
-  out += tr(s, "attack");                                        // 번뜩임 '날 선 손끝'
-  if (s.ap <= 2) out += tr(s, "brink");                           // 번뜩임 '막판 힘'
+  out += tr(s, "attack");                                        // 신탁 '날 선 손끝'
+  if (s.ap <= 2) out += tr(s, "brink");                           // 신탁 '막판 힘'
 
   // 아멜리아의 집착 — 엘레나가 옆에 있으면 더 쏜다
   if (owner && owner.key === "amelia" && s.party.some((u) => u.key === "elena" && !u.dead)) out += 3;
@@ -788,7 +827,7 @@ function applyFx(s, c, f, ctx) {
     case "healAll": for (const u of alive(s.party)) u.hp = Math.min(u.maxHp, u.hp + f.v); break;
     case "status": {
       let v = f.v + (combo && f.id === "중독" ? 1 : 0)
-        + (f.id === "중독" ? s.poisonKills + tr(s, "poison") : 0);   // 번뜩임 '독한 마음'
+        + (f.id === "중독" ? s.poisonKills + tr(s, "poison") : 0);   // 신탁 '독한 마음'
       // 아멜리아가 있으면 엘레나의 감전이 한 턴 더 간다 (원작: 4초 → 8초)
       if (f.id === "감전" && s.party.some((u) => u.key === "amelia" && !u.dead)) v += 1;
       if (f.who === "self") { if (owner) addSt(owner, f.id, f.v); }

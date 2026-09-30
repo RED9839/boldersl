@@ -158,9 +158,9 @@ check(count(p, "gsig") === 0 && count(p, "ksig") === 0, "카드에 시그니처 
 check(count(p, "gpic") + count(p, "gglyph") === 8,
   `여덟 장이 저마다 그림이나 무늬를 갖는다 (그림 ${count(p, "gpic")} · 무늬 ${count(p, "gglyph")})`);
 
-clickAll(p, (n) => n.classList.contains("sidebtn")).find((b) => b.textContent === "번뜩임").onclick();
-check(count(p, "flashbox") === 4, `번뜩임 갈피에 고유 넉 장 (${count(p, "flashbox")})`);
-check(count(p, "flash") === 20, `번뜩임 스무 개 (${count(p, "flash")})`);
+clickAll(p, (n) => n.classList.contains("sidebtn")).find((b) => b.textContent === "신탁").onclick();
+check(count(p, "flashbox") === 4, `신탁 갈피에 고유 넉 장 (${count(p, "flashbox")})`);
+check(count(p, "flash") === 20, `신탁 스무 개 (${count(p, "flash")})`);
 clickAll(p, (n) => n.classList.contains("sidebtn")).find((b) => b.textContent === "고학년 스킬").onclick();
 check(count(p, "ultbig") === 1, "고학년 스킬 갈피가 그려진다");
 check(/게이지 \d+% 를 씁니다/.test(p.textContent), "고학년 스킬에 게이지 값이 적힌다");
@@ -265,93 +265,91 @@ console.log("전투 화면 얼개 (카제나 구성)");
 console.log("\n이후 화면");
 // 전투를 이겼든 졌든 본다 — 이긴 판에서만 보던 때, 전투가 지면 보상 화면 검사가 통째로 빠졌다(카드를 끌어서만 내게 바꾼 뒤)
 {
-  let picked = { card: "없음", flash: null };
-  R.rollReward(run);
-  const rw = ui.rewardScreen(run, (id, f) => (picked = { card: id, flash: f }));
+  // ── 신탁 — 카제나처럼 전투 중에(docs/12-신탁.md) ──────────────────────
+  const C = await import("../js/combat.js");
+  const CB = await import("../js/cardbook.js");
+  const RULES2 = await import("../js/rules.js");
+  // 은총 — 빛나는 기본 카드, 고유 카드 셋 가운데 하나를 얻는다
+  const r0 = R.newRun(run.party, run.rows, 55);        // 새 판 — 앞의 시험 전투에서 파티가 쓰러졌을 수 있다
+  let glow = {};
+  for (let i = 0; i < 50 && !Object.values(glow).some((g) => g.kind === "hero"); i++) { r0.rng = C.makeRng(1000 + i); glow = R.rollEpiphany(r0); }
+  const heroGlow = Object.entries(glow).find(([, g]) => g.kind === "hero");
+  check(!!heroGlow, "싸움을 열면 은총 카드가 빛날 수 있다");
+  const [hid, hg] = heroGlow;
+  check(!CB.CARDS[hid].unique && CB.CARDS[hid].hero === hg.hero, `빛나는 카드는 그 사도의 기본 카드 (${CB.CARDS[hid].name})`);
+  check(hg.options.length === 1 && CB.CARDS[hg.options[0]].unique && CB.CARDS[hg.options[0]].hero === hg.hero && !r0.deck.includes(hg.options[0]),
+    "고르지 않는다 — 그 사도의 아직 없는 고유 카드 가운데 무작위 하나");
+  const s1 = C.newCombat({ partyKeys: r0.party, rows: r0.rows, deck: r0.deck.slice(), enemyIds: ["fairymobcloserange"], seed: 3, glow: { [hid]: hg } });
+  check(C.glowOf(s1, hid) && C.glowOf(s1, hid).kind === "hero", "전투가 빛나는 카드를 안다");
+  const k1 = C.applyEpiphany(s1, hid, 0);
+  const got1 = hg.options[0];
+  check(k1 === "hero" && s1.hand.includes(got1) && C.costOf(s1, got1) === 0, "고른 고유 카드가 손에 들어오고 그 턴 비용 0");
+  check(!C.glowOf(s1, hid), "한 번 신탁이 내리면 빛이 꺼진다");
+  C.endTurn(s1);
+  check(C.costOf(s1, got1) === CB.CARDS[got1].cost, "다음 턴부터는 제 비용");
 
-  // 보상은 그 사도의 고유 카드다 — 누구 것인지가 카드 위에 붙는다
-  const cards = clickAll(rw, (n) => n.classList.contains("gcard"));
-  check(cards.length === 3, `보상 카드 셋 (${cards.length})`);
-  check(count(rw, "rwho") === 3, `카드마다 누구 것인지 붙는다 (${count(rw, "rwho")})`);
+  // 한 번 뺀 고유 카드는 은총 · 상점에 다시 안 나온다
   {
-    const B6 = (await import("../js/data/built.js")).default;
-    const names = R.rewardCards(run).map((id) => B6.cards[id] && B6.cards[id].hero);
-    check(names.every((h) => run.party.includes(h)), `보상은 파티 사도의 카드다 (${names.join(", ")})`);
-    check(R.rewardCards(run).every((id) => B6.cards[id] && B6.cards[id].unique), "보상은 고유 카드다");
+    const r7 = R.newRun(run.party, run.rows, 91);
+    const k7 = r7.party[0], all7 = R.uniqueIdsOf(k7);
+    r7.deck.push(all7[0], all7[1], all7[2]);
+    R.forgetCard(r7, all7[3]); r7.deck = r7.deck.filter((x) => x !== all7[0]); R.forgetCard(r7, all7[0]);
+    check(R.uniquesLeft(r7, k7).length === 0, "넷 가운데 셋은 덱에, 하나는 빼 버렸으면 남은 것이 없다");
+    let back = false;
+    for (let i = 0; i < 200; i++) { r7.rng = C.makeRng(i + 1); for (const g of Object.values(R.rollEpiphany(r7))) if (g.kind === "hero" && g.hero === k7) back = true; }
+    check(!back, "빼 버린 고유 카드는 은총으로 다시 오지 않는다(그 사도는 은총이 안 빛난다)");
   }
 
-  // 번뜩임은 **가진 고유 카드**에만 붙는다
-  const before = R.offerFlash(run);
-  check(before === null, "고유 카드가 없으면 번뜩임도 없다");
-  check(/고유 카드를 먼저 얻으세요/.test(rw.textContent), "고유 카드가 없어서라고 적어 준다");
-  {
-    // 고유 카드는 있는데 안 뜬 경우 — 다른 말로 적어야 한다
-    const r3 = R.newRun(run.party, run.rows, 5);
-    r3.deck.push(R.rewardCards(r3)[0]);
-    r3.reward = { cards: [], flash: null };
-    const rw3 = ui.rewardScreen(r3, () => {});
-    check(/이번에는 번뜩임이 일어나지 않았습니다/.test(rw3.textContent), "안 뜬 것은 안 떴다고 적어 준다");
-  }
+  // 카드 신탁 — 가진 고유 카드가 빛나고, 신탁 다섯 중 셋. 고르면 바로 바뀌고 이번에는 비용 0
+  const r4 = R.newRun(run.party, run.rows, 77);
+  r4.deck.push(R.uniqueIdsOf(run.party[0])[0]);
+  r4.rewardFlash = true;                          // 반드시 뜨게
+  const g4 = R.rollEpiphany(r4);
+  const cardGlow = Object.entries(g4).find(([, g]) => g.kind === "card");
+  check(!!cardGlow && CB.CARDS[cardGlow[0]].unique && cardGlow[1].options.length === 3, "카드 신탁 — 고유 카드가 빛나고 선택지 셋");
+  const [cid, cg] = cardGlow;
+  const s2 = C.newCombat({ partyKeys: r4.party, rows: r4.rows, deck: r4.deck.slice(), enemyIds: ["fairymobcloserange"], seed: 5, glow: g4 });
+  C.applyEpiphany(s2, cid, 0);
+  check(C.cardOf(s2, cid).flashOn === cg.options[0].n && C.costOf(s2, cid) === 0, "고르면 카드가 바로 바뀌고 이번에는 비용 0");
+  // 끝나면 판에 남는다
+  s2.gained.cards.push(got1);
+  R.afterFight(r4, s2);
+  check(r4.flash[cid] === cg.options[0].n && r4.deck.includes(got1), "전투가 끝나면 얻은 카드 · 신탁이 판에 남는다");
 
-  // 누르면 바로 넣지 않고 가운데에 자세히 — 거기서 「덱에 넣습니다」
-  cards[0].onclick();
-  check(picked.card === "없음", "보상 카드를 눌러서는 바로 안 넣는다(자세히 창)");
-  const useBtn = clickAll(document.body, (n) => n.classList.contains("bmuse"))[0];
-  check(!!useBtn && useBtn.textContent === "덱에 넣습니다", "자세히 창에 「덱에 넣습니다」가 있다");
-  if (useBtn) useBtn.onclick();
-  check(picked.card !== "없음", "카드를 고를 수 있다");
-  R.takeReward(run, picked.card);
-
-  // 번뜩임은 무조건 안 일어난다 — 뜰 때까지 굴려 보고, 뜨는 비율도 잰다
+  // 기적 — 셋 가운데 하나에 드물게, 카드 종류에 맞는 덤
   {
-    const RULES2 = await import("../js/rules.js");
-    let hit = 0;
+    let hit = 0, bad = 0;
     const N = 3000;
     for (let i = 0; i < N; i++) {
-      const r2 = R.newRun(run.party, run.rows, i + 1);
-      r2.deck.push(picked.card);
-      R.rollReward(r2);
-      if (r2.reward.flash) hit++;
+      const r5 = R.newRun(run.party, run.rows, i + 1);
+      r5.deck.push(R.uniqueIdsOf(run.party[0])[1]);
+      r5.rewardFlash = true;
+      const g5 = Object.values(R.rollEpiphany(r5)).find((g) => g.kind === "card");
+      const sh = g5 && g5.options.filter((o) => o.shin);
+      if (sh && sh.length) { hit++; if (sh.length > 1 || !RULES2.DIVINE_KO[sh[0].shin]) bad++;
+        const cc = Object.values(r5.deck).find((id) => CB.CARDS[id] && CB.CARDS[id].unique); if (sh[0].shin === "cost" && CB.flashed(CB.CARDS[cc], sh[0].n).cost < 1) bad++; }
     }
-    const got = hit / N;
-    check(Math.abs(got - RULES2.FLASH_CHANCE) < 0.03,
-      `번뜩임이 ${(got * 100).toFixed(1)}% 로 뜬다 (정한 값 ${RULES2.FLASH_CHANCE * 100}%)`);
+    check(Math.abs(hit / N - RULES2.DIVINE) < 0.025 && !bad, `기적이 ${(hit / N * 100).toFixed(1)}% 로 뜬다 (정한 값 ${RULES2.DIVINE * 100}%) · 선택지 하나에만 · 비용 0 에는 「비용 -1」 없음`);
+    // 덤이 실제로 드는가 — 비용 -1
+    const cost1 = Object.keys(CB.CARDS).find((id) => CB.CARDS[id].unique && CB.CARDS[id].cost >= 2);
+    const s3 = C.newCombat({ partyKeys: [CB.CARDS[cost1].hero], deck: [cost1], enemyIds: ["fairymobcloserange"], seed: 1, shin: { [cost1]: "cost" } });
+    check(C.costOf(s3, cost1) === CB.CARDS[cost1].cost - 1, "기적 「비용 -1」이 든다");
   }
 
-  // 한 번 굴린 보상은 다시 그려도 안 바뀐다
+  // 보상 — 이제 골드 · 장비와 「이 전투에서 받은 것」
+  let picked = { card: "없음", flash: null };
+  R.rollReward(r4);
+  check(!r4.reward.cards.length && !r4.reward.flash, "보상에 고유 카드 · 신탁 고르기가 없다(전투 중에 얻는다)");
+  const rw = ui.rewardScreen(r4, (id, f) => (picked = { card: id, flash: f }));
+  check(/이 전투에서 받은 은총 · 신탁/.test(rw.textContent) && count(rw, "gcard") >= 2, "보상 화면이 이 전투에서 얻은 카드 · 신탁을 그림으로 보여 준다");
+  const cont = clickAll(rw).find((n) => n.textContent === "계속합니다");
+  check(!!cont, "「계속합니다」로 넘어간다");
+  if (cont) cont.onclick();
+  check(picked.card === null, "보상에서 따로 고를 카드는 없다");
   {
-    const a1 = JSON.stringify(run.reward);
-    ui.rewardScreen(run, () => {});
-    check(a1 === JSON.stringify(run.reward), "보상은 다시 그려도 안 바뀐다");
-  }
-
-  // 번뜩임이 뜰 때까지 굴려서 고르는 것을 본다
-  let tries = 0;
-  do { R.rollReward(run); tries++; } while (!run.reward.flash && tries < 200);
-  check(!!run.reward.flash, `굴리면 번뜩임이 뜬다 (${tries}번째)`);
-  const rw2 = ui.rewardScreen(run, (id, f) => (picked = { card: id, flash: f }));
-  const flashes = clickAll(rw2, (n) => n.classList.contains("fcard"));
-  check(flashes.length === 3, `다섯 중 셋을 보여 준다 (${flashes.length})`);
-  // 번뜩임도 누르면 한 번 더 보여 주고, 창에서 「이 번뜩임을 붙입니다」
-  flashes[0].onclick();
-  const flashUse = clickAll(document.body, (n) => n.classList.contains("bmuse") && n.textContent === "이 번뜩임을 붙입니다").pop();
-  check(!!flashUse, "번뜩임 창에 「이 번뜩임을 붙입니다」가 있다");
-  if (flashUse) flashUse.onclick();
-  check(picked.flash && picked.flash.cardId && picked.flash.n, "번뜩임을 고를 수 있다");
-  R.takeFlash(run, picked.flash);
-  check(run.flash[picked.flash.cardId] === picked.flash.n, "번뜩임이 그 카드에 붙는다");
-  check(R.offerFlash(run) === null || R.offerFlash(run).cardId !== picked.flash.cardId,
-    "한 카드에 두 번 붙지 않는다");
-
-  // 붙은 번뜩임이 전투에서 실제로 그 카드를 바꾸는가
-  {
-    const C = await import("../js/combat.js");
-    const s6 = C.newCombat({ partyKeys: run.party, rows: run.rows, deck: run.deck.slice(),
-      enemyIds: ["fairymobcloserange"], seed: 3, flash: run.flash });
-    const base = (await import("../js/cardbook.js")).CARDS[picked.flash.cardId];
-    const now = C.cardOf(s6, picked.flash.cardId);
-    check(now.flashOn === picked.flash.n && now.text !== base.text,
-      `전투에서 카드가 바뀐다 (${base.text.slice(0, 18)}… → ${now.text.slice(0, 18)}…)`);
+    const a1 = JSON.stringify(r4.reward);
+    ui.rewardScreen(r4, () => {});
+    check(a1 === JSON.stringify(r4.reward), "보상은 다시 그려도 안 바뀐다");
   }
 }
 run.floor = 0; run.node = 3;
@@ -456,9 +454,9 @@ console.log("\n캠프");
   const train = clickAll(cs2, (n) => n.classList.contains("cact"))[1];
   train.onclick();
   const fl = clickAll(cs2, (n) => n.classList.contains("fcard"));
-  check(fl.length === 3, `수련은 번뜩임 다섯 중 셋 (${fl.length})`);
+  check(fl.length === 3, `수련은 신탁 다섯 중 셋 (${fl.length})`);
   fl[0].onclick();
-  check(r.flash[r.camp.train.cardId] && r.stops["0:campshop"].used === "train", "수련하면 번뜩임이 붙는다");
+  check(r.flash[r.camp.train.cardId] && r.stops["0:campshop"].used === "train", "수련하면 신탁이 붙는다");
   const back = ui.shopScreen(r, () => {}, { back: "캠프로 돌아갑니다" });
   check(/캠프로 돌아갑니다/.test(back.textContent), "캠프에서 연 상점은 캠프로 돌아간다");
 }
@@ -511,7 +509,22 @@ console.log("\n장비");
   R.enterCamp(r, "campshop");
   const cs = ui.campScreen(r, true, () => {}, () => {});
   check(count(cs, "grow") === 3 && count(cs, "gslot") === 9, "캠프에서 사도 셋 × 세 칸을 본다");
-  check(/아직 안 돕니다/.test(cs.textContent) || !r.bag.length, "아직 안 도는 효과는 그렇다고 적는다");
+  check(!/아직 안 돕니다/.test(cs.textContent), "장비 효과는 다 돈다 — 「아직 안 돕니다」 가 없다");
+  // 장비 효과 — 낀 사도의 패시브로 붙고, 전투에서 터진다
+  check(Object.values(EQUIP).every((x) => x.grade === "일반" || x.effectRead), "일반 말고는 효과 줄이 다 읽힌다");
+  check(Object.values(EQUIP).every((x) => !x.affinity || x.affinityRead), "애착 줄이 다 읽힌다");
+  {
+    const gr = R.newRun(run.party.slice(), { ...run.rows }, 77), gk = gr.party[0];
+    const gid = ids.find((id) => EQUIP[id].ko === "장난감 망원경");   // 공격 카드를 낼 때마다 무작위 적 피해
+    gr.bag.push(gid); R.equip(gr, gk, gid);
+    const gfx = R.gearPassives(gr);
+    const gs = C2.newCombat({ partyKeys: gr.party, rows: gr.rows, deck: gr.deck, enemyIds: ["curburus"], seed: 3, hp: gr.hp, maxHp: gr.maxHp, gear: R.gearStats(gr), gearFx: gfx });
+    const rule = gs.passives[gk].find((x) => x.gear);
+    check(!!rule, `낀 장비의 효과가 패시브로 붙는다 (${EQUIP[gid].ko} → ${gk})`);
+    const atk = Object.keys(B.cards).find((c) => B.cards[c].hero === gk && B.cards[c].type === "공격" && !B.cards[c].unique);
+    gs.hand = [atk]; gs.ap = 9; C2.playCard(gs, 0, 0);
+    check(gs.log.some((l) => l.includes(` · ${rule.name}`)), `공격 카드를 내면 장비 효과가 터진다 (${rule.name})`);
+  }
   r.gold = 5000; r.shop = null; r.shopSeen = {};
   const sp = ui.shopScreen(r, () => {});
   check(r.shop.items.some((it) => it.kind === "equip"), "골디의 상점에 장비 한 점");

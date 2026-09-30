@@ -77,7 +77,7 @@ console.log("선택지 전부 골라 보기");
           const run = newRun(partyFor(probe), {}, seed * 97 + oi);
           run.gold = 500;
           run.floor = ev.pool === "공용" ? 0 : ev.pool;
-          // 조건 맞추기 — 쓰러진 사도 · HP 30% 이하 · 고유 카드(번뜩임 대상)
+          // 조건 맞추기 — 쓰러진 사도 · HP 30% 이하 · 고유 카드(신탁 대상)
           if (ev.cond === "fallen") run.hp[run.party[2]] = 0;
           if (probe.when === "hp30") run.hp[run.party[1]] = Math.floor(run.maxHp[run.party[1]] * 0.25);
           const uni = Object.keys(CARDS).find((id) => CARDS[id].hero === run.party[0] && CARDS[id].unique);
@@ -133,7 +133,7 @@ console.log("결과가 적용되는가");
   check(s.gauge === base.gauge + 50, `다음 전투 게이지 +50% (${s.gauge})`);
   check(s.hand.length === Math.min(10, base.hand.length + 2) || s.draw.length + s.hand.length === base.draw.length + base.hand.length, `다음 전투 첫 손패 +2 (${base.hand.length} → ${s.hand.length})`);
   check(!run.nextFight, "다음 전투 효과는 한 번 쓰면 사라진다");
-  // 신뜩임 — 붙은 카드는 피해 ×1.3
+  // 기적 — 붙은 카드는 피해 ×1.3
   const id = run.deck.find((x) => CARDS[x] && CARDS[x].type === "공격" && CARDS[x].hero);
   const hit = (shin) => {
     const c = newCombat({ partyKeys: run.party, rows: {}, deck: [], enemyIds: ["gluttonbear"], seed: 5, shin: shin ? { [id]: true } : {} });
@@ -144,7 +144,7 @@ console.log("결과가 적용되는가");
     return 999 - e.hp;
   };
   const a = hit(false), b = hit(true);
-  check(b > a && Math.abs(b / a - 1.3) < 0.12, `신뜩임 — 피해 ×1.3 (${a} → ${b})`);
+  check(b > a && Math.abs(b / a - 1.3) < 0.12, `기적 — 피해 ×1.3 (${a} → ${b})`);
 }
 
 console.log("");

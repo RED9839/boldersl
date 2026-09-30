@@ -100,10 +100,10 @@ for (const [label, party] of [["가까운 셋 ", PARTY], ["남남인 셋 ", PART
   console.log(`  ${label} (${party.join("·")}): 완주 ${((win / N) * 100).toFixed(1)}% · ${(reach / N).toFixed(2)}전투 돌파 · ${(turns / N).toFixed(1)}턴 · 연계 ${(combos / N).toFixed(1)} · 본색 ${(egos / N).toFixed(2)}회`);
 }
 
-// 번뜩임이 값을 하는지 — 하나씩 켜 보고 완주율이 어떻게 달라지는지 본다
+// 신탁이 값을 하는지 — 하나씩 켜 보고 완주율이 어떻게 달라지는지 본다
 console.log("");
-// 편성 둘 다에 돌린다 — 덱 성향 번뜩임(독한 마음 같은)은 한 편성에서만 보면 0 으로 읽힌다
-console.log("번뜩임 하나씩 — 없을 때 대비 몇 p 오르는가");
+// 편성 둘 다에 돌린다 — 덱 성향 신탁(독한 마음 같은)은 한 편성에서만 보면 0 으로 읽힌다
+console.log("신탁 하나씩 — 없을 때 대비 몇 p 오르는가");
 const rate = (party, tr) => { let w = 0; for (let i = 0; i < N; i++) if (runFloor(party, FLOORS[0], i + 1, tr).win) w++; return w / N; };
 const b1 = rate(PARTY, []), b2 = rate(PARTY2, []);
 const err = (p) => (Math.sqrt((p * (1 - p)) / N) * 100).toFixed(1);

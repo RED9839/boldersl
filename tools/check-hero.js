@@ -110,7 +110,7 @@ for (const file of files) {
     }
 
     // ── 코스트 (docs/07-스킬구성.md §7) ──
-    // 기본 0코는 없다 — 0코는 번뜩임 ② 경량으로 얻는 보상이다. 3코는 사도당 한 장까지.
+    // 기본 0코는 없다 — 0코는 신탁 ② 경량으로 얻는 보상이다. 3코는 사도당 한 장까지.
     // 값어치가 코스트에 비해 너무 크면(1.5배 넘게) 싸다. 너무 작으면(0.6배 밑) 참고로만 알린다.
     {
       const pe = (t) => parseEffect(t, { keywords: kws }).fx;
@@ -129,7 +129,7 @@ for (const file of files) {
           if (u.cost === 3 && r < 0.8) errs.push(`고유 「${u.ko}」 — 3코인데 약하다 (값어치 ${r.toFixed(1)}배 · 한 턴을 다 쓰는 값을 해야 한다)`);
           if (r < 0.6 && u.cost < 3) notes.push(`참고 「${u.ko}」 ${u.cost}코 값어치 ${r.toFixed(1)}배 — 키워드 값이면 괜찮다`);
         }
-        // 번뜩임
+        // 신탁
         const light = u.flash[1];
         if (light) {
           const lfx = pe(light.text);
@@ -173,7 +173,7 @@ for (const file of files) {
     if (h.ult && !ULT_COST.includes(h.ult.cost)) errs.push(`고학년 스킬 비용 ${h.ult.cost}% — 150·200·250·300 가운데 하나`);
     for (const u of h.unique) {
       if (!TYPES.includes(u.type)) errs.push(`고유 「${u.ko}」 타입 「${u.type}」 — 공격·스킬·강화 가운데 하나`);
-      u.flash.forEach((f, i) => { if (f.kind !== FLASH[i]) errs.push(`「${u.ko}」 번뜩임 ${i + 1}번이 「${f.kind}」 — 「${FLASH[i]}」 여야 한다`); });
+      u.flash.forEach((f, i) => { if (f.kind !== FLASH[i]) errs.push(`「${u.ko}」 신탁 ${i + 1}번이 「${f.kind}」 — 「${FLASH[i]}」 여야 한다`); });
     }
     if (h.unique[0] && !h.unique[0].tags.includes("시그니처")) errs.push(`첫 고유 카드에 「시그니처」 표시가 없다`);
     if (!h.source) errs.push("**원작** 줄이 없다 — 나무위키에서 무엇을 가져왔는지 한 줄");

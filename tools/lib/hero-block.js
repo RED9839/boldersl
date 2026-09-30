@@ -82,14 +82,14 @@ export function parseHeroBlock(raw, warn = () => {}) {
     }
     const f = line.match(/^\s+-\s*([①②③④⑤])\s*(\S+)\s*\*(.+?)\*:\s*(.+)$/);
     if (f) {
-      if (!cur) { warn(`${name} — 카드 없이 번뜩임이 나왔다`); continue; }
+      if (!cur) { warn(`${name} — 카드 없이 신탁이 나왔다`); continue; }
       cur.flash.push({ n: "①②③④⑤".indexOf(f[1]) + 1, kind: f[2], ko: f[3].trim(), text: strip(f[4]) });
       continue;
     }
     if (/^\s*-/.test(line)) warn(`${name} 고유 카드 — 못 읽은 줄: ${line.trim().slice(0, 40)}`);
   }
   if (h.unique.length !== 4) warn(`${name} — 고유 카드가 ${h.unique.length}장 (넷이어야 한다)`);
-  for (const u of h.unique) if (u.flash.length !== 5) warn(`${name}/${u.ko} — 번뜩임이 ${u.flash.length}개 (다섯이어야 한다)`);
+  for (const u of h.unique) if (u.flash.length !== 5) warn(`${name}/${u.ko} — 신탁이 ${u.flash.length}개 (다섯이어야 한다)`);
 
   const ult = body.match(/\*\*(?:고학년 스킬|궁극기)[^*]*비용\s*(\d+)%\)\*\*\s*\*\*(.+?)\*\*\s*—\s*(.+)/);
   if (ult) h.ult = { cost: Number(ult[1]), ko: ult[2].trim(), text: ult[3].trim() };

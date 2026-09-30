@@ -50,20 +50,16 @@ function fight() {
   }, start);
 }
 
+// 보상 화면은 없다 — 골드 · 장비 · 은총 · 신탁은 전투 중에 떨어져 오른쪽 목록에 쌓이고, 이기면 이미 챙겼다(ui.js fightScreen)
 function reward() {
   ui.hint("");
-  R.rollReward(run);
-  ui.rewardScreen(run, (cardId, flashPick) => {
-    R.takeReward(run, cardId);
-    R.takeFlash(run, flashPick);
-    run.elite = false;                     // 엘리트 보상은 한 번
-    // 보스를 넘었을 때만 층이 바뀐다(run.js 의 advance). 그 밖의 싸움은 지도로 돌아간다
-    if (!R.isBoss(run)) return mapStep();
-    const { swap } = R.advance(run);
-    if (run.done === "clear") return ui.endScreen("clear", run, start);
-    if (swap) return ui.swapScreen(run, mapStep);
-    mapStep();
-  });
+  run.elite = false;                       // 엘리트 보상은 한 번
+  // 보스를 넘었을 때만 층이 바뀐다(run.js 의 advance). 그 밖의 싸움은 지도로 돌아간다
+  if (!R.isBoss(run)) return mapStep();
+  const { swap } = R.advance(run);
+  if (run.done === "clear") return ui.endScreen("clear", run, start);
+  if (swap) return ui.swapScreen(run, mapStep);
+  mapStep();
 }
 
 // 지도 — 칸을 마칠 때마다 여기로 돌아와 다음 칸을 고른다(js/map.js · docs/10-지도.md).
