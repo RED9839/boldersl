@@ -134,10 +134,12 @@ export function rollReward(run) {
   const base = isBoss(run) ? R.GOLD_BOSS : lo + Math.floor(run.rng() * (hi - lo + 1)) + run.floor * 5;
   const gold = run.elite ? Math.round(base * R.ELITE_GOLD) : base;
   const lastBoss = isBoss(run) && run.floor >= FLOORS.length - 1;
-  // 엘리트 — 장비 셋 가운데 하나 · 신탁은 확률 없이
-  const equipFrom = isBoss(run) && !lastBoss ? R.BOSS_EQUIP[run.floor] || R.BOSS_EQUIP[0] : run.elite ? R.ELITE_EQUIP[run.floor] || R.ELITE_EQUIP[0] : null;
+  // 드랍 — 장비가 확률로 하나(R.DROP). 마지막 보스는 판이 끝나니 안 떨군다. 중립 카드는 상점 · 이벤트에서만
+  const T = R.DROP[isBoss(run) ? "boss" : run.elite ? "elite" : "fight"];
+  const at = (tbl) => tbl[Math.min(run.floor, tbl.length - 1)];
+  const eq = !lastBoss && run.rng() < T.equip ? offerEquip(run, at(T.equipGrade), 1) : [];
   run.reward = {
-    equip: equipFrom ? offerEquip(run, equipFrom, 3) : null,
+    equip: eq.length ? eq : null,
     equipTaken: null,
     gold, goldTaken: false,
     // 고유 카드 · 신탁은 이제 **전투 중 신탁**으로 얻는다(카제나) — 보상은 골드와 장비(엘리트 · 보스)

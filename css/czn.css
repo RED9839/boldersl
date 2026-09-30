@@ -1179,3 +1179,16 @@ body:has(#screen.mapscreen) .top { display: none; }
 
 /* 장비 그림 — 원작 아티팩트 아이콘이 있으면 무늬 대신 그림(tools/extract-gear-icons.py) */
 .eicon.haspic > img { width: 86%; height: 86%; object-fit: contain; filter: drop-shadow(0 2px 3px #000b); pointer-events: none; }
+
+/* 떨어지는 장비 — 쓰러진 적 자리에서 튀어 올라 목록으로 */
+.dropequip {
+  position: fixed !important; z-index: 86; margin: -32px 0 0 -32px; pointer-events: none;
+  box-shadow: 0 0 0 2px #ffe08a, 0 0 24px #ffd23f, 0 10px 20px #000c !important;
+  animation: equipfly 1.1s cubic-bezier(.5, 0, .4, 1) forwards;
+}
+@keyframes equipfly {
+  0% { transform: translate(0, 10px) scale(.4); opacity: 0; }
+  20% { transform: translate(0, -50px) scale(1.15); opacity: 1; }
+  45% { transform: translate(0, -30px) scale(1); opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(.4); opacity: .3; }
+}

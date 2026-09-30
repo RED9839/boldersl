@@ -938,6 +938,9 @@ export function fightScreen(run, onDone, onQuit) {
     out[n - 1] += loot.gold - base * n;
     return out;
   })();
+  // 장비는 가장 센(체력이 가장 많은) 적이 들고 있다가 쓰러질 때 떨군다
+  const carrier = st.enemies.reduce((a, b) => (b.maxHp > a.maxHp ? b : a), st.enemies[0]).idx;
+  let itemsDropped = false;
 
   // ① 머리 — 어디서 싸우는가
   const head = el("div", "bhead");
@@ -1052,9 +1055,10 @@ export function fightScreen(run, onDone, onQuit) {
     setTimeout(() => row.classList.remove("ltnew"), 900);
   }
   function dropGold(node, u) {
+    const r = node.getBoundingClientRect ? node.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
+    if (u.idx === carrier) dropItems({ x: r.left + r.width / 2, y: r.top + r.height * 0.45 });
     const g = goldShare[u.idx] || 0;
     if (!g) return;
-    const r = node.getBoundingClientRect ? node.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
     for (let k = 0; k < 5; k++) {
       const c = el("span", "dropcoin");
       c.style.setProperty("--k", String(k));
@@ -1067,12 +1071,22 @@ export function fightScreen(run, onDone, onQuit) {
     goldRow.appendChild(el("span", "lticon coin"));
     goldRow.appendChild(el("b", null, `+${lootGold} 골드`));
   }
-  function lootCard(id, label) {
+  // 들고 있던 것 — 장비 아이콘이 적 자리에서 목록으로 날아간다
+  function dropItems(from) {
+    if (itemsDropped || !loot) return;
+    itemsDropped = true;
+    if (loot.equip && loot.equip[0]) {
+      const id = loot.equip[0], ic = equipIcon(EQUIP[id], 64);
+      ic.classList.add("dropequip");
+      setTimeout(() => { flyTo(ic, from); dropEquip(id); }, 250);
+    }
+  }
+  function lootCard(id, label, from) {
     const c = CARDS[id];
     const card = bigCard(c, CARDART.pic[id] || null);
     card.classList.add("dropcard");
     const z = zNow();
-    flyTo(card, { x: (innerWidth || 1600) / 2, y: (innerHeight || 900) * 0.4 });
+    flyTo(card, from || { x: (innerWidth || 1600) / 2, y: (innerHeight || 900) * 0.4 });
     const row = el("div", "ltrow");
     const th = el("span", "ltthumb");
     const pic = CARDART.pic[id];
@@ -1621,6 +1635,7 @@ export function fightScreen(run, onDone, onQuit) {
     play(targetIdx);
   }
   s.dropCard = dropCard;
+  s.state = st;                            // 시험용 — 브라우저 검사(tools/playtest.py 따위)가 판을 본다
 
   // ── 가운데 창 — 고학년 스킬 · 카드 자세히 ──────────────────────────────
   // 바깥을 누르거나 Esc 로 닫는다. 판이 다시 그려지면(draw) 닫는다 — 낡은 값을 들고 있지 않게.
@@ -1980,8 +1995,9 @@ export function fightScreen(run, onDone, onQuit) {
     R.afterFight(run, st);
     let wait = 700;
     if (st.over === "win" && loot) {
-      // 엘리트 · 보스의 장비 — 셋 가운데 하나가 떨어진다(가방으로)
-      if (loot.equip && loot.equip.length && !loot.equipTaken) { R.takeEquip(run, loot.equip[0]); setTimeout(() => dropEquip(loot.equip[0]), 500); }
+      // 떨어진 것을 챙긴다 — 장비는 가방으로. 아직 못 떨궜으면(마지막 한 방에 여럿) 여기서
+      dropItems({ x: (innerWidth || 1600) * 0.7, y: (innerHeight || 900) * 0.4 });
+      if (loot.equip && loot.equip.length && !loot.equipTaken) R.takeEquip(run, loot.equip[0]);
       R.takeReward(run, null);                 // 골드
       lootBox.classList.add("on", "done");
       lootBox.querySelector(".lthead").textContent = "승리 — 얻은 것";

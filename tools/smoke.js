@@ -513,7 +513,7 @@ console.log("\n장비");
   check(Object.keys(plain).some((x) => mine[x] > plain[x]), `애착 사도가 끼면 Lv.3 스탯이 더 붙는다 (${EQUIP[aff].ko} · ${EQUIP[aff].affinityKo})`);
   // 보스 보상 — 마지막 보스는 안 준다
   r.node = 3; r.floor = 0; R.rollReward(r);
-  check(r.reward.equip && r.reward.equip.length === 3, "보스를 잡으면 장비 셋 중 하나");
+  check(r.reward.equip && r.reward.equip.length === 1, "보스는 장비 하나를 떨군다");
   const pick = r.reward.equip[0];
   check(R.takeEquip(r, pick) === null && r.bag.includes(pick) && R.takeEquip(r, r.reward.equip[1]) !== null, "하나만 가방에 넣는다");
   r.floor = 2; R.rollReward(r);
@@ -521,7 +521,28 @@ console.log("\n장비");
   // 보상 화면 · 캠프 화면 · 상점
   r.floor = 0; r.node = 3; R.rollReward(r);
   const rw = ui.rewardScreen(r, () => {});
-  check(count(rw, "ecard") === 3, "보상 화면에 장비 카드 셋");
+  check(count(rw, "ecard") === 1, "보상 화면에 떨어진 장비 하나");
+  // 드랍 테이블 — 싸움 종류 · 층마다 떨어지는 비율과 등급
+  {
+    const RU = await import("../js/rules.js"), CBm = await import("../js/cardbook.js");
+    const rate = (setup, n = 3000) => {
+      const t = { eq: 0, ne: 0, g: {} };
+      for (let i = 0; i < n; i++) {
+        const q = R.newRun(run.party.slice(), { ...run.rows }, 500 + i); setup(q); R.rollReward(q);
+        if (q.reward.equip) { t.eq++; const g = EQUIP[q.reward.equip[0]].grade; t.g[g] = (t.g[g] || 0) + 1; }
+        if (q.reward.neutral) t.ne++;
+      }
+      return { eq: t.eq / n, ne: t.ne / n, g: t.g };
+    };
+    const f1 = rate((q) => { q.floor = 0; q.node = 0; });
+    check(Math.abs(f1.eq - RU.DROP.fight.equip) < 0.03 && Object.keys(f1.g).every((g) => g === "일반"), `일반 싸움 1층 — 장비 ${(f1.eq * 100).toFixed(1)}%(일반만)`);
+    const f3 = rate((q) => { q.floor = 2; q.node = 0; });
+    check(!f3.g["일반"] && !f3.g["전설"], `일반 싸움 3층 — 고급 · 희귀만 (${JSON.stringify(f3.g)})`);
+    const el = rate((q) => { q.floor = 0; q.node = 0; q.elite = true; }, 400);
+    const bo = rate((q) => { q.floor = 0; q.node = 3; }, 400);
+    check(el.eq === 1 && bo.eq === 1, "엘리트 · 보스는 장비가 늘 떨어진다");
+    check(f1.ne + f3.ne + el.ne + bo.ne === 0, "중립 카드는 싸움에서 안 떨어진다 — 상점 · 이벤트에서만");
+  }
   R.enterCamp(r, "campshop");
   const cs = ui.campScreen(r, true, () => {}, () => {});
   check(count(cs, "grow") === 3 && count(cs, "gslot") === 9, "캠프에서 사도 셋 × 세 칸을 본다");
