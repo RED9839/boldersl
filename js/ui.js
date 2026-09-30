@@ -120,6 +120,96 @@ function natureChart(on = new Set()) {
   return box;
 }
 
+// ── 도움말 모음 ─────────────────────────────────────────────────────────
+// 규칙을 화면마다 흩어 적지 않고 여기 한 곳에 모은다. 편성 · 전투 · 지도의 메뉴에서 연다.
+// 숫자는 rules.js 에서 바로 읽는다 — 규칙을 바꾸면 도움말도 같이 바뀐다.
+const HELP = [
+  ["상성", "성격 상성", () => {
+    const d = el("div");
+    d.appendChild(natureChart());
+    d.appendChild(el("p", null, `화살표가 가리키는 쪽에 강합니다. 유리한 상대에게는 주는 피해 +${Math.round(RULES.NATURE_DMG * 100)}%, 받는 피해 -${Math.round(RULES.NATURE_DEF * 100)}%.`));
+    d.appendChild(el("p", null, "광기 → 순수 → 냉정 → 광기로 돌고, 활발과 우울은 서로에게 강합니다. 공명은 상성이 없습니다. 적에게도 성격이 있습니다."));
+    return d;
+  }],
+  ["열", "열과 맞는 순서", () => helpList([
+    "사도마다 전열 · 중열 · 후열이 정해져 있습니다(원작 배치 그대로). 바꿀 수 없습니다.",
+    "적은 가장 앞 열부터 노립니다. 전열이 비면 중열, 그다음 후열입니다. 뒤를 노리는 수는 거꾸로 후열부터입니다.",
+    "같은 열에 둘 이상이면 적 쪽(오른쪽)에 선 사도가 먼저 맞습니다. 편성 무대의 ⇄ 로 자리를 바꿉니다.",
+    "열이 주는 효과 · 조건(후열 버프 · 「뒷줄에 있어야」)은 자리와 상관없이 열만 봅니다.",
+    "도발이 걸리면 어느 열이든 그 사도가 맞습니다.",
+    "「모든 열」 사도(티그(영웅) · 죠안)는 편성에서 설 열을 고르고, 선 열에 따라 패시브가 달라집니다.",
+  ])],
+  ["AP", "AP 와 고학년 게이지", () => helpList([
+    `AP 는 파티 공용입니다. 매 턴 ${RULES.AP_PER_TURN}, 남으면 사라집니다.`,
+    `카드에 쓴 AP 1당 고학년 게이지 +${RULES.GAUGE_PER_AP}%(최대 ${RULES.GAUGE_MAX}%). 0코 카드는 게이지를 채우지 않습니다.`,
+    `고학년 스킬은 사도마다 게이지 ${RULES.ULT_COSTS.join(" · ")}% 가운데 하나를 씁니다. 사도의 둥근 얼굴 단추가 빛나면 쓸 수 있습니다.`,
+    `손패는 ${RULES.HAND_MAX}장까지입니다.`,
+  ])],
+  ["신탁", "은총 · 신탁 · 기적", () => helpList([
+    "싸우다 보면 카드가 빛납니다. 빛나는 카드를 내면 세계수의 뜻이 내립니다.",
+    "은총 — 사도의 기본 카드가 빛납니다. 내면 그 사도의 고유 카드 하나가 손패로 옵니다(그 턴 0코). 고르지 않습니다. 한 번 뺀 고유 카드는 다시 오지 않습니다.",
+    "신탁 — 고유 카드 · 중립 카드가 빛납니다. 내면 신탁 다섯(① 강화 ② 경량 ③ 연계 ④ 변형 ⑤ 각성) 가운데 셋이 뜨고 하나를 고릅니다. 카드가 바로 바뀌고 이번에 내는 것은 0코입니다.",
+    `기적 — 신탁 선택지 하나에 드물게(${Math.round(RULES.DIVINE * 100)}%) 붙는 덤입니다(비용 -1 · 드로우 · 피해 ×1.3 따위).`,
+    `빛날 확률 — 은총: 일반 ${Math.round(RULES.EPI_HERO.fight * 100)}% · 엘리트 · 보스는 늘 / 신탁: 일반 ${Math.round(RULES.EPI_CARD.fight * 100)}% · 엘리트는 늘 · 보스 ${Math.round(RULES.EPI_CARD.boss * 100)}%.`,
+  ])],
+  ["드랍", "드랍과 상점", () => helpList([
+    "보상 화면은 없습니다. 쓰러진 적이 골드를 떨구고, 가장 센 적이 장비를 떨굽니다. 이기면 그대로 챙깁니다.",
+    `장비 — 일반 싸움 ${Math.round(RULES.DROP.fight.equip * 100)}% · 엘리트 · 보스는 늘(마지막 보스 빼고). 층이 오를수록 등급이 오릅니다. 같은 장비도 다시 떨어집니다 — 상점 · 이벤트도 마찬가지라 두 사도가 같은 것을 낄 수 있습니다.`,
+    "중립 카드는 싸움에서 떨어지지 않습니다 — 골디의 상점과 이벤트에서만 얻습니다.",
+    "골디의 상점(휴식 · 상점 칸) — 중립 카드 셋 · 파티의 고유 카드 둘 · 장비 한 점 · 카드 제거. 골디는 깎아 주지 않습니다.",
+  ])],
+  ["장비", "장비", () => helpList([
+    "사도마다 무기 · 방어구 · 장신구 한 칸씩입니다. 얻은 자리에서는 빈 칸에만 바로 끼고, 바꿔 끼기는 휴식 칸에서 합니다.",
+    "스탯 줄은 사도 스탯에 그대로 더합니다. 효과 줄은 낀 사도의 패시브가 됩니다.",
+    "이름에 사도가 붙은 장비는 그 사도가 끼면 애착 줄과 작은 스탯이 더 붙습니다.",
+    "등급 — 일반 · 고급 · 희귀 · 전설. 일반 몇 종은 스탯뿐입니다.",
+  ])],
+  ["지도", "지도", () => helpList([
+    `한 층은 ${M.ROWS}칸 길입니다. 출발에서 오른쪽으로 가며 이어진 칸을 골라 들어갑니다. 끝은 보스, 그 앞은 늘 휴식 · 상점입니다.`,
+    `칸 — ${["fight", "elite", "camp", "campshop", "event", "boss"].map((k) => M.KIND_KO[k]).join(" · ")}.`,
+    `엘리트는 한 단계 센 적(체력 ×${RULES.ELITE_HP})이고, 이기면 장비가 늘 떨어지고 신탁이 늘 뜹니다.`,
+    "휴식 칸에서는 쉬거나(HP 회복) 수련하고, 장비를 바꿔 낍니다. 층을 넘을 때 사도를 한 명 교체할 수 있습니다.",
+  ])],
+];
+function helpList(lines) {
+  const ul = el("ul", "helplist");
+  for (const t of lines) ul.appendChild(el("li", null, t));
+  return ul;
+}
+// 도움말을 연다. key 로 그 갈피를 먼저 편다(예: "상성"). 바깥 · Esc · 닫기로 닫는다
+export function openHelp(key = "상성") {
+  if (kwNote) { kwNote.remove(); kwNote = null; }
+  const back = el("div", "helpmodal");
+  const box = el("div", "helpbox");
+  back.appendChild(box);
+  back.onclick = (e) => { if (e.target === back) { back.remove(); kwNote = null; } };
+  const head = el("div", "helphead");
+  head.appendChild(el("b", null, "도움말"));
+  const x = el("button", "kwclose", "닫기");
+  x.onclick = () => { back.remove(); kwNote = null; };
+  head.appendChild(x);
+  box.appendChild(head);
+  const wrap = el("div", "helpwrap");
+  const tabs = el("div", "helptabs");
+  const page = el("div", "helppage");
+  wrap.appendChild(tabs); wrap.appendChild(page);
+  box.appendChild(wrap);
+  const show = (k) => {
+    tabs.innerHTML = ""; page.innerHTML = "";
+    for (const [id, title] of HELP) {
+      const t = el("button", "helptab" + (id === k ? " on" : ""), title);
+      t.onclick = () => show(id);
+      tabs.appendChild(t);
+    }
+    const [, title, make] = HELP.find((h) => h[0] === k) || HELP[0];
+    page.appendChild(el("h3", null, title));
+    page.appendChild(make());
+  };
+  show(key);
+  document.body.appendChild(back);
+  kwNote = back;
+}
+
 function img(src, cls) {
   const n = el("img", cls);
   n.src = src; n.loading = "lazy"; n.alt = "";
@@ -493,6 +583,9 @@ export function partyScreen(onStart, onBack) {
     head.appendChild(title);
     const floor = FLOORS[0];
     head.appendChild(el("span", "tm-fwhere", `${floor.n}층 · ${floor.name} — 지도에서 길을 골라 12칸 끝의 보스(${floor.boss.map((id) => ENEMIES[id].ko).join(" · ")})까지`));
+    const helpBtn = el("button", "tm-fhelp", "도움말");
+    helpBtn.onclick = () => openHelp("상성");
+    head.appendChild(helpBtn);
     const dexBtn = el("button", "tm-fdex", "사도 도감");
     dexBtn.onclick = () => { filter.q = ""; view = "도감"; render(); };
     head.appendChild(dexBtn);
@@ -678,8 +771,13 @@ export function partyScreen(onStart, onBack) {
 
       // 함께 가면 — 사이 · 성격 · 첫 턴 AP
       synBox.innerHTML = "";
-      synBox.appendChild(el("div", "tm-flabel", "함께 가면"));
-      if (!picked.length) synBox.appendChild(el("p", "tm-fnote", "사도를 고르면 셋의 성격이 아래 그림에서 빛납니다."));
+      const synHead = el("div", "tm-flabel tm-fsynhead");
+      synHead.appendChild(el("span", null, "함께 가면"));
+      const natBtn = el("button", "tm-fdkbig tm-fnatbtn", "상성 보기");
+      natBtn.onclick = (e) => { e.stopPropagation(); openHelp("상성"); };
+      synHead.appendChild(natBtn);
+      synBox.appendChild(synHead);
+      if (!picked.length) synBox.appendChild(el("p", "tm-fnote", "사도를 고르면 셋의 성격이 여기 뜹니다."));
       if (picked.length) {
         const nat = el("div", "tm-fnats");
         for (const k of picked) {
@@ -691,9 +789,6 @@ export function partyScreen(onStart, onBack) {
         }
         synBox.appendChild(nat);
       }
-      // 상성 그림 — 고른 셋의 성격이 빛난다
-      synBox.appendChild(natureChart(new Set(picked.map((k) => HERO_DATA[k].nature))));
-      synBox.appendChild(el("p", "tm-fnote natnote", "화살표가 가리키는 쪽에 강합니다 — 주는 피해 +10% · 받는 피해 -5%. 공명은 상성이 없습니다."));
 
       // 시작 덱
       deckBox.innerHTML = "";
@@ -1837,6 +1932,7 @@ export function fightScreen(run, onDone, onQuit) {
       return b;
     };
     item("이어하기", null, closeModal, "main");
+    item("도움말", "상성 · 열 · AP · 신탁 · 드랍 · 장비 · 지도", () => { closeModal(); openHelp("상성"); });
     // 설정 — 켜고 끄는 단추. 누르면 바로 걸린다
     const set = getSettings();
     const toggle = (label, sub, on, fn) => {
@@ -2185,6 +2281,8 @@ export function mapScreen(run, onEnter, onQuit) {
     body.appendChild(el("span", "bmkind", `${floor.n}층 · ${floor.name}`));
     const list = el("div", "mlist");
     const go = el("button", "mitem main"); go.appendChild(el("b", null, "이어하기")); go.onclick = closeCenter; list.appendChild(go);
+    const hp = el("button", "mitem"); hp.appendChild(el("b", null, "도움말")); hp.appendChild(el("span", null, "상성 · 열 · AP · 신탁 · 드랍 · 장비 · 지도"));
+    hp.onclick = () => { closeCenter(); openHelp("지도"); }; list.appendChild(hp);
     if (onQuit) {
       const q = el("button", "mitem quit"); q.appendChild(el("b", null, "메인화면으로")); q.appendChild(el("span", null, "이 판은 저장되지 않습니다"));
       q.onclick = () => { closeCenter(); onQuit(); };

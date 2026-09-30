@@ -124,7 +124,12 @@ check(/3 \/ 3/.test(p.textContent), "머리에 몇 명 골랐는지 나온다");
 // 함께 가면 · 덱
 check(!/각별|친함|안면|함께한 이야기/.test(p.textContent), "짝마다의 사이는 적지 않는다");
 check(!p.textContent.includes("초면"), "초면을 적지 않는다");
-check(count(p, "natchart") === 1 && count(p, "natnode") === 5 && count(p, "on") >= 3, "성격 상성을 그림으로 — 고른 성격이 빛난다");
+check(count(p, "natchart") === 0 && count(p, "tm-fnatbtn") === 1, "상성 그림은 편성 판에 늘어놓지 않고 「상성 보기」 단추로");
+{
+  let err = null;
+  try { for (const k of ["상성", "열", "AP", "신탁", "드랍", "장비", "지도"]) ui.openHelp(k); } catch (e) { err = e; }
+  check(!err, `도움말 일곱 갈피가 열린다${err ? " — " + err.message : ""}`);
+}
 check(!/첫 턴 AP/.test(p.textContent), "사이가 없으니 첫 턴 AP 줄도 없다(늘 3)");
 check(count(p, "tm-fdk") === 12, `덱 열두 장이 미리 보인다 (${count(p, "tm-fdk")})`);
 
@@ -590,6 +595,23 @@ console.log("\n장비");
     const bo = rate((q) => { q.floor = 0; q.node = 3; }, 400);
     check(el.eq === 1 && bo.eq === 1, "엘리트 · 보스는 장비가 늘 떨어진다");
     check(f1.ne + f3.ne + el.ne + bo.ne === 0, "중립 카드는 싸움에서 안 떨어진다 — 상점 · 이벤트에서만");
+    // 같은 장비도 떨어진다 — 1층 일반 싸움의 일반 장비를 하나 빼고 다 가져도, 가진 것이 다시 나온다
+    {
+      const q = R.newRun(run.party.slice(), { ...run.rows }, 901);
+      const commons = Object.keys(EQUIP).filter((id) => EQUIP[id].grade === "일반");
+      q.bag.push(...commons);
+      let dup = null;
+      for (let i = 0; i < 200 && !dup; i++) { q.rng = C2.makeRng(i + 1); q.floor = 0; q.node = 0; R.rollReward(q); if (q.reward.equip) dup = q.reward.equip[0]; }
+      check(!!dup && commons.includes(dup), `가진 장비도 다시 떨어진다 (${dup && EQUIP[dup].ko})`);
+      // 두 사도가 같은 장비를 낀다
+      q.bag.push(dup);
+      const [a, b] = q.party;
+      const e1 = R.equip(q, a, dup), e2 = R.equip(q, b, dup);
+      check(e1 === null && e2 === null && R.gearOf(q, a)[EQUIP[dup].slot] === dup && R.gearOf(q, b)[EQUIP[dup].slot] === dup, "같은 장비 둘을 두 사도가 하나씩 낀다");
+      const sh = R.newRun(run.party.slice(), { ...run.rows }, 902); sh.bag.push(...Object.keys(EQUIP));
+      const shown = R.offerEquip(sh, { 일반: 1, 고급: 1, 희귀: 1, 전설: 1 }, 3);
+      check(shown.length === 3 && new Set(shown).size === 3, "상점 · 이벤트도 가진 장비를 낸다 — 한 번에 뽑는 것끼리는 안 겹친다");
+    }
   }
   R.enterCamp(r, "campshop");
   const cs = ui.campScreen(r, true, () => {}, () => {});

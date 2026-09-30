@@ -133,7 +133,7 @@ export function rollReward(run) {
   // 드랍 — 장비가 확률로 하나(R.DROP). 마지막 보스는 판이 끝나니 안 떨군다. 중립 카드는 상점 · 이벤트에서만
   const T = R.DROP[isBoss(run) ? "boss" : run.elite ? "elite" : "fight"];
   const at = (tbl) => tbl[Math.min(run.floor, tbl.length - 1)];
-  const eq = !lastBoss && run.rng() < T.equip ? offerEquip(run, at(T.equipGrade), 1) : [];
+  const eq = !lastBoss && run.rng() < T.equip ? offerEquip(run, at(T.equipGrade), 1, { dupes: true }) : [];
   run.reward = {
     equip: eq.length ? eq : null,
     equipTaken: null,
@@ -369,9 +369,10 @@ export function unequip(run, heroKey, slot) {
   return null;
 }
 
-// 무작위로 n개 — 등급 가중치 { 희귀: 3, 전설: 1 }, 이미 가진 것은 빼고
-export function offerEquip(run, weights, n) {
-  const have = owned(run);
+// 무작위로 n개 — 등급 가중치 { 희귀: 3, 전설: 1 }. 이미 가진 장비도 나온다 — 드랍 · 상점 · 이벤트 모두.
+// 같은 역할 사도 둘(마법 딜러 둘)이 같은 장비를 하나씩 낄 수 있어야 한다. 한 번에 뽑는 n개끼리는 겹치지 않는다
+export function offerEquip(run, weights, n, { dupes = true } = {}) {
+  const have = dupes ? new Set() : owned(run);
   const pool = Object.keys(EQUIP).filter((id) => !have.has(id) && weights[EQUIP[id].grade]);
   const out = [];
   while (out.length < n && pool.length) {
