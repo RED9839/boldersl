@@ -278,6 +278,7 @@ export function partyScreen(onStart, onBack) {
   function dexScreen() {
     s.innerHTML = "";
     s.className = "dexscreen";
+    stageBg();
 
     const bar = el("div", "dbar2");
     const back = el("button", "iconbtn back", "◁");
@@ -412,6 +413,12 @@ export function partyScreen(onStart, onBack) {
     fill();
   }
 
+  // 도감 · 사도 정보도 편성과 같은 1층 싸움터를 깐다 — 흐리고 어둡게는 css 가(czn.css 끝)
+  function stageBg() {
+    const bg = `assets/bg/${BATTLE_BG[1].fight}.jpg`;
+    s.style.setProperty("--stagebg", `url("${typeof location === "object" ? new URL(bg, location.href).href : bg}")`);
+  }
+
   // ── 팀 편성 ──────────────────────────────────────────────────────────
   // 카제나 얼개다 — 큰 세로 카드 셋을 가운데 세우고, 오른쪽에 이번 싸움을 적는다.
   // 트릭컬 쪽을 얹는다: 카드마다 정해진 위치(전열·중열·후열)를 보여 준다. 고르는 것이 아니다.
@@ -423,8 +430,7 @@ export function partyScreen(onStart, onBack) {
   function formScreen() {
     s.innerHTML = "";
     s.className = "teamscreen2";
-    const bg = `assets/bg/${BATTLE_BG[1].fight}.jpg`;
-    s.style.setProperty("--stagebg", `url("${typeof location === "object" ? new URL(bg, location.href).href : bg}")`);
+    stageBg();
 
     // ① 머리
     const head = el("div", "tm-fhead");
@@ -639,6 +645,7 @@ export function partyScreen(onStart, onBack) {
   function dexCard(key, h) {
     const on = picked.includes(key);
     const b = el("button", "dex" + (on ? " on" : ""));
+    b.style.setProperty("--tint", NTINT[h.nature]);
     const badges = el("div", "dbadges");
     badges.appendChild(uiIcon("역할", h.role, "brole", h.role.slice(0, 1)));
     const bn = uiIcon("성격", h.nature, "bnat n" + h.nature, h.nature.slice(0, 1));
@@ -662,6 +669,8 @@ export function partyScreen(onStart, onBack) {
     const h = HERO_DATA[key];
     s.innerHTML = "";
     s.className = "detailscreen";
+    stageBg();
+    s.style.setProperty("--tint", NTINT[h.nature]);
 
     const bar = el("div", "dbar2");
     const back = el("button", "iconbtn back", "◁");
@@ -713,11 +722,13 @@ export function partyScreen(onStart, onBack) {
     s.appendChild(body);
   }
 
+  // 카제나 요원 화면처럼 — 왼쪽에 사도가 크게 서고(편성 무대와 같은 스파인), 오른쪽에 이름과 능력치
   function statsPane(key, h) {
-    const w = el("div", "pane");
+    const w = el("div", "pane dt-stpane");
     const top = el("div", "sthero");
     const shot = el("div", "stshot");
-    shot.appendChild(art.portrait(key, { ko: h.ko, tint: NTINT[h.nature], size: 0, slot: "event", still: true }));
+    shot.appendChild(el("span", "dt-glow"));
+    shot.appendChild(art.portrait(key, { ko: h.ko, tint: NTINT[h.nature], size: 200, slot: "battle", flip: true }));
     top.appendChild(shot);
     const info = el("div", "stinfo");
     const t = el("div", "sttop");
@@ -746,22 +757,23 @@ export function partyScreen(onStart, onBack) {
     top.appendChild(info);
     w.appendChild(top);
 
-    if (h.passive) w.appendChild(line("패시브", h.passive, "", key));
-    if (h.keyword) w.appendChild(line(h.keyword.ko, h.keyword.text, "key", key));
+    // 능력 글은 오른쪽 기둥에 잇는다 — 입상은 왼쪽에 서 있고 글만 내려 읽는다
+    if (h.passive) info.appendChild(line("패시브", h.passive, "", key));
+    if (h.keyword) info.appendChild(line(h.keyword.ko, h.keyword.text, "key", key));
     // 원작에서 무엇을 가져왔는지 — 나무위키를 읽고 다시 쓴 근거(docs/07-스킬구성.md)
-    if (h.source) w.appendChild(line("원작", h.source, "src", key));
+    if (h.source) info.appendChild(line("원작", h.source, "src", key));
 
     // 고른 사람들과의 사이 — 없으면 아무 말도 안 한다
     const others = picked.filter((k) => k !== key);
     const bonds = C.partyBonds([key, ...others]).filter((b2) => b2.n && (b2.a === key || b2.b === key));
     if (bonds.length) {
-      w.appendChild(el("h3", "psec", "고른 사도와의 사이"));
+      info.appendChild(el("h3", "psec", "고른 사도와의 사이"));
       for (const b2 of bonds) {
         const other = b2.a === key ? b2.b : b2.a;
         const l = el("div", "bond");
         l.appendChild(el("b", null, HERO_DATA[other].ko));
         l.appendChild(el("span", "why", `함께 나온 이야기 ${b2.n}편 · ${b2.tier.id}`));
-        w.appendChild(l);
+        info.appendChild(l);
       }
     }
     return w;
@@ -849,6 +861,7 @@ export function partyScreen(onStart, onBack) {
     if (CA.ult) hex.appendChild(img(CA.ult, "hexpic"));
     big.appendChild(hex);
     const info = el("div");
+    info.appendChild(el("div", "egolabel", "고학년 스킬"));
     info.appendChild(el("h2", null, h.ult.ko));
     info.appendChild(withKeywords(el("p", "egotext"), shortText(h.ult.text), key));
     info.appendChild(el("p", "note", `게이지 ${h.ult.cost}% 를 씁니다. 게이지는 파티가 함께 채우고(코스트 1당 10%), 같은 사도가 잇달아 쓸 수 없습니다.`));

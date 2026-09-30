@@ -1378,3 +1378,334 @@ body:has(#screen.teamscreen2) .top { display: none; }
 .phone .tm-fside .tm-fnote, .phone .tm-fside > .tm-flabel, .phone .tm-fdeck2 { display: none; }
 .phone .tm-fbond { font-size: 12px; gap: 5px; }
 .phone .tm-fwhy { display: none; }
+
+/* ══ 사도 도감 · 사도 정보 — 편성과 같은 옷 ═══════════════════════════════════
+   1층 싸움터(--stagebg)를 흐리고 어둡게 깔고, 판은 어두운 유리 · 금선. 글이 빽빽해서 배경은 편성보다 더 누른다.
+   옛 밝은 결(dex.css)을 화면 이름(#screen.dexscreen · #screen.detailscreen)으로 덮는다 — 같은 조각을 쓰는 보상 · 상점은 그대로. */
+body:has(#screen.dexscreen) .top, body:has(#screen.detailscreen) .top { display: none; }
+#screen.dexscreen, #screen.detailscreen,
+.phone #screen.dexscreen, .phone #screen.detailscreen {
+  position: fixed; inset: 0; z-index: 1; max-width: none; margin: 0; padding: 0; border-radius: 0;
+  height: var(--app-h, 100vh); min-height: 0; overflow: hidden; isolation: isolate;
+  --ink: #f4f1ff; --dim: #b9b2d6; --line: #ffffff1f; --hot: #f6d58e; --sel: #f6d58e;
+  color: #f4f1ff; background: #0b0913;
+}
+/* 배경 — 싸움터 그림을 흐리게(아래 겹) · 그 위로 어둠(위 겹) */
+#screen.dexscreen::before, #screen.detailscreen::before {
+  content: ""; position: absolute; inset: -40px; z-index: -2; pointer-events: none;
+  background: var(--stagebg, none) 50% 72% / max(115%, calc(var(--app-h, 100vh) * 1.15 * 16 / 9)) auto no-repeat;
+  filter: blur(8px) saturate(.9) brightness(.7);
+}
+#screen.detailscreen::before { filter: blur(14px) saturate(.8) brightness(.5); }
+#screen.dexscreen::after, #screen.detailscreen::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    linear-gradient(180deg, #0a0814e0 0, #0a081466 18%, #0a081459 60%, #0a0814d9 100%),
+    radial-gradient(ellipse at 50% 10%, #2a234033, #0a081480 80%);
+}
+/* 사도 정보 — 왼쪽 입상 뒤에 성격 빛을 흐리게 */
+#screen.detailscreen::after {
+  background:
+    radial-gradient(ellipse 40% 60% at 22% 62%, color-mix(in srgb, var(--tint, #fff) 16%, transparent), transparent 70%),
+    linear-gradient(180deg, #0a0814e6 0, #0a081480 18%, #0a081473 60%, #0a0814e0 100%);
+}
+/* 밝은 화면용으로 진하게 칠해 둔 성격 글자색(style.css)을 원래 색으로 */
+#screen.dexscreen .n활발 { color: #f5dc5a; }
+#screen.dexscreen .n냉정 { color: #7fd6f5; }
+
+/* ── 머리 ─────────────────────────────────────────── */
+#screen.dexscreen .dbar2, #screen.detailscreen .dbar2 {
+  flex: none; gap: 14px; padding: 14px 20px 12px; border: 0; background: linear-gradient(180deg, #0d0b16e6, #0d0b1600);
+}
+#screen.dexscreen .iconbtn, #screen.detailscreen .iconbtn {
+  width: auto; height: auto; min-height: 0; padding: 9px 14px; border-radius: 10px; font-size: 14px; font-weight: 800;
+  background: #0d0b16c7; border: 1px solid #ffffff2e; color: #f4f1ff; backdrop-filter: blur(4px);
+}
+#screen.dexscreen .iconbtn:hover:not(:disabled), #screen.detailscreen .iconbtn:hover:not(:disabled) { transform: none; background: #0d0b16c7; border-color: #f6d58e; }
+#screen.dexscreen .dtitle, #screen.detailscreen .dtitle { font-size: 24px; font-weight: 900; letter-spacing: -.3px; color: #f4f1ff; text-shadow: 0 2px 8px #000; }
+#screen.detailscreen .dwho { font-size: 14px; color: #d9d2f2; text-shadow: 0 1px 4px #000; }
+#screen.detailscreen .dcount { margin-right: auto; font-size: 15px; font-weight: 800; color: #f6d58e; }
+#screen.dexscreen .dsearch {
+  width: 200px; padding: 8px 12px; border-radius: 10px; font-size: 13px;
+  background: #0d0b16d9; border: 1px solid #ffffff2e; color: #f4f1ff;
+}
+#screen.dexscreen .dsearch::placeholder { color: #8f88ad; }
+#screen.dexscreen .dsearch:focus { border-color: #f6d58e; }
+#screen.dexscreen .sortbtn {
+  min-height: 0; padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 800;
+  background: #0d0b16c7; border: 1px solid #ffffff2e; color: #f4f1ff; backdrop-filter: blur(4px);
+}
+#screen.dexscreen .sortbtn:hover:not(:disabled) { transform: none; border-color: #f6d58e; }
+#screen.dexscreen .sortbtn .arrow { color: #f6d58e; }
+/* 편성에 넣기 — 「떠납니다」와 같은 금 단추. 뺄 때는 붉은 테 */
+#screen.detailscreen .takebtn {
+  min-height: 0; padding: 10px 22px; border-radius: 11px; font-size: 14px; font-weight: 900; letter-spacing: .02em;
+  background: linear-gradient(180deg, #ffe7a8, #f0b94a); color: #2a1a05; border: 1px solid #fff3; box-shadow: 0 0 18px #f0b94a55, 0 6px 14px #0008;
+}
+#screen.detailscreen .takebtn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.05); }
+#screen.detailscreen .takebtn.on { background: #0d0b16c7; color: #ff9aa6; border-color: #ff8a9a88; box-shadow: none; }
+
+/* ── 몸 ─────────────────────────────────────────── */
+#screen.dexscreen .dbody, #screen.detailscreen .dbody { gap: 14px; padding: 0 18px 14px; }
+#screen.dexscreen .dbody { grid-template-columns: 76px minmax(0, 1fr); }
+/* 종족 레일 — 세로 유리 기둥 */
+#screen.dexscreen .rail {
+  gap: 2px; padding: 10px 0; border: 1px solid #ffffff26; border-radius: 14px; overflow-y: auto; scrollbar-width: none;
+  background: #0d0b16b8; backdrop-filter: blur(6px);
+}
+#screen.dexscreen .railbtn { flex: none; min-height: 0; padding: 6px 0; color: #b9b2d6; }
+#screen.dexscreen .railbtn:hover:not(:disabled) { transform: none; }
+#screen.dexscreen .remb { width: 36px; height: 36px; background: #ffffff0d; border: 1px solid #ffffff26; color: #d9d2f2; }
+#screen.dexscreen .rname { font-size: 10px; font-weight: 700; }
+#screen.dexscreen .railbtn:hover .remb { border-color: #f6d58e99; }
+#screen.dexscreen .railbtn.on { color: #f6d58e; }
+#screen.dexscreen .railbtn.on .remb { background: #f6d58e26; border-color: #f6d58e; color: #f6d58e; box-shadow: 0 0 12px #f6d58e66; }
+
+/* 오른쪽 — 거르개 · 머리 · 격자를 한 장의 유리에 */
+#screen.dexscreen .dright {
+  padding: 12px 16px 0; border: 1px solid #ffffff26; border-radius: 14px; overflow: hidden;
+  background: #0d0b16b8; backdrop-filter: blur(6px); box-shadow: 0 10px 26px #0008;
+}
+#screen.dexscreen .chiprow { gap: 6px; padding-bottom: 8px; }
+#screen.dexscreen .chip {
+  min-height: 0; gap: 5px; padding: 5px 11px; border-radius: 99px; font-size: 12.5px; font-weight: 700;
+  background: #ffffff0d; border: 1px solid #ffffff26; color: #e8e3ff;
+}
+#screen.dexscreen .chip:has(img) { padding-left: 6px; }
+#screen.dexscreen .chip:hover:not(:disabled) { transform: none; border-color: #f6d58e99; }
+#screen.dexscreen .chip.on { background: #f6d58e26; border-color: #f6d58e; color: #fff; }
+#screen.dexscreen .cico:has(img) { width: 18px; height: 18px; }
+#screen.dexscreen .dhead2 { padding: 2px 0 10px; border-bottom: 1px solid #f6d58e2e; margin-bottom: 10px; }
+#screen.dexscreen .hemb { width: 36px; height: 36px; border-color: #f6d58e88; background: #f6d58e1a; color: #f6d58e; }
+#screen.dexscreen .dhead2 b { font-size: 17px; font-weight: 900; }
+#screen.dexscreen .hcount { color: #f6d58e; font-weight: 700; }
+
+/* 격자 — 편성 명단 카드와 같은 결: 성격 빛 바탕 · 가는 테 · 고르면 금 */
+#screen.dexscreen .dexgrid { gap: 10px; padding: 2px 4px 16px 2px; scrollbar-width: thin; scrollbar-color: #ffffff33 transparent; }
+#screen.dexscreen .dexgrid { flex: 1; min-height: 0; grid-auto-rows: max-content; }
+#screen.dexscreen .dex {
+  height: auto; border-radius: 10px;
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--tint, #9a8cc0) 30%, #1a1628), #0d0b16 85%);
+  border: 1.5px solid #ffffff22; transition: border-color .15s, transform .15s, box-shadow .15s;
+}
+#screen.dexscreen .dex:hover:not(:disabled) { transform: translateY(-3px); border-color: color-mix(in srgb, var(--tint) 80%, #fff); box-shadow: 0 10px 22px #000a; }
+#screen.dexscreen .dex.on { border-color: #f6d58e; box-shadow: 0 0 0 1px #f6d58e, 0 0 16px #f6d58e66; }
+#screen.dexscreen .dex .art { background: transparent; }
+#screen.dexscreen .dfade { background: linear-gradient(to top, #0d0b16f2 0, #0d0b1699 24%, transparent 46%); }
+#screen.dexscreen .dname { font-size: 13.5px; text-shadow: 0 1px 3px #000; }
+#screen.dexscreen .dsub { font-size: 10px; color: #d9d2f2; }
+#screen.dexscreen .decho { color: #fff; background: #9a8cc0cc; border: 0; border-radius: 6px; font-size: 10px; padding: 1px 6px; }
+#screen.dexscreen .dmark { color: #2a1a05; background: linear-gradient(180deg, #ffe7a8, #f0b94a); border-radius: 6px; font-size: 10px; box-shadow: 0 0 10px #f0b94a88; }
+#screen.dexscreen .brole { background: #0d0b16d9; color: #e8e3ff; }
+#screen.dexscreen .more { color: #b9b2d6; }
+
+/* 아래 — 고른 셋 · 편성으로 */
+#screen.dexscreen .dfoot {
+  flex: none; gap: 14px; padding: 10px 18px 12px; border-top: 1px solid #f6d58e44;
+  background: linear-gradient(180deg, #0d0b16cc, #0d0b16f2 40%); backdrop-filter: blur(6px);
+}
+#screen.dexscreen .dsaid { font-size: 13.5px; color: #d9d2f2; }
+#screen.dexscreen .dfoot .go {
+  min-height: 0; padding: 11px 34px; border-radius: 11px; font-size: 15px; font-weight: 900;
+  background: linear-gradient(180deg, #ffe7a8, #f0b94a); color: #2a1a05; border: 1px solid #fff3; box-shadow: 0 0 18px #f0b94a55, 0 6px 14px #0008;
+}
+#screen.dexscreen .dfoot .go:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.05); }
+
+/* ── 사도 정보 — 왼쪽 갈피 ────────────────────────── */
+#screen.detailscreen .dbody { grid-template-columns: 172px minmax(0, 1fr); }
+#screen.detailscreen .side {
+  gap: 4px; padding: 14px 10px; border: 1px solid #ffffff26; border-radius: 14px; overflow-y: auto;
+  background: #0d0b16b8; backdrop-filter: blur(6px); align-self: start;
+}
+#screen.detailscreen .semb { gap: 1px; padding: 0 8px 14px; margin-bottom: 6px; border-bottom: 1px solid #f6d58e2e; }
+#screen.detailscreen .sico:has(img) { width: 36px; height: 36px; }
+#screen.detailscreen .semb span { font-size: 16px; font-weight: 900; }
+#screen.detailscreen .semb i { font-size: 12px; font-weight: 700; color: var(--tint, #b9b2d6); }
+#screen.detailscreen .sidebtn {
+  min-height: 0; padding: 11px 14px; border-radius: 10px; font-size: 14.5px; font-weight: 800; color: #b9b2d6;
+  border: 1px solid transparent;
+}
+#screen.detailscreen .sidebtn:hover:not(.on):not(:disabled) { transform: none; background: #ffffff0d; border-color: #ffffff1f; color: #f4f1ff; }
+#screen.detailscreen .sidebtn.on {
+  color: #fff; background: linear-gradient(90deg, #f6d58e33, #f6d58e0a); border-color: #f6d58e55; box-shadow: inset 3px 0 0 #f6d58e;
+}
+#screen.detailscreen .dmain { min-height: 0; scrollbar-width: thin; scrollbar-color: #ffffff33 transparent; }
+#screen.detailscreen .pane { padding: 0 6px 20px 0; gap: 12px; }
+#screen.detailscreen .pane .note { font-size: 12.5px; color: #b9b2d6; }
+
+/* ── 능력치 — 왼쪽에 크게 선 사도, 오른쪽에 이름 · 능력치 · 능력 글 ─────────── */
+#screen.detailscreen .dt-stpane { padding: 0; }
+#screen.detailscreen .sthero { display: grid; grid-template-columns: minmax(300px, 40%) minmax(0, 1fr); gap: 10px; align-items: start; }
+#screen.detailscreen .stshot {
+  position: sticky; top: 0; width: auto; height: calc(var(--app-h, 100vh) - 92px); overflow: visible;
+  border-radius: 0; background: none; display: flex; align-items: flex-end; justify-content: center;
+}
+/* 발밑 — 성격 빛 고리와 그림자 */
+#screen.detailscreen .dt-glow {
+  position: absolute; left: 12%; right: 12%; bottom: 3%; height: 12%; border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--tint) 45%, transparent), transparent);
+}
+#screen.detailscreen .dt-glow::after {
+  content: ""; position: absolute; left: 22%; right: 22%; top: 30%; bottom: 20%; border-radius: 50%; background: radial-gradient(closest-side, #000c, transparent);
+}
+#screen.detailscreen .stshot .art {
+  position: relative; width: min(100%, 360px) !important; height: 84% !important; margin-bottom: 6%;
+  border-radius: 0; background: none; animation: fstandin .4s ease-out;
+}
+#screen.detailscreen .stshot .art:not(.art-spine) img { object-fit: contain; object-position: 50% 100%; }
+#screen.detailscreen .stinfo { padding: 22px 8px 0 4px; display: flex; flex-direction: column; gap: 12px; }
+#screen.detailscreen .sttop { flex-wrap: wrap; gap: 12px; align-items: baseline; }
+#screen.detailscreen .sttop h2 { font-size: 46px; line-height: 1.1; font-weight: 900; letter-spacing: -1.5px; color: #fff; text-shadow: 0 3px 14px #000c; }
+#screen.detailscreen .star { font-size: 18px; letter-spacing: 2px; color: #f6d58e; text-shadow: 0 0 10px #f6d58e88; }
+#screen.detailscreen .eldain { font-size: 11.5px; font-weight: 800; color: #9fe3b4; border-color: #9fe3b477; background: #9fe3b41a; padding: 2px 9px; }
+#screen.detailscreen .stmeta { gap: 6px; margin: 0; }
+#screen.detailscreen .mtag {
+  font-size: 13px; font-weight: 700; color: #e8e3ff; padding: 4px 12px 4px 5px;
+  background: #0d0b16b3; border: 1px solid #ffffff26; backdrop-filter: blur(4px);
+}
+#screen.detailscreen .mtag:first-child { border-color: color-mix(in srgb, var(--tint) 65%, transparent); background: color-mix(in srgb, var(--tint) 18%, #0d0b16cc); }
+#screen.detailscreen .mtag.plain { padding-left: 12px; color: #b9b2d6; }
+#screen.detailscreen .mico:has(img) { width: 20px; height: 20px; }
+#screen.detailscreen .stblurb {
+  margin: 0; font-size: 14px; line-height: 1.8; color: #d9d2f2; word-break: keep-all;
+  padding: 8px 14px; border-left: 2px solid #f6d58e88; border-radius: 0 10px 10px 0;
+  background: linear-gradient(90deg, #0d0b16c7, #0d0b1666); backdrop-filter: blur(4px);
+}
+/* 입상의 무기 · 날개가 글 쪽으로 넘어와도 글이 위에 온다 */
+#screen.detailscreen .stinfo { position: relative; z-index: 1; }
+#screen.detailscreen .statgrid { gap: 8px; margin: 2px 0 0; }
+#screen.detailscreen .statc {
+  position: relative; overflow: hidden; padding: 10px 14px 9px; border-radius: 12px;
+  background: #0d0b16c7; border: 1px solid #ffffff26; backdrop-filter: blur(6px);
+}
+#screen.detailscreen .statc::before { content: ""; position: absolute; left: 0; top: 0; right: 0; height: 2px; background: linear-gradient(90deg, #f6d58e, #f6d58e00); }
+#screen.detailscreen .statc small { font-size: 11px; font-weight: 800; color: #f6d58e; letter-spacing: .12em; }
+#screen.detailscreen .statc strong { font-size: 26px; font-weight: 900; color: #fff; line-height: 1.2; }
+#screen.detailscreen .ability {
+  padding: 12px 16px; border-radius: 12px; background: #0d0b16c7; border: 1px solid #ffffff26; border-left: 3px solid #f6d58e;
+  backdrop-filter: blur(6px);
+}
+#screen.detailscreen .ability.key { border-left-color: var(--tint, #7fd6f5); }
+#screen.detailscreen .ability.src { border-left-color: #ffffff40; }
+#screen.detailscreen .ability h3 { margin: 0 0 4px; font-size: 12px; font-weight: 900; letter-spacing: .1em; color: #f6d58e; }
+#screen.detailscreen .ability.key h3 { color: var(--tint, #7fd6f5); }
+#screen.detailscreen .ability.src h3 { color: #b9b2d6; }
+#screen.detailscreen .ability p { font-size: 13.5px; line-height: 1.75; color: #e8e3ff; word-break: keep-all; }
+#screen.detailscreen .ability.src p { font-size: 12.5px; color: #b9b2d6; }
+#screen.detailscreen .psec { margin: 4px 0 0; font-size: 12px; font-weight: 900; letter-spacing: .08em; color: #f6d58e; }
+#screen.detailscreen .bond { padding: 8px 14px; border-radius: 10px; background: #0d0b16c7; border: 1px solid #ffffff26; }
+#screen.detailscreen .bond .why { color: #b9b2d6; }
+
+/* ── 카드 ─────────────────────────────────────────── */
+#screen.detailscreen .cardwrap { max-width: 1180px; gap: 18px; }
+#screen.detailscreen .csec { margin-top: 4px; padding-bottom: 6px; border-bottom: 1px solid #f6d58e2e; }
+#screen.detailscreen .csec:first-child { margin-top: 0; }
+#screen.detailscreen .csec i { color: #f6d58e; }
+#screen.detailscreen .csec b { font-size: 15px; font-weight: 900; }
+#screen.detailscreen .csn { font-size: 12px; font-weight: 800; color: #f6d58e; }
+#screen.detailscreen .gcard { box-shadow: 0 10px 22px #000a; transition: transform .15s, box-shadow .15s; }
+#screen.detailscreen .gcard:hover { transform: translateY(-3px); box-shadow: 0 0 0 1px #f6d58e99, 0 14px 26px #000c; }
+/* 고학년 스킬 자리 — 유리 판에 금선 */
+#screen.detailscreen .egoside {
+  position: sticky; top: 0; gap: 6px; padding: 16px 12px 14px; border-radius: 14px;
+  background: #0d0b16c7; border: 1px solid #f6d58e55; backdrop-filter: blur(6px); box-shadow: 0 10px 26px #0008;
+}
+#screen.detailscreen .hex { filter: drop-shadow(0 0 12px #f6d58e44); }
+#screen.detailscreen .egoname { font-size: 15px; font-weight: 900; }
+#screen.detailscreen .egolabel { font-size: 11px; font-weight: 800; color: #f6d58e; }
+#screen.detailscreen .egotext { font-size: 12.5px; color: #d9d2f2; }
+
+/* ── 신탁 ─────────────────────────────────────────── */
+#screen.detailscreen .flashbox { padding: 12px 14px 14px; border-radius: 14px; background: #0d0b16c7; border: 1px solid #ffffff26; backdrop-filter: blur(6px); }
+#screen.detailscreen .fhead b { font-size: 15px; font-weight: 900; }
+#screen.detailscreen .fpic { width: 34px; height: 34px; background: #1a1628; border: 1px solid #ffffff26; }
+#screen.detailscreen .ftype { color: #d9d2f2; border-color: #ffffff33; background: #ffffff0d; }
+#screen.detailscreen .ftext { font-size: 12.5px; color: #d9d2f2; }
+#screen.detailscreen .flashgrid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+#screen.detailscreen .flash {
+  font-size: inherit; padding: 9px 12px 10px; border-radius: 10px; color: #f4f1ff;
+  background: #ffffff0a; border: 1px solid #ffffff1f; border-top: 2px solid #f6d58e88;
+}
+#screen.detailscreen .fkind { font-size: 11px; color: #f6d58e; }
+#screen.detailscreen .flash b { font-size: 13px; }
+#screen.detailscreen .flash p { font-size: 11.5px; color: #cfc7ea; }
+
+/* ── 고학년 스킬 ──────────────────────────────────── */
+#screen.detailscreen .ultbig {
+  gap: 30px; align-items: center; padding: 30px 34px; max-width: 1040px; margin-top: 24px; border-radius: 16px;
+  background: #0d0b16c7; border: 1px solid #f6d58e55; backdrop-filter: blur(6px); box-shadow: 0 10px 26px #0008;
+}
+#screen.detailscreen .ultbig .hex { flex: none; filter: drop-shadow(0 0 18px #f6d58e55); }
+#screen.detailscreen .ultbig h2 { font-size: 32px; font-weight: 900; color: #fff; text-shadow: 0 2px 10px #000a; }
+#screen.detailscreen .hex.big { width: 220px; height: 220px; }
+#screen.detailscreen .ultbig .egolabel { margin-bottom: 4px; font-size: 12px; letter-spacing: .2em; }
+#screen.detailscreen .ultbig .egotext { font-size: 14.5px; line-height: 1.8; color: #e8e3ff; }
+#screen.detailscreen .ultbig .note { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #ffffff26; }
+
+/* 안내 한 줄(「셋까지만…」)은 화면 위에 띄운다 — 바닥글이 화면 밑에 깔려 안 보였다 */
+body:has(#screen.detailscreen) .bottom, body:has(#screen.dexscreen) .bottom {
+  position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%); z-index: 40;
+  min-height: 0; padding: 0; border: 0; background: none; pointer-events: none;
+}
+body:has(#screen.detailscreen) #hint:not(:empty), body:has(#screen.dexscreen) #hint:not(:empty) {
+  display: inline-block; padding: 6px 18px; border-radius: 99px; font-size: 14px; font-weight: 700;
+  background: #0c0a16e6; border: 1px solid #f6d58e88; color: #ffe7ad; box-shadow: 0 6px 18px #0008;
+}
+
+/* ── 휴대폰 — 높이 540 ────────────────────────────── */
+.phone #screen.dexscreen .dbar2, .phone #screen.detailscreen .dbar2 { padding: 7px 12px; gap: 10px; }
+.phone #screen.dexscreen .dtitle, .phone #screen.detailscreen .dtitle { font-size: 19px; }
+.phone #screen.dexscreen .iconbtn, .phone #screen.detailscreen .iconbtn { min-height: 40px; padding: 0 16px; }
+.phone #screen.dexscreen .dsearch { width: 150px; min-height: 40px; }
+.phone #screen.dexscreen .sortbtn, .phone #screen.detailscreen .takebtn { min-height: 40px; padding: 0 16px; }
+.phone #screen.dexscreen .dbody, .phone #screen.detailscreen .dbody { gap: 8px; padding: 0 10px 8px; }
+.phone #screen.dexscreen .dbody { grid-template-columns: 66px minmax(0, 1fr); }
+.phone #screen.dexscreen .rail { padding: 6px 0; }
+.phone #screen.dexscreen .railbtn { min-height: 0; padding: 4px 0; }
+.phone #screen.dexscreen .remb { width: 32px; height: 32px; }
+.phone #screen.dexscreen .dright { padding: 8px 10px 0; }
+.phone #screen.dexscreen .chiprow { gap: 4px; padding-bottom: 6px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.phone #screen.dexscreen .chip { flex: none; min-height: 34px; padding: 3px 10px; font-size: 12px; }
+.phone #screen.dexscreen .chip:has(img) { padding-left: 5px; }
+.phone #screen.dexscreen .chipgap { flex: none; width: 8px; }
+.phone #screen.dexscreen .dhead2 { display: none; }
+.phone #screen.dexscreen .dexgrid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 7px; }
+.phone #screen.dexscreen .dfoot { padding: 5px 12px 6px; }
+.phone #screen.dexscreen .dfoot .go { min-height: 40px; padding: 0 26px; font-size: 14px; }
+.phone #screen.dexscreen .dsaid { font-size: 12.5px; }
+
+.phone #screen.detailscreen .dbody { grid-template-columns: 124px minmax(0, 1fr); }
+.phone #screen.detailscreen .side { padding: 8px 6px; gap: 3px; }
+.phone #screen.detailscreen .semb { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 2px 6px; padding: 0 4px 8px; margin-bottom: 2px; }
+.phone #screen.detailscreen .sico { margin: 0; }
+.phone #screen.detailscreen .sico:has(img) { width: 28px; height: 28px; }
+.phone #screen.detailscreen .semb span { font-size: 14px; }
+.phone #screen.detailscreen .sidebtn { min-height: 42px; padding: 0 10px; font-size: 13.5px; }
+.phone #screen.detailscreen .sthero { grid-template-columns: 262px minmax(0, 1fr); gap: 4px; }
+.phone #screen.detailscreen .stshot { height: calc(var(--app-h, 100vh) - 66px); }
+/* 폰은 입상을 조금 줄인다 — 머리칼 · 무기가 갈피 쪽 가장자리에서 잘렸다 */
+.phone #screen.detailscreen .stshot .art { width: 220px !important; height: 76% !important; margin-left: 14px; }
+.phone #screen.detailscreen .stinfo { padding-top: 6px; gap: 9px; }
+.phone #screen.detailscreen .sttop h2 { font-size: 32px; }
+.phone #screen.detailscreen .star { font-size: 15px; }
+.phone #screen.detailscreen .mtag { font-size: 12px; padding: 2px 10px 2px 4px; }
+.phone #screen.detailscreen .stblurb { font-size: 13px; line-height: 1.65; }
+.phone #screen.detailscreen .statc { padding: 6px 10px; }
+.phone #screen.detailscreen .statc strong { font-size: 21px; }
+.phone #screen.detailscreen .ability { padding: 9px 12px; }
+.phone #screen.detailscreen .ability p { font-size: 13px; }
+.phone #screen.detailscreen .cardwrap { grid-template-columns: minmax(0, 1fr) 176px; gap: 10px; }
+.phone #screen.detailscreen .cardrow { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.phone #screen.detailscreen .gcard .gtitle b { font-size: 11px; }
+.phone #screen.detailscreen .gcard .gtext { font-size: 10.5px; line-height: 1.35; }
+.phone #screen.detailscreen .hex { width: 112px; height: 112px; }
+.phone #screen.detailscreen .egoside { padding: 12px 8px; }
+.phone #screen.detailscreen .egotext { font-size: 12px; }
+.phone #screen.detailscreen .ultbig .egotext { font-size: 14px; line-height: 1.7; }
+.phone #screen.detailscreen .flashgrid { gap: 6px; }
+/* 낱말 밑줄(.kw)도 단추라 폰의 「단추는 40px」 에 걸려 줄 사이가 벌어졌다 */
+.phone #screen.detailscreen .kw { min-height: 0; }
+.phone #screen.detailscreen .flash p { font-size: 11.5px; }
+.phone #screen.detailscreen .ultbig { padding: 16px 18px; gap: 18px; }
+.phone #screen.detailscreen .hex.big { width: 150px; height: 150px; }
+.phone body:has(#screen.detailscreen) .bottom, .phone body:has(#screen.dexscreen) .bottom { bottom: 56px; }
