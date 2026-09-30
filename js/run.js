@@ -199,7 +199,8 @@ export function campTrain(run, pick) {
   return null;
 }
 
-export function rollShop(run) {
+// 진열 — 중립 카드 셋(흔한 것이 자주) + 장비 셋. 고유 카드는 팔지 않는다(은총으로만)
+function shelf(run) {
   const has = new Set(run.deck);
   const pool = NEUTRAL_IDS.filter((id) => CARDS[id].playable && !(CARDS[id].oneOnly && has.has(id)));
   const neutral = [];
@@ -209,17 +210,32 @@ export function rollShop(run) {
     while (r >= w[i]) r -= w[i++];
     neutral.push(...pool.splice(i, 1));
   }
-  const upool = [];
-  for (const k of run.party) for (const id of uniquesLeft(run, k)) if (!has.has(id)) upool.push(id);
-  const unique = [];
-  while (unique.length < R.SHOP_UNIQUE && upool.length) unique.push(...upool.splice(Math.floor(run.rng() * upool.length), 1));
+  return [
+    ...neutral.map((id) => ({ id, kind: "neutral", price: CARDS[id].price, sold: false })),
+    ...offerEquip(run, R.SHOP_EQUIP, R.SHOP_EQUIP_N).map((id) => ({ id, kind: "equip", price: R.EQUIP_PRICE[EQUIP[id].grade], sold: false })),
+  ];
+}
+
+// 새로고침 값 — 이번 상점에서 몇 번 했나에 따라
+export const rerollPrice = (run) => R.SHOP_REROLL + R.SHOP_REROLL_STEP * ((run.shop && run.shop.rerolls) || 0);
+
+// 새로고침 — 진열을 통째로 다시 굴린다(팔린 칸도 새 물건으로). 택배 · 선물 · 카드 제거는 그대로
+export function rerollShop(run) {
+  if (!run.shop) return "상점이 열려 있지 않습니다";
+  const price = rerollPrice(run);
+  if (run.gold < price) return "골드가 모자랍니다";
+  run.gold -= price;
+  const keep = run.shop.items.filter((it) => it.delivery && !it.sold);
+  run.shop.items = [...shelf(run), ...keep];
+  run.shop.rerolls = (run.shop.rerolls || 0) + 1;
+  return null;
+}
+
+export function rollShop(run) {
   run.shop = {
     floor: run.floor,
-    items: [
-      ...neutral.map((id) => ({ id, kind: "neutral", price: CARDS[id].price, sold: false })),
-      ...unique.map((id) => ({ id, kind: "unique", price: R.PRICE_UNIQUE + (CARDS[id].signature ? 35 : 0), sold: false })),
-      ...offerEquip(run, R.SHOP_EQUIP, 1).map((id) => ({ id, kind: "equip", price: R.EQUIP_PRICE[EQUIP[id].grade], sold: false })),
-    ],
+    items: shelf(run),
+    rerolls: 0,
     removeUsed: false,
     gift: null,
   };
@@ -231,7 +247,8 @@ export function rollShop(run) {
   }
   // 수양딸에게는 선물 — 할인이 아니라 선물이다(인물 사전: 실비아는 수양딸 · 돈에 쩨쩨하지 않다). 한 판에 한 번.
   if (!run.goldyGift && run.party.some((k) => (HERO_DATA[k] || {}).ko === "실비아")) {
-    const gp = NEUTRAL_IDS.filter((id) => CARDS[id].playable && ["일반", "고급"].includes(CARDS[id].grade) && !neutral.includes(id));
+    const shown = new Set(run.shop.items.map((it) => it.id));
+    const gp = NEUTRAL_IDS.filter((id) => CARDS[id].playable && ["일반", "고급"].includes(CARDS[id].grade) && !shown.has(id));
     if (gp.length) {
       const id = gp[Math.floor(run.rng() * gp.length)];
       run.deck.push(id); run.goldyGift = id; run.shop.gift = id;

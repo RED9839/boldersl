@@ -32,7 +32,7 @@ SCREENS = [
     ("전투", ".battle"),
     ("이벤트", ".eventscreen"),
     ("캠프", ".campscreen"),
-    ("상점", ".shopscreen"),
+    ("상점", ".shopscreen2"),
     ("보상", ".rewardscreen"),
     ("교체", ".swapscreen"),
     ("끝", ".endscreen"),

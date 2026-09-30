@@ -63,6 +63,13 @@ for (const kind of ["ingame", "standing"]) {
     total += got.bytes;
   }
 }
+// 사도가 아닌 스탠딩 — 상점의 골디. 키는 영문 폴더 이름 그대로
+for (const [key, dir] of Object.entries({ goldy: "goldy" })) {
+  const got = copySet(path.join(AS, "standing", dir), path.join(OUT, "standing", key));
+  if (!got || got.error) { trouble.push(`standing/${key} — ${got ? got.error : "한 벌이 안 갖춰졌습니다"}`); continue; }
+  manifest.standing[key] = { atlas: got.atlas, skel: got.skel, pages: got.pages };
+  total += got.bytes;
+}
 
 // 적 — tools/extract-spine.py 가 assets/monsterspine 에 꺼내 둔다. key 가 곧 몬스터 폴더 이름이다.
 // 저주 인형 셋은 게임에 따로 된 스파인이 없고 curseddoll 한 벌을 성격 스킨으로 나눠 입는다.

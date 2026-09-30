@@ -50,8 +50,11 @@ export const ELITE_HP = 1.5;
 export const ELITE_GOLD = 1.5;
 export const ELITE_EQUIP = [{ 일반: 2, 고급: 3 }, { 고급: 3, 희귀: 2 }, { 희귀: 3, 전설: 1 }];   // 층마다 엘리트가 주는 등급
 export const SHOP_NEUTRAL = 3;           // 진열하는 중립 카드
-export const SHOP_UNIQUE = 2;            // 파티 사도의 고유 카드
-export const PRICE_UNIQUE = 75;          // 시그니처는 +35
+// 고유 카드는 팔지 않는다 — 은총(전투 중)으로만 얻는다. 진열은 중립 카드 셋 + 장비 셋
+export const SHOP_EQUIP_N = 3;           // 진열하는 장비
+// 새로고침 — 진열을 다시 굴린다. 한 번 들를 때마다 값이 오른다(25 → 50 → 75 …)
+export const SHOP_REROLL = 25;
+export const SHOP_REROLL_STEP = 25;
 export const PRICE_REMOVE = 75;          // 카드 제거 — 쓸 때마다 +25 (한 번 들를 때 한 번)
 export const PRICE_REMOVE_STEP = 25;
 // 진열 가중치 — 흔한 것이 자주 나온다

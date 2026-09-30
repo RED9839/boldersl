@@ -204,10 +204,13 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
 
   const api = {
     // 한 번만 하는 동작(공격·피격)은 끝나면 쉬는 동작으로 돌아온다. 없는 이름이면 아무 일도 없다.
-    play(name, loopIt = false) {
+    // then — 끝나면 이어서 할 동작 하나(골디의 Touch_Idle → Touch_End 처럼 짝을 이룬 것). 그것까지 하고 쉰다.
+    play(name, loopIt = false, then) {
       const a = findAnim(name);
       if (!a) return false;
       state.setAnimation(0, a.name, loopIt);
+      const b = !loopIt && findAnim(then);
+      if (b) state.addAnimation(0, b.name, false, 0);
       if (!loopIt && rest) state.addAnimation(0, rest.name, true, 0);
       return true;
     },
