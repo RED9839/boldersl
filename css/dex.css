@@ -239,6 +239,23 @@
 .gcard.k-heal  { background: linear-gradient(170deg, #1d3a33 0, #12241f 62%); border-color: #3c7a63; }
 .gcard.k-buff  { background: linear-gradient(170deg, #3c3320 0, #231d12 62%); border-color: #866b36; }
 
+/* 사도 카드는 성격 색 — 종류 색(위)을 덮는다. 종류는 이름 밑 아이콘(⚔·⛨·✚…)으로 읽힌다.
+   색은 성격 표시(.n순수 …)와 같은 계열: 순수 초록 · 광기 빨강 · 냉정 하늘 · 우울 보라 · 활발 노랑 */
+.gcard.p-순수 { --pc: #7fd3a8; background: linear-gradient(170deg, #1f4a3a 0, #11261f 62%); }
+.gcard.p-광기 { --pc: #e0707f; background: linear-gradient(170deg, #4d1f2a 0, #261116 62%); }
+.gcard.p-냉정 { --pc: #7fd6f5; background: linear-gradient(170deg, #1a4458 0, #0f222c 62%); }
+.gcard.p-우울 { --pc: #a592d6; background: linear-gradient(170deg, #332a52 0, #19152b 62%); }
+.gcard.p-활발 { --pc: #f5dc5a; background: linear-gradient(170deg, #4a4214 0, #25210c 62%); }
+.gcard[class*=" p-"] { border: 1.5px solid var(--pc); box-shadow: inset 0 0 0 1px #0006, inset 0 0 18px color-mix(in srgb, var(--pc) 22%, transparent), 0 6px 16px #1a17301f; }
+.gcard[class*=" p-"] .gcost { border-left-color: var(--pc); }
+/* 그림이 꽉 찬 카드 — 위아래 어둠을 성격 색으로 물들인다. 테두리만으로는 그림에 묻혀 안 보였다 */
+.gcard.full[class*=" p-"] { border-width: 2px; }
+.gcard.full[class*=" p-"] .gart:after {
+  background:
+    linear-gradient(to bottom, color-mix(in srgb, var(--pc) 30%, #0b0916e8) 0, color-mix(in srgb, var(--pc) 20%, #0b0916b0) 13%, #0b091645 26%, transparent 42%),
+    linear-gradient(to top, color-mix(in srgb, var(--pc) 34%, #0b0916f7) 0, color-mix(in srgb, var(--pc) 22%, #0b0916c4) 20%, transparent 46%);
+}
+
 .ghead { display: flex; gap: 7px; align-items: flex-start; z-index: 2; }
 .gcost {
   flex: none; min-width: 19px; text-align: center; font-size: 14px; font-weight: 900; color: #fff;

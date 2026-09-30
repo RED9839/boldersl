@@ -42,7 +42,7 @@ function screen() {
 const NATURES = ["순수", "광기", "냉정", "우울", "활발", "공명"];
 const ROWS_KO = { front: "전열", mid: "중열", back: "후열" };
 const ROLES = ["탱커", "딜러", "서포터"];
-const NTINT = { 순수: "#7fd3a8", 광기: "#d9737f", 냉정: "#6fb6d9", 우울: "#9a8cc0", 활발: "#e8b26a", 공명: "#c9c9d6" };
+const NTINT = { 순수: "#7fd3a8", 광기: "#d9737f", 냉정: "#7fd6f5", 우울: "#9a8cc0", 활발: "#f5dc5a", 공명: "#c9c9d6" };
 // 카드 타입 — 원작 도감처럼 한 글자 표시와 빛깔을 준다
 const TMARK = { 공격: "✕", 스킬: "◈", 쉴드: "⬢", 방어: "⬢", 회복: "✚", 강화: "▲", 기술: "◆" };
 const TKIND = { 공격: "atk", 스킬: "skill", 쉴드: "def", 방어: "def", 회복: "heal", 강화: "buff", 기술: "skill" };
@@ -204,12 +204,19 @@ function showPiles(piles, pick, cardFor) {
   kwNote = back;
 }
 
+// 사도 카드는 그 사도의 성격(순수·광기·냉정·우울·활발) 색을 입는다 — 속성이 카드 색으로 읽힌다.
+// 주인 없는 카드(중립·교주·골칫거리)는 종류(공격·방어…) 색 그대로.
+function natureClass(c) {
+  const nat = c && c.hero ? C.natureOf(c.hero) : null;
+  return nat ? " p-" + nat : "";
+}
+
 // 한 장의 카드. 도감 상세에서도 쓰고, 나중에 다른 곳에서도 쓸 수 있게 여기 한 번만 쓴다.
 function bigCard(c, pic) {
   // 우리가 그린 일러스트는 카드를 꽉 채우고, 글자가 그 위에 얹힌다.
   // 원작에서 꺼낸 스킬 아이콘은 128px 라 늘리면 뭉개진다 — 가운데에 작게 둔다.
   const full = !!pic && pic.includes("/cardart/");
-  const n = el("article", "gcard k-" + (TKIND[c.type] || "skill") + (full ? " full" : ""));
+  const n = el("article", "gcard k-" + (TKIND[c.type] || "skill") + natureClass(c) + (full ? " full" : ""));
   const head = el("div", "ghead");
   head.appendChild(el("span", "gcost", c.xcost ? "X" : String(c.cost)));
   const t = el("div", "gtitle");
@@ -903,6 +910,11 @@ export function fightScreen(run, onDone) {
   s.classList.add("battle");
   const enemyIds = R.currentEnemies(run);
   const floor = R.currentFloor(run);
+  // 싸움터 배경 — 층마다 한 장, 보스·이벤트 전투는 따로. 그림이 없으면(assets 는 저장소에 없다) 어두운 바탕이 남는다.
+  const bg = BATTLE_BG[floor.n] || BATTLE_BG[1];
+  // 변수에 담긴 url() 은 그 변수를 쓰는 css 파일 기준으로 풀린다 — 그래서 문서 기준 절대 주소로 넘긴다
+  const bgFile = `assets/bg/${run.eventFight ? bg.event : R.isBoss(run) ? bg.boss : bg.fight}.jpg`;
+  s.style.setProperty("--stagebg", `url("${typeof location === "object" ? new URL(bgFile, location.href).href : bgFile}")`);
   const st = C.newCombat({
     partyKeys: run.party, rows: run.rows, deck: run.deck.slice(),
     enemyIds, hp: run.hp, maxHp: run.maxHp, traits: run.traits, gear: R.gearStats(run), flash: run.flash,
@@ -943,6 +955,7 @@ export function fightScreen(run, onDone) {
   for (const cost of RULES.ULT_COSTS) {
     const tick = el("i", "tick");
     tick.style.left = (cost / 300) * 100 + "%";
+    tick.style.setProperty("--at", (cost / 300) * 100 + "%");   // 세로 게이지에서는 아래에서부터
     tick.dataset.cost = String(cost);
     gaugeBar.appendChild(tick);
   }
@@ -1052,6 +1065,8 @@ export function fightScreen(run, onDone) {
     tag.appendChild(el("span", null, u.ko));
     n.appendChild(tag);
     n.appendChild(hpBar(u));
+    n.appendChild(chips(u));
+    if (st.bubble && st.bubble.hero === u.key) n.appendChild(el("div", "bubble", st.bubble.text));
     if (clickable && !u.dead) n.onclick = () => onPick(u);
     return n;
   }
@@ -1088,7 +1103,6 @@ export function fightScreen(run, onDone) {
       box.appendChild(b);
     }
 
-    if (st.bubble && st.bubble.hero === u.key) box.appendChild(el("div", "bubble", st.bubble.text));
     n.appendChild(box);
     if (clickable && !u.dead) n.onclick = () => onPick(u);
     return n;
@@ -1246,6 +1260,7 @@ export function fightScreen(run, onDone) {
     piles.textContent = `덱 ${st.draw.length + st.discard.length}장`;
 
     gaugeFill.style.width = (st.gauge / 300) * 100 + "%";
+    gaugeBox.style.setProperty("--g", (st.gauge / 300) * 100 + "%");
     gaugeNum.textContent = `${st.gauge}%`;
     gaugeBox.classList.toggle("ready", st.party.some((u) => !u.dead && C.canUlt(st, u.key) === null));
 
@@ -1262,7 +1277,7 @@ export function fightScreen(run, onDone) {
       // 도감 카드와 같은 꼴로 세운다 — 그림이 카드를 채우고 글자가 그 위에 얹힌다.
       const pic = CARDART.pic[id] || null;
       const full = !!pic && pic.includes("/cardart/");
-      const b = el("button", "card gcard k-" + (TKIND[c.type] || "skill")
+      const b = el("button", "card gcard k-" + (TKIND[c.type] || "skill") + natureClass(c)
         + (full ? " full" : "") + (why ? " no" : "") + (selCard === i ? " sel" : "") + (c.ego ? " ego" : ""));
 
       const chead = el("div", "ghead");
@@ -1366,6 +1381,14 @@ export function fightScreen(run, onDone) {
   draw();
   return s;
 }
+
+// 싸움터 배경 — assets/bg (tools/extract-bg.py 가 게임에서 뽑은 16:9 그림)
+// 에르피엔은 숲속 버섯 마을, 모나티엄은 엘프 도시, 벨리티엔은 마녀 왕국의 보랏빛 숲
+const BATTLE_BG = {
+  1: { fight: "stage3_2", boss: "stage3_3", event: "stage2_1" },
+  2: { fight: "stage8_1", boss: "stage9_1", event: "stage4_1" },
+  3: { fight: "stage23_1", boss: "stage25_1", event: "stage16_1" },
+};
 
 // 적의 수 — 마름모에 마우스를 올리면 뜨는 설명
 const INTENT_HELP = {

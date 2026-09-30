@@ -1,0 +1,247 @@
+/* ══ 전투 — 카제나 배치 ═══════════════════════════════════════════════════
+   싸움터가 화면 전체다. 판(패널)을 걷어 내고 배경 그림 위에 사도와 적이 선다.
+   나머지는 가장자리에 붙는다:
+
+     층 이름 · 번뜩임                  턴                    기록 · 전체화면
+     뽑을 더미
+                   사도 셋                      적
+     게이지 | 사도 초상                                            버린 더미
+       ·궁극기                 [   손패 부채꼴   ]                 (턴 넘기기)
+                                     AP
+
+   다른 css 뒤에 읽혀서 덧씌운다. 크기는 논리 픽셀(js/stage.js 의 배율 안) —
+   PC 는 높이 900, 휴대폰은 540 을 기준으로 적었다(.phone 아래). */
+
+/* 머리띠·바닥글은 전투에서 치운다 — 전체화면 단추와 안내 한 줄만 싸움터 위에 띄운다 */
+body:has(#screen.battle) .top {
+  position: fixed; top: 10px; right: 12px; z-index: 40; padding: 0; border: 0; background: none;
+}
+body:has(#screen.battle) .top > :not(.fsbtn) { display: none; }
+body:has(#screen.battle) .fsbtn { background: #0c0a16b0; backdrop-filter: blur(4px); }
+body:has(#screen.battle) .bottom {
+  position: fixed; left: 50%; bottom: 300px; transform: translateX(-50%); z-index: 40;
+  min-height: 0; padding: 0; border: 0; background: none; pointer-events: none;
+}
+body:has(#screen.battle) #hint:not(:empty) {
+  display: inline-block; padding: 6px 18px; border-radius: 99px; font-size: 14px; font-weight: 700;
+  background: #0c0a16d9; border: 1px solid #ffcf6b88; color: #ffe7ad; box-shadow: 0 6px 18px #0008;
+}
+
+#screen.battle,
+.phone #screen.battle {
+  position: fixed; inset: 0; z-index: 1; display: block; max-width: none; margin: 0;
+  width: auto; height: var(--app-h, 100vh); padding: 0; border-radius: 0; overflow: hidden;
+  background:
+    linear-gradient(180deg, #0a081466 0, transparent 22%, transparent 58%, #0a0814cc 86%, #0a0814 100%),
+    var(--stagebg, none) center 30% / cover no-repeat,
+    radial-gradient(ellipse at 50% 20%, #2a2340, #0e0c17 80%);
+}
+
+/* ── 싸움터 — 화면 전체. 발밑이 화면 높이의 2/3 쯤 ───────────────────── */
+.battle .field,
+.phone .battle .field {
+  position: absolute; inset: 0; z-index: 1; min-height: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px;
+  padding: 70px 200px 318px 250px;
+  background: none; border: 0; border-radius: 0; overflow: visible;
+}
+.battle .field:after { display: none; }
+.battle .afield { padding-left: 0; gap: 10px; }
+.battle .foes { padding-right: 0; gap: 18px; }
+.stand .sname, .foe .fname { text-shadow: 0 1px 2px #000, 0 0 8px #000c; }
+.stand .hpwrap .nums, .foe .hpwrap .nums { color: #fff; text-shadow: 0 1px 2px #000; justify-content: center; }
+.stand .hpwrap .bar, .foe .hpwrap .bar { height: 8px; border: 1px solid #0008; box-shadow: 0 1px 3px #0009; }
+.foe .hpwrap .bar i { background: linear-gradient(90deg, #e0607a, #ff8f8f); }
+.stand .chips, .foe .chips { justify-content: center; max-width: 180px; }
+.battle .chip, .battle .chips span { background: #120f1ed9; }
+/* 사도의 말 — 머리 위 말풍선 */
+.stand .bubble {
+  position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%); z-index: 7;
+  width: max-content; max-width: 220px; margin: 0 0 4px; font-size: 12px;
+  background: #fffdf6; color: #2a2238; border: 0; border-radius: 10px; padding: 6px 10px;
+  box-shadow: 0 6px 16px #0009;
+}
+.stand .bubble:after {
+  content: ""; position: absolute; left: 50%; top: 100%; margin-left: -6px;
+  border: 6px solid transparent; border-top-color: #fffdf6;
+}
+
+.turntag { top: 14px; background: #0c0a16b0; backdrop-filter: blur(4px); }
+.turnban { top: 38%; }
+
+/* ── 머리 — 왼쪽 위 ───────────────────────────────────────────────────── */
+.battle .bhead,
+.phone .battle .bhead {
+  position: absolute; left: 20px; top: 14px; z-index: 5; max-width: 40%;
+  display: flex; align-items: baseline; gap: 4px 10px; flex-wrap: wrap; padding: 0;
+}
+.bwhere { font-size: 18px; text-shadow: 0 2px 6px #000c; }
+.bsub { color: #d9d2f2; text-shadow: 0 1px 4px #000; }
+.bflash { display: flex; gap: 4px; flex-wrap: wrap; width: 100%; }
+
+/* ── 더미 — 뽑을 것은 왼쪽, 버린 것은 오른쪽 ───────────────────────────── */
+.battle .pile2,
+.phone .battle .pile2 {
+  position: absolute; z-index: 6; width: 62px; padding: 8px 4px 7px;
+  background: #0c0a16c4; backdrop-filter: blur(4px); border-radius: 10px;
+}
+.battle .pile2.draw { left: 20px; bottom: 312px; }
+.battle .pile2.disc { right: 34px; bottom: 196px; }
+.pile2:before {                                  /* 카드 뭉치 모양 */
+  content: ""; position: absolute; inset: -4px 4px auto; height: 6px; border-radius: 6px 6px 0 0;
+  background: #3a3352; border: 1px solid #ffffff1f; border-bottom: 0;
+}
+
+/* ── 궁극기 게이지 — 왼쪽 가장자리에 세로로. 아래에서 차오른다 ───────────── */
+.battle .gauge,
+.phone .battle .gauge {
+  position: absolute; left: 20px; bottom: 22px; z-index: 6; height: 272px; width: 40px; padding: 0;
+  display: flex; flex-direction: column-reverse; align-items: center; gap: 6px;
+}
+.gauge .glabel { writing-mode: vertical-rl; font-size: 10px; letter-spacing: .3em; color: #d9d2f2; }
+.gauge .gbar {
+  flex: 1; width: 14px; height: auto; border-radius: 99px;
+  background: #0a0812cc; border: 1px solid #ffffff2e; box-shadow: 0 0 0 1px #0008;
+}
+.gauge .gbar i:not(.tick) {
+  position: absolute; left: 0; right: 0; bottom: 0; width: auto !important; height: var(--g, 0%);
+  background: linear-gradient(0deg, #6fb6d9, #b79bff 55%, var(--hot2));
+  transition: height .3s;
+}
+.gauge .gbar .tick {
+  left: -4px !important; right: -4px; top: auto; bottom: var(--at); width: auto; height: 1px;
+  transform: none; background: #ffffffa0;
+}
+.gauge .gbar .tick:after { left: auto; right: calc(100% + 4px); top: -6px; transform: none; font-size: 8.5px; color: #d9d2f2; }
+.gauge .gnum { min-width: 0; font-size: 12px; color: #fff; text-shadow: 0 1px 3px #000; text-align: center; }
+.gauge.ready .gnum { color: var(--hot2); }
+
+/* ── 사도 초상 — 게이지 옆에 세로로. 누르면 궁극기 ─────────────────────── */
+.battle .allies,
+.phone .battle .allies {
+  position: absolute; left: 70px; bottom: 22px; z-index: 6; width: 176px;
+  display: flex; flex-direction: column-reverse; gap: 6px;
+}
+.battle .ally,
+.phone .battle .ally {
+  display: flex; align-items: center; gap: 8px; padding: 5px 8px 5px 5px; border-radius: 12px;
+  background: linear-gradient(90deg, #120f1ee6, #120f1e99); border: 1px solid #ffffff1f;
+}
+.battle .ally .art { width: 48px !important; height: 48px !important; border-radius: 9px; background: #0f0d18; flex: none; }
+.battle .ally .atop { display: flex; align-items: center; gap: 5px; }
+.battle .ally .nm { font-size: 13px; }
+.battle .ally .row, .battle .ally .nature, .battle .ally .chips { display: none; }
+.battle .ally .ultbtn { margin-top: 3px; padding: 3px 8px; gap: 6px; font-size: 10.5px; }
+.battle .ally .ultbtn .uname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.battle .ally .ultbtn:not(.no) { animation: ultglow 1.1s ease-in-out infinite alternate; }
+@keyframes ultglow { from { box-shadow: 0 0 0 2px #ffcf6b33; } to { box-shadow: 0 0 0 3px #ffcf6b88, 0 0 14px #ffcf6b66; } }
+.battle .ally.dead { opacity: .4; filter: grayscale(1); }
+
+/* ── 손패 — 가운데 아래 부채꼴 ──────────────────────────────────────────── */
+.battle .hand,
+.phone .battle .hand {
+  position: absolute; left: 260px; right: 190px; bottom: 58px; z-index: 10;
+  display: flex; flex-wrap: nowrap; justify-content: center; align-items: flex-end; gap: 0; padding: 0;
+}
+.battle .hand .card { flex: 0 1 150px; width: 150px; min-width: 0; margin: 0 -6px; box-shadow: 0 10px 22px #0009; }
+
+/* ── AP — 손패 밑 가운데, 숫자를 크게 ───────────────────────────────────── */
+.battle .deckrow { position: static; display: block; }
+.battle .apbox,
+.phone .battle .apbox {
+  position: absolute; left: 50%; bottom: 8px; z-index: 11; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; padding: 4px 16px 4px 8px; border-radius: 99px;
+  background: #0c0a16d9; border: 1px solid #ffcf6b99; box-shadow: 0 4px 14px #0009;
+}
+.battle .apbox .apnum {
+  display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%;
+  font-size: 24px; color: #221a08; background: radial-gradient(circle at 40% 35%, #ffe7a8, #ffb83c);
+  box-shadow: 0 0 12px #ffcf6b88;
+}
+.battle .deckrow .pile { position: absolute; left: calc(50% + 120px); bottom: 20px; z-index: 11; color: #d9d2f2; text-shadow: 0 1px 3px #000; }
+
+/* ── 턴 넘기기 — 오른쪽 아래 동그란 단추 ────────────────────────────────── */
+.battle .endturn,
+.phone .battle .endturn {
+  position: absolute; right: 28px; bottom: 34px; z-index: 11; margin: 0;
+  width: 128px; height: 128px; min-height: 0; padding: 0; border-radius: 50%;
+  font-size: 16px; line-height: 1.25; white-space: normal;
+  background: radial-gradient(circle at 40% 30%, #ffe9b0, #ffc24a 60%, #d8962a);
+  border: 3px solid #fff3cf; box-shadow: 0 0 0 4px #0c0a1699, 0 10px 24px #000a;
+}
+.battle .endturn:hover:not(:disabled) { filter: brightness(1.08); background: radial-gradient(circle at 40% 30%, #fff0c4, #ffcb5c 60%, #e0a034); }
+
+/* ── 기록 — 오른쪽 위, 접어 둔다 ────────────────────────────────────────── */
+.battle .logwrap,
+.phone .battle .logwrap {
+  display: flex; position: absolute; right: 132px; top: 10px; z-index: 30; width: 380px; align-items: flex-end;
+}
+.battle .loglast { width: auto; max-width: 100%; padding: 6px 12px; background: #0c0a16b0; backdrop-filter: blur(4px); }
+.battle .logwrap.open .log { width: 100%; background: #0c0a16eb; }
+
+/* ══ 휴대폰 가로 — 높이 540 ══════════════════════════════════════════════ */
+.phone body:has(#screen.battle) .top { top: 6px; right: 8px; }
+.phone body:has(#screen.battle) .bottom { top: auto; bottom: 196px; }
+.phone .battle .field { padding: 46px 150px 212px 196px; gap: 20px; }
+.phone .battle .bhead { left: 12px; top: 8px; max-width: 34%; }
+.phone .bwhere { font-size: 15px; }
+.phone .bsub, .phone .bflash { display: none; }
+.phone .turntag { top: 8px; }
+
+.phone .battle .pile2 { width: 52px; padding: 5px 2px; }
+.phone .battle .pile2.draw { left: 12px; bottom: 198px; }
+.phone .battle .pile2.disc { right: 22px; bottom: 128px; }
+
+.phone .battle .gauge { left: 10px; bottom: 10px; height: 178px; width: 34px; }
+.phone .gauge .glabel { display: none; }
+.phone .battle .allies { left: 52px; bottom: 10px; width: 150px; gap: 4px; }
+.phone .battle .ally { padding: 3px 6px 3px 3px; gap: 6px; }
+.phone .battle .ally .art { width: 40px !important; height: 40px !important; }
+.phone .battle .ally .nm { font-size: 13px; }
+.phone .battle .ally .ultbtn { min-height: 26px; font-size: 11px; padding: 2px 6px; margin-top: 2px; }
+
+.phone .battle .hand { left: 206px; right: 120px; bottom: 44px; }
+.phone .battle .hand .card { flex: 0 1 106px; width: 106px; margin: 0 -4px; }
+.phone .battle .apbox { bottom: 4px; padding: 2px 12px 2px 4px; gap: 7px; }
+.phone .battle .apbox .apnum { width: 34px; height: 34px; font-size: 20px; }
+.phone .battle .deckrow .pile { display: none; }
+.phone .battle .endturn { right: 14px; bottom: 16px; width: 92px; height: 92px; font-size: 15px; }
+.phone .battle .logwrap { display: none; }
+
+/* ── 서 있는 모습 — 크게, 모두 같은 배율로 ─────────────────────────────────
+   스파인은 js/art.js 의 SPINE_UNIT(칸 높이 = 게임 세계 몇 단위)로 모두 같은 배율로 그린다 — 원작 전투처럼.
+   칸은 자리만 잡는다: 발은 칸 바닥 가운데, 보통 사도의 머리는 칸 위끝 가까이. 날개·무기·큰 보스는 칸 밖으로 넘친다.
+   보스는 칸 위로 크게 넘치니 의도를 그만큼 띄운다. */
+.battle .field { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 90px; padding-left: 100px; padding-right: 110px; }
+.battle .afield { gap: 0; }
+.battle .foes { gap: 6px; }
+.battle .stand, .battle .foe:not(.boss) { width: clamp(96px, 40cqh, 230px); }
+.battle .stand .art, .battle .foe:not(.boss) .art {
+  width: clamp(90px, 40cqh, 230px) !important; height: clamp(100px, 50cqh, 290px) !important;
+}
+.battle .foe.boss { width: clamp(150px, 56cqh, 360px); }
+.battle .foe.boss .art { width: clamp(140px, 56cqh, 360px) !important; height: clamp(100px, 50cqh, 290px) !important; }
+.battle .foe .intent { margin-bottom: 2cqh; }
+.battle .foe.boss .intent { margin-bottom: 20cqh; }
+.battle .stand .bubble { margin-bottom: 2cqh; }
+.art.art-over { overflow: visible; position: relative; }
+.art.art-over canvas { z-index: 0; }
+/* 발밑 그림자 — 배경 위에 떠 보이지 않게 */
+.battle .stand .art, .battle .foe .art { position: relative; }
+.battle .stand .art:after, .battle .foe .art:after {
+  content: ""; position: absolute; left: 14%; right: 14%; bottom: 0; height: 9%; z-index: -1;
+  border-radius: 50%; background: radial-gradient(closest-side, #000b, transparent);
+}
+
+/* 안내 한 줄은 턴 표시 밑 — 손패 위에 두면 사도 체력 숫자를 가렸다 */
+body:has(#screen.battle) .bottom,
+.phone body:has(#screen.battle) .bottom { top: 52px; bottom: auto; }
+.phone body:has(#screen.battle) .bottom { top: 40px; }
+
+/* 휴대폰 — 싸움터 높이가 약 280 이라 cqh 값이 그대로 줄어든다. 가장자리만 좁힌다 */
+.phone .battle .field { gap: 40px; padding-left: 70px; padding-right: 80px; }
+/* 휴대폰은 게이지 옆에 눈금 글자를 둘 자리가 없다 — 눈금 선만 */
+.phone .gauge .gbar .tick:after { display: none; }
+
+/* 성격 표시는 배경 그림 위에 뜬다 — 어두운 바탕을 깔아 색이 읽히게 */
+.battle .nature { background: #0c0a16b8; }

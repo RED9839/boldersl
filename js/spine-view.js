@@ -68,14 +68,21 @@ function evict() {
 // el 안에 캔버스를 만들고 그 사도를 그린다. 런타임이나 자료가 없으면 null.
 // flip — 좌우를 뒤집는다. 게임 SD 는 왼쪽을 보고 서 있어서, 왼편에 선 아군은 뒤집어야 적을 본다.
 // skin — 입힐 스킨. 적은 성격마다 한 벌씩(Skin_Naive·Skin_Mad…) 들고 있고 기본 스킨이 비어 있기도 하다.
-export async function spineView(el, kind, key, { scale = 1, anim, flip = false, skin } = {}) {
+// unit — 칸 높이가 게임 세계로 몇 단위인가. 주면 **모두 같은 배율**로 그린다(원작 전투처럼).
+//   안 주면 그림 전체(날개·무기·이펙트까지)를 칸에 꽉 맞추는데, 그러면 장식이 큰 사도일수록 몸이 작아졌다.
+//   같은 배율로 그리면 날개·지팡이는 칸 밖으로 나간다 — 그래서 캔버스를 칸보다 크게(가로 2배·세로 2배) 잡고
+//   발(뼈대 원점)을 칸 바닥 가운데에 세운다. 칸 크기와 자리 잡기는 그대로라 배치가 흔들리지 않는다.
+export const OVER_W = 2, OVER_H = 2;
+export async function spineView(el, kind, key, { scale = 1, anim, flip = false, skin, unit = 0 } = {}) {
   const sp = spine();
   if (!sp) return null;
   await loadSpineManifest();
   if (!hasSpine(kind, key)) return null;
 
   const w = el.clientWidth || 200, h = el.clientHeight || 200;
-  const id = `${kind}|${key}|${w}x${h}|${scale}|${anim || ""}|${flip ? "f" : ""}|${skin || ""}`;
+  // 크기는 열쇠에 넣지 않는다 — 캔버스 크기는 그리는 고리가 매 프레임 화면에 맞춰 다시 잡는다.
+  // 넣어 두었더니 싸움터 높이에 따라 크기가 바뀌는 전투 화면에서 다시 쓰질 못하고 카드 한 장마다 컨텍스트가 늘어 하얗게 버려졌다.
+  const id = `${kind}|${key}|${scale}|${anim || ""}|${flip ? "f" : ""}|${skin || ""}|${unit}`;
   const spare = pool.find((v) => v.id === id && !v.canvas.isConnected);
   if (spare) { el.appendChild(spare.canvas); spare.wake(); return spare.api; }
 
@@ -86,6 +93,12 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
   canvas.width = w;
   canvas.height = h;
   canvas.style.width = canvas.style.height = "100%";
+  if (unit) {
+    // 칸보다 크게, 바닥 가운데에 맞춰 — 넘친 부분이 옆 사도의 클릭을 가로채지 않게 한다
+    Object.assign(canvas.style, { position: "absolute", left: `${-(OVER_W - 1) * 50}%`, bottom: "0",
+      width: `${OVER_W * 100}%`, height: `${OVER_H * 100}%`, pointerEvents: "none" });
+    el.classList.add("art-over");
+  }
   el.appendChild(canvas);
 
   let ctx, renderer;
@@ -143,11 +156,21 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
     ctx.gl.clearColor(0, 0, 0, 0); ctx.gl.clear(ctx.gl.COLOR_BUFFER_BIT);
     renderer.begin();
     // 캔버스 가운데 아래에 세운다 — 미니미도 스탠딩도 발이 바닥에 닿아야 자연스럽다
-    const fit = Math.min(canvas.width / (size.x || 1), canvas.height / (size.y || 1)) * 0.9 * scale;
-    skeleton.scaleY = fit;
-    skeleton.scaleX = flip ? -fit : fit;
-    skeleton.x = (flip ? 1 : -1) * (off.x + size.x / 2) * fit;
-    skeleton.y = -(off.y) * fit - canvas.height / 2;
+    if (unit) {
+      // 모두 같은 배율 — 칸 높이 = unit 단위. 발(원점)은 칸 바닥 가운데, 발밑 그림자 몫만 조금 띄운다
+      const boxH = canvas.height / OVER_H;
+      const fit = (boxH / unit) * scale;
+      skeleton.scaleY = fit;
+      skeleton.scaleX = flip ? -fit : fit;
+      skeleton.x = 0;
+      skeleton.y = -canvas.height / 2 + boxH * 0.05;
+    } else {
+      const fit = Math.min(canvas.width / (size.x || 1), canvas.height / (size.y || 1)) * 0.9 * scale;
+      skeleton.scaleY = fit;
+      skeleton.scaleX = flip ? -fit : fit;
+      skeleton.x = (flip ? 1 : -1) * (off.x + size.x / 2) * fit;
+      skeleton.y = -(off.y) * fit - canvas.height / 2;
+    }
     skeleton.updateWorldTransform();
     renderer.drawSkeleton(skeleton, true);
     renderer.end();

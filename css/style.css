@@ -145,13 +145,17 @@ button.go { background: var(--gold); color: #26200f; border-color: var(--gold); 
   border: 1px solid color-mix(in srgb, var(--blk) 45%, transparent); color: var(--blk);
 }
 
-/* ── 성격 (원작의 속성) ───────────────────────────────── */
+/* ── 성격 (원작의 속성) ───────────────────────────────── 
+   카드 색(css/dex.css 의 .gcard.p-*)과 같은 색: 순수 초록 · 광기 빨강 · 냉정 하늘 · 우울 보라 · 활발 노랑 */
 .nature { font-size: 10px; padding: 1px 7px; border-radius: 99px; margin-left: 6px; border: 1px solid currentColor; }
 .n순수 { color: #7fd3a8; }
 .n광기 { color: #d9737f; }
-.n냉정 { color: #6fb6d9; }
+.n냉정 { color: #7fd6f5; }
 .n우울 { color: #9a8cc0; }
-.n활발 { color: #e8b26a; }
+.n활발 { color: #f5dc5a; }
+/* 밝은 화면(도감·편성)에서는 노랑·하늘이 흰 바탕에 묻힌다 — 같은 색을 진하게 */
+.dexscreen .n활발 { color: #a88a00; }
+.dexscreen .n냉정 { color: #1f8fbf; }
 .flash.n순수, .flash.n광기, .flash.n냉정, .flash.n우울, .flash.n활발 {
   background: color-mix(in srgb, currentColor 16%, transparent);
   border-color: color-mix(in srgb, currentColor 50%, transparent);

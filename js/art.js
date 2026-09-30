@@ -16,6 +16,9 @@ const MODES = ["placeholder", "sd", "custom"];
 
 // 자리 → 어느 스파인을 쓰는가. 런타임과 자료가 둘 다 있을 때만 움직이는 그림이 된다.
 const SPINE_KIND = { battle: "ingame", foe: "enemy", event: "standing", map: "minimi" };
+// 칸 높이 = 게임 세계 몇 단위. 전투 SD 135명의 머리 꼭대기가 가운데값 707 · 상위 10% 917 이다
+// (tools 로 잰 값 — 뼈대 원점이 발). 780 이면 보통 사도의 머리가 칸 위끝 가까이(약 90%) 오고, 큰 사도·날개·무기는 칸 밖으로 넘친다.
+const SPINE_UNIT = 780;
 let useSpine = true;
 export function setSpine(on) { useSpine = !!on; }
 let mode = "placeholder";
@@ -78,7 +81,10 @@ export function portrait(key, { ko, tint, size = 72, slot = "battle", still = fa
   const kind = SPINE_KIND[slot];
   if (useSpine && !still && kind && hasSpine(kind, key)) {
     el.classList.add("art-spine");
-    spineView(el, kind, key, { flip, skin }).then((v) => { if (!v) { el.classList.remove("art-spine"); drawStill(el, key, slot, ko, tint); } });
+    // 싸움터에 서는 큰 칸(전투 SD·적)은 모두 같은 배율로 — 사도 키가 날개·무기 장식에 따라 들쭉날쭉하지 않게.
+    // 초상처럼 작은 칸은 얼굴이 보이게 그대로 꽉 맞춘다
+    const unit = (kind === "ingame" || kind === "enemy") && size >= 80 ? SPINE_UNIT : 0;
+    spineView(el, kind, key, { flip, skin, unit }).then((v) => { if (!v) { el.classList.remove("art-spine"); drawStill(el, key, slot, ko, tint); } });
     return el;
   }
   drawStill(el, key, slot, ko, tint);
