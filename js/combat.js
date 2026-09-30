@@ -588,7 +588,7 @@ export function playCard(s, handIdx, targetIdx) {
     const coffer = tr(s, "snacksp");          // 번뜩임 '곳간'
     if (coffer) { s.ap += coffer; say(s, `곳간 — AP +${coffer}`); }
   }
-  // 연계는 스트레스를 덜어 준다 — 가까운 사이일수록 덜 흔들린다
+  // 연계가 터지면 — 옛 번뜩임 '말이 통한다'(sim.js 전용)
   if (combo) {
     const talk = tr(s, "combo");              // 번뜩임 '말이 통한다'
     if (talk) draw(s, talk);
@@ -667,7 +667,7 @@ const boost = (v, combo, owner, s) => {
   let out = v;
   if (combo) out = out * combo.tier.mult + combo.tier.flat;
   if (owner) out = dealt(owner, out);
-  // 성격 시너지 — 그 사도가 시너지를 이루는 성격일 때만
+  // 사도별 보정 (강화 평타 · 옛 유물)
   if (owner) {
     if (owner.key === "erpin" && s.erpinChain > 0) out += 4;     // 강화 평타
     out += rel(s, "heroDmg", owner.key);                         // 유물 '숫돌'

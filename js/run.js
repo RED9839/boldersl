@@ -39,7 +39,7 @@ export function currentEnemies(run) {
 
 export function bonds(run) { return partyBonds(run.party); }
 
-// 전투가 끝난 뒤 — 체력과 스트레스를 남기고, 만난 짝을 적어 둔다
+// 전투가 끝난 뒤 — 체력을 남기고, 만난 짝을 적어 둔다
 export function afterFight(run, combat) {
   for (const u of combat.party) {
     run.hp[u.key] = u.dead ? 0 : u.hp;

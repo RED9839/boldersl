@@ -8,7 +8,7 @@ import { FLOORS } from "../js/data/enemies.js";
 
 const N = +(process.argv[2] || 0);
 const NOBOND = process.argv.includes("--no-bond");   // 관계를 끄고 재기
-const NONAT = process.argv.includes("--no-nature"); // 성격 시너지를 끄고 재기
+const NONAT = process.argv.includes("--no-nature"); // 성격 상성을 끄고 재기
 const SAVE  = process.argv.includes("--save");      // 본색을 쓰려고 SP 를 아끼는 손
 // --hp 1.4 — 적 체력 배율을 바꿔 잰다(기본은 rules.js ENEMY_HP)
 const HPX = process.argv.includes("--hp") ? +process.argv[process.argv.indexOf("--hp") + 1] : undefined;
