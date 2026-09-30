@@ -127,7 +127,25 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
     skeleton = new sp.Skeleton(data);
     const byName = (n) => n && (data.findSkin(n) || data.skins.find((s) => s.name.toLowerCase() === n.toLowerCase()));
     // 먹보곰처럼 기본 스킨이 아예 없는 것도 있다 — 그때는 첫 스킨이라도 입혀야 보인다
-    const wear = byName(skin || (kind === "minimi" ? key : null)) || (data.defaultSkin ? null : data.skins[0]);
+    let wear = byName(skin || (kind === "minimi" ? key : null));
+    // 스킨을 정하지 않았으면 원작처럼 「Normal」 을 입힌다(기본 스킨은 뒤에 깔린다).
+    // 부품이 Normal 에만 든 사도가 16명이다 — 기본 스킨만 입히면 다야는 왼쪽 뿔이, 타이다 · 알레트는 몸이 통째로 빠졌다.
+    // Normal 과 자리가 겹치지 않는 부품 스킨(코미의 Weapon)은 같이 입히고, 같은 자리를 바꾸는 변형(다야의 Horn_Cut)은 뺀다
+    if (!wear) {
+      const extras = data.skins.filter((s) => s !== data.defaultSkin);
+      const normal = extras.find((s) => s.name.toLowerCase() === "normal");
+      const base = normal || (data.defaultSkin ? null : extras[0]);
+      if (base) {
+        wear = new sp.Skin("wear");
+        wear.addSkin(base);
+        const used = new Set(base.getAttachments().map((e) => e.slotIndex));
+        for (const x of extras) {
+          if (x === base || x.getAttachments().some((e) => used.has(e.slotIndex))) continue;
+          wear.addSkin(x);
+          for (const e of x.getAttachments()) used.add(e.slotIndex);
+        }
+      }
+    }
     if (wear) { skeleton.setSkin(wear); skeleton.setSlotsToSetupPose(); }
     state = new sp.AnimationState(new sp.AnimationStateData(data));
   } catch { drop(); return null; }
