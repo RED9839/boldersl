@@ -26,7 +26,7 @@ function pickFoes(rng, floor, node, prev) {
 
 export const ROWS = 12;
 export const MAX_LANES = 4;
-export const KIND_KO = { start: "출발", fight: "일반", elite: "엘리트", camp: "휴식", campshop: "휴식 · 상점", event: "이벤트", boss: "보스" };
+export const KIND_KO = { start: "출발", fight: "일반", elite: "엘리트", camp: "휴식", campshop: "휴식+상점", event: "이벤트", boss: "보스" };
 
 // 1-2 ~ 1-10 에서 칸 종류를 고르는 무게 — 줄에 따라 못 나오는 것이 있다
 function kindWeights(r) {
