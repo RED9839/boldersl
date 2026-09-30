@@ -3,6 +3,9 @@ assets/
 !assets/.gitkeep
 
 node_modules/
+
+# 웹 공개판(npm run build:deploy) — 원작 그림이 들어 있어 저장소에 넣지 않는다. Cloudflare Pages 에 폴더째 올린다
+dist/
 .DS_Store
 Thumbs.db
 

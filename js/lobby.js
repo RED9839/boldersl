@@ -13,9 +13,10 @@ import { HERO_DATA } from "./cardbook.js";
 import { FLOORS } from "./data/enemies.js";
 import TALK from "./data/talk.js";
 import { spineView, loadSpineManifest } from "./spine-view.js";
-import { getSettings, setSetting, voiceVolume, onSettings } from "./settings.js";
+import { getSettings, setSetting } from "./settings.js";
+import { speak, stopVoice, voiceDone } from "./voice.js";
 import { toggleFullscreen } from "./stage.js";
-import { voiceCatsFor, voicePoolFor } from "./motion-voice.js";
+import { voiceCatsFor } from "./motion-voice.js";
 import { settingsPanel } from "./settings-panel.js";
 
 const node = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -50,74 +51,7 @@ function linesOf(key) {
   };
 }
 
-// ── 목소리 ─────────────────────────────────────────────────────────────
-// 스탠딩 아틀라스 이름(vivi.atlas)이 목소리 폴더 이름(assets/voice/vivi)과 같다
-let voiceIndex = null, voiceFailed = false, voiceNow = null, voiceGen = 0;
-let lastFile = null, lastAt = 0;
-const NO_REPEAT_MS = 12000;                    // 대사가 하나뿐인 갈래 — 이 사이에 또 누르면 소리 없이 동작만
-async function loadVoices() {
-  if (voiceIndex || voiceFailed) return voiceIndex;
-  try {
-    const r = await fetch("assets/voice/index.json", { cache: "no-store" });
-    if (!r.ok) throw new Error("no voice");
-    voiceIndex = await r.json();
-  } catch { voiceFailed = true; }
-  return voiceIndex;
-}
-// 한 사도의 목소리 묶음 — 스탠딩은 Normal 스킨이라 스킨 전용(_skinN)은 뺀다.
-// touch · dutchrubend 는 사도 데스크처럼 둘로 가른다: touch1 볼 당기기 · touch2 쓰다듬기 · dutchrubend1 맞는 소리 · 2 대사
-async function voiceSet(key) {
-  const [idx, m] = await Promise.all([loadVoices(), loadSpineManifest()]);
-  const e = m && m.standing && m.standing[key];
-  const dir = e ? e.atlas.replace(/\.atlas$/, "").toLowerCase() : null;
-  const base = idx && dir && idx[dir] && idx[dir].base;
-  if (!base) return null;
-  const cats = {};
-  for (const [c, l] of Object.entries(base)) cats[c] = l.filter((f) => !/_skin\d/.test(f));
-  const only = (list, re) => (list || []).filter((f) => re.test(f));
-  cats.cheek = only(cats.touch, /touch1(?:_\d+)?\.ogg$/);
-  cats.pat = only(cats.touch, /touch2(?:_\d+)?\.ogg$/);
-  cats.smashHit = only(cats.dutchrubend, /dutchrubend1(?:_\d+)?\.ogg$/);
-  cats.smashLine = only(cats.dutchrubend, /dutchrubend2(?:_\d+)?\.ogg$/);
-  return cats;
-}
-function hush() {
-  if (voiceNow) { try { voiceNow.pause(); } catch { /* 이미 멈췄다 */ } voiceNow = null; }
-}
-// 멈춤 — 지금 소리도, 자료를 읽는 중이던 부름도(차례표를 넘겨 무효로)
-export function stopVoice() { voiceGen++; hush(); }
-// 갈래 목록에서 앞에서부터 있는 것 하나(사도 데스크의 voicePoolFor). 기다리는 사이 새 부름이 왔거나 로비를 떠났으면 안 튼다.
-// 방금 튼 파일은 되도록 피한다 — 하나뿐이면 12초 안에는 안 튼다(웃음처럼 되풀이해도 되는 것은 repeat)
-// 튼 Audio 를 돌려준다(막혔거나 없으면 null) — 부른 쪽이 대사가 끝날 때까지 자세를 붙든다
-async function speak(key, cats, alive = () => true, { repeat = false } = {}) {
-  if (!cats || !cats.length || voiceVolume() <= 0 || typeof Audio !== "function") return null;
-  const my = ++voiceGen;
-  const set = await voiceSet(key);
-  if (my !== voiceGen || !alive() || !set) return null;
-  let pool = voicePoolFor(set, cats);
-  if (!pool.length) return null;
-  if (!repeat) {
-    if (pool.length > 1) pool = pool.filter((f) => f !== lastFile);
-    else if (pool[0] === lastFile && Date.now() - lastAt < NO_REPEAT_MS) return null;
-  }
-  hush();
-  const f = pick(pool);
-  const a = new Audio("assets/voice/" + f);
-  a.volume = voiceVolume();
-  voiceNow = a; lastFile = f; lastAt = Date.now();
-  // 브라우저는 사용자가 한 번도 누르지 않은 페이지의 소리를 막는다 — 첫 인사가 막히면 조용히 넘어간다
-  try { await a.play(); } catch { if (voiceNow === a) voiceNow = null; return null; }
-  return a;
-}
-// 대사가 끝나면(다 읽거나 · 끊기거나 · 못 읽거나) 풀리는 약속. 길어도 10초에서 놓는다
-const voiceDone = (a) => (a ? new Promise((r) => {
-  const f = () => r();
-  a.addEventListener("ended", f, { once: true }); a.addEventListener("error", f, { once: true }); a.addEventListener("pause", f, { once: true });
-  setTimeout(f, 10000);
-}) : Promise.resolve());
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-// 음량을 밀면 울리는 중인 목소리에도 바로
-onSettings(() => { if (voiceNow) voiceNow.volume = voiceVolume(); if (voiceVolume() <= 0) hush(); });
 
 // ── 교감 영역 — 사도 데스크(mascot.js headGeom · zoneAt)를 옮겼다 ──
 // 머리 본(목) · 눈 본(얼굴 높이) · 게임의 교감 기준점(Character_Pat = 머리선, Character_Ball_Move = 볼)으로
@@ -226,7 +160,11 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
   menu.appendChild(route);
   s.appendChild(menu);
 
-  s.appendChild(node("p", "lb-legal", "트릭컬 리바이브 팬 게임 · 비공식 개인 제작. 공식과 무관합니다."));
+  // 공개판 고지 — 원작 그림 · 음성을 쓰는 비영리 팬 게임. 권리자가 요청하면 바로 내린다
+  const legal = node("p", "lb-legal");
+  legal.append(node("b", null, "비공식 팬 게임 · 비영리"), document.createTextNode(
+    " — 트릭컬 리바이브의 그림 · 음성 · 설정의 저작권은 EPID Games 에 있습니다. 공식과 무관하며, 권리자의 요청이 있으면 즉시 내립니다."));
+  s.appendChild(legal);
 
   // ── 메인 사도 세우기 ──
   let body = null, lines = null, standGen = 0, lastTouch = Date.now();
@@ -266,8 +204,10 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
   }
   const cancelAct = () => { actGen++; };
 
+  // greet — true 면 인사(로비에 들어올 때), 갈래 목록이면 그것(메인 사도로 고를 때는 편성 대사)
   function standUp(key, greet) {
     const gen = ++standGen;
+    const greetCats = greet === true ? ["greeting", "callplayer"] : Array.isArray(greet) ? greet : null;
     heroKey = key;
     const h = HERO_DATA[key];
     lines = linesOf(key);
@@ -288,14 +228,14 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
       if (!v) {
         stand.classList.add("still");
         stand.appendChild(art.portrait(key, { ko: h.ko, tint: TONES[h.nature], size: 0, slot: "event", still: true }));
-        if (greet) speak(key, ["greeting", "callplayer"], alive);
+        if (greetCats) speak(key, greetCats, alive);
         return;
       }
       body = v; stand.spine = v; stand.classList.add("live");   // stand.spine — 시험 도구가 동작을 읽는다
       // 들어올 때 — 반기는 동작 + 인사(인사가 끝날 때까지 그 자세로)
       const hi = pick(pool(/^(Happy|Smile)_\d+$/, 3));
-      if (hi) act(hi, { voice: greet ? ["greeting", "callplayer"] : null });
-      else if (greet) speak(key, ["greeting", "callplayer"], alive);
+      if (hi) act(hi, { voice: greetCats });
+      else if (greetCats) speak(key, greetCats, alive);
     });
   }
 
@@ -444,7 +384,7 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
           b.type = "button";
           b.style.setProperty("--tone", TONES[h.nature] || "#d8cfa8");
           b.append(art.portrait(k, { ko: h.ko, tint: TONES[h.nature], size: 0, slot: "event", still: true }), node("span", null, h.ko));
-          b.onclick = () => { setSetting("lobbyHero", k); close(); standUp(k, true); };
+          b.onclick = () => { setSetting("lobbyHero", k); close(); standUp(k, ["decksetting", "greeting"]); };
           grid.appendChild(b);
         }
         if (!grid.children.length) grid.appendChild(node("p", "lb-none", "그런 이름의 사도가 없습니다."));

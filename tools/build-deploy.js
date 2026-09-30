@@ -1,0 +1,91 @@
+// 웹 공개판을 dist/ 에 짓는다 — Cloudflare Pages 에 폴더째 올린다(npm run deploy).
+//
+//   node tools/build-deploy.js          dist/ 를 새로 짓고 크기 · 파일 수를 잰다
+//
+// 코드(index.html · css · js · vendor)와 **게임이 실제로 읽는 그림만** 싣는다. 추출 원본(assets/standing · ingame ·
+// monsterspine … 1.7GB)은 빠진다. 목소리는 편성 대사(decksetting)만 — 사용자가 정한 범위다.
+// dist/ 는 저장소에 넣지 않는다(.gitignore). 원작 파일이 공개 저장소에 쌓이지 않게.
+//
+// Cloudflare Pages 제한: 한 배포 파일 2만 개 · 파일 하나 25MB. 넘으면 여기서 멈춘다.
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+const DIST = path.join(ROOT, "dist");
+const A = (p) => path.join(ROOT, "assets", p);
+
+// 게임이 읽는 그림 폴더 — js/ 에서 assets/<폴더> 를 찾아 고른 것(spine-view · art · ui · data)
+const ASSET_DIRS = ["spine", "bg", "skillicons", "gear", "spell", "cardart", "uiicons", "sd", "monster"];
+// 폴더에서 몇 장만 — 재화 아이콘은 골드 하나
+const ASSET_FILES = ["currency/CurrencyIcon_0008.png"];
+const VOICE_CATS = new Set(["decksetting"]);
+const MAX_FILES = 20000, MAX_BYTES = 25 * 1024 * 1024;
+
+let files = 0, bytes = 0, biggest = { f: "", n: 0 };
+function copyFile(src, dst) {
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  fs.copyFileSync(src, dst);
+  const n = fs.statSync(dst).size;
+  files++; bytes += n;
+  if (n > biggest.n) biggest = { f: path.relative(DIST, dst), n };
+}
+function copyDir(src, dst, skip = () => false) {
+  if (!fs.existsSync(src)) { console.log(`  ! 없음 — ${path.relative(ROOT, src)} (그 자리는 자리표시로 떨어진다)`); return; }
+  for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+    const s = path.join(src, e.name), d = path.join(dst, e.name);
+    if (skip(s, e)) continue;
+    if (e.isDirectory()) copyDir(s, d, skip); else copyFile(s, d);
+  }
+}
+
+fs.rmSync(DIST, { recursive: true, force: true });
+fs.mkdirSync(DIST, { recursive: true });
+
+// ① 코드
+copyFile(path.join(ROOT, "index.html"), path.join(DIST, "index.html"));
+for (const d of ["css", "js", "vendor"]) copyDir(path.join(ROOT, d), path.join(DIST, d));
+const codeFiles = files, codeBytes = bytes;
+
+// ② 그림
+for (const d of ASSET_DIRS) copyDir(A(d), path.join(DIST, "assets", d));
+for (const f of ASSET_FILES) if (fs.existsSync(A(f))) copyFile(A(f), path.join(DIST, "assets", f));
+
+// ③ 목소리 — 편성 대사만, 색인도 그 갈래만 남긴다(없는 갈래는 게임이 조용히 넘어간다)
+const vIndexPath = A("voice/index.json");
+if (fs.existsSync(vIndexPath)) {
+  const idx = JSON.parse(fs.readFileSync(vIndexPath, "utf8"));
+  const out = {};
+  for (const [hero, skins] of Object.entries(idx)) {
+    const base = skins.base || {};
+    const keep = Object.fromEntries(Object.entries(base).filter(([c]) => VOICE_CATS.has(c)));
+    if (!Object.keys(keep).length) continue;
+    out[hero] = { base: keep };
+    for (const list of Object.values(keep)) for (const f of list) copyFile(A("voice/" + f), path.join(DIST, "assets/voice", f));
+  }
+  fs.mkdirSync(path.join(DIST, "assets/voice"), { recursive: true });
+  fs.writeFileSync(path.join(DIST, "assets/voice/index.json"), JSON.stringify(out));
+  files++;
+  console.log(`  목소리 — 편성 대사 ${Object.keys(out).length}명`);
+} else console.log("  ! 목소리 색인이 없다 — 목소리 없이 싣는다");
+
+// ④ Cloudflare 설정 — 그림은 오래 붙들고(바뀌면 이름이 같아도 배포마다 새로), 코드는 늘 새로
+fs.writeFileSync(path.join(DIST, "_headers"), [
+  "/assets/*",
+  "  Cache-Control: public, max-age=86400",
+  "/js/*",
+  "  Cache-Control: no-cache",
+  "/css/*",
+  "  Cache-Control: no-cache",
+  "",
+].join("\n"));
+files++;
+
+const mb = (n) => (n / 1024 / 1024).toFixed(1) + "MB";
+console.log(`\ndist/ — 파일 ${files}개 · ${mb(bytes)} (코드 ${codeFiles}개 ${mb(codeBytes)})`);
+console.log(`  가장 큰 파일 ${biggest.f} ${mb(biggest.n)}`);
+let bad = false;
+if (files > MAX_FILES) { console.log(`  ✗ 파일이 ${MAX_FILES}개를 넘는다`); bad = true; }
+if (biggest.n > MAX_BYTES) { console.log(`  ✗ 25MB 를 넘는 파일이 있다`); bad = true; }
+if (bad) process.exit(1);
+console.log("  ✓ Cloudflare Pages 제한 안");

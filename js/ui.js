@@ -20,6 +20,7 @@ import * as M from "./map.js";
 import { getZoom, toggleFullscreen } from "./stage.js";
 import { getSettings, setSetting } from "./settings.js";
 import { settingsPanel } from "./settings-panel.js";
+import { speak } from "./voice.js";
 
 const $ = (sel) => document.querySelector(sel);
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
@@ -667,7 +668,10 @@ export function partyScreen(onStart, onBack, opts = {}) {
     const toggle = (key) => {
       const i = picked.indexOf(key);
       if (i >= 0) { picked.splice(i, 1); delete rows[key]; }
-      else if (picked.length < 3) { picked.push(key); rows[key] = rows[key] || HERO_DATA[key].row; if (filter.q) { filter.q = ""; search.value = ""; } }
+      else if (picked.length < 3) {
+        picked.push(key); rows[key] = rows[key] || HERO_DATA[key].row; if (filter.q) { filter.q = ""; search.value = ""; }
+        speak(key, ["decksetting", "greeting"]);          // 원작처럼 파티에 넣으면 한마디(편성 대사 · js/voice.js)
+      }
       else return hint("셋까지만 데려갈 수 있습니다 — 무대의 사도를 먼저 빼 주세요");
       hint("");
       fill();
@@ -909,7 +913,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
     take.onclick = () => {
       const i = picked.indexOf(key);
       if (i >= 0) picked.splice(i, 1);
-      else if (picked.length < 3) picked.push(key);
+      else if (picked.length < 3) { picked.push(key); speak(key, ["decksetting", "greeting"]); }
       else return hint("셋까지만 데려갈 수 있습니다");
       hint("");
       render();

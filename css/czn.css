@@ -2619,7 +2619,8 @@ body:has(#screen.lobby2) .top { display: none; }
 .lb-route li { display: grid; grid-template-columns: 22px auto 1fr; align-items: baseline; gap: 8px; font-size: 13px; }
 .lb-route em { font-style: normal; font-weight: 900; color: var(--gold); text-align: center; }
 .lb-route li span { font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lb-legal { grid-column: 2; grid-row: 3; margin: 0; padding: 0 30px 16px 0; font-size: 11px; color: #ffffff80; text-align: right; z-index: 2; }
+.lb-legal { grid-column: 2; grid-row: 3; margin: 0; padding: 0 30px 16px 0; font-size: 11px; line-height: 1.5; color: #ffffff8c; text-align: right; z-index: 2; }
+.lb-legal b { color: #f3d48c; font-weight: 800; }
 
 /* 창 — 메인 사도 바꾸기 · 설정 */
 .lb-modal { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: #06050bb8; backdrop-filter: blur(5px); }
