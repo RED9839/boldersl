@@ -493,6 +493,7 @@ npm run art -- --all     # 사도 전부
 | standing 스파인 | 512 | 1,112MB | (아직 안 씀) |
 | voice | 155명 | 194MB | 로비 메인 사도의 목소리(js/lobby.js) — 설정에서 끌 수 있다 |
 | minimi · sfx | 3 · 2 | 12.8MB | |
+| currency (재화 아이콘, `tools/extract-currency-icons.py`) | 238 | 5.2MB | 골드 = CurrencyIcon_0008(잎사귀 금화). 없으면 「✦」 |
 
 사도 146명에 아이콘과 인게임 스파인이 다 있습니다. 게임이 실제로 물고 있는 건 그중 **여덟 장 0.5MB** 입니다.
 

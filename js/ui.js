@@ -83,6 +83,26 @@ function uiIcon(kind, name, cls, fallback) {
   return n;
 }
 
+// 골드 — 원작 재화 아이콘(atlases/currencyicons 의 CurrencyIcon_0008, 잎사귀 금화 · tools/extract-currency-icons.py).
+// 그림이 없으면 「✦」 로 떨어진다(uiIcon 과 같은 차례 — 그림을 먼저 붙이고 안 되면 글자)
+const GOLD_ICON = "assets/currency/CurrencyIcon_0008.png";
+function goldIcon(cls = "gico") {
+  const n = el("i", cls);
+  const im = document.createElement("img");
+  im.src = GOLD_ICON;
+  im.alt = "골드";
+  im.onerror = () => { im.remove(); n.textContent = "✦"; n.classList.add("noimg"); };
+  n.appendChild(im);
+  return n;
+}
+// 골드 아이콘 + 글(「120 골드」 · 「+35」 따위)
+function goldLabel(tag, cls, text) {
+  const n = el(tag, cls);
+  n.appendChild(goldIcon());
+  n.appendChild(document.createTextNode(text));
+  return n;
+}
+
 // 성격 상성 그림 — 광기 → 순수 → 냉정 → 광기 는 삼각형, 활발 ↔ 우울 은 세로 한 줄.
 // 화살표가 가리키는 쪽에 강하다(rules.js BEATS). on: 빛낼 성격들(편성에 든 사도의 성격)
 function natureChart(on = new Set()) {
@@ -1221,7 +1241,7 @@ export function fightScreen(run, onDone, onQuit) {
     const g = goldShare[u.idx] || 0;
     if (!g) return;
     for (let k = 0; k < 5; k++) {
-      const c = el("span", "dropcoin");
+      const c = goldIcon("dropcoin");
       c.style.setProperty("--k", String(k));
       flyTo(c, { x: r.left + r.width / 2 + (k - 2) * 14, y: r.top + r.height * 0.55 });
     }
@@ -1229,7 +1249,7 @@ export function fightScreen(run, onDone, onQuit) {
     if (!goldRow) { goldRow = el("div", "ltrow ltgold"); addLoot(goldRow); }
     else { goldRow.classList.add("ltnew"); setTimeout(() => goldRow.classList.remove("ltnew"), 900); }
     goldRow.innerHTML = "";
-    goldRow.appendChild(el("span", "lticon coin"));
+    goldRow.appendChild(goldIcon("lticon coin"));
     goldRow.appendChild(el("b", null, `+${lootGold} 골드`));
   }
   // 들고 있던 것 — 장비 아이콘이 적 자리에서 목록으로 날아간다
@@ -2292,7 +2312,7 @@ export function mapScreen(run, onEnter, onQuit) {
   };
   const gearBtn = el("button", "mdeck", `장비${run.bag.length ? ` · 가방 ${run.bag.length}` : ""}`);
   gearBtn.onclick = openGear;
-  const gold = el("span", "mgold", `✦ ${run.gold} 골드`);
+  const gold = goldLabel("span", "mgold", `${run.gold} 골드`);
   head.appendChild(gold);
   const deckBtn = el("button", "mdeck", `덱 ${run.deck.length}장`);
   deckBtn.onclick = () => showPiles([{ key: "all", label: "덱 전체", ids: run.deck, why: "이 판의 덱. 신탁이 붙은 카드는 바뀐 모습으로 보입니다." }], "all", (id) => flashedCard(run, id));
@@ -2462,7 +2482,7 @@ export function rewardScreen(run, onPick) {
   bar.appendChild(el("h1", "dtitle", "이겼습니다"));
   bar.appendChild(el("span", "rwhy", "골드를 챙겼습니다. 고유 카드(은총) · 카드 강화(신탁)는 전투 중 빛나는 카드를 내면 얻습니다."));
   const rgot = run.reward || R.rollReward(run);
-  if (rgot.gold) bar.appendChild(el("span", "sgold", `✦ +${rgot.gold} 골드`));
+  if (rgot.gold) bar.appendChild(goldLabel("span", "sgold", `+${rgot.gold} 골드`));
   const skip = el("button", "dexbtn", "계속합니다");
   skip.onclick = () => onPick(null, null);
   bar.appendChild(skip);
@@ -2838,7 +2858,7 @@ export function campScreen(run, withShop, onDone, onShop) {
   title.appendChild(el("span", null, `${floor.name} — ${withShop ? "보스 앞에서 한숨 돌립니다" : "길 가운데에서 한숨 돌립니다"}`));
   top.appendChild(title);
   const gold = el("div", "cp-gold");
-  gold.appendChild(el("i", null, "✦"));
+  gold.appendChild(goldIcon());
   const goldN = el("b", null, String(run.gold));
   gold.appendChild(goldN);
   gold.appendChild(el("span", null, "골드"));
@@ -2957,7 +2977,7 @@ export function campScreen(run, withShop, onDone, onShop) {
     tx.appendChild(el("b", null, "골디의 좌판 들르기"));
     tx.appendChild(el("span", null, "「어서 오세요, 고객님!」 — 들러도 캠프 선택은 그대로 남습니다"));
     sb.appendChild(tx);
-    sb.appendChild(el("em", "cp-free", `✦ ${run.gold}`));
+    sb.appendChild(goldLabel("em", "cp-free", `${run.gold}`));
     sb.onclick = () => { closeSheet(); onShop(); };
     extra.appendChild(sb);
     // 화면에 붙은 뒤에 그린다(크기를 재야 한다). 런타임 · 자료가 없으면 금화 표식이 선다
@@ -3248,7 +3268,7 @@ export function shopScreen(run, onDone, opts = {}) {
   function draw() {
     // 골드 — 쓰면 빠진 만큼 떠올랐다 사라진다
     gold.innerHTML = "";
-    gold.appendChild(el("i", null, "✦"));
+    gold.appendChild(goldIcon());
     gold.appendChild(el("b", null, String(run.gold)));
     gold.appendChild(el("span", null, "골드"));
     if (run.gold < lastGold) gold.appendChild(el("em", "sh-spend", `−${lastGold - run.gold}`));
@@ -3283,14 +3303,14 @@ export function shopScreen(run, onDone, opts = {}) {
     // 할 일 — 카드 제거 · 새로고침 · (가방) · 깎아 주세요
     acts.innerHTML = "";
     const rmPrice = R.removePrice(run);
-    const rm = actBtn("sh-remove", "카드 제거", shop.removeUsed ? "이번에는 이미 한 장 뺐습니다" : "덱에서 한 장 · 쓸수록 오릅니다", shop.removeUsed ? "끝" : `✦ ${rmPrice}`);
+    const rm = actBtn("sh-remove", "카드 제거", shop.removeUsed ? "이번에는 이미 한 장 뺐습니다" : "덱에서 한 장 · 쓸수록 오릅니다", shop.removeUsed ? "끝" : rmPrice);
     rm.disabled = !!shop.removeUsed;
     if (!shop.removeUsed && run.gold < rmPrice) rm.classList.add("short");
     rm.onclick = () => { if (run.gold < rmPrice) return poor(); openDeck(); };
     acts.appendChild(rm);
 
     const rrPrice = R.rerollPrice(run);
-    const rr = actBtn("sh-reroll", "새로고침", "진열을 통째로 바꿉니다", `✦ ${rrPrice}`);
+    const rr = actBtn("sh-reroll", "새로고침", "진열을 통째로 바꿉니다", rrPrice);
     if (run.gold < rrPrice) rr.classList.add("short");
     rr.onclick = () => {
       const why = R.rerollShop(run);
@@ -3317,13 +3337,13 @@ export function shopScreen(run, onDone, opts = {}) {
     tx.appendChild(el("b", null, label));
     tx.appendChild(el("span", null, sub));
     b.appendChild(tx);
-    b.appendChild(el("em", "sh-actprice", price));
+    b.appendChild(typeof price === "number" ? goldLabel("em", "sh-actprice", String(price)) : el("em", "sh-actprice", price));
     return b;
   }
 
   // 사는 단추 — 금빛. 모자라면 흐리게(눌러 보면 골디가 말해 준다)
   function buyBtn(it, i) {
-    const b = el("button", "sh-buy", it.sold ? "팔렸습니다" : it.delivery ? "택배 받기" : `✦ ${it.price}`);
+    const b = it.sold || it.delivery ? el("button", "sh-buy", it.sold ? "팔렸습니다" : "택배 받기") : goldLabel("button", "sh-buy", String(it.price));
     b.disabled = !!it.sold;
     if (!it.sold && run.gold < it.price) b.classList.add("short");
     b.onclick = () => {
@@ -3413,7 +3433,7 @@ export function shopScreen(run, onDone, opts = {}) {
       w.appendChild(card);
       grid.appendChild(w);
     });
-    openSheet("sh-deckmodal", "뺄 카드를 고릅니다", `✦ ${price} 골드 · 이번 상점에서 한 장 · 덱 ${run.deck.length}장`, grid);
+    openSheet("sh-deckmodal", "뺄 카드를 고릅니다", `${price} 골드 · 이번 상점에서 한 장 · 덱 ${run.deck.length}장`, grid);
   }
 
   function openBag() {
@@ -3613,7 +3633,7 @@ export function eventScreen(run, onDone, onFight) {
     const bar = el("div", "dbar2");
     bar.appendChild(el("h1", "dtitle", ev.name));
     bar.appendChild(el("span", "rwhy", `이벤트 · ${POOL_KO(ev.pool)} · ${ev.kind}`));
-    bar.appendChild(el("span", "evgold", `✦ ${run.gold} 골드`));
+    bar.appendChild(goldLabel("span", "evgold", `${run.gold} 골드`));
     if (E.phase === "result" && !E.pending.length) {
       const go = el("button", "dexbtn", "길을 떠납니다");
       go.onclick = () => { EV.leaveEvent(run); onDone(); };

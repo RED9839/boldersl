@@ -499,7 +499,9 @@ console.log("\n골디의 상점");
   check(r.gold === g1 - 25 && R.rerollPrice(r) === 50 && ids1 !== ids0, "새로고침하면 25골드가 빠지고 진열이 바뀌고 다음 값은 50");
   check(r.shop.items.filter((it) => it.kind === "neutral").length === 3 && r.shop.items.filter((it) => it.kind === "equip").length === 3
     && r.shop.items.every((it) => !it.sold), "새로고침한 진열도 중립 카드 셋 · 장비 셋, 팔린 칸 없이");
-  check(/✦ 50/.test(sp.textContent), "새로고침 단추에 오른 값이 적힌다");
+  const rrBtn = clickAll(sp, (n) => n.classList.contains("sh-reroll"))[0];
+  const rrPriceEl = rrBtn && rrBtn.children.find((c) => c.classList.contains("sh-actprice"));
+  check(!!rrPriceEl && rrPriceEl.textContent.trim() === "50", `새로고침 단추에 오른 값이 적힌다 (${rrPriceEl && rrPriceEl.textContent})`);
   const r1 = R.newRun(run.party.slice(), { ...run.rows }, 14); r1.gold = 10; r1.node = 3; R.rollShop(r1);
   check(R.rerollShop(r1) === "골드가 모자랍니다" && r1.gold === 10, "골드가 모자라면 새로고침도 못 한다");
   clickAll(sp, (n) => n.classList.contains("sh-remove"))[0].onclick();
