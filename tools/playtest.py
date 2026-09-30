@@ -29,6 +29,9 @@ SCREENS = [
     ("사도 도감", ".dexscreen"),
     ("사도 정보", ".detailscreen"),
     ("전투", ".battle"),
+    ("이벤트", ".eventscreen"),
+    ("캠프", ".campscreen"),
+    ("상점", ".shopscreen"),
     ("보상", ".rewardscreen"),
     ("교체", ".swapscreen"),
     ("끝", ".endscreen"),
@@ -138,19 +141,30 @@ def play(d, By, base, a, notes, r):
                 print(f"  !! {here} 에서 더 못 나간다")
                 return
 
-        if here == "전투":
-            if not step_battle(d, By, notes): time.sleep(0.12)
-        elif here == "보상":
-            step_reward(d, By, notes); time.sleep(0.5)
-        elif here == "교체":
-            step_swap(d, By, notes); time.sleep(0.5)
-        elif here == "끝":
-            txt = d.find_element(By.CSS_SELECTOR, "#screen").text.replace("\n", " ")[:80]
-            print(f"     {txt}")
-            notes["판이 끝까지 갔다"] += 1
-            return
-        else:
-            time.sleep(0.2)
+        # 화면은 누를 때마다 다시 그려진다 — 잡아 둔 요소가 사라지면(stale) 다음 걸음에서 다시 잡는다
+        try:
+            if here == "전투":
+                if not step_battle(d, By, notes): time.sleep(0.12)
+            elif here == "보상":
+                step_reward(d, By, notes); time.sleep(0.5)
+            elif here == "교체":
+                step_swap(d, By, notes); time.sleep(0.5)
+            elif here == "이벤트":
+                step_event(d, By, notes, step); time.sleep(0.4)
+            elif here == "캠프":
+                step_camp(d, By, notes); time.sleep(0.4)
+            elif here == "상점":
+                step_shop(d, By, notes); time.sleep(0.4)
+            elif here == "끝":
+                txt = d.find_element(By.CSS_SELECTOR, "#screen").text.replace("\n", " ")[:80]
+                print(f"     {txt}")
+                notes["판이 끝까지 갔다"] += 1
+                return
+            else:
+                time.sleep(0.2)
+        except Exception as e:
+            if type(e).__name__ != "StaleElementReferenceException": raise
+            time.sleep(0.1)
     notes["900걸음 안에 안 끝났다"] += 1
 
 
@@ -196,6 +210,53 @@ def step_reward(d, By, notes):
     notes["보상에 고를 것이 없었다"] += 1
     skip = [b for b in d.find_elements(By.CSS_SELECTOR, "button") if b.text == "그냥 간다"]
     if skip: d.execute_script("arguments[0].click()", skip[0])
+
+
+def click_text(d, By, *texts):
+    b = [x for x in d.find_elements(By.CSS_SELECTOR, "button") if x.text.strip() in texts and x.is_enabled()]
+    if b: d.execute_script("arguments[0].click()", b[0]); return True
+    return False
+
+
+def step_event(d, By, notes, step):
+    # 고를 것이 있으면 먼저 — 카드 · 번뜩임 · 사도 · 골라 받기
+    pick = d.find_elements(By.CSS_SELECTOR, ".evpick")
+    if pick:
+        for sel in (".evpick .fcard", ".evpick .rpick .gcard", ".evpick .evpickhero", ".evpick .evopt"):
+            el = d.find_elements(By.CSS_SELECTOR, sel)
+            if el:
+                notes["이벤트: 고를 것을 골랐다"] += 1
+                d.execute_script("arguments[0].click()", el[0]); return
+    if click_text(d, By, "길을 떠난다"):
+        return
+    forks = d.find_elements(By.CSS_SELECTOR, ".evfork")
+    if forks:
+        notes["이벤트: 지도 공개로 갈림길"] += 1
+        d.execute_script("arguments[0].click()", forks[0]); return
+    opts = [o for o in d.find_elements(By.CSS_SELECTOR, ".evopt") if o.is_enabled() and "leave" not in o.get_attribute("class")]
+    title = (d.find_elements(By.CSS_SELECTOR, ".dtitle") or [None])[0]
+    name = title.text if title else "?"
+    if opts:
+        o = opts[step % len(opts)]          # 번갈아 고른다 — 여러 결과를 밟아 보려고
+        notes[f"이벤트 {name} — {o.find_element(By.CSS_SELECTOR, '.evlabel').text}"] += 1
+        d.execute_script("arguments[0].click()", o); return
+    leave = d.find_elements(By.CSS_SELECTOR, ".evopt.leave")
+    if leave:
+        notes[f"이벤트 {name} — 떠났다"] += 1
+        d.execute_script("arguments[0].click()", leave[0])
+
+
+def step_camp(d, By, notes):
+    rest = [b for b in d.find_elements(By.CSS_SELECTOR, ".cact") if b.is_enabled()]
+    if rest:
+        notes["캠프에서 쉬었다"] += 1
+        d.execute_script("arguments[0].click()", rest[0]); return
+    click_text(d, By, "길을 떠난다", "보스에게 간다")
+
+
+def step_shop(d, By, notes):
+    notes["골디의 상점에 들렀다"] += 1
+    click_text(d, By, "캠프로 돌아간다", "보스에게 간다")
 
 
 def step_swap(d, By, notes):

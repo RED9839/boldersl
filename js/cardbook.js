@@ -55,6 +55,16 @@ for (const [id, c] of Object.entries(BUILT.neutral || {})) {
 }
 export const NEUTRAL_IDS = Object.keys(BUILT.neutral || {});
 
+// 골칫거리 카드 — 이벤트의 대가로 덱에 들어온다(docs/08-이벤트.md). 효과는 없고 자리만 먹는다
+import { CURSES } from "./data/events.js";
+for (const [ko, c] of Object.entries(CURSES)) {
+  book[c.id] = {
+    id: c.id, hero: null, curse: true, name: ko, cost: c.cost, xcost: false,
+    type: "스킬", text: c.text, fx: [], built: true, target: "없음",
+    unique: false, signature: false, flash: null, tags: c.tags.slice(), playable: true,
+  };
+}
+
 // 장비 — 사도당 무기·방어구·장신구 한 칸씩. 지금은 스탯 줄과 애착 Lv.3 스탯만 돈다.
 export const EQUIP = BUILT.equip || {};
 

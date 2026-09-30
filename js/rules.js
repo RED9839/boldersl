@@ -9,6 +9,10 @@ export const AP_PER_TURN = 3;
 // 덱으로 돌아가지 않는다 — 돌아가면 손이 찬 채로 무한히 뽑는 고리가 생긴다.
 export const HAND_MAX = 10;
 
+// 이벤트 칸(docs/08-이벤트.md) — 층마다 1~2개. 둘째 칸이 생길 확률, 층 풀과 공용 풀의 몫
+export const EVENT_SECOND = 0.5;
+export const EVENT_FLOOR_SHARE = 0.7;
+
 // 적 체력 배율 — 난이도 손잡이. enemies.js 의 수치에 곱한다.
 // 기준: 아무 생각 없는 손(tools/sim.js, 시작 덱)이 1층을 30~40% 완주하게. 사람은 이보다 훨씬 잘한다.
 // (스킬이 실제로 돌게 되자 같은 손이 69~100% 를 깼다 — 그래서 올렸다)

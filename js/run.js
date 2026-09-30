@@ -38,6 +38,7 @@ export function newRun(partyKeys, rows, seed = Date.now()) {
 export const currentFloor = (run) => FLOORS[run.floor];
 export const isBoss = (run) => run.node >= 3;
 export function currentEnemies(run) {
+  if (run.eventFight) return run.eventFight.enemies;      // 이벤트가 연 전투(js/events.js)
   const f = currentFloor(run);
   return isBoss(run) ? f.boss : f.fights[run.node];
 }
@@ -84,8 +85,10 @@ export function rollReward(run) {
     equipTaken: null,
     gold, goldTaken: false,
     cards: rewardCards(run),
-    flash: run.rng() < R.FLASH_CHANCE ? offerFlash(run) : null,
+    // 프리클이 「다음 보상에서 몰래」 챙겨 둔 번뜩임(이벤트 B2)은 확률 없이 뜬다
+    flash: run.rewardFlash || run.rng() < R.FLASH_CHANCE ? offerFlash(run) : null,
   };
+  if (run.rewardFlash && run.reward.flash) run.rewardFlash = false;   // 몰래 챙긴 번뜩임은 한 번
   return run.reward;
 }
 
@@ -165,6 +168,12 @@ export function rollShop(run) {
     removeUsed: false,
     gift: null,
   };
+  // 슈팡에게 맡긴 택배(이벤트 C7) — 이번 상점에서 그 등급 장비 하나를 공짜로
+  if (run.shopGift) {
+    const [id] = offerEquip(run, { [run.shopGift]: 1 }, 1);
+    if (id) run.shop.items.push({ id, kind: "equip", price: 0, sold: false, delivery: true });
+    run.shopGift = null;
+  }
   // 수양딸에게는 선물 — 할인이 아니라 선물이다(인물 사전: 실비아는 수양딸 · 돈에 쩨쩨하지 않다). 한 판에 한 번.
   if (!run.goldyGift && run.party.some((k) => (HERO_DATA[k] || {}).ko === "실비아")) {
     const gp = NEUTRAL_IDS.filter((id) => CARDS[id].playable && ["일반", "고급"].includes(CARDS[id].grade) && !neutral.includes(id));

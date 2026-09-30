@@ -2,6 +2,7 @@
 import { lobbyScreen } from "./home-design.js";
 import * as ui from "./ui.js";
 import * as R from "./run.js";
+import * as EV from "./events.js";
 import * as art from "./art.js";
 import { initStage, toggleFullscreen } from "./stage.js";
 
@@ -55,9 +56,29 @@ function reward() {
     const { swap } = R.advance(run);
     if (run.done === "clear") return ui.endScreen("clear", run, start);
     if (swap) return ui.swapScreen(run, fight);
-    const stop = R.nextStop(run);            // 층 가운데 캠프 · 보스 앞 캠프 + 상점
-    if (stop) return camp(stop);
-    fight();
+    next();
+  });
+}
+
+// 다음 칸 — 한 층: 전투 → 이벤트 → 전투 → (이벤트) → 캠프 → 전투 → 캠프 + 상점 → 보스
+// 이벤트 칸은 층마다 1~2개(docs/08-이벤트.md). 들르는 칸은 전투 번호(node)를 바꾸지 않는다.
+function next() {
+  if (EV.dueEvent(run)) return eventStop();
+  const stop = R.nextStop(run);            // 층 가운데 캠프 · 보스 앞 캠프 + 상점
+  if (stop) return camp(stop);
+  fight();
+}
+
+function eventStop() {
+  ui.hint("");
+  EV.enterEvent(run);
+  ui.eventScreen(run, next, () => {
+    // 이벤트가 연 전투 — 이기면 적힌 보상, 지면 판이 끝난다. 보통 전투의 카드 보상은 없다
+    ui.fightScreen(run, (result) => {
+      if (result === "lose") { run.eventFight = null; return ui.endScreen("lose", run, start); }
+      EV.afterEventFight(run, true);
+      eventStop();
+    });
   });
 }
 

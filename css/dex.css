@@ -715,3 +715,42 @@ main:has(.endscreen), main:has(.swapscreen) { max-width: 1100px; }
   .gslot { padding: 5px 6px; }
   .gslot b { font-size: 11px; }
 }
+
+/* ══ 이벤트 ═════════════════════════════════════════════════════════════
+   장면 — 선택지 — 결과. 선택지마다 치르는 것과 얻는 것을 결과 낱말 그대로 적는다.
+   보상·캠프와 같은 밝은 틀이다 — 캠프의 「쉬기·수련」 단추(.cact)와 같은 결로 칠한다. */
+.evgold { margin-left: auto; margin-right: 10px; font-weight: 800; color: #b07a12; }
+.evscene { display: flex; gap: 16px; align-items: center; padding: 14px 16px; border-radius: 14px;
+  background: #fff; border: 1px solid var(--line); }
+.evscene .art { flex: none; }
+.evq { flex: none; width: 92px; height: 92px; display: grid; place-items: center; font-size: 44px; font-weight: 900;
+  color: #c8962a; border: 2px dashed #e6c878; border-radius: 16px; }
+.evtext p { margin: 4px 0 0; line-height: 1.7; color: var(--ink); }
+.evnpc { color: #b07a12; }
+.evparty { gap: 8px; }
+.evparty .cmember { flex: 1 1 0; min-width: 0; }
+.evopts { display: flex; flex-direction: column; gap: 8px; }
+.evopt { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; text-align: left; padding: 12px 16px;
+  border-radius: 12px; background: #fff; border: 1px solid var(--line); color: var(--ink); cursor: pointer; }
+.evopt:hover:not(:disabled) { border-color: var(--hot); transform: translateY(-1px); }
+.evopt.leave { background: transparent; border-style: dashed; }
+.evopt.locked { opacity: .5; cursor: default; }
+.evlabel { font-size: 15px; color: var(--ink); }
+.evout { color: var(--dim); font-size: 13px; }
+.evnote { width: 100%; font-size: 12px; color: #b0433b; margin: 0; }
+.evlock { width: 100%; font-size: 12px; color: #b0433b; }
+.evby { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 2px; border-radius: 99px;
+  background: #f1eaff; border: 1px solid #b89be6; color: #4b3a7a; font-size: 12px; }
+.evresult { padding: 12px 16px; border-radius: 12px; background: #fff; border: 1px solid var(--line); }
+.evchose { color: #b07a12; }
+.evsay { margin: 6px 0; font-style: italic; color: var(--ink); }
+.evlog { margin: 4px 0; color: var(--dim); }
+.evpick { display: flex; flex-direction: column; gap: 10px; }
+.evpickhero { cursor: pointer; border: 1px solid var(--line); background: #fff; }
+.evpickhero:hover { border-color: var(--hot); }
+.evforks { gap: 14px; }
+.evfork { flex: 1 1 0; text-align: left; padding: 16px; border-radius: 14px; background: #fff; border: 1px solid var(--line);
+  color: var(--ink); cursor: pointer; display: flex; flex-direction: column; gap: 6px; }
+.evfork:hover { border-color: var(--hot); }
+.evfork p { margin: 0; font-size: 13px; color: var(--dim); line-height: 1.6; }
+.evkind { font-size: 12px; color: #b07a12; }

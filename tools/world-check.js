@@ -13,12 +13,13 @@ import { ENEMIES, FLOORS } from "../js/data/enemies.js";
 import { TRAITS } from "../js/data/traits.js";
 import TALK from "../js/data/talk.js";
 import { HERO_DATA } from "../js/cardbook.js";
+import { EVENTS } from "../js/data/events.js";
 
 const RULES = [
   {
     id: "죽음",
     why: "엘리아스에는 죽음이 지워져 있다. 죽을 자리는 '주말농장'(바다 쪽은 '주말어장')이다.",
-    re: /(죽[었는을어음이일인여]|시체|송장|장례|저승|목숨|사망|영면)/,
+    re: /((?<![반팥호박])죽[었는을어음이일인여]|시체|송장|장례|저승|목숨|사망|영면)/,   // 반죽·팥죽·호박죽은 음식이다
   },
   {
     id: "남성",
@@ -104,6 +105,11 @@ for (const e of Object.values(ENEMIES)) {
   if (e.phase) LINES.push([`적 ${e.ko}`, null, e.phase.say]);
 }
 for (const f of FLOORS) LINES.push([`${f.n}층`, null, `${f.name} ${f.sub}`]);
+// 이벤트 — 장면 · 선택지 · 연출 한 줄(docs/08-이벤트.md). 원작 사도가 나오니 세계 규칙에 가장 잘 걸리는 자리다
+for (const ev of EVENTS) {
+  LINES.push([`이벤트 ${ev.id}`, null, `${ev.name} ${ev.scene}`]);
+  for (const o of ev.options) LINES.push([`이벤트 ${ev.id}`, null, [o.label, o.say, o.judge && o.judge.passSay, ...(o.gamble || []).map((g) => g.say)].filter(Boolean).join(" ")]);
+}
 for (const t of Object.values(TRAITS)) LINES.push([`번뜩임 ${t.ko}`, null, `${t.ko} ${t.text}`]);
 // 사도의 말 — 여기가 세계 규칙에 가장 잘 걸리는 자리다(사도가 직접 하는 말이라서)
 for (const [hero, moments] of Object.entries(TALK.lines || {}))

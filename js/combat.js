@@ -66,7 +66,7 @@ const st = (u, id) => u.status[id] || 0;
 const addSt = (u, id, v) => { u.status[id] = Math.max(0, st(u, id) + v); if (!u.status[id]) delete u.status[id]; };
 
 // ── 전투 시작 ──────────────────────────────────────────────────────────
-export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noBonds, noNature, traits, gear, flash, enemyHp }) {
+export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noBonds, noNature, traits, gear, flash, enemyHp, next, shin }) {
   const rng = makeRng(seed);
   const party = partyKeys.map((key, i) => {
     // 스탯은 기획서가 원본이다. 기획서에 없는 사도만 옛 heroes.js 를 본다.
@@ -141,6 +141,16 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
   // 개전 카드는 첫 손패에 든다 — 뽑을 더미는 끝에서부터 뽑으니 끝으로 옮긴다
   const opening = s.draw.filter((id) => hasTag(cardOf(s, id), "개전"));
   if (opening.length) s.draw = [...s.draw.filter((id) => !opening.includes(id)), ...opening];
+  // 신뜩임이 붙은 카드 — 피해 배율 ×1.3(rules.js SHIN). 이벤트에서 얻는다
+  s.shin = { ...(shin || {}) };
+  // 이벤트가 걸어 둔 「다음 전투」 효과(docs/08-이벤트.md) — 이 전투에서 한 번
+  if (next) {
+    if (next.ap) { s.startSp += next.ap; say(s, `이벤트 — 첫 턴 AP ${next.ap > 0 ? "+" : ""}${next.ap}`); }
+    if (next.gauge) { s.gauge = Math.min(R.GAUGE_MAX, s.gauge + next.gauge); say(s, `이벤트 — 궁극기 게이지 +${next.gauge}%`); }
+    if (next.hand) { s.opening = (s.opening || 0) + next.hand; say(s, `이벤트 — 첫 손패 +${next.hand}`); }
+    if (next.weak) { for (const u of s.party) if (!u.dead) addSt(u, "약화", next.weak); say(s, `이벤트 — 아군 전원 약화 ${next.weak}턴`); }
+    if (next.hpCut) { for (const u of s.party) if (!u.dead) u.hp = Math.max(1, u.hp - Math.round(u.maxHp * next.hpCut)); say(s, `이벤트 — 시작하자마자 오작동, HP -${Math.round(next.hpCut * 100)}%`); }
+  }
   emit(s, "fightStart", {});
   beginTurn(s);
   return s;
@@ -556,7 +566,7 @@ export function playCard(s, handIdx, targetIdx) {
   s.nextCheaper = 0;
   s.hand.splice(handIdx, 1);
 
-  const ctx = { owner, combo, targetIdx, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null };
+  const ctx = { owner, combo, targetIdx, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null, shin: !!(s.shin && s.shin[cardId]) };
   s.acting = c.hero || null;
   if (c.built) {
     // 기획서에서 읽은 카드 — 효과 조각을 run-fx 가 실행한다(스탯 기반 %)
