@@ -143,11 +143,6 @@ main:has(.battle) { max-width: 1240px; }
   background: #2a2340; border: 1px solid var(--line2); color: #cfc7ea;
 }
 
-@media (max-width: 900px) {
-  .hand .card { width: 124px; }
-  .allies { grid-template-columns: 1fr; }
-  .foes { gap: 12px; }
-}
 
 /* ── 싸움터 ───────────────────────────────────────────
    왼쪽에 아군, 오른쪽에 적. 가장자리에 덱과 버린 더미.
@@ -178,9 +173,8 @@ main:has(.battle) { max-width: 1240px; }
 .foes { justify-content: flex-end; padding-right: 8px; }
 
 .stand { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; width: 116px; }
-.stand.rfront { margin-bottom: 0; }
-.stand.rmid { margin-bottom: 22px; transform: scale(.94); }
-.stand.rback { margin-bottom: 44px; transform: scale(.88); }
+/* 카제나처럼 한 줄로 선다 — 줄은 서는 순서(후열 → 전열, 전열이 적과 가장 가깝다)로만 드러낸다.
+   높이·크기를 줄마다 달리하던 때는 이름표와 체력 막대가 계단처럼 어긋나 읽기 어려웠다. */
 .stand .art { background: transparent; filter: drop-shadow(0 8px 10px #0009); }
 .stand .sname { font-size: 11.5px; font-weight: 700; color: var(--ink2); text-shadow: 0 1px 3px #000c; }
 .stand.dead { opacity: .3; filter: grayscale(1); }

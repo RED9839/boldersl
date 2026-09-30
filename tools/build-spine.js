@@ -5,12 +5,14 @@
 //   node tools/build-spine.js --all      꺼내 둔 사도 전부
 //
 // ingame(전투 SD)·standing(이벤트·상점)은 사도마다 한 벌씩, minimi(맵 이동)는 모두가 한 아틀라스를 나눠 쓴다.
+// enemy(적)는 enemies.js 에 있는 것만 — 먼저 python tools/extract-spine.py 로 꺼내 둔다.
 // 원본(assets/ingame 등)은 건드리지 않는다. assets/ 는 통째로 .gitignore 라 저장소에도 안 들어간다.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ROSTER, HEROES } from "../js/data/heroes.js";
 import ARTMAP from "../js/data/artmap.js";
+import { ENEMIES } from "../js/data/enemies.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const AS = path.join(HERE, "..", "assets");
@@ -62,6 +64,22 @@ for (const kind of ["ingame", "standing"]) {
   }
 }
 
+// 적 — tools/extract-spine.py 가 assets/monsterspine 에 꺼내 둔다. key 가 곧 몬스터 폴더 이름이다.
+// 저주 인형 셋은 게임에 따로 된 스파인이 없고 curseddoll 한 벌을 성격 스킨으로 나눠 입는다.
+const ENEMY_DIR = { elfcurseddolldealer: "curseddoll", elfcurseddolltanker: "curseddoll", witchcurseddollwizard: "curseddoll" };
+manifest.enemy = {};
+const msrc = path.join(AS, "monsterspine");
+if (!fs.existsSync(msrc)) trouble.push("적 스파인을 아직 안 꺼냈습니다 — python tools/extract-spine.py");
+else {
+  for (const key of Object.keys(ENEMIES)) {
+    const got = copySet(path.join(msrc, ENEMY_DIR[key] || key), path.join(OUT, "enemy", key));
+    if (!got) { trouble.push(`enemy/${key} — 한 벌이 안 갖춰졌습니다`); continue; }
+    if (got.error) { trouble.push(`enemy/${key} — ${got.error}`); continue; }
+    manifest.enemy[key] = { atlas: got.atlas, skel: got.skel, pages: got.pages };
+    total += got.bytes;
+  }
+}
+
 // 미니미는 한 아틀라스를 모두가 나눠 쓴다
 const mini = copySet(path.join(AS, "minimi"), path.join(OUT, "minimi"));
 if (mini && !mini.error) {
@@ -73,7 +91,8 @@ fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 1));
 
 const ni = Object.keys(manifest.ingame).length, ns = Object.keys(manifest.standing).length;
-console.log(`전투 SD ${ni}명 · 스탠딩 ${ns}명 · 미니미 ${manifest.minimi ? "있음" : "없음"} · ${mb(total)} → assets/spine/`);
+const ne = Object.keys(manifest.enemy).length;
+console.log(`전투 SD ${ni}명 · 스탠딩 ${ns}명 · 적 ${ne}/${Object.keys(ENEMIES).length}종 · 미니미 ${manifest.minimi ? "있음" : "없음"} · ${mb(total)} → assets/spine/`);
 for (const t of trouble) console.log(`  ! ${t}`);
 if (!ALL) {
   const miss = Object.keys(ARTMAP.art).filter((k) => !manifest.ingame[k] || !manifest.standing[k]);

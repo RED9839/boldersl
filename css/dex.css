@@ -319,18 +319,6 @@
 .flash b { display: block; font-size: 12px; margin: 3px 0 2px; }
 .flash p { margin: 0; font-size: 11px; line-height: 1.6; color: #62657a; word-break: keep-all; }
 
-@media (max-width: 1000px) {
-  .dbody, .detailscreen .dbody { grid-template-columns: 1fr; }
-  .rail { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
-  .railbtn { width: auto; min-width: 58px; }
-  .side { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line); }
-  .semb { width: 100%; padding-bottom: 8px; }
-  .cardwrap { grid-template-columns: 1fr; }
-  .sthero { flex-direction: column; }
-  .stshot { width: 100%; height: 230px; }
-  .dfoot { flex-wrap: wrap; }
-  .dfoot .go { width: 100%; }
-}
 
 /* ══ 낱말에 밑줄 ═══════════════════════════════════════════════════════
    카드 글의 아는 낱말(동상·간식·취약·AP…)에 밑줄을 긋는다.
@@ -494,10 +482,6 @@ main:has(.formscreen) { max-width: 1440px; }
 .dsaid { font-size: 12.5px; color: var(--dim); }
 .dfoot .dsaid { margin-right: auto; }
 
-@media (max-width: 1000px) {
-  .fbody { grid-template-columns: 1fr; }
-  .fleft { border-right: 0; border-bottom: 1px solid var(--line); }
-}
 
 /* ══ 보상 ═══════════════════════════════════════════════════════════════
    누구의 무슨 카드인지가 첫눈에 보여야 한다 — 이름만 떠 있으면 고를 수가 없다. */

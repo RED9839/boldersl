@@ -163,11 +163,6 @@ main:has(.teamscreen) { max-width: 1440px; }
 .tdrawer .pcard .art-ph { width: 100%; height: 100%; font-size: 15px; }
 .teamscreen .more { grid-column: 1 / -1; padding: 24px; text-align: center; color: var(--dim); font-size: 13px; }
 
-@media (max-width: 1100px) {
-  .tbody { grid-template-columns: 1fr; }
-  .tside { border-left: 0; border-top: 1px solid var(--line); }
-  .tslots { max-width: none; }
-}
 
 /* ══ 사도 교체 ══════════════════════════════════════════════════════════
    팀 편성과 같은 결 — 위에 지금 셋, 아래에서 부를 사람을 고른다.

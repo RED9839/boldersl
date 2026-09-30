@@ -1017,11 +1017,11 @@ export function fightScreen(run, onDone) {
       n.appendChild(tag);
     }
 
-    n.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: u.boss ? 148 : 116, slot: "battle" }));
+    const nat = (ENEMY_NATURE[u.key] || null);
+    n.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: u.boss ? 148 : 116, slot: "foe", skin: NATURE_SKIN[nat] }));
 
     const name = el("div", "fname");
     name.appendChild(el("span", null, u.ko));
-    const nat = (ENEMY_NATURE[u.key] || null);
     if (nat) name.appendChild(el("span", "nature n" + nat, nat));
     n.appendChild(name);
 
@@ -1044,7 +1044,7 @@ export function fightScreen(run, onDone) {
     const pick = clickable && !u.dead;
     const n = el("div", "stand r" + u.row + (u.dead ? " dead" : "") + (pick ? " tgt" : ""));
     if (u.sealed) n.classList.add("sealed");
-    n.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: 104, slot: "battle" }));
+    n.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: 104, slot: "battle", flip: true }));
     const tag = el("div", "sname");
     tag.appendChild(el("span", null, u.ko));
     n.appendChild(tag);
@@ -1057,7 +1057,7 @@ export function fightScreen(run, onDone) {
   function allyNode(u, clickable, onPick) {
     // 체력은 싸움터에 서 있는 모습 아래에 있다. 여기 또 두면 같은 숫자가 두 번 뜬다.
     const n = el("div", "ally" + (u.dead ? " dead" : "") + (clickable ? " tgt" : ""));
-    n.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: 44, slot: "battle" }));
+    n.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: 44, slot: "battle", flip: true }));
 
     const box = el("div", "abody");
     const top = el("div", "atop");
@@ -1376,6 +1376,8 @@ const INTENT_HELP = {
 // 적의 성격 — enemies.js 가 들고 있다
 const ENEMY_NATURE = {};
 for (const [k, e] of Object.entries(ENEMIES)) if (e.nature) ENEMY_NATURE[k] = e.nature;
+// 몬스터 스파인은 성격마다 한 벌씩 입는다 — 게임 파일의 스킨 이름
+const NATURE_SKIN = { 순수: "Skin_Naive", 광기: "Skin_Mad", 냉정: "Skin_Cool", 우울: "Skin_Gloomy", 활발: "Skin_Jolly" };
 
 // ── 보상 ───────────────────────────────────────────────────────────────
 // 얻는 것은 **그 사도의 고유 카드**다(기획서: 사도당 시작 4 + 고유 4).

@@ -15,7 +15,7 @@ import { loadSpineManifest, hasSpine, spineView } from "./spine-view.js";
 const MODES = ["placeholder", "sd", "custom"];
 
 // 자리 → 어느 스파인을 쓰는가. 런타임과 자료가 둘 다 있을 때만 움직이는 그림이 된다.
-const SPINE_KIND = { battle: "ingame", event: "standing", map: "minimi" };
+const SPINE_KIND = { battle: "ingame", foe: "enemy", event: "standing", map: "minimi" };
 let useSpine = true;
 export function setSpine(on) { useSpine = !!on; }
 let mode = "placeholder";
@@ -23,6 +23,7 @@ let mode = "placeholder";
 // 자리 → 그림 이름 앞머리. 위에서부터 찾다가 있는 것을 쓴다.
 const SLOT = {
   battle: ["", "minimi_"],            // 전투는 SD 가 먼저
+  foe: [""],                          // 적은 몬스터 그림 한 장
   event: ["standing_", "", "minimi_"], // 이벤트·상점은 스탠딩이 먼저
   map: ["minimi_", ""],               // 맵은 미니미가 먼저
 };
@@ -66,7 +67,9 @@ export function slotOf(key, slot) {
 }
 
 // 초상. 그림이 있으면 <img>, 없으면 색과 이름으로 된 자리표시.
-export function portrait(key, { ko, tint, size = 72, slot = "battle", still = false } = {}) {
+// flip — 움직이는 그림을 좌우로 뒤집는다(왼편에 선 아군이 오른쪽의 적을 보게).
+// skin — 움직이는 그림에 입힐 스킨(적의 성격 스킨 등).
+export function portrait(key, { ko, tint, size = 72, slot = "battle", still = false, flip = false, skin } = {}) {
   const el = document.createElement("div");
   el.className = "art art-" + slot;
   el.style.width = el.style.height = size + "px";
@@ -75,7 +78,7 @@ export function portrait(key, { ko, tint, size = 72, slot = "battle", still = fa
   const kind = SPINE_KIND[slot];
   if (useSpine && !still && kind && hasSpine(kind, key)) {
     el.classList.add("art-spine");
-    spineView(el, kind, key).then((v) => { if (!v) { el.classList.remove("art-spine"); drawStill(el, key, slot, ko, tint); } });
+    spineView(el, kind, key, { flip, skin }).then((v) => { if (!v) { el.classList.remove("art-spine"); drawStill(el, key, slot, ko, tint); } });
     return el;
   }
   drawStill(el, key, slot, ko, tint);

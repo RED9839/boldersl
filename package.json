@@ -36,6 +36,6 @@
     "fx": "node tools/check-fx.js"
   },
   "dependencies": {
-    "@esotericsoftware/spine-webgl": "^4.3.13"
+    "@esotericsoftware/spine-webgl": "~4.1.56"
   }
 }

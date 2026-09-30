@@ -3,8 +3,18 @@ import { lobbyScreen } from "./home-design.js";
 import * as ui from "./ui.js";
 import * as R from "./run.js";
 import * as art from "./art.js";
+import { initStage, toggleFullscreen } from "./stage.js";
 
 let run = null;
+
+// 첫 화면을 그리기 **전에** 배율부터 건다 — 그 뒤에 걸면 스파인 캔버스가 옛 크기로 만들어진다
+initStage();
+const fsBtn = typeof document.getElementById === "function" ? document.getElementById("fullscreen") : null;
+if (fsBtn) {
+  if (!document.documentElement.requestFullscreen) fsBtn.hidden = true;
+  fsBtn.onclick = toggleFullscreen;
+  document.addEventListener("fullscreenchange", () => fsBtn.classList.toggle("on", !!document.fullscreenElement));
+}
 
 async function boot() {
   await art.loadManifest();          // 추출한 그림이 있으면 쓴다. 없으면 자리표시.

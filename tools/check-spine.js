@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ARTMAP from "../js/data/artmap.js";
 import D from "../js/data/design.js";
+import { ENEMIES } from "../js/data/enemies.js";
 
 // 기획서 사도가 명단이다. 이름은 기획서 것을 쓴다.
 const ROSTER = Object.keys(ARTMAP.art);
@@ -20,6 +21,10 @@ if (!fs.existsSync(path.join(ROOT, "manifest.json"))) {
   process.exit(1);
 }
 const man = JSON.parse(fs.readFileSync(path.join(ROOT, "manifest.json"), "utf8"));
+
+// vendor/spine-webgl.min.js 는 package.json 의 spine-webgl 을 그대로 옮겨 둔 것이다. 그 부 버전(4.1)만 본다.
+const PKG = JSON.parse(fs.readFileSync(path.join(HERE, "..", "package.json"), "utf8"));
+const RUNTIME = ((PKG.dependencies || {})["@esotericsoftware/spine-webgl"] || "").match(/4\.\d+/)?.[0] || null;
 
 let bad = 0;
 const fail = (m) => { console.log(`  실패 ${m}`); bad++; };
@@ -45,9 +50,13 @@ function checkSet(kind, key, set, dir) {
   // .skel 은 스파인 4.x 바이너리다. 안이 비었거나 다른 것이면 여기서 걸린다.
   const skel = fs.readFileSync(path.join(dir, set.skel));
   if (skel.length < 1000) return fail(`${label} — .skel 이 너무 작다 (${skel.length}B)`);
-  // 4.x 는 앞쪽 어딘가에 버전 문자열 "4."이 들어 있다
+  // 4.x 는 앞쪽 어딘가에 버전 문자열 "4.1.08" 같은 것이 들어 있다
   const head = skel.subarray(0, 64).toString("latin1");
-  if (!/4\.\d/.test(head)) return fail(`${label} — 스파인 4.x 가 아닌 듯하다`);
+  const ver = head.match(/4\.\d+/);
+  if (!ver) return fail(`${label} — 스파인 4.x 가 아닌 듯하다`);
+  // 바이너리는 부 버전끼리도 안 읽힌다 — 4.3 런타임에 4.1 .skel 을 주면 "String in string table must not be null".
+  // 이렇게 되면 화면은 조용히 그림 한 장으로 떨어져서 눈으로는 잘 안 보인다.
+  if (RUNTIME && ver[0] !== RUNTIME) return fail(`${label} — .skel 은 ${ver[0]}, 런타임은 ${RUNTIME} (package.json)`);
 
   const text = fs.readFileSync(path.join(dir, set.atlas), "utf8");
   const regions = atlasRegions(text);
@@ -78,6 +87,25 @@ for (const kind of ["ingame", "standing"]) {
   }
   ok(`${good}/${ROSTER.length}명이 읽힌다`);
   console.log("");
+}
+
+// 적은 없어도 게임은 돈다(그림 한 장으로 떨어진다) — 없는 것은 실패가 아니라 알림만
+console.log("적");
+{
+  const enemy = man.enemy || {};
+  const keys = Object.keys(ENEMIES);
+  let good = 0;
+  for (const k of keys) {
+    if (!enemy[k]) continue;
+    const before = bad;
+    const q = console.log; console.log = () => {};
+    checkSet("enemy", k, enemy[k], path.join(ROOT, "enemy", k));
+    console.log = q;
+    if (bad === before) good++;
+  }
+  const miss = keys.filter((k) => !enemy[k]);
+  ok(`${good}/${keys.length}종이 읽힌다`);
+  if (miss.length) console.log(`  알림 스파인 없는 적 ${miss.length}종 — 그림 한 장으로 나온다: ${miss.join(", ")}`);
 }
 
 console.log("");

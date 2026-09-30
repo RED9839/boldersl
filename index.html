@@ -2,19 +2,32 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 배율은 js/stage.js 가 맡는다. viewport-fit=cover 는 노치 있는 폰에서 가로로 들었을 때 양옆을 채우려고 -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16151c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>볼더슬</title>
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/journey.css">
 <link rel="stylesheet" href="css/dex.css">
 <link rel="stylesheet" href="css/team.css">
 <link rel="stylesheet" href="css/battle.css">
+<link rel="stylesheet" href="css/stage.css">
 </head>
 <body>
 <header class="top">
   <h1>볼더슬 <span class="ver">프로토타입</span></h1>
   <p class="unofficial">트릭컬 리바이브 팬 게임 · 비공식 개인 제작. 공식과 무관합니다.</p>
+  <button id="fullscreen" class="fsbtn" type="button" title="전체화면">⛶ <span>전체화면</span></button>
 </header>
+
+<!-- 휴대폰을 세로로 들었을 때만 보인다 — 이 게임은 가로로 한다 -->
+<div class="rotate" aria-live="polite">
+  <div class="rotate-phone"></div>
+  <p>휴대폰을 <b>가로로</b> 돌려 주세요</p>
+  <small>볼더슬은 가로 화면에서 합니다</small>
+</div>
 
 <main id="screen"></main>
 
