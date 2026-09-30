@@ -1387,6 +1387,8 @@ export function rewardScreen(run, onPick) {
   const bar = el("div", "dbar2");
   bar.appendChild(el("h1", "dtitle", "이겼습니다"));
   bar.appendChild(el("span", "rwhy", "카드 한 장을 덱에 넣거나 번뜩임 하나를 얻습니다. 둘 다 안 해도 됩니다."));
+  const rgot = run.reward || R.rollReward(run);
+  if (rgot.gold) bar.appendChild(el("span", "sgold", `✦ +${rgot.gold} 골드`));
   const skip = el("button", "dexbtn", "그냥 간다");
   skip.onclick = () => onPick(null, null);
   bar.appendChild(skip);
@@ -1446,6 +1448,154 @@ export function rewardScreen(run, onPick) {
       fr.appendChild(b);
     }
     body.appendChild(fr);
+  }
+
+  function sec(label, why) {
+    const d = el("div", "rsec");
+    d.appendChild(el("b", null, label));
+    if (why) d.appendChild(el("span", "why", why));
+    return d;
+  }
+  return s;
+}
+
+// ── 골디의 상점 ─────────────────────────────────────────────────────────
+// 층마다 보스 앞에서 한 번. 골디(황금에서 태어난 용족 상인 · 교단 상점 담당)가 판다.
+// 인물 사전 그대로: '고객님' 하고 부르고, 정품만 팔고, **할인은 웃으며 거절한다.** 말하다 말고 와작.
+// 파는 것 — 중립 카드 셋(효과가 다 도는 것만) · 파티 사도의 고유 카드 둘 · 카드 제거 한 번.
+const GOLDY = {
+  hello: "어서 오세요, 고객님! 오늘 들어온 물건은 전부 정품이에요.",
+  buy: ["탁월한 선택이세요!", "센스가 좋으시네요!", "좋은 물건은 주인을 알아보는 법이죠!"],
+  poor: "좋은 물건에는 그만한 값이 있는 법이죠. 조금 더 모아 오세요!",
+  haggle: "할인은 안 돼요! 대신 품질은 제가 보증하죠. …와작.",
+  remove: "필요 없는 걸 덜어 내는 게 제일 좋은 세공이에요.",
+  bye: "또 오세요, 고객님! …와작.",
+  // 파티에 있으면 먼저 건네는 말 — 인물 사전의 관계에서
+  greet: {
+    실비아: "황금대공! 이건 선물이에요. 값은 안 받아요 — 장사가 아니니까요.",
+    비비: "오, 오랜만이네요. 옛날 이야기는… 다음에 하죠. 신상 보실래요?",
+    시스트: "시스트 씨는 오늘도 협회 이름 안 팔고 구경만 하시는 거죠? 정품만 있어요.",
+    "시온 더 다크불릿": "우리 가게에서 일하던 시온 씨! 방은 지낼 만해요?",
+    피라: "피라 씨, 요즘 연금술은 어때요? 금 이야기라면 언제든 환영이에요.",
+    리츠: "리츠 씨, 오늘은 승부 말고 쇼핑이죠? 여기선 힘자랑 금지예요.",
+    클로에: "협회 회의는 다음 주예요, 클로에 씨. 오늘은 손님으로 오셨네요!",
+    에슈르: "에슈르 씨, 그때 학교에 피신시켜 줘서 고마웠어요.",
+  },
+};
+
+export function shopScreen(run, onDone) {
+  const s = screen();
+  s.classList.add("rewardscreen", "shopscreen");
+  const shop = run.shop || R.rollShop(run);
+
+  const bar = el("div", "dbar2");
+  bar.appendChild(el("h1", "dtitle", "골디의 상점"));
+  const gold = el("span", "sgold");
+  bar.appendChild(gold);
+  const leave = el("button", "dexbtn", "보스에게 간다");
+  leave.onclick = () => { say(GOLDY.bye); setTimeout(onDone, 0); };
+  bar.appendChild(leave);
+  s.appendChild(bar);
+
+  // 골디 — 그림이 없어서 금화 표식과 말풍선으로 선다
+  const host = el("div", "shost");
+  host.appendChild(el("div", "sface", "✦"));
+  const talk = el("div", "stalk");
+  const who = el("b", null, "골디");
+  const line = el("p", "sline2");
+  talk.appendChild(who);
+  talk.appendChild(line);
+  host.appendChild(talk);
+  const haggle = el("button", "shaggle", "깎아 주세요");
+  haggle.onclick = () => say(GOLDY.haggle);
+  host.appendChild(haggle);
+  s.appendChild(host);
+  function say(t) { line.textContent = t; }
+
+  const body = el("div", "rbody");
+  s.appendChild(body);
+
+  const firstWord = run.party.map((k) => (HERO_DATA[k] || HERO(k)).ko).find((ko) => GOLDY.greet[ko]);
+  say(firstWord ? GOLDY.greet[firstWord] : GOLDY.hello);
+
+  let removing = false;
+  draw();
+
+  function draw() {
+    gold.textContent = `✦ ${run.gold} 골드`;
+    body.innerHTML = "";
+    if (shop.gift) {
+      body.appendChild(sec("선물", "실비아가 있어서 골디가 한 장을 덱에 넣어 줬습니다"));
+      const row = el("div", "rrow");
+      row.appendChild(item({ id: shop.gift, price: 0, sold: true, gift: true }, -1));
+      body.appendChild(row);
+    }
+    const neutral = shop.items.map((it, i) => [it, i]).filter(([it]) => it.kind === "neutral");
+    const unique = shop.items.map((it, i) => [it, i]).filter(([it]) => it.kind === "unique");
+    body.appendChild(sec("중립 카드", "어느 사도의 것도 아닙니다. 공격력·방어력이 가장 높은 아군 기준으로 돕니다"));
+    const nrow = el("div", "rrow");
+    for (const [it, i] of neutral) nrow.appendChild(item(it, i));
+    if (!neutral.length) nrow.appendChild(el("p", "rnone", "오늘은 진열할 중립 카드가 없습니다."));
+    body.appendChild(nrow);
+
+    body.appendChild(sec("고유 카드", "파티 사도의 고유 카드 — 전투 보상으로도 나옵니다"));
+    const urow = el("div", "rrow");
+    for (const [it, i] of unique) urow.appendChild(item(it, i));
+    if (!unique.length) urow.appendChild(el("p", "rnone", "이 파티의 고유 카드는 이미 다 가졌습니다."));
+    body.appendChild(urow);
+
+    const price = R.removePrice(run);
+    body.appendChild(sec("카드 제거", shop.removeUsed ? "이번에는 이미 한 장 뺐습니다" : `덱에서 한 장을 뺍니다 · ${price} 골드 · 쓸 때마다 값이 오릅니다`));
+    const rm = el("button", "srmbtn" + (removing ? " on" : ""), removing ? "그만두기" : "뺄 카드 고르기");
+    rm.disabled = shop.removeUsed;
+    rm.onclick = () => {
+      if (!removing && run.gold < price) return say(GOLDY.poor);
+      removing = !removing; draw();
+    };
+    body.appendChild(rm);
+    if (removing && !shop.removeUsed) {
+      const grid = el("div", "rrow sdeck");
+      run.deck.forEach((id) => {
+        const c = CARDS[id];
+        if (!c) return;
+        const card = bigCard(c, CARDART.pic[id] || null);
+        card.onclick = () => {
+          const why = R.removeCard(run, id);
+          if (why) return say(why === "골드가 모자랍니다" ? GOLDY.poor : why);
+          removing = false; say(GOLDY.remove); draw();
+        };
+        card.title = "눌러서 덱에서 빼기";
+        const wrap = el("div", "rpick small");
+        wrap.appendChild(card);
+        grid.appendChild(wrap);
+      });
+      body.appendChild(grid);
+    }
+  }
+
+  function item(it, i) {
+    const c = CARDS[it.id];
+    const pick = el("div", "rpick sitem" + (it.sold && !it.gift ? " sold" : ""));
+    const tag = el("div", "rwho");
+    if (c.hero) {
+      tag.appendChild(art.portrait(c.hero, { ko: HERO(c.hero).ko, tint: TINT(c.hero), size: 26, slot: "battle", still: true }));
+      tag.appendChild(el("b", null, HERO(c.hero).ko));
+    } else tag.appendChild(el("b", "sgrade g-" + (c.grade || ""), `${c.grade || "중립"} · 중립`));
+    pick.appendChild(tag);
+    const card = bigCard(c, CARDART.pic[it.id] || null);
+    pick.appendChild(card);
+    if (c.blurb) pick.appendChild(el("p", "sblurb", c.blurb));
+    const b = el("button", "sprice", it.gift ? "선물" : it.sold ? "팔렸습니다" : `✦ ${it.price} 골드`);
+    b.disabled = !!it.sold;
+    if (!it.sold && run.gold < it.price) b.classList.add("short");
+    b.onclick = () => {
+      const why = R.buy(run, i);
+      if (why) return say(why === "골드가 모자랍니다" ? GOLDY.poor : why);
+      say(GOLDY.buy[Math.floor(Math.random() * GOLDY.buy.length)]);
+      draw();
+    };
+    pick.appendChild(b);
+    return pick;
   }
 
   function sec(label, why) {

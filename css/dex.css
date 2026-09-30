@@ -590,3 +590,61 @@ main:has(.endscreen), main:has(.swapscreen) { max-width: 1100px; }
   display: inline-flex; align-items: center; gap: 7px; font-size: 12px;
   padding: 6px 11px; background: #fff; border: 1px solid var(--line); border-radius: 99px;
 }
+
+/* ══ 골디의 상점 ═════════════════════════════════════════════════════════
+   보상 화면과 같은 결에 금빛을 얹는다. 값은 카드 아래 큰 단추 — 무엇이 얼마인지가 첫눈에. */
+.shopscreen { --gold: #c8932f; --gold-soft: #fff4dc; }
+.sgold {
+  margin-left: 8px; padding: 3px 10px; border-radius: 99px;
+  background: var(--gold-soft, #fff4dc); color: #8a5a10; font-size: 12.5px; font-weight: 700; white-space: nowrap;
+}
+.shost {
+  display: flex; align-items: center; gap: 12px; padding: 12px 18px;
+  border-bottom: 1px solid var(--line); background: linear-gradient(90deg, #fff7e6, #ffffff00);
+}
+.sface {
+  width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 35% 30%, #ffe7a3, #d9a441 70%); color: #7a4d06; font-size: 20px;
+  box-shadow: inset 0 -3px 0 #b9832a;
+}
+.stalk { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.stalk b { font-size: 12px; color: #8a5a10; }
+.sline2 { margin: 0; font-size: 13px; line-height: 1.6; word-break: keep-all; }
+.shaggle {
+  flex: none; font-size: 12px; padding: 6px 10px; border-radius: 8px;
+  background: #fff; border: 1px solid var(--line); color: var(--dim);
+}
+.shaggle:hover { border-color: var(--gold); color: #8a5a10; }
+.sitem .gcard { cursor: default; }
+.sitem .gcard:hover { transform: none; box-shadow: none; }
+.sitem.sold .gcard { filter: grayscale(.8); opacity: .55; }
+.sblurb { margin: 0; font-size: 11px; line-height: 1.5; color: var(--dim); word-break: keep-all; }
+.sprice {
+  padding: 8px 10px; border-radius: 10px; font-size: 13px; font-weight: 700;
+  background: #2e3140; color: #ffe2a0; border: 0;
+}
+.sprice:hover:not(:disabled) { background: #3a3e52; }
+.sprice.short { background: #e9eaf1; color: #9aa0b4; }
+.sprice:disabled { background: #e9eaf1; color: #9aa0b4; cursor: default; }
+.sgrade { font-size: 12px; }
+.sgrade.g-전설 { color: #b07a12; } .sgrade.g-희귀 { color: #6a5bd6; }
+.sgrade.g-고급 { color: #2f8f6a; } .sgrade.g-일반 { color: #7b7d8c; }
+.srmbtn {
+  align-self: flex-start; margin-top: 8px; padding: 8px 14px; border-radius: 10px; font-size: 13px;
+  background: #fff; border: 1px solid var(--line); color: var(--ink);
+}
+.srmbtn.on { border-color: var(--bad, #d9737f); color: var(--bad, #d9737f); }
+.srmbtn:disabled { opacity: .5; cursor: default; }
+.sdeck .rpick.small { width: 132px; }
+.sdeck .gcard { cursor: pointer; }
+@media (max-width: 640px) {
+  .shopscreen .rpick { width: calc(50% - 7px); }
+  .sdeck .rpick.small { width: calc(33.3% - 10px); }
+  .shost { flex-wrap: wrap; }
+}
+/* 좁은 화면에서 낱말이 중간에 꺾이지 않게 · 값 단추는 카드 아래 한 줄로 */
+.shopscreen .dbar2 { flex-wrap: wrap; row-gap: 6px; }
+.shopscreen .dtitle, .shopscreen .dexbtn, .shopscreen .rsec b { white-space: nowrap; flex: none; }
+.shopscreen .rsec { flex-wrap: wrap; }
+.sitem { align-self: stretch; }
+.sitem .sprice { margin-top: auto; }

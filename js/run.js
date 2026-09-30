@@ -6,7 +6,7 @@ import { HERO_DATA } from "./cardbook.js";
 const base = (k) => HERO_DATA[k] || HEROES[k] || { hp: 50, row: "mid" };
 import { offerRelics, countOn } from "./data/relics.js";
 import { CARDS as OLD_CARDS, EXTRA } from "./data/cards.js";
-import { CARDS } from "./cardbook.js";
+import { CARDS, NEUTRAL_IDS } from "./cardbook.js";
 import { FLOORS } from "./data/enemies.js";
 import * as R from "./rules.js";
 import { buildDeck, makeRng, partyBonds } from "./combat.js";
@@ -21,7 +21,10 @@ export function newRun(partyKeys, rows, seed = Date.now()) {
     flash: {},                    // 카드 id → 번뜩임 번호(1~5). 카드마다 하나만.
     reward: null,                 // 이번 보상에서 굴린 것 — 다시 그려도 안 바뀐다
     relics: [],                   // 얻은 유물 [{id, hero|null}] — 사도당 3개까지
-    gold: 0,
+    gold: R.GOLD_START,
+    shop: null,                   // 이번 상점에서 굴린 진열 — 다시 그려도 안 바뀐다
+    shopSeen: {},                 // 층마다 한 번 — { 0: true }
+    removals: 0,                  // 카드 제거를 몇 번 했나 — 값이 오른다
     deck: buildDeck(partyKeys),
     floor: 0, node: 0,            // node 0..2 전투, 3 보스
     bench: Object.keys(HERO_DATA).filter((k) => !partyKeys.includes(k)),
@@ -71,14 +74,90 @@ export function uniqueIdsOf(heroKey) {
 // 보상은 **들어올 때 한 번만 굴린다.** 화면을 다시 그릴 때마다 굴리면
 // 볼 때마다 카드가 바뀐다(전에 그랬다).
 export function rollReward(run) {
+  const [lo, hi] = R.GOLD_FIGHT;
+  const gold = isBoss(run) ? R.GOLD_BOSS : lo + Math.floor(run.rng() * (hi - lo + 1)) + run.floor * 5;
   run.reward = {
+    gold, goldTaken: false,
     cards: rewardCards(run),
     flash: run.rng() < R.FLASH_CHANCE ? offerFlash(run) : null,
   };
   return run.reward;
 }
 
-export function takeReward(run, cardId) { if (cardId) run.deck.push(cardId); }
+export function takeReward(run, cardId) {
+  if (cardId) run.deck.push(cardId);
+  // 골드는 카드를 안 골라도 받는다 — 한 번만
+  if (run.reward && !run.reward.goldTaken) { run.gold += run.reward.gold || 0; run.reward.goldTaken = true; }
+}
+
+// ── 골디의 상점 ──────────────────────────────────────────────────────────
+// 층마다 보스 앞에서 한 번 들른다. 파는 것:
+//   중립 카드 셋(효과가 다 도는 것만) · 파티 사도의 고유 카드 둘 · 카드 제거(한 번)
+// 골디는 **할인하지 않는다**(인물 사전: 할인 요구에는 웃으며 단호). 값은 기획서의 골드 그대로.
+export const needsShop = (run) => isBoss(run) && !run.shopSeen[run.floor] && !run.done;
+
+export function rollShop(run) {
+  const has = new Set(run.deck);
+  const pool = NEUTRAL_IDS.filter((id) => CARDS[id].playable && !(CARDS[id].oneOnly && has.has(id)));
+  const neutral = [];
+  while (neutral.length < R.SHOP_NEUTRAL && pool.length) {
+    const w = pool.map((id) => R.SHOP_GRADE_WEIGHT[CARDS[id].grade] || 1);
+    let r = run.rng() * w.reduce((a, b) => a + b, 0), i = 0;
+    while (r >= w[i]) r -= w[i++];
+    neutral.push(...pool.splice(i, 1));
+  }
+  const upool = [];
+  for (const k of run.party) for (const id of uniqueIdsOf(k)) if (!has.has(id)) upool.push(id);
+  const unique = [];
+  while (unique.length < R.SHOP_UNIQUE && upool.length) unique.push(...upool.splice(Math.floor(run.rng() * upool.length), 1));
+  run.shop = {
+    floor: run.floor,
+    items: [
+      ...neutral.map((id) => ({ id, kind: "neutral", price: CARDS[id].price, sold: false })),
+      ...unique.map((id) => ({ id, kind: "unique", price: R.PRICE_UNIQUE + (CARDS[id].signature ? 35 : 0), sold: false })),
+    ],
+    removeUsed: false,
+    gift: null,
+  };
+  // 수양딸에게는 선물 — 할인이 아니라 선물이다(인물 사전: 실비아는 수양딸 · 돈에 쩨쩨하지 않다). 한 판에 한 번.
+  if (!run.goldyGift && run.party.some((k) => (HERO_DATA[k] || {}).ko === "실비아")) {
+    const gp = NEUTRAL_IDS.filter((id) => CARDS[id].playable && ["일반", "고급"].includes(CARDS[id].grade) && !neutral.includes(id));
+    if (gp.length) {
+      const id = gp[Math.floor(run.rng() * gp.length)];
+      run.deck.push(id); run.goldyGift = id; run.shop.gift = id;
+    }
+  }
+  run.shopSeen[run.floor] = true;
+  return run.shop;
+}
+
+export const removePrice = (run) => R.PRICE_REMOVE + R.PRICE_REMOVE_STEP * (run.removals || 0);
+
+// 산다 — 못 사면 왜인지 돌려준다(화면이 그대로 보여 준다)
+export function buy(run, idx) {
+  const it = run.shop && run.shop.items[idx];
+  if (!it || it.sold) return "이미 팔린 물건입니다";
+  if (run.gold < it.price) return "골드가 모자랍니다";
+  run.gold -= it.price;
+  it.sold = true;
+  run.deck.push(it.id);
+  return null;
+}
+
+// 카드 제거 — 한 번 들를 때 한 번. 덱에서 한 장(같은 카드가 여럿이면 하나만) 뺀다
+export function removeCard(run, cardId) {
+  if (!run.shop || run.shop.removeUsed) return "이번에는 더 뺄 수 없습니다";
+  const price = removePrice(run);
+  if (run.gold < price) return "골드가 모자랍니다";
+  const i = run.deck.indexOf(cardId);
+  if (i < 0) return "덱에 없는 카드입니다";
+  run.gold -= price;
+  run.deck.splice(i, 1);
+  run.removals = (run.removals || 0) + 1;
+  run.shop.removeUsed = true;
+  if (run.flash) delete run.flash[cardId];
+  return null;
+}
 
 // 번뜩임 — **이미 가진 고유 카드**에만 붙는다(기획서: 고유 카드마다 번뜩임 다섯).
 // 번뜩임 자리에서 그중 한 장을 골라, 다섯 중 **무작위 셋**을 보여 주고 하나를 고르게 한다.

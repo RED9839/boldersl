@@ -45,8 +45,15 @@ function reward() {
     const { swap } = R.advance(run);
     if (run.done === "clear") return ui.endScreen("clear", run, start);
     if (swap) return ui.swapScreen(run, fight);
+    if (R.needsShop(run)) return shop();     // 보스 앞 — 골디의 상점
     fight();
   });
+}
+
+function shop() {
+  ui.hint("");
+  if (!run.shop || run.shop.floor !== run.floor) R.rollShop(run);
+  ui.shopScreen(run, fight);
 }
 
 boot();

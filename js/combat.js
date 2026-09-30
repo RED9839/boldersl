@@ -537,6 +537,12 @@ export function canPlay(s, cardId) {
   return null;
 }
 
+// 살아 있는 아군 중 그 스탯이 가장 높은 사람 — 중립 카드의 기준
+function bestAlly(s, stat) {
+  const up = s.party.filter((u) => !u.dead);
+  return up.length ? up.reduce((a, b) => ((b[stat] || 0) > (a[stat] || 0) ? b : a)) : null;
+}
+
 export function playCard(s, handIdx, targetIdx) {
   if (s.over) return { ok: false, why: "전투가 끝났습니다" };
   const cardId = s.hand[handIdx];
@@ -545,7 +551,8 @@ export function playCard(s, handIdx, targetIdx) {
   if (why) return { ok: false, why };
 
   const c = cardOf(s, cardId);
-  const owner = c.hero ? s.party.find((u) => u.key === c.hero) : null;
+  // 중립 카드는 주인이 없다 — 기획서: 따로 적지 않으면 **공격력·방어력이 가장 높은 아군 기준**
+  const owner = c.hero ? s.party.find((u) => u.key === c.hero) : c.neutral ? bestAlly(s, "atk") : null;
   const combo = resolveCombo(s, c);
 
   // X 코스트는 남은 AP 를 전부 쓴다. 그 수가 곧 X 다.
@@ -558,7 +565,7 @@ export function playCard(s, handIdx, targetIdx) {
   s.nextCheaper = 0;
   s.hand.splice(handIdx, 1);
 
-  const ctx = { owner, combo, targetIdx, x: c.xcost ? paid : 0 };
+  const ctx = { owner, combo, targetIdx, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null };
   s.acting = c.hero || null;
   if (c.built) {
     // 기획서에서 읽은 카드 — 효과 조각을 run-fx 가 실행한다(스탯 기반 %)

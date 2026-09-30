@@ -23,6 +23,20 @@ export const FLASH_CHANCE = 0.35;
 // 아직 풀을 파서로 읽지 않아 쓰지는 않는다. 값만 여기 둔다.
 export const SHIN_CHANCE = 0.05;
 
+// ── 골드와 골디의 상점 ───────────────────────────────────────────────
+// 기획서는 중립 카드 값만 적었다(원작 코인 ×10 — 일반 70~90 · 전설 50~490).
+// 버는 쪽과 서비스 값은 **우리가 정했다.** 한 층(싸움 셋)이면 상점에서 중립 카드 한두 장을 산다.
+export const GOLD_START = 99;
+export const GOLD_FIGHT = [15, 25];      // 보통 싸움 — 층이 오를수록 +5씩
+export const GOLD_BOSS = 75;
+export const SHOP_NEUTRAL = 3;           // 진열하는 중립 카드
+export const SHOP_UNIQUE = 2;            // 파티 사도의 고유 카드
+export const PRICE_UNIQUE = 75;          // 시그니처는 +35
+export const PRICE_REMOVE = 75;          // 카드 제거 — 쓸 때마다 +25 (한 번 들를 때 한 번)
+export const PRICE_REMOVE_STEP = 25;
+// 진열 가중치 — 흔한 것이 자주 나온다
+export const SHOP_GRADE_WEIGHT = { 일반: 5, 고급: 4, 희귀: 2, 전설: 1 };
+
 // ── 궁극기 게이지 ─────────────────────────────────────────────────────
 // 파티 공용 0~300%. 카드에 쓴 AP 1당 +10%. 0코 카드는 충전하지 않는다.
 // 전투가 끝나면 0%. 같은 사도의 궁극기는 연속으로 쓸 수 없다.

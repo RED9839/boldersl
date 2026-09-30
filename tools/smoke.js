@@ -362,6 +362,55 @@ check(ins.length > 100, `부를 사람 목록이 열린다 (${ins.length})`);
   check(run.rows[inKey] === B7.heroes[inKey].row, `들어온 사도는 제 자리에 선다 (${run.rows[inKey]})`);
 }
 
+console.log("\n골디의 상점");
+{
+  const CB = (await import("../js/cardbook.js")).CARDS;
+  const r = R.newRun(run.party.slice(), { ...run.rows }, 11);
+  check(r.gold === 99, `골드 99로 시작한다 (${r.gold})`);
+  // 싸움 뒤 골드 — 카드를 안 골라도 받는다, 한 번만
+  R.rollReward(r); const g = r.reward.gold; R.takeReward(r, null); R.takeReward(r, null);
+  check(g >= 15 && r.gold === 99 + g, `싸움 뒤 골드를 한 번만 받는다 (+${g})`);
+  r.node = 2; check(!R.needsShop(r), "보스 앞이 아니면 상점이 안 뜬다");
+  r.node = 3; check(R.needsShop(r), "보스 앞이면 상점이 뜬다");
+  r.gold = 2000;
+  const sp = ui.shopScreen(r, () => {});
+  check(!R.needsShop(r), "상점은 층마다 한 번");
+  const neu = r.shop.items.filter((it) => it.kind === "neutral");
+  check(neu.length === 3 && neu.every((it) => CB[it.id].playable), `중립 카드 셋, 모두 효과가 다 도는 것 (${neu.map((it) => CB[it.id].name).join(" · ")})`);
+  check(neu.every((it) => it.price === CB[it.id].price), "값은 기획서의 골드 그대로");
+  check(r.shop.items.filter((it) => it.kind === "unique").length === 2, "파티 고유 카드 둘");
+  const before = r.gold, deckN = r.deck.length;
+  const buyBtn = clickAll(sp, (n) => n.classList.contains("sprice"))[0];
+  buyBtn.onclick();
+  check(r.gold === before - r.shop.items[0].price && r.deck.length === deckN + 1, "사면 골드가 줄고 덱에 들어온다");
+  check(/팔렸습니다/.test(sp.textContent), "산 칸은 팔렸다고 적는다");
+  clickAll(sp, (n) => n.classList.contains("shaggle"))[0].onclick();
+  check(/할인은 안 돼요/.test(sp.textContent), "골디는 할인하지 않는다");
+  clickAll(sp, (n) => n.classList.contains("srmbtn"))[0].onclick();
+  const toRemove = clickAll(sp, (n) => n.classList.contains("gcard") && n.title === "눌러서 덱에서 빼기");
+  check(toRemove.length === r.deck.length, `뺄 카드로 덱 전체가 펼쳐진다 (${toRemove.length})`);
+  const g2 = r.gold; toRemove[0].onclick();
+  check(r.deck.length === deckN && r.gold === g2 - 75 && r.shop.removeUsed, "카드 제거 75골드, 한 번만");
+  check(R.removePrice(r) === 100, "다음 제거는 100골드");
+  const r2 = R.newRun(run.party.slice(), { ...run.rows }, 12); r2.gold = 10; r2.node = 3;
+  const sp2 = ui.shopScreen(r2, () => {});
+  clickAll(sp2, (n) => n.classList.contains("sprice"))[0].onclick();
+  check(r2.gold === 10 && /값이 있는 법/.test(sp2.textContent), "골드가 모자라면 못 사고 골디가 말해 준다");
+  // 실비아(수양딸)가 있으면 선물 — 할인이 아니라 선물
+  const B = (await import("../js/data/built.js")).default;
+  const sylvia = Object.keys(B.heroes).find((k) => B.heroes[k].ko === "실비아");
+  const r3 = R.newRun([sylvia, ...run.party.filter((k) => k !== sylvia).slice(0, 2)], {}, 13); r3.node = 3;
+  const n3 = r3.deck.length;
+  const sp3 = ui.shopScreen(r3, () => {});
+  check(r3.shop.gift && r3.deck.length === n3 + 1 && /황금대공/.test(sp3.textContent), `실비아가 있으면 선물 한 장 (${CB[r3.shop.gift].name})`);
+  // 중립 카드가 전투에서 실제로 돈다 — 주인이 없으니 공격력이 가장 높은 아군 기준
+  const nid = Object.keys(CB).find((id) => CB[id].neutral && CB[id].playable && CB[id].name === "저놈 잡아라!");
+  const s9 = C2.newCombat({ partyKeys: r.party, rows: r.rows, deck: [nid, ...r.deck], enemyIds: ["fairymobcloserange"], seed: 5 });
+  s9.hand = [nid]; s9.ap = 3;
+  const res = C2.playCard(s9, 0, 0);
+  check(res && res.ok !== false, "중립 카드를 전투에서 낼 수 있다");
+}
+
 const e1 = ui.endScreen("lose", run, () => {});
 check(e1.textContent.includes("여기까지"), "진 화면이 그려진다");
 const e2 = ui.endScreen("clear", run, () => {});
