@@ -505,11 +505,15 @@ console.log("\n골디의 상점");
   const r1 = R.newRun(run.party.slice(), { ...run.rows }, 14); r1.gold = 10; r1.node = 3; R.rollShop(r1);
   check(R.rerollShop(r1) === "골드가 모자랍니다" && r1.gold === 10, "골드가 모자라면 새로고침도 못 한다");
   clickAll(sp, (n) => n.classList.contains("sh-remove"))[0].onclick();
-  const toRemove = clickAll(sp, (n) => n.classList.contains("gcard") && n.title === "눌러서 덱에서 빼기");
+  const toRemove = clickAll(sp, (n) => n.classList.contains("sh-deckcard"));
   check(toRemove.length === r.deck.length, `뺄 카드로 덱 전체가 펼쳐진다 (${toRemove.length})`);
   const g2 = r.gold, deckN2 = r.deck.length; toRemove[0].onclick();
+  check(r.deck.length === deckN2 && r.gold === g2, "한 번 누르면 고르기만 한다 — 아직 안 빠지고 골드도 그대로(두 단계)");
+  const okRm = clickAll(sp, (n) => n.classList.contains("tsok"))[0];
+  check(!!okRm && !okRm.disabled && /75 골드로 뺍니다/.test(okRm.textContent), "고르면 「75 골드로 뺍니다」 단추가 살아난다");
+  okRm.onclick();
   check(r.deck.length === deckN2 - 1 && r.gold === g2 - 75 && r.shop.removeUsed, "카드 제거 75골드, 한 번만");
-  check(!clickAll(sp, (n) => n.classList.contains("gcard") && n.title === "눌러서 덱에서 빼기").length, "빼고 나면 고르는 창이 닫힌다");
+  check(!clickAll(sp, (n) => n.classList.contains("sh-deckcard")).length, "빼고 나면 고르는 창이 닫힌다");
   check(R.removePrice(r) === 100, "다음 제거는 100골드");
   const r2 = R.newRun(run.party.slice(), { ...run.rows }, 12); r2.gold = 10; r2.node = 3;
   const sp2 = ui.shopScreen(r2, () => {});
@@ -568,7 +572,9 @@ console.log("\n캠프");
   const fl = clickAll(cs2, (n) => n.classList.contains("fcard"));
   check(fl.length === 3 && count(cs2, "cp-trainmodal") === 1 && count(cs2, "ftarget") === 1, `수련은 위에 뜨는 창에서 신탁 다섯 중 셋 (${fl.length})`);
   fl[0].onclick();
-  check(r.flash[r.camp.train.cardId] && r.stops["0:campshop"].used === "train", "수련하면 신탁이 붙는다");
+  check(!r.flash[r.camp.train.cardId], "한 번 누르면 고르기만 한다(두 단계) — 아직 안 붙는다");
+  clickAll(cs2, (n) => n.classList.contains("tsok"))[0].onclick();
+  check(r.flash[r.camp.train.cardId] && r.stops["0:campshop"].used === "train", "「신탁을 붙입니다」 를 누르면 붙는다");
   check(count(cs2, "cp-modal") === 0, "신탁을 고르면 창이 닫힌다");
   const restAfter = clickAll(cs2, (n) => n.classList.contains("cp-rest"))[0];
   check(restAfter.disabled && /이번 캠프에서는 이미 골랐습니다/.test(restAfter.textContent), "수련하고 나면 쉬기는 막히고 까닭을 적는다");
@@ -841,6 +847,38 @@ console.log("로비와 프로필");
   const d3 = docBody.children.find((n) => n.classList.contains("hero-profile"));
   check(clickAll(d3, (n) => n.classList.contains("home-primary"))[0].disabled, "셋이 차면 막힌다");
   d3.close();
+}
+
+console.log("");
+console.log("아군 미리보기 · 버릴 카드 고르기");
+{
+  const C = await import("../js/combat.js");
+  // 벨라 「존재의 보호막」 — 자신 방어력 550% 실드, 아군 전원 방어력 100% 실드. 아군 몫도 벨라(시전자)의 방어력으로 센다
+  const s = C.newCombat({ partyKeys: ["에르핀", "네르", "벨라"], rows: {}, deck: ["네르_s2", "벨라_u1", "에르핀_u3", "벨라_u2", "네르_s3"], enemyIds: ["fairymobcloserange"], seed: 3 });
+  s.party[0].hp = 20;
+  const bella = s.party.find((u) => u.key === "벨라");
+  const pv = C.previewAllies(s, s.hand.indexOf("벨라_u1"), 0);
+  check(pv && pv[0].shield === Math.round(bella.def * 1) && pv[1].shield === pv[0].shield, `아군 실드는 시전자(벨라 방어력 ${bella.def}) 기준 — 에르핀 · 네르 모두 +${pv && pv[0].shield}`);
+  check(pv[2].shield > pv[0].shield, `벨라 자신은 550% — +${pv[2].shield}`);
+  const hi = s.hand.indexOf("네르_s2");
+  const ph = C.previewAllies(s, hi, 0);
+  check(ph && ph[0].heal > 0 && !ph[1] && !ph[2], `달콤한 간식을 에르핀에게 — 회복 +${ph && ph[0].heal}, 다른 사도는 없음`);
+  const hp0 = s.party[0].hp;
+  C.playCard(s, hi, 0);
+  check(s.party[0].hp - hp0 === ph[0].heal, "미리보기 값 그대로 찬다");
+
+  // 버리기 — 「무작위」 가 없으면 낸 사람이 고른다
+  const s2 = C.newCombat({ partyKeys: ["에르핀", "네르", "벨라"], rows: {}, deck: ["에르핀_u3", "네르_s2", "벨라_u1", "벨라_u2", "네르_s3", "벨라_s2", "에르핀_u3", "벨라_s3", "네르_s2", "벨라_s2", "네르_s3", "벨라_s3"], enemyIds: ["fairymobcloserange"], seed: 4 });   // 뽑을 더미가 넉넉해야 버린 카드가 다시 섞여 들지 않는다
+  s2.ap = 9;
+  const ci = s2.hand.indexOf("에르핀_u3");
+  check(C.discardChoice(s2, ci) === 2, "컨닝 페이퍼 — 버릴 카드 2장을 고른다");
+  const keep = s2.hand.filter((id, i) => i !== ci);
+  const pickIds = [keep[1], keep[3]];
+  C.playCard(s2, ci, 0, { discard: pickIds });
+  check(pickIds.every((id) => s2.discard.includes(id)), `고른 카드가 버려진다 (${pickIds.join(", ")})`);
+  const E = await import("../js/effects.js");
+  check(E.parseEffect("무작위 손패 1장 버리고 드로우 2").fx.find((f) => f.k === "discard").random === true, "「무작위 손패 1장 버리」 는 무작위");
+  check(E.parseEffect("손패 1장 버리고 무작위 적 공격력 140% 피해").fx.find((f) => f.k === "discard").random === false, "적을 꾸미는 「무작위」 는 버리기와 상관없다");
 }
 
 console.log("");

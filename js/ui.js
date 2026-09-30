@@ -104,6 +104,38 @@ function goldLabel(tag, cls, text) {
   return n;
 }
 
+// 두 단계 고르기 — 눌러서 고르고(빛남 · .picked), 아래 단추로 정한다. 한 번 눌러 바로 넘어가는 실수를 막는다.
+// 같은 것을 다시 누르면 풀린다. 이벤트 · 상점 카드 제거 · 캠프 수련이 같이 쓴다.
+// 돌려주는 것: { bar(확인 줄 — 원하는 곳에 붙인다), pick(node, value, name) }
+function twoStep(onConfirm, { verb = "이것으로 합니다", danger = false } = {}) {
+  const bar = el("div", "twostep");
+  const label = el("span", "tsl", "하나를 눌러 고르세요");
+  const ok = el("button", "tsok" + (danger ? " danger" : ""), verb);
+  ok.disabled = true;
+  bar.appendChild(label); bar.appendChild(ok);
+  let cur = null, curEl = null;
+  const pick = (node, value, name) => {
+    if (curEl) curEl.classList.remove("picked");
+    if (curEl === node) { cur = null; curEl = null; label.textContent = "하나를 눌러 고르세요"; ok.disabled = true; bar.classList.remove("ready"); return; }
+    cur = { value }; curEl = node;
+    node.classList.add("picked");
+    label.textContent = name ? `「${name}」 을(를) 골랐습니다` : "골랐습니다";
+    ok.disabled = false;
+    bar.classList.add("ready");
+  };
+  let busy = false;
+  ok.onclick = () => {
+    if (!cur || busy) return;
+    busy = true; ok.disabled = true;
+    try { onConfirm(cur.value); }
+    finally {
+      // 정해져서 화면을 다시 그렸으면 이 줄은 떨어져 나갔다. 아직 붙어 있으면 거절된 것(골드 부족 · 조건) — 다시 누를 수 있게
+      setTimeout(() => { busy = false; if (bar.isConnected && cur) ok.disabled = false; }, 0);
+    }
+  };
+  return { bar, pick };
+}
+
 // 성격 상성 그림 — 광기 → 순수 → 냉정 → 광기 는 삼각형, 활발 ↔ 우울 은 세로 한 줄.
 // 화살표가 가리키는 쪽에 강하다(rules.js BEATS). on: 빛낼 성격들(편성에 든 사도의 성격)
 function natureChart(on = new Set()) {
@@ -1296,6 +1328,7 @@ export function fightScreen(run, onDone, onQuit) {
   }
   // 적 칸 — 미리보기를 그 위에 얹으려고 idx 로 들고 있는다
   const foeEls = new Map();
+  const allyPv = new Map();          // 아군 idx → 미리보기 자리(싸움터에 선 모습)
   // 싸움터에 선 아군 — 패시브가 발동하면 그 위에 이름을 띄우려고 key 로 들고 있는다
   const standEls = new Map();
   let shownTurn = 0;
@@ -1370,11 +1403,18 @@ export function fightScreen(run, onDone, onQuit) {
     const tag = el("div", "sname");
     tag.appendChild(el("span", null, u.ko));
     n.appendChild(tag);
-    n.appendChild(hpBar(u));
+    const hb = hpBar(u);
+    n.appendChild(hb);
     n.appendChild(chips(u));
     if (st.bubble && st.bubble.hero === u.key) n.appendChild(el("div", "bubble", st.bubble.text));
     n.onclick = () => openHero(u);              // 누르면 사도 정보
     n.title = "눌러서 사도 정보 보기";
+    // 아군 미리보기 — 회복 · 방어 · 실드가 얼마나 붙는지(시전자 능력치로 엔진이 센 값)
+    const pv = el("div", "pv apv");
+    n.appendChild(pv);
+    allyPv.set(u.idx, { n, pv, gain: hb.gain });
+    n.onmouseenter = () => { if (selCard >= 0 && !u.dead && targetsNeeded(st.hand[selCard]) === "party") paintPreview(selCard, u.idx); };
+    n.onmouseleave = () => { if (selCard >= 0) paintPreview(selCard, null); };
     return n;
   }
 
@@ -1427,6 +1467,8 @@ export function fightScreen(run, onDone, onQuit) {
     // 미리보기 — 깎일 만큼을 막대 끝에 그림자로
     wrap.ghost = el("s", "ghost");
     bar.appendChild(wrap.ghost);
+    wrap.gain = el("s", "gain");                // 회복 미리보기 — 찰 만큼을 초록으로
+    bar.appendChild(wrap.gain);
     wrap.appendChild(bar);
     const nums = el("div", "nums");
     nums.appendChild(el("span", null, `${Math.max(0, u.hp)} / ${u.maxHp}`));
@@ -1468,6 +1510,11 @@ export function fightScreen(run, onDone, onQuit) {
       pv.innerHTML = "";
       if (ghost) ghost.style.width = "0";
     }
+    for (const [, { n, pv, gain }] of allyPv) {
+      n.classList.remove("pvon");
+      pv.innerHTML = "";
+      if (gain) gain.style.width = "0";
+    }
     if (handIdx == null || handIdx < 0 || st.over) return;
     const id = st.hand[handIdx]; if (!id) return;
     const need = targetsNeeded(id);
@@ -1482,6 +1529,7 @@ export function fightScreen(run, onDone, onQuit) {
       const p = C.previewCard(st, handIdx, hoverIdx == null ? 0 : hoverIdx);
       if (p) p.forEach((x, i) => { if (x) res[i] = x; });
     }
+    paintAllies(handIdx, need, hoverIdx);
     for (const [i, x] of Object.entries(res)) {
       const slot = foeEls.get(Number(i)); const u = st.enemies[i];
       if (!slot || !u) continue;
@@ -1496,6 +1544,47 @@ export function fightScreen(run, onDone, onQuit) {
         const left = Math.max(0, u.hp - x.hp);
         g.style.left = (left / u.maxHp) * 100 + "%";
         g.style.width = (Math.min(u.hp, x.hp) / u.maxHp) * 100 + "%";
+      }
+    }
+  }
+
+  // 아군 미리보기 — 아군에게 놓는 카드는 「이 사도에게 놓으면」 을 사도마다, 올린 사도가 있으면 그때의 전부를.
+  // 그 밖의 카드(자신 · 아군 전원 · 적에게 내는 카드의 곁가지)는 한 번 내 본 결과를 모두에게
+  function paintAllies(handIdx, need, hoverIdx) {
+    const res = {};
+    if (need === "party" && hoverIdx == null) {
+      for (const u of st.party) {
+        if (u.dead) continue;
+        const p = C.previewAllies(st, handIdx, u.idx);
+        if (p && p[u.idx]) res[u.idx] = p[u.idx];
+      }
+    } else {
+      const p = C.previewAllies(st, handIdx, hoverIdx == null ? 0 : hoverIdx);
+      if (p) p.forEach((x, i) => { if (x) res[i] = x; });
+    }
+    // 아군에게 놓는 회복 카드인데 체력이 가득한 사도 — 아무것도 안 뜨면 헷갈리니 「HP 가득」
+    const c = C.cardOf(st, st.hand[handIdx]);
+    if (need === "party" && c && (c.fx || []).some((f) => f.k === "heal")) {
+      for (const u of st.party) {
+        if (u.dead || res[u.idx] || u.hp < u.maxHp) continue;
+        if (hoverIdx != null && hoverIdx !== u.idx) continue;
+        const slot = allyPv.get(u.idx);
+        if (!slot) continue;
+        slot.n.classList.add("pvon");
+        slot.pv.appendChild(el("span", "pvfull", "HP 가득"));
+      }
+    }
+    for (const [i, x] of Object.entries(res)) {
+      const slot = allyPv.get(Number(i)); const u = st.party[i];
+      if (!slot || !u) continue;
+      slot.n.classList.add("pvon");
+      if (x.heal) slot.pv.appendChild(el("b", "pvheal", `+${x.heal}`));
+      if (x.block) slot.pv.appendChild(el("span", "pvblk", `방어 +${x.block}`));
+      if (x.shield) slot.pv.appendChild(el("span", "pvsh", `실드 +${x.shield}`));
+      if (x.lose) slot.pv.appendChild(el("span", "pvlose", `HP -${x.lose}`));
+      if (x.heal && slot.gain) {
+        slot.gain.style.left = (Math.max(0, u.hp) / u.maxHp) * 100 + "%";
+        slot.gain.style.width = (Math.min(x.heal, u.maxHp - u.hp) / u.maxHp) * 100 + "%";
       }
     }
   }
@@ -1520,6 +1609,7 @@ export function fightScreen(run, onDone, onQuit) {
     // 싸움터에 선 아군 — 전열이 앞, 후열이 뒤
     allyField.innerHTML = "";
     standEls.clear();
+    allyPv.clear();
     for (const u of [...st.party].sort((a, b) => C.ROWS.indexOf(b.row) - C.ROWS.indexOf(a.row))) {
       const sn = standNode(u, need === "party", (t) => play(t.idx));
       standEls.set(u.key, sn);
@@ -1737,7 +1827,7 @@ export function fightScreen(run, onDone, onQuit) {
     // 칠 수 있는 대상을 빛낸다 — draw() 로 다시 그리면 끄는 카드가 사라지니 표시만 단다
     if (drag.need === "enemy") for (const [, { n }] of foeEls) { if (!n.classList.contains("dead")) n.classList.add("tgt", "dtgt"); }
     if (drag.need === "party") for (const [, n] of standEls) { if (!n.classList.contains("dead")) n.classList.add("tgt", "dtgt"); }
-    if (!drag.need) paintPreview(drag.i, null);
+    paintPreview(drag.i, null);                 // 끌기 시작 — 대상마다 「여기 놓으면」 을 미리 띄운다
   }
   function moveDrag(e) {
     if (!drag) return;
@@ -1766,7 +1856,7 @@ export function fightScreen(run, onDone, onQuit) {
       drag.over = t;
       if (t && t !== drag.fx) t.classList.add("dover");
       drag.fx.classList.toggle("armed", !!t);
-      if (drag.need === "enemy") paintPreview(drag.i, t ? Number(t.dataset.idx) : null);
+      if (drag.need) paintPreview(drag.i, t ? Number(t.dataset.idx) : null);
     }
   }
   // 끌어 놓을 대상 — 이름표 · 체력 칸만이 아니라 서 있는 그림 전체(칸 밖으로 넘친 캔버스까지)를 잡고,
@@ -2175,10 +2265,72 @@ export function fightScreen(run, onDone, onQuit) {
       });
       return;
     }
+    // 「손패 N장 버리」 — 무작위가 아니면 낸 사람이 고른다. 고르고 나서 카드가 돈다(버린 뒤 드로우 따위가 이어진다)
+    const need = C.discardChoice(st, selCard);
+    if (need > 0) {
+      const at = selCard;
+      pickDiscard(at, need, (ids) => {
+        if (!ids) { selCard = -1; draw(); return; }       // 물렀다 — 카드는 손에 남는다
+        const r = C.playCard(st, at, targetIdx, { discard: ids });
+        selCard = -1;
+        if (!r.ok) say(r.why);
+        draw();
+      });
+      return;
+    }
     const r = C.playCard(st, selCard, targetIdx);
     selCard = -1;
     if (!r.ok) say(r.why);
     draw();
+  }
+
+  // 버릴 카드 고르기 — 낸 카드를 뺀 손패에서 N장. 다 고르면 「버리기」, 「취소」 면 카드를 안 낸다
+  function pickDiscard(handIdx, n, done) {
+    const played = C.cardOf(st, st.hand[handIdx]);
+    const back = el("div", "dcpick");
+    const box = el("div", "dcbox");
+    back.appendChild(box);
+    const head = el("div", "dchead");
+    head.appendChild(el("b", null, `버릴 카드를 ${n}장 고릅니다`));
+    head.appendChild(el("span", null, `「${played.name}」 — 고른 카드를 버리고 나머지 효과가 이어집니다`));
+    box.appendChild(head);
+    const grid = el("div", "dcgrid");
+    box.appendChild(grid);
+    const chosen = [];                        // 손패 자리(같은 카드가 둘일 수 있어 id 가 아니라 자리로)
+    const foot = el("div", "dcfoot");
+    const cancel = el("button", "dccancel", "취소");
+    const ok = el("button", "dcok");
+    foot.appendChild(cancel); foot.appendChild(ok);
+    box.appendChild(foot);
+    const cells = [];
+    st.hand.forEach((id, i) => {
+      if (i === handIdx) return;
+      const c = C.cardOf(st, id);
+      if (!c) return;
+      const cell = el("button", "dccell");
+      cell.appendChild(bigCard(c, CARDART.pic[id] || null));
+      cell.appendChild(el("i", "dcmark", "버림"));
+      cell.onclick = () => {
+        const k = chosen.indexOf(i);
+        if (k >= 0) chosen.splice(k, 1);
+        else { if (chosen.length >= n) chosen.shift(); chosen.push(i); }   // 다 골랐으면 가장 먼저 고른 것을 놓는다
+        paint();
+      };
+      cells.push([i, cell]);
+      grid.appendChild(cell);
+    });
+    function paint() {
+      for (const [i, cell] of cells) cell.classList.toggle("on", chosen.includes(i));
+      ok.textContent = `버리기 ${chosen.length}/${n}`;
+      ok.disabled = chosen.length !== n;
+    }
+    const close = (ids) => { back.remove(); document.removeEventListener("keydown", esc); done(ids); };
+    const esc = (e) => { if (e.key === "Escape") { e.stopPropagation(); close(null); } };
+    document.addEventListener("keydown", esc);
+    cancel.onclick = () => close(null);
+    ok.onclick = () => { if (chosen.length === n) close(chosen.map((i) => st.hand[i])); };
+    paint();
+    document.body.appendChild(back);
   }
 
   endBtn.onclick = () => { selCard = -1; C.endTurn(st); draw(); };
@@ -3076,7 +3228,15 @@ export function campScreen(run, withShop, onDone, onShop) {
 
   function openTrain() {
     const c = CARDS[offer.cardId];
+    const wrap = el("div", "cp-trainwrap");
     const fr = el("div", "cp-flash");
+    const ts = twoStep((n) => {
+      const why = R.campTrain(run, { cardId: offer.cardId, n });
+      closeSheet();
+      if (why) return say(why);
+      say(`「${c.name}」에 신탁을 붙였습니다. 불빛 아래에서 손에 익혔습니다.`);
+      refresh();
+    }, { verb: "신탁을 붙입니다" });
     fr.appendChild(flashTarget(c, offer.cardId));   // 어느 카드에 붙는지 — 이름만이 아니라 그림으로
     for (const n of offer.picks) {
       const f = (c.flash || [])[n - 1];
@@ -3089,16 +3249,12 @@ export function campScreen(run, withShop, onDone, onShop) {
       b.appendChild(hd);
       b.appendChild(withKeywords(el("p", "ftext2"), shortText(f.text), c.hero));
       b.appendChild(el("p", "fbefore", `지금: ${shortText(c.text)}`));
-      b.onclick = () => {
-        const why = R.campTrain(run, { cardId: offer.cardId, n });
-        closeSheet();
-        if (why) return say(why);
-        say(`「${c.name}」에 신탁을 붙였습니다. 불빛 아래에서 손에 익혔습니다.`);
-        refresh();
-      };
+      b.onclick = () => ts.pick(b, n, `${"①②③④⑤"[n - 1]} ${f.kind}`);
       fr.appendChild(b);
     }
-    openSheet("cp-trainmodal", `수련 — 「${c.name}」에 붙일 신탁`, "다섯 중 셋 · 하나를 고르면 이번 캠프의 선택을 씁니다", fr);
+    wrap.appendChild(fr);
+    wrap.appendChild(ts.bar);
+    openSheet("cp-trainmodal", `수련 — 「${c.name}」에 붙일 신탁`, "다섯 중 셋 · 눌러 고르고 아래 단추로 정합니다 · 정하면 이번 캠프의 선택을 씁니다", wrap);
   }
 
   function openGear() {
@@ -3421,23 +3577,27 @@ export function shopScreen(run, onDone, opts = {}) {
 
   function openDeck() {
     const price = R.removePrice(run);
+    const wrap = el("div", "sh-deckwrap");
     const grid = el("div", "sh-deck");
+    // 두 단계 — 눌러 고르고 「N 골드로 뺍니다」 로 정한다(골드가 나가니 한 번 눌러 바로 빠지면 안 된다)
+    const ts = twoStep((id) => {
+      const why = R.removeCard(run, id);
+      closeSheet();
+      if (why) return why === "골드가 모자랍니다" ? poor() : say(why);
+      say(GOLDY.remove); act("remove"); draw();
+    }, { verb: `${price} 골드로 뺍니다`, danger: true });
     run.deck.forEach((id) => {
       const c = CARDS[id];
       if (!c) return;
-      const card = bigCard(c, CARDART.pic[id] || null);
-      card.title = "눌러서 덱에서 빼기";
-      card.onclick = () => {
-        const why = R.removeCard(run, id);
-        closeSheet();
-        if (why) return why === "골드가 모자랍니다" ? poor() : say(why);
-        say(GOLDY.remove); act("remove"); draw();
-      };
-      const w = el("div", "sh-deckcard");
-      w.appendChild(card);
+      const w = el("button", "sh-deckcard");
+      w.appendChild(bigCard(c, CARDART.pic[id] || null));
+      w.title = "눌러서 고르기";
+      w.onclick = () => ts.pick(w, id, c.name);
       grid.appendChild(w);
     });
-    openSheet("sh-deckmodal", "뺄 카드를 고릅니다", `${price} 골드 · 이번 상점에서 한 장 · 덱 ${run.deck.length}장`, grid);
+    wrap.appendChild(grid);
+    wrap.appendChild(ts.bar);
+    openSheet("sh-deckmodal", "뺄 카드를 고릅니다", `${price} 골드 · 이번 상점에서 한 장 · 덱 ${run.deck.length}장`, wrap);
   }
 
   function openBag() {
@@ -3603,118 +3763,182 @@ const POOL_KO = (p) => (p === "공용" ? "어디서나" : `${(FLOORS[p] || {}).n
 const heroKeyByKo = (ko) => Object.keys(HERO_DATA).find((k) => HERO_DATA[k].ko === ko) || null;
 const pctTxt = (p) => `${Math.round(p * 100)}%`;
 
+// ── 이벤트 ─────────────────────────────────────────────────────────────
+// 상점 · 캠프와 같은 옷 — 이 층의 이벤트 배경, 왼쪽에 나오는 사도의 스탠딩과 말풍선(장면), 오른쪽에 선택지.
+// 선택지 · 결과에서 고를 것(카드 · 신탁 · 사도)은 모두 두 단계(twoStep) — 눌러 고르고 단추로 정한다.
 export function eventScreen(run, onDone, onFight) {
   const s = screen();
-  s.classList.add("rewardscreen", "eventscreen");
+  s.className = "eventscreen2";
+  // 배경 — 이 층의 이벤트 자리 그림(싸움터와 같은 표)
+  const floor = R.currentFloor(run);
+  const bgFile = `assets/bg/${(BATTLE_BG[floor.n] || BATTLE_BG[1]).event}.jpg`;
+  s.style.setProperty("--stagebg", `url("${typeof location === "object" ? new URL(bgFile, location.href).href : bgFile}")`);
+
+  // 틀은 한 번만 — 머리 · 왼쪽 무대(사도 스탠딩과 말풍선) · 오른쪽 판. 바뀌는 것만 다시 채운다(스파인을 매번 새로 세우지 않게)
+  const top = el("div", "ev2-top");
+  const main = el("div", "ev2-main");
+  const stage = el("div", "ev2-stage");
+  const bubble = el("div", "ev2-bubble");
+  const who = el("b", "ev2-who");
+  const line = el("p", "ev2-line");
+  bubble.appendChild(who); bubble.appendChild(line);
+  const stand = el("div", "ev2-stand");
+  const plate = el("div", "ev2-plate");
+  stage.appendChild(stand); stage.appendChild(bubble); stage.appendChild(plate);
+  const panel = el("div", "ev2-panel");
+  main.appendChild(stage); main.appendChild(panel);
+  s.appendChild(top); s.appendChild(main);
+  let sheet = null;               // 결과에서 고를 것(카드 · 신탁 · 사도) — 위에 뜨는 창
+  let standFor = null, npcView = null;
+  // 떠날 때 — 스탠딩을 치우고, 늦게 도착한 그림은 standFor 가 달라 버려진다
+  const leaveStage = () => { standFor = "gone"; if (npcView) { npcView.dispose && npcView.dispose(); npcView = null; } };
+
+  const say = (t) => {
+    line.textContent = t || "";
+    bubble.classList.toggle("empty", !t);
+    bubble.classList.remove("pop"); void bubble.offsetWidth; bubble.classList.add("pop");
+  };
+  const act = (names) => { if (npcView) npcView.play(names.find((n) => npcView.has && npcView.has(n)) || names[0]); };
+
+  // 무대 — 이벤트에 나오는 사도(인물 사전 이름 → 사도 키)의 스탠딩. 없으면 이벤트 표식
+  function setStage(ev) {
+    const id = ev ? ev.id : "fork";
+    if (standFor === id) return;
+    standFor = id;
+    if (npcView) { npcView.dispose && npcView.dispose(); npcView = null; }
+    stand.innerHTML = ""; stand.className = "ev2-stand"; plate.innerHTML = "";
+    const npc = ev && ev.npc && heroKeyByKo(ev.npc);
+    if (npc) {
+      who.textContent = ev.npc;
+      plate.appendChild(el("b", null, ev.npc));
+      plate.appendChild(el("span", null, `${HERO(npc).race || ""} · ${HERO(npc).nature || ""}`));
+      const mine = id;
+      spineView(stand, "standing", npc, { anim: "Idle_1", mix: 0.25 }).then((v) => {
+        if (standFor !== mine) { v && v.dispose && v.dispose(); return; }
+        if (!v) { stand.classList.add("still"); stand.appendChild(art.portrait(npc, { ko: ev.npc, tint: TINT(npc), size: 0, slot: "event", still: true })); return; }
+        npcView = v; stand.classList.add("live");
+        act(["Happy_1", "Smile_1", "Idle_1"]);
+      });
+    } else {
+      who.textContent = ev ? ev.name : "갈림길";
+      stand.classList.add("mark");
+      const m = el("div", "ev2-mark");
+      m.appendChild(el("span", null, ev ? "!" : "?"));
+      stand.appendChild(m);
+      plate.appendChild(el("b", null, ev ? ev.name : "갈림길"));
+      plate.appendChild(el("span", null, ev ? `${POOL_KO(ev.pool)} · ${ev.kind}` : "지도를 미리 봐 두었습니다"));
+    }
+  }
+
+  // 머리 — 이름 · 파티 체력 · 골드 · 떠나기
+  function paintTop(ev, E) {
+    top.innerHTML = "";
+    const title = el("div", "ev2-title");
+    title.appendChild(el("b", null, ev ? ev.name : "갈림길"));
+    title.appendChild(el("span", null, ev ? `이벤트 · ${POOL_KO(ev.pool)} · ${ev.kind}` : "어느 쪽으로 갈지 고릅니다"));
+    top.appendChild(title);
+    const party = el("div", "ev2-party");
+    for (const k of run.party) {
+      const hp = run.hp[k] || 0, max = run.maxHp[k] || 1;
+      const c = el("div", "ev2-mem" + (hp <= 0 ? " down" : ""));
+      c.appendChild(art.portrait(k, { ko: HERO(k).ko, tint: TINT(k), size: 30, slot: "battle", still: true }));
+      const info = el("div");
+      info.appendChild(el("b", null, HERO(k).ko));
+      const bar = el("i", "ev2-hp"); const fill = el("s"); fill.style.width = `${(hp / max) * 100}%`; bar.appendChild(fill);
+      info.appendChild(bar);
+      info.appendChild(el("small", null, hp <= 0 ? "주말농장에서 쉬는 중" : `${hp} / ${max} · 공격 ${(HERO_DATA[k] || {}).atk || "?"}`));
+      c.appendChild(info);
+      party.appendChild(c);
+    }
+    top.appendChild(party);
+    top.appendChild(goldLabel("div", "ev2-gold", `${run.gold}`));
+    top.appendChild(fsButton());
+    if (E && E.phase === "result" && !E.pending.length) {
+      const go = el("button", "ev2-leave", bossNext(run) ? "보스에게 갑니다" : "길을 떠납니다");
+      go.onclick = () => { closeSheet(); leaveStage(); EV.leaveEvent(run); onDone(); };
+      top.appendChild(go);
+    }
+  }
+
   draw();
 
   function draw() {
-    s.innerHTML = "";
     const E = run.event;
     if (!E) return;
+    const ev = E.id ? EV.eventById(E.id) : null;
+    setStage(ev);
+    paintTop(ev, E);
+    panel.innerHTML = "";
+    closeSheet();
 
     // 「지도 공개」 — 둘 중 하나를 고른다
-    if (!E.id) {
-      const bar = el("div", "dbar2");
-      bar.appendChild(el("h1", "dtitle", "갈림길"));
-      bar.appendChild(el("span", "rwhy", "지도를 미리 봐 두었습니다 — 어느 쪽으로 갈지 고릅니다"));
-      s.appendChild(bar);
-      const row = el("div", "rrow evforks");
+    if (!ev) {
+      say("앞길이 둘로 갈립니다. 어느 쪽 이야기를 들으러 갈까요?");
+      panel.appendChild(el("div", "ev2-head", "갈림길"));
+      const ts = twoStep((id) => { EV.pickEvent(run, id); draw(); }, { verb: "이쪽으로 갑니다" });
       for (const id of E.choices) {
-        const ev = EV.eventById(id);
-        const b = el("button", "evfork");
-        b.appendChild(el("b", null, ev.name));
-        b.appendChild(el("span", "evkind", `${POOL_KO(ev.pool)} · ${ev.kind}`));
-        b.appendChild(el("p", null, ev.scene));
-        b.onclick = () => { EV.pickEvent(run, id); draw(); };
-        row.appendChild(b);
+        const e2 = EV.eventById(id);
+        const b = el("button", "ev2-opt ev2-fork");
+        b.appendChild(el("b", "ev2-label", e2.name));
+        b.appendChild(el("span", "ev2-kind", `${POOL_KO(e2.pool)} · ${e2.kind}${e2.npc ? ` · ${e2.npc}` : ""}`));
+        b.appendChild(el("p", "ev2-scene", e2.scene));
+        b.onclick = () => ts.pick(b, id, e2.name);
+        panel.appendChild(b);
       }
-      s.appendChild(row);
+      panel.appendChild(ts.bar);
       return;
     }
 
-    const ev = EV.eventById(E.id);
-    const bar = el("div", "dbar2");
-    bar.appendChild(el("h1", "dtitle", ev.name));
-    bar.appendChild(el("span", "rwhy", `이벤트 · ${POOL_KO(ev.pool)} · ${ev.kind}`));
-    bar.appendChild(goldLabel("span", "evgold", `${run.gold} 골드`));
-    if (E.phase === "result" && !E.pending.length) {
-      const go = el("button", "dexbtn", "길을 떠납니다");
-      go.onclick = () => { EV.leaveEvent(run); onDone(); };
-      bar.appendChild(go);
-    }
-    s.appendChild(bar);
-
-    const body = el("div", "rbody");
-    s.appendChild(body);
-
-    // 장면 — 나오는 사도의 초상과 글
-    const scene = el("div", "evscene");
-    const npc = ev.npc && heroKeyByKo(ev.npc);
-    if (npc) scene.appendChild(art.portrait(npc, { ko: ev.npc, tint: TINT(npc), size: 92, slot: "battle", still: true }));
-    else scene.appendChild(el("span", "evq", "?"));
-    const st = el("div", "evtext");
-    if (ev.npc) st.appendChild(el("b", "evnpc", ev.npc));
-    st.appendChild(el("p", null, ev.scene));
-    scene.appendChild(st);
-    body.appendChild(scene);
-
-    // 파티 — 지금 체력(판정·HP 대가를 보고 고르게)
-    const prow = el("div", "rrow evparty");
-    for (const k of run.party) {
-      const hp = run.hp[k] || 0, max = run.maxHp[k] || 1;
-      const c = el("div", "cmember" + (hp <= 0 ? " down" : ""));
-      c.appendChild(art.portrait(k, { ko: HERO(k).ko, tint: TINT(k), size: 34, slot: "battle", still: true }));
-      const info = el("div", "cinfo");
-      info.appendChild(el("b", null, HERO(k).ko));
-      const barx = el("div", "chp"); const fill = el("i"); fill.style.width = `${(hp / max) * 100}%`; barx.appendChild(fill);
-      info.appendChild(barx);
-      info.appendChild(el("span", "cnum", hp <= 0 ? "주말농장에서 쉬는 중" : `${hp} / ${max} · 공격 ${(HERO_DATA[k] || {}).atk || "?"}`));
-      c.appendChild(info);
-      prow.appendChild(c);
-    }
-    body.appendChild(prow);
-
     if (E.phase === "choose") {
-      const list = el("div", "evopts");
+      say(ev.scene);
+      panel.appendChild(el("div", "ev2-head", "어떻게 할까요"));
+      const ts = twoStep((i) => {
+        const r = EV.choose(run, i);
+        if (r.why) return hint(r.why);
+        hint("");
+        if (r.fight) { leaveStage(); return onFight(); }
+        act(["Happy_1", "Smile_1", "Laugh_1"]);
+        draw();
+      }, { verb: "이것으로 합니다" });
       EV.optionsOf(run, ev).forEach((opt, i) => {
         const lock = EV.lockOf(run, opt);
-        const b = el("button", "evopt" + (opt.leave ? " leave" : "") + (lock ? " locked" : ""));
+        const b = el("button", "ev2-opt" + (opt.leave ? " leave" : "") + (lock ? " locked" : ""));
         const by = EV.openedBy(run, opt);
         if (by) {
-          const tag = el("span", "evby");
-          tag.appendChild(art.portrait(by.key, { ko: by.ko, tint: TINT(by.key), size: 26, slot: "battle", still: true }));
+          const tag = el("span", "ev2-by");
+          tag.appendChild(art.portrait(by.key, { ko: by.ko, tint: TINT(by.key), size: 24, slot: "battle", still: true }));
           tag.appendChild(el("b", null, opt.race ? `${opt.race} · ${by.ko}` : opt.when ? "진짜 환자" : by.ko));
           b.appendChild(tag);
         }
-        b.appendChild(el("b", "evlabel", polite(opt.label)));   // 선택지는 문서의 말(한다체) — 화면에서는 합니다체
-        b.appendChild(el("span", "evout", describe(opt)));
-        if (opt.price && EV.outOf(run, opt) === opt.price.out) b.appendChild(el("span", "evnote", opt.price.why));
-        if (lock) b.appendChild(el("span", "evlock", lock));
+        b.appendChild(el("b", "ev2-label", polite(opt.label)));   // 선택지는 문서의 말(한다체) — 화면에서는 합니다체
+        b.appendChild(el("span", "ev2-out", describe(opt)));
+        if (opt.price && EV.outOf(run, opt) === opt.price.out) b.appendChild(el("span", "ev2-note", opt.price.why));
+        if (lock) b.appendChild(el("span", "ev2-lock", lock));
         b.disabled = !!lock;
-        b.onclick = () => {
-          const r = EV.choose(run, i);
-          if (r.why) return hint(r.why);
-          hint("");
-          if (r.fight) return onFight();
-          draw();
-        };
-        list.appendChild(b);
+        b.onclick = () => ts.pick(b, i, polite(opt.label));
+        panel.appendChild(b);
       });
-      body.appendChild(list);
+      panel.appendChild(ts.bar);
       return;
     }
 
     // 결과
-    const res = el("div", "evresult");
-    if (E.label) res.appendChild(el("b", "evchose", `「${polite(E.label)}」`));
-    if (E.say) res.appendChild(el("p", "evsay", E.say));
-    for (const line of E.log) res.appendChild(el("p", "evlog", line));
-    if (!E.log.length && !E.pending.length) res.appendChild(el("p", "evlog", "아무 일도 없었습니다."));
-    body.appendChild(res);
-
+    say(E.say || ev.scene);
+    panel.appendChild(el("div", "ev2-head", "결과"));
+    const res = el("div", "ev2-result");
+    if (E.label) res.appendChild(el("b", "ev2-chose", `「${polite(E.label)}」`));
+    const logs = el("div", "ev2-logs");
+    for (const l of E.log) logs.appendChild(el("span", "ev2-log", l));
+    if (!E.log.length && !E.pending.length) logs.appendChild(el("span", "ev2-log", "아무 일도 없었습니다."));
+    res.appendChild(logs);
+    panel.appendChild(res);
     const p = E.pending[0];
-    if (p) body.appendChild(picker(p));
+    if (p) {
+      const again = el("button", "ev2-again", "고를 것이 남았습니다 — 다시 열기");
+      again.onclick = () => openPicker(p);
+      panel.appendChild(again);
+      openPicker(p);
+    }
   }
 
   // 선택지가 무엇을 하는지 — 결과 낱말 그대로, 확률·판정은 숫자로
@@ -3731,98 +3955,107 @@ export function eventScreen(run, onDone, onFight) {
     return !out || out === "없음" ? "아무 대가도 없이" : out;
   }
 
-  // 고를 것 하나
-  function picker(p) {
-    const wrap = el("div", "evpick");
-    const say = (t) => { const w = EV.resolve(run, t); if (w) return hint(w); hint(""); draw(); };
-    const title = (t, why) => { const d = el("div", "rsec"); d.appendChild(el("b", null, t)); if (why) d.appendChild(el("span", "why", why)); wrap.appendChild(d); };
+  function closeSheet() { if (sheet) { sheet.remove(); sheet = null; } }
+
+  // 고를 것 하나 — 위에 뜨는 창. 눌러서 고르고(빛남) 아래 단추로 정한다 — 한 번 눌러 바로 넘어가는 실수를 막는다
+  function openPicker(p) {
+    closeSheet();
+    sheet = el("div", "ev2-sheet");
+    const box = el("div", "ev2-sheetbox");
+    sheet.appendChild(box);
+    s.appendChild(sheet);
+    const commit = (t) => { const w = EV.resolve(run, t); if (w) return hint(w); hint(""); act(["Happy_1", "Smile_1"]); draw(); };
+    const head = (t, why) => { const d = el("div", "ev2-sheethead"); d.appendChild(el("b", null, t)); if (why) d.appendChild(el("span", null, why)); box.appendChild(d); };
+    const skipBtn = (label = "받지 않습니다") => { const b = el("button", "ev2-skip", label); b.onclick = () => commit(null); return b; };
+    let ts;
 
     if (p.k === "remove" || p.k === "dupe") {
-      title(p.k === "remove" ? "덱에서 뺄 카드" : "한 장 더 넣을 카드", p.k === "remove" ? "눌러서 덱에서 뺍니다" : "눌러서 같은 카드를 한 장 더");
-      const grid = el("div", "rrow sdeck");
+      head(p.k === "remove" ? "덱에서 뺄 카드" : "한 장 더 넣을 카드", "카드를 눌러 고르고, 아래 단추로 정합니다");
+      ts = twoStep(commit, { verb: p.k === "remove" ? "덱에서 뺍니다" : "한 장 더 넣습니다", danger: p.k === "remove" });
+      const grid = el("div", "ev2-cards");
       const seen = new Set();
       for (const id of run.deck) {
         if (seen.has(id)) continue; seen.add(id);
         const c = CARDS[id]; if (!c) continue;
-        const card = bigCard(c, CARDART.pic[id] || null);
-        card.onclick = () => say(id);
-        const w = el("div", "rpick small");
+        const w = el("button", "ev2-card");
         const n = run.deck.filter((x) => x === id).length;
-        if (n > 1) { const t = el("div", "rwho"); t.appendChild(el("b", null, `×${n}`)); w.appendChild(t); }
-        w.appendChild(card);
+        if (n > 1) w.appendChild(el("span", "ev2-n", `×${n}`));
+        w.appendChild(bigCard(c, CARDART.pic[id] || null));
+        w.onclick = () => ts.pick(w, id, c.name);
         grid.appendChild(w);
       }
-      wrap.appendChild(grid);
+      box.appendChild(grid);
+      box.appendChild(ts.bar);
     } else if (p.k === "card") {
-      title(p.label, "하나를 덱에 넣습니다");
-      const row = el("div", "rrow");
+      head(p.label, "하나를 덱에 넣습니다 — 눌러 고르고, 아래 단추로 정합니다");
+      ts = twoStep(commit, { verb: "덱에 넣습니다" });
+      const grid = el("div", "ev2-cards big");
       for (const id of p.cards) {
         const c = CARDS[id];
-        const w = el("div", "rpick");
+        const w = el("button", "ev2-card");
         const tag = el("div", "rwho");
         if (c.hero) { tag.appendChild(art.portrait(c.hero, { ko: HERO(c.hero).ko, tint: TINT(c.hero), size: 26, slot: "battle", still: true })); tag.appendChild(el("b", null, HERO(c.hero).ko)); }
         else tag.appendChild(el("b", "sgrade g-" + (c.grade || ""), `${c.grade || "중립"} · 중립`));
         w.appendChild(tag);
-        const card = bigCard(c, CARDART.pic[id] || null);
-        card.onclick = () => say(id);
-        w.appendChild(card);
-        row.appendChild(w);
+        w.appendChild(bigCard(c, CARDART.pic[id] || null));
+        w.onclick = () => ts.pick(w, id, c.name);
+        grid.appendChild(w);
       }
-      wrap.appendChild(row);
-      const skip = el("button", "srmbtn", "받지 않습니다");
-      skip.onclick = () => say(null);
-      wrap.appendChild(skip);
+      box.appendChild(grid);
+      ts.bar.appendChild(skipBtn());
+      box.appendChild(ts.bar);
     } else if (p.k === "flash") {
       const c = CARDS[p.offer.cardId];
-      title("신탁", `「${c.name}」에 붙일 신탁 — 다섯 중 셋`);
+      head("신탁", `「${c.name}」에 붙일 신탁 — 다섯 중 셋`);
+      ts = twoStep(commit, { verb: "신탁을 붙입니다" });
       const fr = el("div", "rrow flashrow");
-      fr.appendChild(flashTarget(c, p.offer.cardId));   // 어느 카드에 붙는지 — 이름만이 아니라 그림으로
+      fr.appendChild(flashTarget(c, p.offer.cardId));
       for (const n of p.offer.picks) {
         const f = (c.flash || [])[n - 1]; if (!f) continue;
         const b = el("button", "fcard f" + n);
-        const head = el("div", "fhead2");
-        head.appendChild(el("span", "fnum", "①②③④⑤"[n - 1]));
-        head.appendChild(el("b", null, f.kind));
-        head.appendChild(el("span", "fko", f.ko));
-        b.appendChild(head);
+        const hd = el("div", "fhead2");
+        hd.appendChild(el("span", "fnum", "①②③④⑤"[n - 1]));
+        hd.appendChild(el("b", null, f.kind));
+        hd.appendChild(el("span", "fko", f.ko));
+        b.appendChild(hd);
         b.appendChild(withKeywords(el("p", "ftext2"), shortText(f.text), c.hero));
         b.appendChild(el("p", "fbefore", `지금: ${shortText(c.text)}`));
-        b.onclick = () => say(n);
+        b.onclick = () => ts.pick(b, n, `${"①②③④⑤"[n - 1]} ${f.kind}`);
         fr.appendChild(b);
       }
-      wrap.appendChild(fr);
-      if (run.event.shinChance && !run.noShin) wrap.appendChild(el("p", "evnote", `고르면 ${pctTxt(run.event.shinChance)} 확률로 기적(피해 ×1.3)이 얹힙니다`));
-      const skip = el("button", "srmbtn", "받지 않습니다");
-      skip.onclick = () => say(null);
-      wrap.appendChild(skip);
+      box.appendChild(fr);
+      if (run.event.shinChance && !run.noShin) box.appendChild(el("p", "ev2-note", `고르면 ${pctTxt(run.event.shinChance)} 확률로 기적(피해 ×1.3)이 얹힙니다`));
+      ts.bar.appendChild(skipBtn());
+      box.appendChild(ts.bar);
     } else if (p.k === "pickHero" || p.k === "judgePick") {
       const t = p.k === "judgePick" ? `팔씨름에 나설 사도 — HP ${p.judge.at} 이상이면 이긴다` : p.then.k === "hp" ? "HP 가 바뀔 사도" : `최대 HP +${p.then.v} 를 받을 사도`;
-      title("사도 1명", t);
-      const row = el("div", "rrow evparty");
+      head("사도 1명", t);
+      ts = twoStep(commit, { verb: p.k === "judgePick" ? "이 사도가 나섭니다" : "이 사도로 합니다" });
+      const row = el("div", "ev2-heroes");
       for (const k of run.party) {
         if ((run.hp[k] || 0) <= 0) continue;
-        const b = el("button", "cmember evpickhero");
-        b.appendChild(art.portrait(k, { ko: HERO(k).ko, tint: TINT(k), size: 40, slot: "battle", still: true }));
-        const info = el("div", "cinfo");
-        info.appendChild(el("b", null, HERO(k).ko));
-        info.appendChild(el("span", "cnum", `HP ${run.hp[k]} / ${run.maxHp[k]}`));
-        b.appendChild(info);
-        b.onclick = () => say(k);
+        const b = el("button", "ev2-hero");
+        b.appendChild(art.portrait(k, { ko: HERO(k).ko, tint: TINT(k), size: 0, slot: "event", still: true }));
+        b.appendChild(el("b", null, HERO(k).ko));
+        b.appendChild(el("span", null, `HP ${run.hp[k]} / ${run.maxHp[k]}`));
+        b.onclick = () => ts.pick(b, k, HERO(k).ko);
         row.appendChild(b);
       }
-      wrap.appendChild(row);
+      box.appendChild(row);
+      box.appendChild(ts.bar);
     } else if (p.k === "gambleChoice") {
-      title("골라서 받습니다", "아는 얼굴 앞이라 바로 읽어 줍니다");
-      const row = el("div", "evopts");
+      head("골라서 받습니다", "아는 얼굴 앞이라 바로 읽어 줍니다");
+      ts = twoStep(commit, { verb: "이것으로 받습니다" });
+      const row = el("div", "ev2-gamble");
       for (const o of p.options) {
-        const b = el("button", "evopt");
-        b.appendChild(el("b", "evlabel", o));
-        b.onclick = () => say(o);
+        const b = el("button", "ev2-opt");
+        b.appendChild(el("b", "ev2-label", o));
+        b.onclick = () => ts.pick(b, o, o);
         row.appendChild(b);
       }
-      wrap.appendChild(row);
+      box.appendChild(row);
+      box.appendChild(ts.bar);
     }
-    return wrap;
   }
   return s;
 }

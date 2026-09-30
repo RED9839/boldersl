@@ -182,7 +182,7 @@ export function runFx(s, fxList, ctx, api) {
       case "payHpPct": for (const t of resolve(s, ctx, f.target)) api.hurt(t, Math.round(t.maxHp * f.v), { pure: true }); break;
 
       // ── 손패 ──────────────────────────────────────────────────────
-      case "discard": api.discard(f.v); break;
+      case "discard": api.discard(f.v, !!f.random); break;
 
       // ── 아직 규칙만 있고 몸이 없는 것들 ───────────────────────────
       // 지우지 않고 세어 둔다. 몇 개가 안 도는지 알아야 다음에 붙일 수 있다.

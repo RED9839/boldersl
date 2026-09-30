@@ -30,7 +30,7 @@ SCREENS = [
     ("사도 정보", ".detailscreen"),
     ("지도", ".mapscreen"),
     ("전투", ".battle"),
-    ("이벤트", ".eventscreen"),
+    ("이벤트", ".eventscreen2"),
     ("캠프", ".campscreen2"),
     ("상점", ".shopscreen2"),
     ("보상", ".rewardscreen"),
@@ -191,6 +191,22 @@ def step_battle(d, By, notes):
         if d.find_elements(By.CSS_SELECTOR, ".epimodal .epiopt.shin"): notes["기적 선택지가 떴다"] += 1
         d.execute_script("arguments[0].click()", epi[step_battle.k % len(epi)]); step_battle.k += 1; time.sleep(0.3)
         return True
+    # 버릴 카드 고르기(손패 N장 버리) — 떠 있으면 먼저. 「버리기 N/N」 이 살아날 때까지 앞에서부터 고른다
+    pick = d.find_elements(By.CSS_SELECTOR, ".dcpick")
+    if pick:
+        for cell in d.find_elements(By.CSS_SELECTOR, ".dcpick .dccell"):
+            ok = d.find_elements(By.CSS_SELECTOR, ".dcpick .dcok")
+            if ok and ok[0].is_enabled(): break
+            d.execute_script("arguments[0].click()", cell)
+        ok = d.find_elements(By.CSS_SELECTOR, ".dcpick .dcok")
+        if ok and ok[0].is_enabled():
+            notes["버릴 카드를 골라 버렸다"] += 1
+            d.execute_script("arguments[0].click()", ok[0])
+        else:
+            notes["버릴 카드 고르기가 막혔다"] += 1
+            d.execute_script("arguments[0].click()", d.find_elements(By.CSS_SELECTOR, ".dcpick .dccancel")[0])
+        time.sleep(0.3)
+        return True
     able = [c for c in d.find_elements(By.CSS_SELECTOR, ".hand .card") if "no" not in c.get_attribute("class")]
     if able:
         d.execute_script("arguments[0].click()", able[0]); time.sleep(0.1)
@@ -219,7 +235,9 @@ def step_battle(d, By, notes):
             ap0 = d.execute_script(look)
             ActionChains(d, duration=40).move_to_element(c).click_and_hold().move_by_offset(0, -60).move_by_offset(0, -220).release().perform()
             time.sleep(0.3)
-            if d.find_elements(By.CSS_SELECTOR, ".battle") and d.execute_script(look) == ap0:
+            if d.find_elements(By.CSS_SELECTOR, ".dcpick"):
+                notes["버릴 카드 고르기 창이 떴다"] += 1
+            elif d.find_elements(By.CSS_SELECTOR, ".battle") and d.execute_script(look) == ap0:
                 notes["끌어 올려도 안 나간 카드"] += 1
                 d.execute_script("arguments[0].click()", c) if c.is_displayed() else None
             else:
@@ -268,31 +286,35 @@ def click_text(d, By, *texts):
 
 
 def step_event(d, By, notes, step):
-    # 고를 것이 있으면 먼저 — 카드 · 신탁 · 사도 · 골라 받기
-    pick = d.find_elements(By.CSS_SELECTOR, ".evpick")
-    if pick:
-        for sel in (".evpick .fcard", ".evpick .rpick .gcard", ".evpick .evpickhero", ".evpick .evopt"):
+    # 두 단계 — 눌러 고르고(.picked) 확인 단추(.tsok)로 정한다
+    def pick_then_ok(el):
+        d.execute_script("arguments[0].click()", el)
+        ok = [b for b in d.find_elements(By.CSS_SELECTOR, ".twostep .tsok") if b.is_enabled()]
+        if ok: d.execute_script("arguments[0].click()", ok[0])
+    # 고를 것이 있으면 먼저 — 카드 · 신탁 · 사도 · 골라 받기(위에 뜨는 창)
+    if d.find_elements(By.CSS_SELECTOR, ".ev2-sheet"):
+        for sel in (".ev2-sheet .fcard", ".ev2-sheet .ev2-card", ".ev2-sheet .ev2-hero", ".ev2-sheet .ev2-opt"):
             el = d.find_elements(By.CSS_SELECTOR, sel)
             if el:
                 notes["이벤트: 고를 것을 골랐다"] += 1
-                d.execute_script("arguments[0].click()", el[0]); return
-    if click_text(d, By, "길을 떠납니다"):
+                pick_then_ok(el[0]); return
+    if click_text(d, By, "길을 떠납니다", "보스에게 갑니다"):
         return
-    forks = d.find_elements(By.CSS_SELECTOR, ".evfork")
+    forks = d.find_elements(By.CSS_SELECTOR, ".ev2-fork")
     if forks:
         notes["이벤트: 지도 공개로 갈림길"] += 1
-        d.execute_script("arguments[0].click()", forks[0]); return
-    opts = [o for o in d.find_elements(By.CSS_SELECTOR, ".evopt") if o.is_enabled() and "leave" not in o.get_attribute("class")]
-    title = (d.find_elements(By.CSS_SELECTOR, ".dtitle") or [None])[0]
+        pick_then_ok(forks[0]); return
+    opts = [o for o in d.find_elements(By.CSS_SELECTOR, ".ev2-opt") if o.is_enabled() and "leave" not in o.get_attribute("class")]
+    title = (d.find_elements(By.CSS_SELECTOR, ".ev2-title b") or [None])[0]
     name = title.text if title else "?"
     if opts:
         o = opts[step % len(opts)]          # 번갈아 고른다 — 여러 결과를 밟아 보려고
-        notes[f"이벤트 {name} — {o.find_element(By.CSS_SELECTOR, '.evlabel').text}"] += 1
-        d.execute_script("arguments[0].click()", o); return
-    leave = d.find_elements(By.CSS_SELECTOR, ".evopt.leave")
+        notes[f"이벤트 {name} — {o.find_element(By.CSS_SELECTOR, '.ev2-label').text}"] += 1
+        pick_then_ok(o); return
+    leave = d.find_elements(By.CSS_SELECTOR, ".ev2-opt.leave")
     if leave:
         notes[f"이벤트 {name} — 떠났다"] += 1
-        d.execute_script("arguments[0].click()", leave[0])
+        pick_then_ok(leave[0])
 
 
 def step_camp(d, By, notes):

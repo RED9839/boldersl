@@ -554,7 +554,8 @@ function bestAlly(s, stat) {
   return up.length ? up.reduce((a, b) => ((b[stat] || 0) > (a[stat] || 0) ? b : a)) : null;
 }
 
-export function playCard(s, handIdx, targetIdx) {
+// opts.discard — 이 카드의 「손패 N장 버리」에 버릴 카드 id(낸 사람이 고른 것 · ui.js). 없으면 손 끝에서부터(모의전 · 미리보기)
+export function playCard(s, handIdx, targetIdx, opts = {}) {
   if (s.over) return { ok: false, why: "전투가 끝났습니다" };
   const cardId = s.hand[handIdx];
   if (!cardId) return { ok: false, why: "그런 카드가 없습니다" };
@@ -575,17 +576,20 @@ export function playCard(s, handIdx, targetIdx) {
   s.nextCheaper = 0;
   if (s.freeOnce) delete s.freeOnce[cardId];
   s.hand.splice(handIdx, 1);
+  s.discardPick = Array.isArray(opts.discard) ? opts.discard.slice() : null;
 
   // 기적 — true(이벤트의 옛 값) · "power" 는 피해 ×1.3
   const sh = s.shin && s.shin[cardId];
   const ctx = { owner, combo: null, targetIdx, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null, shin: sh === true || sh === "power" };
   s.acting = c.hero || null;
-  if (c.built) {
-    // 기획서에서 읽은 카드 — 효과 조각을 run-fx 가 실행한다(스탯 기반 %)
-    runFx(s, c.fx, ctx, fxApi(s));
-  } else {
-    for (const f of c.fx) applyFx(s, c, f, ctx);
-  }
+  try {
+    if (c.built) {
+      // 기획서에서 읽은 카드 — 효과 조각을 run-fx 가 실행한다(스탯 기반 %)
+      runFx(s, c.fx, ctx, fxApi(s));
+    } else {
+      for (const f of c.fx) applyFx(s, c, f, ctx);
+    }
+  } finally { s.discardPick = null; }       // 고른 버릴 카드는 이 카드의 효과에서만 쓴다
   // 티그의 오버드라이브 — 평타 계수를 바꾸고 공속을 올린다(원작). 여기선 한 번 더 들어간다.
   if (s.overdrive && c.hero === "tig" && c.type === "공격") {
     say(s, "오버드라이브 — 한 번 더");
@@ -623,6 +627,17 @@ export function playCard(s, handIdx, targetIdx) {
   return { ok: true };
 }
 
+// 이 카드를 내면 버릴 카드를 골라야 하나 — 고를 장수(「무작위」 · 「전부」 · 남은 손패가 모자라면 0)
+export function discardChoice(s, handIdx) {
+  const id = s.hand[handIdx];
+  const c = id && cardOf(s, id);
+  if (!c) return 0;
+  const f = (c.fx || []).find((x) => x.k === "discard" && !x.random && x.v !== "all");
+  if (!f) return 0;
+  const rest = s.hand.length - 1;
+  return rest > f.v ? f.v : 0;               // 남은 손패가 그 장수 이하면 고를 것 없이 전부 버린다
+}
+
 // ── 미리보기 ───────────────────────────────────────────────────────────
 // 카드를 고르면 적마다 얼마나 들어가는지 보여 준다.
 // 계산식을 따로 베끼면 언젠가 실제와 어긋나니, 판을 통째로 복사해 거기서 실제로 내 본다 —
@@ -657,6 +672,33 @@ export function previewCard(s, handIdx, targetIdx) {
   });
 }
 
+
+// 아군 미리보기 — 이 카드를 내면 아군마다 회복 · 방어 · 실드가 얼마나 붙고 체력이 얼마나 빠지나(자해 · 대가).
+// 적 미리보기와 같이 판을 복사해 실제로 내 본다 — 시전자 능력치 · 역할 보정 · 패시브가 전부 그대로 들어간다.
+// 돌려주는 것: 아군 idx 마다 { heal, block, shield, lose } 또는 null
+export function previewAllies(s, handIdx, targetIdx) {
+  const id = s.hand[handIdx];
+  if (!id || s.over || canPlay(s, id)) return null;
+  let after;
+  try {
+    const { rng, ...rest } = s;
+    const sh = structuredClone(rest);
+    sh.rng = makeRng(1);
+    sh.preview = true;
+    playCard(sh, handIdx, targetIdx);
+    after = sh.party;
+  } catch (err) { return null; }
+  return s.party.map((u, i) => {
+    const a = after[i];
+    if (!a || u.dead) return null;
+    const heal = Math.max(0, a.hp - u.hp);
+    const lose = Math.max(0, u.hp - a.hp);
+    const block = Math.max(0, (a.block || 0) - (u.block || 0));
+    const shield = Math.max(0, (a.shield || 0) - (u.shield || 0));
+    if (!heal && !lose && !block && !shield) return null;
+    return { heal, block, shield, lose };
+  });
+}
 
 const boost = (v, combo, owner, s) => {
   let out = v;
@@ -818,9 +860,17 @@ function fxApi(s) {
     stackChanged: (owner, id, before, after, holder) => emit(s, "stackReach", { id, before, after, owner, target: holder }),
     cleanse: (t, n) => { for (let i = 0; i < (n || 1); i++) { const bad = BAD.find((b) => st(t, b) > 0); if (bad) delete t.status[bad]; } },
     trigger: () => {},          // 사도 전용 발동(재채기 등) — 아직 몸이 없다
-    discard: (n) => {
-      const many = n === "all" ? s.hand.length : n;
-      for (let i = 0; i < many; i++) { const id = s.hand.pop(); if (id) s.discard.push(id); }
+    // 버리기 — 낸 사람이 고른 카드(s.discardPick)부터. 「무작위」면 무작위로, 고른 것이 없으면(모의전 · 미리보기) 손 끝에서부터
+    discard: (n, random) => {
+      const many = n === "all" ? s.hand.length : Math.min(n, s.hand.length);
+      const pick = !random && Array.isArray(s.discardPick) ? s.discardPick : null;
+      for (let i = 0; i < many && s.hand.length; i++) {
+        let at = -1;
+        if (pick && pick.length) at = s.hand.indexOf(pick.shift());
+        if (at < 0) at = random ? Math.floor(s.rng() * s.hand.length) : s.hand.length - 1;
+        const [id] = s.hand.splice(at, 1);
+        if (id) s.discard.push(id);
+      }
     },
   };
 }
