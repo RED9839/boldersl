@@ -57,9 +57,8 @@ function reward() {
   run.elite = false;                       // 엘리트 보상은 한 번
   // 보스를 넘었을 때만 층이 바뀐다(run.js 의 advance). 그 밖의 싸움은 지도로 돌아간다
   if (!R.isBoss(run)) return mapStep();
-  const { swap } = R.advance(run);
+  R.advance(run);                          // 층이 바뀐다 — 사도 교체는 없다
   if (run.done === "clear") return ui.endScreen("clear", run, start);
-  if (swap) return ui.swapScreen(run, mapStep);
   mapStep();
 }
 

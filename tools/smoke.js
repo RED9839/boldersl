@@ -73,10 +73,10 @@ const p = ui.partyScreen((party, rows) => (started = { party, rows }));
 const count = (root, cls) => { let n = 0; (function w(x){ for (const c of x.children) { if (c.classList.contains(cls)) n++; w(c); } })(root); return n; };
 
 // 도감 — 왼쪽 세력 레일 · 초상 격자 · 위의 탭과 정렬
-// ── 팀 편성 — 위는 무대(고른 셋이 선다), 아래는 명단(늘 펼침) ─────────────
-check(p.className.includes("teamscreen2"), "팀 편성으로 연다");
-check(count(p, "tm-fstand") === 3 && count(p, "empty") === 3, `무대에 빈 자리 셋 (${count(p, "empty")})`);
-check(count(p, "tm-fcard") === 135, `명단이 처음부터 펼쳐져 있다 (${count(p, "tm-fcard")})`);
+// ── 팀 편성 — 큰 사도 칸 셋(멈춘 스탠딩). 칸을 누르면 명단 창이 떠서 고른다 ─────────────
+check(p.className.includes("teamscreen3"), "팀 편성으로 연다");
+check(count(p, "tf-slot") === 3 && count(p, "empty") === 3, `빈 칸 셋 (${count(p, "empty")})`);
+check(count(p, "tm-fcard") === 0, "명단은 칸을 눌러야 뜬다");
 check(/에르피엔/.test(p.textContent) && /커버러스/.test(p.textContent), "어디서 떠나고 보스가 누구인지 적는다");
 
 const search = () => (function find(n) {
@@ -86,33 +86,33 @@ const search = () => (function find(n) {
 const nameOf = (c) => { const f = (x) => { for (const y of x.children) { if (y.classList.contains("tm-fcp")) return y.children[0]; const r = f(y); if (r) return r; } return null; };
   const n = f(c); return n ? n.textContent : ""; };
 const cardOf = (name) => { const sb = search(); sb.value = name; sb.oninput(); return clickAll(p, (n) => n.classList.contains("tm-fcard")).find((c) => nameOf(c) === name); };
-function take(name) { const c = cardOf(name); if (c) c.onclick(); return !!c; }
+const slots = () => clickAll(p, (n) => n.classList.contains("tf-slot"));
+const emptySlot = () => slots().find((n) => n.classList.contains("empty"));
+const slotOf = (name) => slots().find((n) => !n.classList.contains("empty") && (n.textContent || "").includes(name));
+function take(name) { const e = emptySlot(); if (!e) return false; e.onclick(); const c = cardOf(name); if (c) c.onclick(); return !!c; }
 
-check(take("에르핀"), "명단에서 눌러 무대에 올린다");
-check(count(p, "empty") === 2, "올리면 자리가 찬다");
+check(take("에르핀"), "빈 칸을 눌러 명단에서 고른다");
+check(count(p, "empty") === 2 && count(p, "tm-fcard") === 0, "고르면 칸이 차고 창이 닫힌다");
 check(/후열 딜러/.test(p.textContent), "정해진 위치를 알려 준다");
-check(count(p, "tm-fnum") === 1, "명단에서 고른 사도에 순번이 붙는다");
-cardOf("에르핀").onclick();
-check(count(p, "empty") === 3, "한 번 더 누르면 무대에서 내린다");
-take("에르핀");
+// 칸을 누르면 그 자리를 다른 사도로 바꾼다
+slotOf("에르핀").onclick();
+check(count(p, "tm-fcard") === 135, `칸을 누르면 명단 창이 뜬다 (${count(p, "tm-fcard")})`);
+cardOf("셰럼").onclick();
+check(!!slotOf("셰럼") && !slotOf("에르핀") && count(p, "empty") === 2, "고른 사도로 그 자리가 바뀐다");
+slotOf("셰럼").onclick();
+clickAll(p, (n) => n.classList.contains("tf-out"))[0].onclick();
+check(count(p, "empty") === 3, "「이 자리 비우기」 로 뺀다");
 
-for (const n of ["네르", "티그"]) check(take(n), `${n} 을 찾아 넣는다`);
-check(count(p, "empty") === 0, "세 자리가 다 찬다");
+for (const n of ["에르핀", "네르", "티그"]) check(take(n), `${n} 을 찾아 넣는다`);
+check(count(p, "empty") === 0, "세 칸이 다 찬다");
 check(/3 \/ 3/.test(p.textContent), "머리에 몇 명 골랐는지 나온다");
-{
-  const extra = cardOf("셰럼"); extra.onclick();
-  check(count(p, "tm-fstand") === 3 && count(p, "empty") === 0, "넷째는 올라가지 않는다");
-}
-// 무대 순서 — 전투처럼 후열이 왼쪽
-{
-  const stands = clickAll(p, (n) => n.classList.contains("tm-fstand"));
-  check(/에르핀/.test(stands[0].textContent), "후열(에르핀)이 무대 왼쪽에 선다");
-}
+check(!emptySlot(), "셋이 차면 빈 칸이 없다 — 넷째는 못 넣는다");
+// 이미 편성한 사도를 다른 칸에서 고르면 둘이 자리를 바꾼다(편성 순서)
+check(/에르핀/.test(slots()[0].textContent), "후열(에르핀)이 왼쪽 칸에 선다");
 
-// 열 — 후열 · 중열 · 전열이 늘 깔리고, 같은 열(네르 · 티그 전열)끼리는 ⇄ 로 자리를 바꾼다
+// 같은 열(네르 · 티그 전열)끼리는 ⇄ 로 자리를 바꾼다
 {
-  check(count(p, "tm-flane") === 3 && count(p, "tm-floor") === 3, "무대에 열 셋이 깔린다");
-  const frontNames = () => clickAll(p, (n) => n.classList.contains("tm-fstand")).map((n) => n.textContent).filter((t) => /전열/.test(t)).map((t) => (t.match(/네르|티그/) || [""])[0]);
+  const frontNames = () => slots().map((n) => n.textContent).filter((t) => /전열/.test(t)).map((t) => (t.match(/네르|티그/) || [""])[0]);
   const sw = clickAll(p, (n) => n.classList.contains("tm-fswap"));
   check(sw.length === 1, `같은 열 둘 사이에 ⇄ 하나 (${sw.length})`);
   const before = frontNames().join(",");
@@ -133,12 +133,12 @@ check(count(p, "natchart") === 0 && count(p, "tm-fnatbtn") === 1, "상성 그림
 check(!/첫 턴 AP/.test(p.textContent), "사이가 없으니 첫 턴 AP 줄도 없다(늘 3)");
 check(count(p, "tm-fdk") === 12, `덱 열두 장이 미리 보인다 (${count(p, "tm-fdk")})`);
 
-// 무대의 사도를 누르면 사도 정보에 들어갔다 온다
-clickAll(p, (n) => n.classList.contains("tm-fstand"))[0].onclick();
-check(count(p, "side") === 1, "무대의 사도를 누르면 사도 정보에 들어간다");
+// 칸의 🔍 로 사도 정보에 들어갔다 온다
+clickAll(p, (n) => n.classList.contains("tf-info"))[0].onclick({ stopPropagation() {} });
+check(count(p, "side") === 1, "칸의 🔍 로 사도 정보에 들어간다");
 check(count(p, "statgrid") === 1 && count(p, "gcard") === 0, "들어가면 능력치부터 보인다");
 clickAll(p).find((n) => n.classList.contains("back")).onclick();
-check(count(p, "tm-fstand") === 3 && count(p, "empty") === 0, "편성으로 돌아온다 — 고른 셋 그대로");
+check(count(p, "tf-slot") === 3 && count(p, "empty") === 0, "편성으로 돌아온다 — 고른 셋 그대로");
 
 // 도감으로 갔다 온다
 clickAll(p).find((n) => n.classList.contains("tm-fdex")).onclick();
@@ -187,7 +187,7 @@ check(/게이지 \d+% 를 씁니다/.test(p.textContent), "고학년 스킬에 �
 clickAll(p).find((n) => n.classList.contains("back")).onclick();
 check(count(p, "dexgrid") === 1, "도감으로 돌아온다");
 clickAll(p).find((n) => n.classList.contains("back")).onclick();
-check(count(p, "tm-fstand") === 3, "다시 편성으로 돌아온다");
+check(count(p, "tf-slot") === 3, "다시 편성으로 돌아온다");
 
 const goBtn = clickAll(p).find((n) => n.textContent === "떠납니다");
 check(goBtn && !goBtn.disabled, "셋을 고르면 떠날 수 있다");
@@ -440,25 +440,23 @@ console.log("\n이후 화면");
   }
 }
 run.floor = 0; run.node = 3;
+const hp0 = { ...run.hp };
 const adv = R.advance(run);
-check(adv.swap === true, "보스를 넘기면 교체 기회가 온다");
-let swapped = false;
-const sw = ui.swapScreen(run, () => (swapped = true));
-const outs = clickAll(sw, (n) => n.classList.contains("scard"));
-check(outs.length === run.party.length, `내보낼 사람이 셋 (${outs.length})`);
-check(/내보낼 사람을 먼저 고르면/.test(sw.textContent), "부를 사람 칸이 왜 비었는지 적어 준다");
-check(count(sw, "slose") === 3, "카드마다 바꾸면 잃는 것을 적는다");
-outs[0].onclick();
-const ins = clickAll(sw, (n) => n.classList.contains("pcard"));
-check(ins.length > 100, `부를 사람 목록이 열린다 (${ins.length})`);
+check(adv.swap === false, "보스를 넘겨도 사도 교체는 없다 — 처음 고른 셋으로 끝까지");
+check(run.party.every((k) => run.hp[k] === Math.min(run.maxHp[k], hp0[k] + 10)), "층 사이에 HP +10 은 그대로");
+check(typeof ui.swapScreen === "undefined", "사도 교체 화면은 없앴다");
+
+// 고학년 게이지 — 전투가 끝나도 남은 만큼 다음 전투로
 {
-  // 들어오는 사도는 나간 사람 자리를 물려받지 않고 제 자리에 선다 — 위치는 고정이다
-  const B7 = (await import("../js/data/built.js")).default;
-  const outKey = run.party[0];
-  ins[0].onclick();
-  const inKey = run.party[0];
-  check(swapped && inKey !== outKey, `바꾸면 파티가 바뀐다 (${outKey} → ${inKey})`);
-  check(run.rows[inKey] === B7.heroes[inKey].row, `들어온 사도는 제 자리에 선다 (${run.rows[inKey]})`);
+  const C = await import("../js/combat.js");
+  const gr = R.newRun(run.party.slice(), { ...run.rows }, 21);
+  check(gr.gauge === 0, "새 판은 게이지 0");
+  const g1 = C.newCombat({ partyKeys: gr.party, rows: gr.rows, deck: gr.deck.slice(), enemyIds: ["fairymobcloserange"], seed: 2, hp: gr.hp, maxHp: gr.maxHp, gauge: gr.gauge });
+  g1.gauge = 140;
+  R.afterFight(gr, g1);
+  check(gr.gauge === 140, `전투가 끝나면 남은 게이지를 판에 적는다 (${gr.gauge}%)`);
+  const g2 = C.newCombat({ partyKeys: gr.party, rows: gr.rows, deck: gr.deck.slice(), enemyIds: ["fairymobcloserange"], seed: 3, hp: gr.hp, maxHp: gr.maxHp, gauge: gr.gauge });
+  check(g2.gauge === 140, "다음 전투는 그 게이지로 시작한다");
 }
 
 console.log("\n골디의 상점");
@@ -602,9 +600,17 @@ console.log("\n장비");
   check(r.maxHp[k] === mh + e.stats.hp && r.hp[k] === h0 + e.stats.hp, `HP 스탯은 최대 HP 에 바로 (+${e.stats.hp})`);
   const same = ids.find((id) => id !== hpItem && EQUIP[id].slot === e.slot && EQUIP[id].affinity !== k);
   r.bag.push(same);
-  check(/캠프에서/.test(R.equip(r, k, same) || ""), "차 있는 칸은 캠프에서만 바꾼다");
-  check(R.equip(r, k, same, { swap: true }) === null && r.bag.includes(hpItem), "캠프에서는 바꿔 끼고, 뺀 것은 가방으로");
+  check(!!R.equip(r, k, same), "차 있는 칸은 그냥 끼면 막히고 「바꾸기」 로 한다");
+  check(R.equip(r, k, same, { swap: true }) === null && r.bag.includes(hpItem), "바꿔 끼면 뺀 것은 가방으로(전투 밖 어디서든)");
   check(r.maxHp[k] === mh + EQUIP[same].stats.hp, "바꾸면 최대 HP 도 따라 바뀐다");
+  // 빼기 · 팔기
+  check(R.unequip(r, k, e.slot) === null && !R.gearOf(r, k)[e.slot] && r.bag.includes(same), "빼면 가방으로");
+  check(R.equip(r, k, same) === null, "뺀 것을 다시 낀다");
+  const RULES = await import("../js/rules.js");
+  const g0 = r.gold, price = R.sellPrice(hpItem);
+  check(price === Math.round(RULES.EQUIP_PRICE[e.grade] * RULES.EQUIP_SELL), `파는 값은 사는 값의 ${RULES.EQUIP_SELL * 100}% (${e.grade} ${price})`);
+  check(R.sellEquip(r, hpItem) === null && r.gold === g0 + price && !r.bag.includes(hpItem), "가방의 장비를 팔면 골드가 들어오고 가방에서 빠진다");
+  check(!!R.sellEquip(r, same), "끼고 있는 장비는 바로 못 판다 — 먼저 뺀다");
   // 전투에 스탯이 들어간다
   const atkItem = ids.find((id) => EQUIP[id].stats.atk > 0 && EQUIP[id].slot !== e.slot && EQUIP[id].affinity !== k);
   r.bag.push(atkItem); R.equip(r, k, atkItem);
@@ -1137,7 +1143,7 @@ console.log("지도 (js/map.js · docs/10-지도.md)");
   }
   check(M.currentNode(mr).type === "boss" && R.isBoss(mr) && M.stageName(mr, M.currentNode(mr)) === "1-12", "끝 칸은 1-12 보스");
   const adv2 = R.advance(mr);
-  check(mr.floor === 1 && adv2.swap, "보스를 넘으면 다음 층(사도 교체 기회)");
+  check(mr.floor === 1 && adv2.swap === false, "보스를 넘으면 다음 층(사도 교체 없이)");
   check(M.mapOf(mr).floor === 1 && M.currentNode(mr).type === "start" && M.stageName(mr, M.currentNode(mr)) === "2-0" && M.reachable(mr).length >= 2, "다음 층은 새 지도, 2-0 출발 칸부터");
 
   // 화면 — 칸을 누르면 들어간다

@@ -2902,3 +2902,152 @@ body:has(#screen.eventscreen2) .top { display: none; }
 .phone #screen.eventscreen2 .ev2-opt { padding: 10px 12px; }
 .phone .ev2-label { font-size: 14px; }
 .phone .ev2-out { font-size: 11px; }
+
+/* ── 팀 편성(ui.js formScreen · teamscreen3) — 카제나처럼 큰 사도 칸 셋 + 누르면 뜨는 명단. 모두 tf- ── */
+body:has(#screen.teamscreen3) .top { display: none; }
+#screen.teamscreen3 {
+  position: fixed; inset: 0; z-index: 1; max-width: none; margin: 0; padding: 0; border-radius: 0;
+  height: var(--app-h, 100vh); overflow: hidden; color: #f4f1ff;
+  display: grid; grid-template-rows: auto minmax(0, 1fr);
+  background:
+    linear-gradient(180deg, #0a0814d9 0, #0a081466 18%, #0a081455 60%, #0a0814e6 100%),
+    var(--stagebg, none) 50% 72% / max(115%, calc(var(--app-h, 100vh) * 1.15 * 16 / 9)) auto no-repeat,
+    radial-gradient(ellipse at 50% 20%, #2a2340, #0e0c17 80%);
+}
+.tf-head { display: flex; align-items: center; gap: 12px; padding: 14px 20px 8px; }
+.tf-title { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.tf-title b { font-size: 24px; font-weight: 900; text-shadow: 0 2px 10px #000; }
+.tf-count { font-size: 14px; font-weight: 800; color: #f6d58e; }
+
+.tf-main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; padding: 6px 20px 20px; min-height: 0; }
+.tf-slots { display: flex; align-items: stretch; justify-content: center; min-height: 0; padding: 6px 0; }
+.tf-gap { width: 18px; flex: none; }
+
+/* 칸 — 멈춘 스탠딩 그림을 꽉 채우고 아래에 이름 · 능력치 판 */
+#screen.teamscreen3 .tf-slot {
+  position: relative; flex: 1 1 0; max-width: 330px; min-width: 0; min-height: 0; padding: 0; overflow: hidden; border-radius: 22px; text-align: left;
+  background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--tint, #8a7fb8) 55%, #1a1628), #0d0b16 88%);
+  border: 2px solid #ffffff2e; box-shadow: 0 16px 40px #0009; transition: transform .15s, border-color .15s, box-shadow .15s; color: #f4f1ff;
+}
+#screen.teamscreen3 .tf-slot:hover:not(:disabled) { transform: translateY(-4px); border-color: color-mix(in srgb, var(--tint, #f6d58e) 70%, #fff); box-shadow: 0 22px 46px #000b, 0 0 24px color-mix(in srgb, var(--tint, #f6d58e) 40%, transparent); }
+.tf-slot > .art { position: absolute; inset: 0 0 18% 0; width: 100% !important; height: auto !important; background: transparent !important; }
+.tf-slot > .art img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 6%; }
+.tf-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 46%; background: linear-gradient(180deg, transparent, #0d0b16e8 45%, #0d0b16); pointer-events: none; }
+.tf-badges { position: absolute; left: 12px; top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.tf-b { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; background: #0d0b16b3; font-style: normal; font-size: 13px; font-weight: 900; }
+.tf-b img { width: 26px; height: 26px; filter: drop-shadow(0 1px 2px #000); }
+.tf-tools { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
+.tf-tool { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: #0d0b16cc; border: 1px solid #ffffff33; font-size: 15px; cursor: pointer; }
+.tf-tool:hover { border-color: #f6d58e; }
+.tf-x:hover { border-color: #ff8a8a; color: #ff8a8a; }
+.tf-rowpick { position: absolute; left: 50%; transform: translateX(-50%); bottom: 37%; display: flex; gap: 4px; padding: 4px; border-radius: 99px; background: #0d0b16d9; border: 1px solid #f6d58e66; }
+.tf-rowb { padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 800; color: #d9d2f2; cursor: pointer; }
+.tf-rowb.on { background: #f6d58e; color: #2a1a05; }
+.tf-plate { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 3px; padding: 14px 16px 16px; }
+.tf-star { font-size: 13px; color: #ffd76a; letter-spacing: 1px; text-shadow: 0 1px 2px #000; }
+.tf-plate > b { font-size: 26px; font-weight: 900; line-height: 1.1; text-shadow: 0 2px 8px #000; }
+.tf-sub { font-size: 12.5px; color: #d9d2f2; }
+.tf-stats { display: flex; gap: 6px; margin-top: 6px; }
+.tf-stats span { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 6px 4px; border-radius: 10px; background: #ffffff10; border: 1px solid #ffffff1a; }
+.tf-stats small { font-size: 10.5px; color: #b9b2d6; }
+.tf-stats b { font-size: 17px; font-weight: 900; }
+#screen.teamscreen3 .tf-slot.empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center;
+  background: #0d0b1680; border: 2px dashed #ffffff40; box-shadow: none;
+}
+#screen.teamscreen3 .tf-slot.empty:hover:not(:disabled) { border-color: #f6d58e; background: #1a1628a0; }
+.tf-plus { width: 74px; height: 74px; border-radius: 50%; display: grid; place-items: center; font-size: 44px; font-weight: 300; color: #f6d58e; border: 2px solid #f6d58e88; }
+.tf-slot.empty b { font-size: 18px; }
+.tf-slot.empty > span:last-child { font-size: 12px; color: #b9b2d6; }
+#screen.teamscreen3 .tf-swap { align-self: center; flex: none; width: 36px; height: 36px; margin: 0 -8px; z-index: 2; padding: 0; min-height: 0; border-radius: 50%; font-size: 17px; font-weight: 900; background: #0d0b16e6; border: 1px solid #f6d58e99; color: #f6d58e; }
+
+/* 오른쪽 */
+.tf-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.tf-side > section { padding: 14px 16px; border-radius: 16px; background: #0d0b16c9; border: 1px solid #ffffff1f; backdrop-filter: blur(6px); }
+.tf-ftop { display: flex; flex-direction: column; gap: 2px; }
+.tf-ftop small { font-size: 11px; letter-spacing: 3px; font-weight: 900; color: #f6d58e; }
+.tf-ftop b { font-size: 20px; font-weight: 900; }
+.tf-ftop span { font-size: 12px; color: #b9b2d6; }
+.tf-boss { display: flex; gap: 10px; margin: 12px 0 8px; }
+.tf-bossone { display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 6px; border-radius: 12px; background: #ff6a5414; border: 1px solid #ff6a5444; }
+.tf-bossone .art { width: 56px !important; height: 56px !important; border-radius: 10px; overflow: hidden; background: #0006 !important; }
+.tf-bossone .art img { width: 100%; height: 100%; object-fit: cover; }
+.tf-bossone small { display: block; font-size: 10.5px; color: #ff9d8c; font-weight: 800; }
+.tf-bossone b { font-size: 16px; }
+.tf-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 900; letter-spacing: .08em; color: #f6d58e; margin-bottom: 8px; }
+.tf-foes { display: flex; flex-wrap: wrap; gap: 6px; }
+.tf-foe .art { width: 46px !important; height: 46px !important; border-radius: 10px; overflow: hidden; background: #ffffff0d !important; border: 1px solid #ffffff1a; }
+.tf-foe .art img { width: 100%; height: 100%; object-fit: cover; }
+.tf-decksec { display: flex; flex-direction: column; min-height: 0; }
+.tf-decksec .tm-fdeck2 { max-height: 220px; }
+#screen.teamscreen3 .tf-go { margin-top: auto; padding: 18px; font-size: 20px; }
+
+/* 사도 고르기 창 */
+.tf-pick { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: #06050bc4; backdrop-filter: blur(5px); }
+.tf-pickbox { width: min(1240px, 95%); height: min(calc(var(--app-h, 100vh) * .88), 900px); min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; border-radius: 20px; background: #16131f; border: 1px solid #ffffff22; box-shadow: 0 30px 80px #000a; }
+.tf-pickhead { display: flex; align-items: center; gap: 12px; }
+.tf-pickhead > div { display: flex; flex-direction: column; gap: 3px; margin-right: auto; }
+.tf-pickhead b { font-size: 20px; font-weight: 900; }
+.tf-pickhead span { font-size: 12.5px; color: #b9b2d6; }
+#screen.teamscreen3 .tf-out { min-height: 0; padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 800; background: transparent; border: 1px solid #ff8a8a88; color: #ffb3b3; }
+#screen.teamscreen3 .tf-close { min-height: 0; width: 38px; height: 38px; padding: 0; border-radius: 10px; font-size: 22px; background: transparent; border: 1px solid #ffffff33; color: #ddd; }
+.tf-pickbox .tm-fbar { display: flex; align-items: center; gap: 10px; }
+.tf-roster { grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); }
+.tf-roster .tm-fcard { height: 150px; }
+.tf-roster .tm-fcard.cur { border-color: #8fd0ff; box-shadow: 0 0 0 2px #8fd0ff88; }
+
+/* 휴대폰 */
+.phone .tf-head { padding: 6px 10px 4px; }
+.phone .tf-title b { font-size: 18px; }
+.phone .tf-main { grid-template-columns: minmax(0, 1fr) 230px; gap: 10px; padding: 4px 10px 10px; }
+.phone .tf-plate > b { font-size: 17px; }
+.phone .tf-stats, .phone .tf-sub { display: none; }
+.phone .tf-b { width: 22px; height: 22px; } .phone .tf-b img { width: 19px; height: 19px; }
+.phone .tf-foes, .phone .tf-decksec { display: none; }
+.phone .tf-roster .tm-fcard { height: 96px; }
+.phone .tf-roster { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
+
+/* 아이콘 칩 — 옛 편성 화면(teamscreen2)에 묶여 있던 크기를 새 화면에도 */
+#screen.teamscreen3 i.tm-fnat, #screen.teamscreen3 i.tm-fb, #screen.teamscreen3 i.tm-fci { display: inline-grid; place-items: center; flex: none; font-style: normal; font-size: 11px; font-weight: 900; }
+#screen.teamscreen3 i.tm-fnat > img, #screen.teamscreen3 i.tm-fb > img, #screen.teamscreen3 i.tm-fci > img { width: 100%; height: 100%; object-fit: contain; }
+.tf-pickbox .tm-froster { flex: 1; min-height: 0; overflow-y: auto; }
+.tf-foe .art.art-ph { font-size: 10px !important; line-height: 1.1; display: grid; place-items: center; text-align: center; overflow: hidden; }
+
+#screen.teamscreen3 .tf-go:not(:disabled)::after { content: "  →"; white-space: pre; }
+
+/* 「떠납니다」 는 늘 보이게 — 오른쪽이 넘치면 아래에 붙는다. 휴대폰은 첫 층 칸을 보스만 남긴다 */
+#screen.teamscreen3 .tf-go { position: sticky; bottom: 0; z-index: 2; }
+.phone .tf-ftop span, .phone .tf-floor .tf-label { display: none; }
+.phone .tf-side > section { padding: 8px 10px; }
+.phone .tf-boss { margin: 6px 0 0; }
+.phone .tf-bossone .art { width: 38px !important; height: 38px !important; }
+.phone #screen.teamscreen3 .tf-go { padding: 10px; font-size: 16px; }
+
+/* 나오는 적 — 그림 + 이름 칩 */
+.tf-foes { display: flex; flex-wrap: wrap; gap: 6px; }
+.tf-foe { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 99px; background: #ffffff0d; border: 1px solid #ffffff1a; font-size: 12px; font-weight: 700; }
+.tf-foe:not(:has(.art)) { padding-left: 10px; }
+.tf-foe .art { width: 28px !important; height: 28px !important; border-radius: 50%; overflow: hidden; background: #0005 !important; border: 0; flex: none; }
+.tf-foe.elite { background: #b07cff1a; border-color: #b07cff66; }
+.tf-elite { font-style: normal; font-size: 10px; font-weight: 900; padding: 1px 6px; border-radius: 99px; background: #8a5cff; color: #fff; }
+
+/* 장비 팔기(ui.js gearPanel) — 한 번 누르면 붉게 「한 번 더 누르면 판매」 */
+.gsell { display: inline-flex; align-items: center; gap: 4px; min-height: 0; padding: 5px 10px; border-radius: 99px; font-size: 12px; font-weight: 800; background: #f6d58e1a; border: 1px solid #f6d58e66; color: #f6d58e; }
+.gsell .gico { width: 1.1em; height: 1.1em; margin-right: 0; }
+.gsell.armed { background: #d8454f; border-color: #ff8a8a; color: #fff; }
+
+/* 승리 — 바닥에 남은 금화 · 오른쪽으로 달려가는 사도들(ui.js walkOut) */
+.groundcoin {
+  position: fixed; z-index: 7; width: 26px; height: 26px; margin: -13px 0 0 -13px; pointer-events: none;
+  animation: groundcoin .55s cubic-bezier(.3, 1.6, .5, 1) both; animation-delay: calc(var(--k, 0) * 70ms);
+  filter: drop-shadow(0 3px 3px #0008) drop-shadow(0 0 6px #ffd23f88);
+}
+.groundcoin img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.groundcoin.noimg { font-size: 18px; color: #ffd23f; font-style: normal; }
+@keyframes groundcoin { 0% { transform: translateY(-46px) scale(.5); opacity: 0; } 60% { transform: translateY(4px) scale(1.05); opacity: 1; } 100% { transform: none; } }
+.calm .groundcoin { animation: none; }
+/* 달리는 동안 — 손패 · 버튼은 물러나고, 쓰러진 적은 흐리게 */
+#screen.battle.victory .hand, #screen.battle.victory .endturn, #screen.battle.victory .gauge { opacity: 0; pointer-events: none; transition: opacity .3s; }
+#screen.battle.victory .foe.dead, #screen.battle.victory .foe.dying { opacity: .15; transition: opacity .4s; }
+.stand.walking { z-index: 5; pointer-events: none; }
+.stand.walking .hpwrap, .stand.walking .chips, .stand.walking .bubble { opacity: 0; transition: opacity .25s; }

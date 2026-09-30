@@ -25,7 +25,7 @@ ROOT = os.path.dirname(HERE)
 # 화면을 알아보는 표 — 클래스 하나로 가른다
 SCREENS = [
     ("로비", ".lobby2"),
-    ("팀 편성", ".teamscreen2"),
+    ("팀 편성", ".teamscreen3"),
     ("사도 도감", ".dexscreen"),
     ("사도 정보", ".detailscreen"),
     ("지도", ".mapscreen"),
@@ -111,12 +111,13 @@ def play(d, By, base, a, notes, r):
 
     # 편성
     for name in a.party.split(","):
+        d.execute_script("document.querySelector('.tf-slot.empty').click()"); time.sleep(0.4)   # 빈 칸 → 명단 창
         sb = d.find_element(By.CSS_SELECTOR, ".tm-fsearch"); sb.clear(); sb.send_keys(name); time.sleep(0.45)
         for c in d.find_elements(By.CSS_SELECTOR, ".tm-fcard"):
             if c.find_element(By.CSS_SELECTOR, ".tm-fcp b").text == name: c.click(); break
         time.sleep(0.35)
     shot(d, a, f"{r}-2-편성")
-    [b for b in d.find_elements(By.CSS_SELECTOR, "button") if b.text == "떠납니다"][0].click(); time.sleep(1.6)
+    d.find_element(By.CSS_SELECTOR, ".tf-go").click(); time.sleep(1.6)
 
     seen = set()
     last = None

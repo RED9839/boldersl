@@ -20,6 +20,7 @@ export function newRun(partyKeys, rows, seed = Date.now()) {
     flash: {},                    // 카드 id → 신탁 번호(1~5). 카드마다 하나만.
     reward: null,                 // 이번 보상에서 굴린 것 — 다시 그려도 안 바뀐다
     bag: [],                      // 얻었지만 안 낀 장비 id
+    gauge: 0,                     // 고학년 게이지 — 전투가 끝나도 남은 만큼 다음 전투로 넘어간다
     gear: {},                     // { 사도키: { 무기: id, 방어구: id, 장신구: id } }
     gold: R.GOLD_START,
     shop: null,                   // 이번 상점에서 굴린 진열 — 다시 그려도 안 바뀐다
@@ -57,6 +58,7 @@ export function afterFight(run, combat) {
     run.hp[u.key] = u.dead ? 0 : u.hp;
     run.maxHp[u.key] = u.maxHp;
   }
+  run.gauge = Math.max(0, Math.min(R.GAUGE_MAX, combat.gauge || 0));   // 남은 고학년 게이지는 다음 전투로
 }
 
 // 보상 — 편성한 사도의 카드 중 아직 없는 것에서 셋
@@ -373,7 +375,7 @@ export function equip(run, heroKey, equipId, { swap = false } = {}) {
   if (i < 0) return "가방에 없는 장비입니다";
   const g = (run.gear[heroKey] = run.gear[heroKey] || {});
   const old = g[e.slot];
-  if (old && !swap) return `${e.slot} 칸이 차 있습니다 — 바꿔 끼기는 캠프에서`;
+  if (old && !swap) return `${e.slot} 칸이 차 있습니다 — 바꿔 끼려면 바꾸기로`;
   run.bag.splice(i, 1);
   if (old) { shiftHp(run, heroKey, -statsOf(old, heroKey).hp); run.bag.push(old); }
   g[e.slot] = equipId;
@@ -381,7 +383,7 @@ export function equip(run, heroKey, equipId, { swap = false } = {}) {
   return null;
 }
 
-// 뺀다 — 캠프에서만
+// 뺀다 — 전투 밖이면 어디서든(지도 · 캠프 · 상점)
 export function unequip(run, heroKey, slot) {
   const g = gearOf(run, heroKey);
   const id = g[slot];
@@ -389,6 +391,16 @@ export function unequip(run, heroKey, slot) {
   shiftHp(run, heroKey, -statsOf(id, heroKey).hp);
   delete g[slot];
   run.bag.push(id);
+  return null;
+}
+
+// 판다 — 가방의 장비만(끼고 있는 것은 먼저 뺀다). 사는 값의 EQUIP_SELL 만큼 골드
+export const sellPrice = (equipId) => { const e = EQUIP[equipId]; return e ? Math.round((R.EQUIP_PRICE[e.grade] || 0) * R.EQUIP_SELL) : 0; };
+export function sellEquip(run, equipId) {
+  const i = run.bag.indexOf(equipId);
+  if (i < 0) return "가방에 없는 장비입니다 — 끼고 있으면 먼저 뺍니다";
+  run.bag.splice(i, 1);
+  run.gold += sellPrice(equipId);
   return null;
 }
 
@@ -422,11 +434,11 @@ export function advance(run) {
   if (!wasBoss) { run.node++; return { swap: false }; }
   run.floor++; run.node = 0;
   if (run.floor >= FLOORS.length) { run.done = "clear"; return { swap: false }; }
-  // 층 사이에 조금 쉰다 — 몸도 마음도
+  // 층 사이에 조금 쉰다 — 몸도 마음도. 사도 교체는 없다(처음 고른 셋으로 끝까지 간다)
   for (const k of run.party) {
     run.hp[k] = Math.min(run.maxHp[k], run.hp[k] + 10);
   }
-  return { swap: true };
+  return { swap: false };
 }
 
 // 사도 교체 — 덱에서 그 사도의 카드를 빼고 새 사도의 기본 카드를 넣는다

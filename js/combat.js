@@ -42,7 +42,8 @@ const st = (u, id) => u.status[id] || 0;
 const addSt = (u, id, v) => { u.status[id] = Math.max(0, st(u, id) + v); if (!u.status[id]) delete u.status[id]; };
 
 // ── 전투 시작 ──────────────────────────────────────────────────────────
-export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noNature, traits, gear, gearFx, flash, enemyHp, next, shin, glow }) {
+// gauge — 지난 전투에서 남은 고학년 게이지(run.gauge). 전투가 끝나도 이어진다
+export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noNature, traits, gear, gearFx, flash, enemyHp, next, shin, glow, gauge }) {
   const rng = makeRng(seed);
   const party = partyKeys.map((key, i) => {
     // 스탯은 기획서가 원본이다. 기획서에 없는 사도만 옛 heroes.js 를 본다.
@@ -76,7 +77,7 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
     // AP — 파티 공용, 매 턴 3, **남으면 사라진다**(기획서).
     turn: 0, ap: 0, apPerTurn: R.AP_PER_TURN, apJam: 0, tentacles: 0,
     // 고학년 게이지 — 파티 공용 0~300%. 카드에 쓴 AP 1당 +10%. 0코는 충전 없음.
-    gauge: 0, lastUlt: null,
+    gauge: Math.max(0, Math.min(R.GAUGE_MAX, gauge || 0)), lastUlt: null,
     partyDmg: 0, crit: 0, rearBuff: 0, overdrive: false,
     draw: shuffle(rng, deck.slice()), hand: [], discard: [], gone: [],
     lastHero: null, nextCheaper: 0, taunt: null,

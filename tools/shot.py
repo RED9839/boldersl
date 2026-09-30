@@ -98,13 +98,14 @@ def main():
         d.find_element(By.CSS_SELECTOR, ".back").click(); time.sleep(0.9)   # 사도 정보 → 도감
         d.find_element(By.CSS_SELECTOR, ".back").click(); time.sleep(0.9)   # 도감 → 편성
         for name in ("에르핀", "네르", "티그"):
+            d.execute_script("document.querySelector('.tf-slot.empty').click()"); time.sleep(0.5)   # 빈 칸 → 명단 창
             sb = d.find_element(By.CSS_SELECTOR, ".tm-fsearch")
             sb.clear(); sb.send_keys(name); time.sleep(0.6)
             for c in d.find_elements(By.CSS_SELECTOR, ".tm-fcard"):
                 if c.find_element(By.CSS_SELECTOR, ".tm-fcp b").text == name:
                     c.click(); break
             time.sleep(0.6)
-        go = [b for b in d.find_elements(By.CSS_SELECTOR, "button") if b.text == "떠납니다"]
+        go = [b for b in d.find_elements(By.CSS_SELECTOR, ".tf-go") if b.is_enabled()]
         if go:
             go[0].click(); time.sleep(2.0)
             # 떠나면 지도가 먼저 뜬다 — 찍고, 첫 칸(전투)을 눌러 들어간다

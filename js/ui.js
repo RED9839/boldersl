@@ -215,7 +215,7 @@ const HELP = [
     `골디의 상점(휴식+상점 칸) — 중립 카드 셋 · 장비 ${RULES.SHOP_EQUIP_N}점 · 새로고침 · 카드 제거. 고유 카드는 팔지 않습니다(은총으로만). 골디는 깎아 주지 않습니다.`,
   ])],
   ["장비", "장비", () => helpList([
-    "사도마다 무기 · 방어구 · 장신구 한 칸씩입니다. 얻은 자리에서는 빈 칸에만 바로 끼고, 바꿔 끼기는 휴식 칸에서 합니다.",
+    `사도마다 무기 · 방어구 · 장신구 한 칸씩입니다. 전투 밖이면 어디서든(지도의 「장비」 · 캠프 · 상점) 끼고 빼고 바꿔 낍니다. 가방의 장비는 사는 값의 ${Math.round(RULES.EQUIP_SELL * 100)}% 에 팔 수 있습니다.`,
     "스탯 줄은 사도 스탯에 그대로 더합니다. 효과 줄은 낀 사도의 패시브가 됩니다.",
     "이름에 사도가 붙은 장비는 그 사도가 끼면 애착 줄과 작은 스탯이 더 붙습니다.",
     "등급 — 일반 · 고급 · 희귀 · 전설. 일반 몇 종은 스탯뿐입니다.",
@@ -224,7 +224,7 @@ const HELP = [
     `한 층은 ${M.ROWS}칸 길입니다. 출발에서 오른쪽으로 가며 이어진 칸을 골라 들어갑니다. 끝은 보스, 그 앞은 늘 휴식+상점입니다.`,
     `칸 — ${["fight", "elite", "camp", "campshop", "event", "boss"].map((k) => M.KIND_KO[k]).join(", ")}.`,
     `엘리트는 한 단계 센 적(체력 ×${RULES.ELITE_HP})이고, 이기면 장비가 늘 떨어지고 신탁이 늘 뜹니다.`,
-    "휴식 칸에서는 쉬거나(HP 회복) 수련하고, 장비를 바꿔 낍니다. 층을 넘을 때 사도를 한 명 교체할 수 있습니다.",
+    "휴식 칸에서는 쉬거나(HP 회복) 수련합니다. 처음 고른 셋으로 끝까지 갑니다 — 층을 넘어도 사도는 바뀌지 않습니다. 고학년 게이지는 전투가 끝나도 남은 만큼 다음 전투로 이어집니다.",
   ])],
 ];
 function helpList(lines) {
@@ -639,19 +639,17 @@ export function partyScreen(onStart, onBack, opts = {}) {
   // 무대의 자리는 전투와 같다 — 후열이 왼쪽, 전열이 가운데 쪽(적을 본다). 자리는 기획서가 정한 대로(고르지 않는다).
   function formScreen() {
     s.innerHTML = "";
-    s.className = "teamscreen2";
+    s.className = "teamscreen3";
     stageBg();
 
     // ① 머리
-    const head = el("div", "tm-fhead");
+    const head = el("div", "tf-head");
     if (onBack) { const b = el("button", "tm-fback", "◁"); b.title = "처음으로"; b.onclick = onBack; head.appendChild(b); }
-    const title = el("div", "tm-ftitle");
+    const title = el("div", "tf-title");
     title.appendChild(el("b", null, "팀 편성"));
-    const count = el("span", "tm-fcount2");
+    const count = el("span", "tf-count");
     title.appendChild(count);
     head.appendChild(title);
-    const floor = FLOORS[0];
-    head.appendChild(el("span", "tm-fwhere", `${floor.n}층 · ${floor.name} — 지도에서 길을 골라 12칸 끝의 보스(${floor.boss.map((id) => ENEMIES[id].ko).join(" · ")})까지`));
     head.appendChild(fsButton());
     const helpBtn = el("button", "tm-fhelp", "도움말");
     helpBtn.onclick = () => openHelp("상성");
@@ -661,92 +659,127 @@ export function partyScreen(onStart, onBack, opts = {}) {
     head.appendChild(dexBtn);
     s.appendChild(head);
 
-    // ② 무대
-    const stage = el("div", "tm-fstage");
-    const stands = el("div", "tm-fstands");
-    stage.appendChild(stands);
-    s.appendChild(stage);
+    // ② 왼쪽 — 사도 칸 셋(멈춘 스탠딩 그림). 누르면 사도 고르기 창
+    const main = el("div", "tf-main");
+    const slots = el("div", "tf-slots");
+    main.appendChild(slots);
 
-    // ③ 오른쪽 — 함께 가면
-    const side = el("aside", "tm-fside");
-    const synBox = el("div", "tm-fsyn");
+    // ③ 오른쪽 — 첫 층 · 파티 성격 · 시작 덱 · 떠납니다
+    const side = el("aside", "tf-side");
+    const floor = FLOORS[0];
+    const where = el("section", "tf-floor");
+    const wt = el("div", "tf-ftop");
+    wt.appendChild(el("small", null, "첫 층"));
+    wt.appendChild(el("b", null, `${floor.n}층 · ${floor.name}`));
+    wt.appendChild(el("span", null, `${floor.sub} — 지도에서 길을 골라 12칸 끝의 보스까지`));
+    where.appendChild(wt);
+    const bossRow = el("div", "tf-boss");
+    for (const id of floor.boss) {
+      const e = ENEMIES[id]; if (!e) continue;
+      const b = el("div", "tf-bossone");
+      b.appendChild(art.portrait(id, { ko: e.ko, tint: e.tint, size: 0, slot: "foe", still: true }));
+      const t = el("div");
+      t.appendChild(el("small", null, "보스"));
+      t.appendChild(el("b", null, e.ko));
+      b.appendChild(t);
+      bossRow.appendChild(b);
+    }
+    where.appendChild(bossRow);
+    const foesHead = el("div", "tf-label", "나오는 적");
+    where.appendChild(foesHead);
+    // 나오는 적 — 작은 그림 + 이름 칩. 그림이 없는 적(엘리트 몇)은 이름만 — 이름 앞 세 글자만 떠서 「마시멜」 같은 낱말로 읽혔다
+    const foes = el("div", "tf-foes");
+    const seen = new Set();
+    const elites = new Set((floor.elites || []).flat());
+    for (const id of [...(floor.fights || []).flat(), ...(floor.elites || []).flat()]) {
+      if (seen.has(id) || !ENEMIES[id]) continue; seen.add(id);
+      const f = el("div", "tf-foe" + (elites.has(id) ? " elite" : ""));
+      f.title = elites.has(id) ? `엘리트 · ${ENEMIES[id].ko}` : ENEMIES[id].ko;
+      const pic = art.portrait(id, { ko: ENEMIES[id].ko, tint: ENEMIES[id].tint, size: 0, slot: "foe", still: true });
+      if (!pic.classList.contains("art-ph")) f.appendChild(pic);
+      if (elites.has(id)) f.appendChild(el("i", "tf-elite", "엘리트"));
+      f.appendChild(el("span", null, ENEMIES[id].ko));
+      foes.appendChild(f);
+    }
+    where.appendChild(foes);
+    side.appendChild(where);
+    const synBox = el("section", "tf-syn");
     side.appendChild(synBox);
-    const deckHead = el("div", "tm-flabel");
-    side.appendChild(deckHead);
+    const deckSec = el("section", "tf-decksec");
+    const deckHead = el("div", "tf-label");
     const deckBox = el("div", "tm-fdeck2");
-    side.appendChild(deckBox);
-    const go = el("button", "tm-fgo", "떠납니다");
+    deckSec.appendChild(deckHead);
+    deckSec.appendChild(deckBox);
+    side.appendChild(deckSec);
+    const go = el("button", "tm-fgo tf-go", "떠납니다");
     go.onclick = () => { for (const k of picked) rows[k] = rows[k] || HERO_DATA[k].row; onStart(picked, rows); };
     side.appendChild(go);
-    s.appendChild(side);
-
-    // ④ 명단
-    const dock = el("div", "tm-fdock");
-    const bar = el("div", "tm-fbar");
-    const chips = el("div", "tm-fchips");
-    bar.appendChild(chips);
-    const search = el("input", "tm-fsearch");
-    search.placeholder = "이름으로 찾기";
-    search.value = filter.q;
-    search.oninput = () => { filter.q = search.value.trim(); fillRoster(); };
-    bar.appendChild(search);
-    dock.appendChild(bar);
-    const grid = el("div", "tm-froster");
-    dock.appendChild(grid);
-    s.appendChild(dock);
+    main.appendChild(side);
+    s.appendChild(main);
 
     // 선 열 — 「모든 열」 사도는 편성에서 고른 열, 나머지는 기획서의 제 열
     const rowOf = (k) => rows[k] || HERO_DATA[k].row;
-    const toggle = (key) => {
-      const i = picked.indexOf(key);
-      if (i >= 0) { picked.splice(i, 1); delete rows[key]; }
-      else if (picked.length < 3) {
-        picked.push(key); rows[key] = rows[key] || HERO_DATA[key].row; if (filter.q) { filter.q = ""; search.value = ""; }
-        speak(key, ["decksetting", "greeting"]);          // 원작처럼 파티에 넣으면 한마디(편성 대사 · js/voice.js)
-      }
-      else return hint("셋까지만 데려갈 수 있습니다 — 무대의 사도를 먼저 빼 주세요");
-      hint("");
-      fill();
-    };
+    const ROW_ORDER = [...C.ROWS].reverse();            // 후열 · 중열 · 전열 — 전투처럼 후열이 왼쪽, 전열이 적 쪽
+    const add = (key) => { picked.push(key); rows[key] = rows[key] || HERO_DATA[key].row; speak(key, ["decksetting", "greeting"]); };
+    const remove = (key) => { const i = picked.indexOf(key); if (i >= 0) picked.splice(i, 1); delete rows[key]; };
 
-    // 무대에 선 한 명 — 누르면 사도 정보, ✕ 로 뺀다
-    function standOf(key) {
+    // 칸 하나 — 사도가 있으면 그 사도, 없으면 「+ 사도 넣기」
+    function slotOf(key, i) {
+      if (!key) {
+        const n = el("button", "tf-slot empty");
+        n.appendChild(el("span", "tf-plus", "+"));
+        n.appendChild(el("b", null, "사도 넣기"));
+        n.appendChild(el("span", null, `${i + 1}번째 자리 · 눌러서 명단`));
+        n.onclick = () => openPicker(null);
+        return n;
+      }
       const h = HERO_DATA[key];
-      const n = el("div", "tm-fstand");
+      const n = el("button", "tf-slot");
       n.style.setProperty("--tint", NTINT[h.nature]);
-      const x = el("button", "tm-fx", "✕");
+      n.appendChild(art.portrait(key, { ko: h.ko, tint: NTINT[h.nature], size: 0, slot: "event", still: true }));
+      n.appendChild(el("div", "tf-fade"));
+      const badges = el("div", "tf-badges");
+      badges.appendChild(uiIcon("위치", ROWS_KO[rowOf(key)], "tf-b", ROWS_KO[rowOf(key)].slice(0, 1)));
+      badges.appendChild(uiIcon("성격", h.nature, "tf-b", h.nature.slice(0, 1)));
+      badges.appendChild(uiIcon("역할", h.role, "tf-b", h.role.slice(0, 1)));
+      n.appendChild(badges);
+      const tools = el("div", "tf-tools");
+      const info = el("span", "tf-tool tf-info", "🔍");
+      info.title = "사도 정보";
+      info.onclick = (e) => { e.stopPropagation(); cameFrom = null; view = key; tab = "능력치"; render(); };
+      const x = el("span", "tf-tool tf-x", "✕");
       x.title = "빼기";
-      x.onclick = (e) => { e.stopPropagation(); toggle(key); };
-      n.appendChild(x);
-      n.appendChild(art.portrait(key, { ko: h.ko, tint: NTINT[h.nature], size: 200, slot: "battle", flip: true }));
-      const plate = el("div", "tm-fplate");
-      const top = el("div", "tm-fpt");
-      top.appendChild(uiIcon("성격", h.nature, "tm-fnat", h.nature.slice(0, 1)));
-      top.appendChild(el("b", null, h.ko));
-      plate.appendChild(top);
-      plate.appendChild(el("span", "tm-fps", `${ROWS_KO[rowOf(key)]} ${h.role} · ${"★".repeat(h.star)}`));
-      n.appendChild(plate);
+      x.onclick = (e) => { e.stopPropagation(); remove(key); fill(); };
+      tools.appendChild(info); tools.appendChild(x);
+      n.appendChild(tools);
       // 「모든 열」 사도 — 어느 열에 설지 고른다. 선 열에 따라 패시브의 다른 줄이 켜진다
       if (h.anyRow) {
-        const pick = el("div", "tm-frow");
-        for (const r of [...C.ROWS].reverse()) {
-          const b = el("button", "tm-frowb" + (rowOf(key) === r ? " on" : ""), ROWS_KO[r]);
-          // 그 열에서 켜지는 패시브 줄을 안내로 — 「후열에 서 있으면」 이 든 마디
-          const line = (h.passive || "").split(" · ").filter((x) => x.includes(`${ROWS_KO[r]}에 서 있으면`)).join(" · ");
+        const pick = el("div", "tf-rowpick");
+        for (const r of ROW_ORDER) {
+          const b = el("span", "tf-rowb" + (rowOf(key) === r ? " on" : ""), ROWS_KO[r]);
+          const line = (h.passive || "").split(" · ").filter((t) => t.includes(`${ROWS_KO[r]}에 서 있으면`)).join(" · ");
           b.title = line ? `${ROWS_KO[r]}에 서면 — ${line}` : `${ROWS_KO[r]}에 선다`;
           b.onclick = (e) => { e.stopPropagation(); rows[key] = r; fill(); };
           pick.appendChild(b);
         }
         n.appendChild(pick);
       }
-      n.title = `${h.ko} — 눌러서 사도 정보`;
-      n.onclick = () => { cameFrom = null; view = key; tab = "능력치"; render(); };
+      const plate = el("div", "tf-plate");
+      plate.appendChild(el("span", "tf-star", "★".repeat(h.star)));
+      plate.appendChild(el("b", null, h.ko));
+      plate.appendChild(el("span", "tf-sub", `${ROWS_KO[rowOf(key)]} ${h.role} · ${h.race}${h.anyRow ? " · 모든 열" : ""}`));
+      const st = el("div", "tf-stats");
+      for (const [k, v] of [["HP", h.hp], ["공격", h.atk], ["방어", h.def]]) { const d = el("span"); d.appendChild(el("small", null, k)); d.appendChild(el("b", null, String(v))); st.appendChild(d); }
+      plate.appendChild(st);
+      n.appendChild(plate);
+      n.title = `${h.ko} — 눌러서 다른 사도로 바꾸기`;
+      n.onclick = () => openPicker(key);
       return n;
     }
     // 같은 열의 두 사도 사이 — 누르면 둘의 자리를 바꾼다(편성 순서 = 전투에서 선 순서 · 손패 순서)
     function swapBtn(a, b) {
-      const n = el("button", "tm-fswap", "⇄");
-      n.title = `${HERO_DATA[a].ko} ↔ ${HERO_DATA[b].ko} 자리 바꾸기`;
+      const n = el("button", "tm-fswap tf-swap", "⇄");
+      n.title = `${HERO_DATA[a].ko} ↔ ${HERO_DATA[b].ko} 자리 바꾸기 — 같은 열은 오른쪽(적 쪽)이 먼저 맞는다`;
       n.onclick = (e) => {
         e.stopPropagation();
         const i = picked.indexOf(a), j = picked.indexOf(b);
@@ -755,19 +788,69 @@ export function partyScreen(onStart, onBack, opts = {}) {
       };
       return n;
     }
-    function emptyStand(i) {
-      const n = el("button", "tm-fstand empty");
-      n.appendChild(el("span", "tm-fghost"));
-      n.appendChild(el("span", "tm-fplus", "+"));
-      n.appendChild(el("span", "tm-fwho", `${i + 1}번째 사도`));
-      n.onclick = () => { search.focus && search.focus(); hint("아래 명단에서 사도를 눌러 무대에 올립니다"); };
-      return n;
+
+    // ── 사도 고르기 창 — 칸을 누르면 뜬다. target 이 있으면 그 자리를 바꾸고, 없으면 빈 자리에 넣는다 ──
+    let sheet = null, target = null, chips = null, grid = null, search = null;
+    function closePicker() { if (sheet) { sheet.remove(); sheet = null; } document.removeEventListener?.("keydown", escPick); }
+    function escPick(e) { if (e.key === "Escape") { e.stopPropagation(); closePicker(); } }
+    function openPicker(key) {
+      closePicker();
+      target = key;
+      sheet = el("div", "tf-pick");
+      sheet.onclick = (e) => { if (e.target === sheet) closePicker(); };
+      const box = el("div", "tf-pickbox");
+      const hd = el("div", "tf-pickhead");
+      const tt = el("div");
+      tt.appendChild(el("b", null, key ? `${HERO_DATA[key].ko} 자리 — 다른 사도로 바꿉니다` : "빈 자리에 넣을 사도"));
+      tt.appendChild(el("span", null, "눌러서 고릅니다 · 이미 편성한 사도를 고르면 서로 자리를 바꿉니다 · 오른쪽 클릭은 사도 정보"));
+      hd.appendChild(tt);
+      if (key) {
+        const out = el("button", "tf-out", "이 자리 비우기");
+        out.onclick = () => { remove(key); closePicker(); fill(); };
+        hd.appendChild(out);
+      }
+      const x = el("button", "tf-close", "×");
+      x.onclick = closePicker;
+      hd.appendChild(x);
+      box.appendChild(hd);
+      const bar = el("div", "tm-fbar");
+      chips = el("div", "tm-fchips");
+      bar.appendChild(chips);
+      search = el("input", "tm-fsearch");
+      search.placeholder = "이름으로 찾기";
+      search.value = filter.q;
+      search.oninput = () => { filter.q = search.value.trim(); fillRoster(); };
+      bar.appendChild(search);
+      box.appendChild(bar);
+      grid = el("div", "tm-froster tf-roster");
+      box.appendChild(grid);
+      sheet.appendChild(box);
+      s.appendChild(sheet);
+      document.addEventListener?.("keydown", escPick);
+      fillChips(); fillRoster();
+      search.focus && search.focus();
+    }
+    function choose(key) {
+      if (target) {
+        if (key !== target) {
+          const j = picked.indexOf(key), i = picked.indexOf(target);
+          if (j >= 0) [picked[i], picked[j]] = [picked[j], picked[i]];      // 이미 편성한 사도 — 둘이 자리를 바꾼다
+          else { picked[i] = key; delete rows[target]; rows[key] = rows[key] || HERO_DATA[key].row; speak(key, ["decksetting", "greeting"]); }
+        }
+      } else if (!picked.includes(key)) {
+        if (picked.length >= 3) return hint("셋까지만 데려갈 수 있습니다 — 칸을 눌러 바꾸거나 비워 주세요");
+        add(key);
+      }
+      if (filter.q) filter.q = "";
+      hint("");
+      closePicker();
+      fill();
     }
 
     // 명단 한 장
     function rosterCard(key, h) {
       const at = picked.indexOf(key);
-      const n = el("button", "tm-fcard" + (at >= 0 ? " on" : ""));
+      const n = el("button", "tm-fcard" + (at >= 0 ? " on" : "") + (key === target ? " cur" : ""));
       n.style.setProperty("--tint", NTINT[h.nature]);
       n.appendChild(art.portrait(key, { ko: h.ko, tint: NTINT[h.nature], size: 0, slot: "event", still: true }));
       n.appendChild(el("div", "tm-ffade"));
@@ -781,13 +864,13 @@ export function partyScreen(onStart, onBack, opts = {}) {
       n.appendChild(plate);
       if (at >= 0) n.appendChild(el("span", "tm-fnum", String(at + 1)));
       if (isEcho(key)) n.appendChild(el("span", "tm-fecho", "이격"));
-      n.onclick = () => toggle(key);
-      n.oncontextmenu = (e) => { e.preventDefault(); cameFrom = null; view = key; tab = "능력치"; render(); };
-      n.title = `${h.ko} — 눌러서 편성 · 오른쪽 클릭으로 사도 정보`;
+      n.onclick = () => choose(key);
+      n.oncontextmenu = (e) => { e.preventDefault(); closePicker(); cameFrom = null; view = key; tab = "능력치"; render(); };
+      n.title = `${h.ko} — 눌러서 고르기 · 오른쪽 클릭으로 사도 정보`;
       return n;
     }
-
     function fillChips() {
+      if (!chips) return;
       chips.innerHTML = "";
       const group = (vals, key, icon) => {
         const all = el("button", "tm-fchip" + (filter[key] ? "" : " on"), "전체");
@@ -806,6 +889,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
       group(ROLES, "role", "역할");
     }
     function fillRoster() {
+      if (!grid) return;
       grid.innerHTML = "";
       const list = roster.filter(([k, h]) => {
         if (filter.nature && h.nature !== filter.nature) return false;
@@ -818,46 +902,35 @@ export function partyScreen(onStart, onBack, opts = {}) {
     }
 
     function fill() {
-      // 무대 — 열 셋(후열 · 중열 · 전열)을 늘 깔고, 사도는 제 열에 선다. 전투처럼 후열이 왼쪽, 전열이 적 쪽.
-      // 같은 열에 둘 이상이면 그 사이의 ⇄ 로 자리를 바꾼다. 빈 자리는 무대 왼쪽 끝에 흐리게.
-      stands.innerHTML = "";
-      for (let i = picked.length; i < 3; i++) stands.appendChild(emptyStand(i));
-      for (const r of [...C.ROWS].reverse()) {
-        const inRow = picked.filter((k) => rowOf(k) === r);   // 편성 순서 그대로 — 왼쪽이 먼저 고른 사도
-        const lane = el("div", "tm-flane r" + r + (inRow.length ? "" : " none"));
-        const who = el("div", "tm-flanehero");
-        inRow.forEach((k, i) => {
-          if (i) who.appendChild(swapBtn(inRow[i - 1], k));
-          who.appendChild(standOf(k));
-        });
-        lane.appendChild(who);
-        const floorTag = el("div", "tm-floor");
-        floorTag.appendChild(el("b", null, ROWS_KO[r]));
-        if (inRow.length > 1) floorTag.appendChild(el("span", null, `${inRow.length}명 · 오른쪽(적 쪽)이 먼저 맞는다`));
-        else if (r === "front") floorTag.appendChild(el("span", null, inRow.length ? "적이 먼저 노린다" : "비면 다음 열이 맞는다"));
-        lane.appendChild(floorTag);
-        stands.appendChild(lane);
-      }
+      // 칸 — 고른 사도를 열 차례(후열 → 전열)로, 같은 열은 편성 순서대로. 빈 자리는 뒤에
+      slots.innerHTML = "";
+      const order = ROW_ORDER.flatMap((r) => picked.filter((k) => rowOf(k) === r));
+      order.forEach((k, i) => {
+        if (i && rowOf(order[i - 1]) === rowOf(k)) slots.appendChild(swapBtn(order[i - 1], k));
+        else if (i) slots.appendChild(el("span", "tf-gap"));
+        slots.appendChild(slotOf(k, i));
+      });
+      for (let i = order.length; i < 3; i++) { if (i) slots.appendChild(el("span", "tf-gap")); slots.appendChild(slotOf(null, i)); }
       count.textContent = `${picked.length} / 3`;
       go.disabled = picked.length !== 3;
       go.textContent = picked.length === 3 ? "떠납니다" : `사도 ${3 - picked.length}명 더`;
 
-      // 함께 가면 — 사이 · 성격 · 첫 턴 AP
+      // 파티 성격 — 상성 보기
       synBox.innerHTML = "";
-      const synHead = el("div", "tm-flabel tm-fsynhead");
-      synHead.appendChild(el("span", null, "함께 가면"));
+      const synHead = el("div", "tf-label");
+      synHead.appendChild(el("span", null, "파티 성격"));
       const natBtn = el("button", "tm-fdkbig tm-fnatbtn", "상성 보기");
       natBtn.onclick = (e) => { e.stopPropagation(); openHelp("상성"); };
       synHead.appendChild(natBtn);
       synBox.appendChild(synHead);
       if (!picked.length) synBox.appendChild(el("p", "tm-fnote", "사도를 고르면 셋의 성격이 여기 뜹니다."));
-      if (picked.length) {
+      else {
         const nat = el("div", "tm-fnats");
         for (const k of picked) {
           const t = el("span", "tm-fnatc");
           t.style.setProperty("--tint", NTINT[HERO_DATA[k].nature]);
           t.appendChild(uiIcon("성격", HERO_DATA[k].nature, "tm-fci", ""));
-          t.appendChild(el("span", null, HERO_DATA[k].nature));
+          t.appendChild(el("span", null, `${HERO_DATA[k].ko} · ${HERO_DATA[k].nature}`));
           nat.appendChild(t);
         }
         synBox.appendChild(nat);
@@ -894,11 +967,8 @@ export function partyScreen(onStart, onBack, opts = {}) {
         deckHead.appendChild(big);
       }
       if (!n) deckBox.appendChild(el("p", "tm-fnote", "사도마다 시작 카드 넉 장. 고유 카드는 싸우며 은총으로 얻습니다."));
-
-      fillRoster();
+      if (sheet) fillRoster();
     }
-
-    fillChips();
     fill();
   }
 
@@ -1141,7 +1211,7 @@ export function fightScreen(run, onDone, onQuit) {
     enemyIds, hp: run.hp, maxHp: run.maxHp, traits: run.traits, gear: R.gearStats(run), gearFx: R.gearPassives(run), flash: run.flash,
     enemyHp: run.elite && !run.eventFight ? RULES.ENEMY_HP * RULES.ELITE_HP : undefined,   // 엘리트 칸 — 체력 ×1.5
     // 이벤트가 걸어 둔 「다음 전투」 효과는 여기서 한 번 가져간다 · 기적이 붙은 카드
-    next: EV.takeNextFight(run), shin: run.shin,
+    next: EV.takeNextFight(run), shin: run.shin, gauge: run.gauge || 0,   // 고학년 게이지는 전투 사이에 이어진다
     glow: run.forceGlow || R.rollEpiphany(run),   // 신탁 — 이 전투에서 빛날 카드(카제나). forceGlow 는 시험 도구가 정해 넣는 것
     seed: (run.seed + run.floor * 101 + run.node * 7 + (run.step || 0) * 13 + (run.eventFight ? 555 : 0)) >>> 0,
   });
@@ -1254,6 +1324,9 @@ export function fightScreen(run, onDone, onQuit) {
   lootBox.appendChild(lootList);
   s.appendChild(lootBox);
   let lootGold = 0, goldRow = null;
+  const ground = [];                        // 바닥에 떨어진 금화 { node, x, y, gold, taken }
+  s._st = st;                              // 시험 도구가 판을 읽는다(적 체력을 낮춰 승리 연출 보기 등)
+  const groundOk = typeof document === "object" && !!document.body && typeof innerWidth === "number";
   const zNow = () => (typeof getZoom === "function" && getZoom()) || 1;
   // 떨어진 것이 목록으로 날아간다 — from 은 화면 좌표(getBoundingClientRect)
   function flyTo(node, from) {
@@ -1276,17 +1349,64 @@ export function fightScreen(run, onDone, onQuit) {
     if (u.idx === carrier) dropItems({ x: r.left + r.width / 2, y: r.top + r.height * 0.45 });
     const g = goldShare[u.idx] || 0;
     if (!g) return;
-    for (let k = 0; k < 5; k++) {
-      const c = goldIcon("dropcoin");
+    // 진짜 화면이면 쓰러진 자리(발밑)에 금화가 떨어져 남는다 — 이기면 사도들이 오른쪽으로 달려가며 줍는다(walkOut).
+    // 가짜 DOM(시험)처럼 자리를 잴 수 없으면 예전처럼 바로 목록으로
+    if (!groundOk || !r.width) { addGold(g); return; }
+    const z = zNow(), n = 3 + Math.min(3, Math.floor(g / 15));
+    for (let k = 0; k < n; k++) {
+      const c = goldIcon("groundcoin");
+      const x = r.left + r.width / 2 + (k - (n - 1) / 2) * 22 + (Math.random() - 0.5) * 10;
+      const y = r.top + r.height * 0.86 + (Math.random() - 0.5) * 14;
+      c.style.left = x / z + "px"; c.style.top = y / z + "px";
       c.style.setProperty("--k", String(k));
-      flyTo(c, { x: r.left + r.width / 2 + (k - 2) * 14, y: r.top + r.height * 0.55 });
+      document.body.appendChild(c);
+      ground.push({ node: c, x, y, gold: Math.round(g / n) + (k === 0 ? g - Math.round(g / n) * n : 0) });
     }
+  }
+  // 목록의 골드 줄 — 주운 만큼 오른다
+  function addGold(g) {
     lootGold += g;
     if (!goldRow) { goldRow = el("div", "ltrow ltgold"); addLoot(goldRow); }
     else { goldRow.classList.add("ltnew"); setTimeout(() => goldRow.classList.remove("ltnew"), 900); }
     goldRow.innerHTML = "";
     goldRow.appendChild(goldIcon("lticon coin"));
     goldRow.appendChild(el("b", null, `+${lootGold} 골드`));
+  }
+  // 바닥의 금화 하나를 줍는다 — 목록으로 날아가고 골드 줄이 오른다
+  function pickCoin(c) {
+    if (c.taken) return;
+    c.taken = true;
+    const z = zNow();
+    c.node.remove();
+    const fly = goldIcon("dropcoin");
+    fly.style.setProperty("--k", "0");
+    flyTo(fly, { x: c.x, y: c.y });
+    addGold(c.gold);
+  }
+  // 이겼다 — 사도들이 달리는 동작으로 오른쪽 끝까지 가며 바닥의 금화를 줍는다. 다 가면 then()
+  function walkOut(then) {
+    const heroes = [...standEls.values()].filter((n) => !n.classList.contains("dead"));
+    if (!groundOk || !heroes.length || typeof requestAnimationFrame !== "function") { for (const c of ground) pickCoin(c); return then(); }
+    s.classList.add("victory");
+    const z = zNow(), W = innerWidth || 1600;
+    const DUR = 1900;
+    heroes.forEach((n, i) => {
+      const v = n.querySelector(".art") && n.querySelector(".art").spine;
+      if (v) v.play("Move", true) || v.play("Run", true);
+      const r = n.getBoundingClientRect();
+      n.style.transition = `transform ${DUR}ms cubic-bezier(.45, 0, .7, 1) ${i * 120}ms`;
+      n.style.transform = `translateX(${(W - r.left) / z + 160}px)`;
+      n.classList.add("walking");
+    });
+    const t0 = performance.now();
+    const tick = () => {
+      // 누구든 금화를 지나가면 줍는다
+      const xs = heroes.map((n) => { const r = n.getBoundingClientRect(); return r.left + r.width * 0.65; });
+      for (const c of ground) if (!c.taken && xs.some((x) => x >= c.x)) pickCoin(c);
+      if (performance.now() - t0 < DUR + heroes.length * 120 + 150) requestAnimationFrame(tick);
+      else { for (const c of ground) pickCoin(c); then(); }
+    };
+    requestAnimationFrame(tick);
   }
   // 들고 있던 것 — 장비 아이콘이 적 자리에서 목록으로 날아간다
   function dropItems(from) {
@@ -2339,18 +2459,22 @@ export function fightScreen(run, onDone, onQuit) {
     endBtn.disabled = true;
     hand.querySelectorAll("button").forEach((b) => (b.disabled = true));
     R.afterFight(run, st);
-    let wait = 700;
-    if (st.over === "win" && loot) {
+    if (st.over !== "win") { setTimeout(() => onDone(st.over), 700); return; }
+    if (loot) {
       // 떨어진 것을 챙긴다 — 장비는 가방으로. 아직 못 떨궜으면(마지막 한 방에 여럿) 여기서
       dropItems({ x: (innerWidth || 1600) * 0.7, y: (innerHeight || 900) * 0.4 });
       if (loot.equip && loot.equip.length && !loot.equipTaken) R.takeEquip(run, loot.equip[0]);
-      R.takeReward(run, null);                 // 골드
-      lootBox.classList.add("on", "done");
-      lootBox.querySelector(".lthead").textContent = "승리 — 얻은 것";
-      if (!lootList.children.length) lootList.appendChild(el("p", "ltnone", "이번에는 떨어진 것이 없습니다"));
-      wait = 2200;
+      R.takeReward(run, null);                 // 골드 — 판에는 바로 들어간다. 화면은 사도들이 주우며 올린다
     }
-    setTimeout(() => onDone(st.over), wait);
+    // 사도들이 오른쪽으로 달려가며 바닥의 금화를 줍는다 → 얻은 것을 보이고 넘어간다
+    walkOut(() => {
+      if (loot) {
+        lootBox.classList.add("on", "done");
+        lootBox.querySelector(".lthead").textContent = "승리 — 얻은 것";
+        if (!lootList.children.length) lootList.appendChild(el("p", "ltnone", "이번에는 떨어진 것이 없습니다"));
+      }
+      setTimeout(() => { for (const c of ground) c.node.remove(); onDone(st.over); }, loot ? 1300 : 500);
+    });
   }
 
   draw();
@@ -2950,11 +3074,10 @@ function gearPanel(run, mode, onChange, say) {
           c.appendChild(el("b", null, e.ko));
           const st = statText(R.statsOf(id, k));
           c.appendChild(el("span", "gst", st + (e.affinity === k ? " · 애착" : "")));
-          if (mode === "camp") {
-            const x = el("button", "gout", "빼기");
-            x.onclick = () => { const why = R.unequip(run, k, sl); if (why && say) say(why); draw(); onChange && onChange(); };
-            c.appendChild(x);
-          }
+          // 빼기 — 전투 밖이면 어디서든(지도 · 캠프 · 상점). 빼면 가방으로
+          const x = el("button", "gout", "빼기");
+          x.onclick = () => { const why = R.unequip(run, k, sl); if (why && say) say(why); draw(); onChange && onChange(); };
+          c.appendChild(x);
         } else c.appendChild(el("span", "gempty", "비어 있음"));
         slots.appendChild(c);
       }
@@ -2964,7 +3087,7 @@ function gearPanel(run, mode, onChange, say) {
     box.appendChild(rows);
     // 가방
     if (run.bag.length) {
-      box.appendChild(el("p", "gbagh", mode === "camp" ? "가방 — 누구에게 낄지 고릅니다(차 있으면 바꿔 낍니다)" : "가방 — 빈 칸이 있는 사도에게 바로 낄 수 있습니다. 바꿔 끼기는 캠프에서"));
+      box.appendChild(el("p", "gbagh", `가방 — 누구에게 낄지 고릅니다(차 있으면 바꿔 끼고, 빼낸 것은 가방으로). 팔면 사는 값의 ${Math.round(RULES.EQUIP_SELL * 100)}%`));
       const bag = el("div", "rrow gbag");
       for (const id of run.bag.slice()) {
         const e = EQUIP[id];
@@ -2973,10 +3096,29 @@ function gearPanel(run, mode, onChange, say) {
           const h = HERO_DATA[k] || HERO(k);
           const full = !!R.gearOf(run, k)[e.slot];
           const b = el("button", "gtobtn" + (e.affinity === k ? " aff" : ""), `${h.ko}${full ? " (바꾸기)" : ""}${e.affinity === k ? " ♥" : ""}`);
-          b.disabled = mode !== "camp" && full;
-          b.onclick = () => { const why = R.equip(run, k, id, { swap: mode === "camp" }); if (why && say) say(why); draw(); onChange && onChange(); };
+          b.onclick = () => { const why = R.equip(run, k, id, { swap: true }); if (why && say) say(why); draw(); onChange && onChange(); };
           btns.appendChild(b);
         }
+        // 팔기 — 되돌릴 수 없으니 두 번 눌러야 판다(한 번 누르면 「한 번 더 누르면 판매」)
+        const price = R.sellPrice(id);
+        const sell = el("button", "gsell");
+        sell.appendChild(goldIcon());
+        sell.appendChild(document.createTextNode(`팔기 +${price}`));
+        let armed = null;
+        sell.onclick = () => {
+          if (!armed) {
+            sell.classList.add("armed");
+            sell.lastChild.textContent = `한 번 더 누르면 판매 +${price}`;
+            armed = setTimeout(() => { armed = null; sell.classList.remove("armed"); sell.lastChild.textContent = `팔기 +${price}`; }, 2600);
+            return;
+          }
+          clearTimeout(armed); armed = null;
+          const why = R.sellEquip(run, id);
+          if (why && say) say(why);
+          else if (say) say(`「${e.ko}」 을(를) ${price} 골드에 팔았습니다`);
+          draw(); onChange && onChange();
+        };
+        btns.appendChild(sell);
         bag.appendChild(equipCard(id, btns));
       }
       box.appendChild(bag);
@@ -3190,7 +3332,7 @@ export function campScreen(run, withShop, onDone, onShop) {
       const f = (CARDS[offer.cardId].flash || [])[run.flash[offer.cardId] - 1];
       train.sub.textContent = `「${CARDS[offer.cardId].name}」에 신탁 ${"①②③④⑤"[run.flash[offer.cardId] - 1]}${f ? ` ${f.ko}` : ""}을 붙였습니다`;
     }
-    gsub.textContent = run.bag.length ? `가방에 ${run.bag.length}점 · 바꿔 끼기는 캠프에서만` : "낀 장비 보기 · 바꿔 끼기는 캠프에서만";
+    gsub.textContent = run.bag.length ? `가방에 ${run.bag.length}점 · 끼기 · 빼기 · 팔기` : "낀 장비 보기 · 빼기";
     gearB.classList.toggle("new", run.bag.length > 0);
     goldN.textContent = String(run.gold);
   }
@@ -3260,7 +3402,7 @@ export function campScreen(run, withShop, onDone, onShop) {
   function openGear() {
     const wrap = el("div", "cp-gearbody");
     wrap.appendChild(gearPanel(run, "camp", refresh, say));
-    openSheet("cp-gearmodal", "장비", "바꿔 끼기는 캠프에서만 · 캠프 선택을 쓰지 않습니다", wrap);
+    openSheet("cp-gearmodal", "장비", "끼기 · 빼기 · 바꿔 끼기 · 팔기 — 캠프 선택을 쓰지 않습니다", wrap);
   }
 
   say(st.used ? "불이 잦아듭니다. 떠날 채비를 합니다." : withShop ? "보스가 코앞입니다. 불을 쬐며 채비를 합니다 — 골디가 옆에 좌판을 폈습니다." : "모닥불이 탁탁 튑니다. 쉬어 갈까요, 손을 익힐까요?");
@@ -3603,154 +3745,9 @@ export function shopScreen(run, onDone, opts = {}) {
   function openBag() {
     const wrap = el("div", "sh-bagbody");
     wrap.appendChild(gearPanel(run, "empty", draw, say));
-    openSheet("sh-bagmodal", "가방", "빈 칸이 있는 사도에게 바로 낄 수 있습니다 · 바꿔 끼기는 캠프에서", wrap);
+    openSheet("sh-bagmodal", "가방", "끼기 · 빼기 · 바꿔 끼기 · 팔기 — 전투 밖이면 어디서든", wrap);
   }
 
-  draw();
-  return s;
-}
-
-// ── 사도 교체 ───────────────────────────────────────────────────────────
-// 층을 넘으면 한 명을 바꿀 수 있다. 팀 편성과 같은 결로 —
-// 위에 지금 셋을 큰 카드로 세우고, 내보낼 사람을 고르면 아래에서 부를 사람을 고른다.
-// **잃는 것을 먼저 보여 준다.** 바꾸면 그 사도가 모은 고유 카드와 신탁이 같이 나간다.
-export function swapScreen(run, onDone) {
-  const s = screen();
-  s.classList.add("swapscreen");
-
-  const bar = el("div", "dbar2");
-  bar.appendChild(el("h1", "dtitle", "사도 교체"));
-  bar.appendChild(el("span", "rwhy", "층을 넘었습니다. 한 명을 바꿀 수 있습니다 — 그대로 가도 됩니다."));
-  const keep = el("button", "go", "그대로 갑니다");
-  keep.onclick = onDone;
-  bar.appendChild(keep);
-  s.appendChild(bar);
-
-  const body = el("div", "rbody");
-  s.appendChild(body);
-
-  let outKey = null;
-  const q = { text: "", nature: null, role: null };
-  const NAT = ["순수", "광기", "냉정", "우울", "활발", "공명"];
-  const ROLE = ["탱커", "딜러", "서포터"];
-  const RK = { front: "전열", mid: "중열", back: "후열" };
-
-  const outHead = el("div", "rsec");
-  const outRow = el("div", "sslots");
-  const inHead = el("div", "rsec");
-  const inBox = el("div", "spick");
-  body.appendChild(outHead);
-  body.appendChild(outRow);
-  body.appendChild(inHead);
-  body.appendChild(inBox);
-
-  // 그 사도가 이 판에 모은 것 — 바꾸면 같이 나간다
-  const earned = (k) => {
-    const uniq = run.deck.filter((id) => CARDS[id] && CARDS[id].hero === k && CARDS[id].unique);
-    const lit = uniq.filter((id) => run.flash && run.flash[id]);
-    return { uniq: uniq.length, lit: lit.length };
-  };
-
-  function outCard(k) {
-    const h = HERO_DATA[k] || HERO(k);
-    const on = outKey === k;
-    const down = (run.hp[k] || 0) <= 0;
-    const n = el("button", "scard" + (on ? " on" : "") + (down ? " down" : ""));
-    const face = el("div", "tface");
-    face.appendChild(art.portrait(k, { ko: h.ko, tint: TINT(k), size: 0, slot: "event", still: true }));
-    face.appendChild(el("div", "dfade"));
-    const plate = el("div", "tplate");
-    plate.appendChild(el("b", null, h.ko));
-    plate.appendChild(el("span", "tsub", `${RK[h.row] || ""} ${h.role || ""}`));
-    face.appendChild(plate);
-    if (on) face.appendChild(el("span", "sout", "내보냅니다"));
-    n.appendChild(face);
-    const e = earned(k);
-    n.appendChild(el("div", "shp" + (down ? " down" : ""), down ? "주말농장" : `체력 ${run.hp[k]} / ${run.maxHp[k]}`));
-    n.appendChild(el("div", "slose", e.uniq
-      ? `모은 고유 카드 ${e.uniq}장${e.lit ? ` · 신탁 ${e.lit}개` : ""} — 바꾸면 같이 나갑니다`
-      : "아직 모은 고유 카드가 없습니다"));
-    n.onclick = () => { outKey = on ? null : k; draw(); };
-    return n;
-  }
-
-  function inCard(k) {
-    const h = HERO_DATA[k] || HERO(k);
-    const n = el("button", "pcard");
-    n.appendChild(art.portrait(k, { ko: h.ko, tint: TINT(k), size: 0, slot: "event", still: true }));
-    n.appendChild(el("div", "dfade"));
-    const badges = el("div", "dbadges");
-    badges.appendChild(uiIcon("역할", h.role, "brole", (h.role || "").slice(0, 1)));
-    badges.appendChild(uiIcon("성격", h.nature, "bnat n" + h.nature, (h.nature || "").slice(0, 1)));
-    n.appendChild(badges);
-    const plate = el("div", "dplate");
-    plate.appendChild(el("span", "dname", h.ko));
-    plate.appendChild(el("span", "dsub", `${RK[h.row] || ""} · ${h.race || ""}`));
-    n.appendChild(plate);
-    n.onclick = () => { R.swapHero(run, outKey, k); onDone(); };
-    return n;
-  }
-
-  function draw() {
-    outHead.innerHTML = "";
-    outHead.appendChild(el("b", null, "① 내보낼 사람"));
-    outHead.appendChild(el("span", "why", outKey ? `${HERO(outKey).ko} 을(를) 내보냅니다` : "한 명을 누르세요"));
-    outRow.innerHTML = "";
-    for (const k of run.party) outRow.appendChild(outCard(k));
-
-    inHead.innerHTML = "";
-    inBox.innerHTML = "";
-    inHead.appendChild(el("b", null, "② 부를 사람"));
-    if (!outKey) {
-      inHead.appendChild(el("span", "why", "내보낼 사람을 먼저 고르면 여기에 뜹니다"));
-      return;
-    }
-    inHead.appendChild(el("span", "why", "남는 두 사람과 사이가 있으면 「사이」 표가 붙습니다"));
-
-    const head = el("div", "phead");
-    const search = el("input", "dsearch");
-    search.placeholder = "이름으로 찾기";
-    search.value = q.text;
-    search.oninput = () => { q.text = search.value.trim(); fillGrid(); };
-    head.appendChild(search);
-    inBox.appendChild(head);
-
-    const chips = el("div", "chiprow");
-    const group = (vals, key) => {
-      const all = el("button", "chip" + (q[key] ? "" : " on"), "전체");
-      all.onclick = () => { q[key] = null; draw(); };
-      chips.appendChild(all);
-      for (const v of vals) {
-        const b = el("button", "chip" + (q[key] === v ? " on" : ""));
-        if (key === "nature") b.appendChild(uiIcon("성격", v, "cico", ""));
-        b.appendChild(el("span", null, v));
-        b.onclick = () => { q[key] = q[key] === v ? null : v; draw(); };
-        chips.appendChild(b);
-      }
-      chips.appendChild(el("span", "chipgap"));
-    };
-    group(NAT, "nature");
-    group(ROLE, "role");
-    inBox.appendChild(chips);
-
-    const grid = el("div", "pgrid");
-    inBox.appendChild(grid);
-    function fillGrid() {
-      grid.innerHTML = "";
-      // 성급 · 이름 차례
-      const list = run.bench.filter((k) => {
-        const h = HERO_DATA[k] || HERO(k);
-        if (q.nature && h.nature !== q.nature) return false;
-        if (q.role && h.role !== q.role) return false;
-        if (q.text && !(h.ko || "").includes(q.text)) return false;
-        return true;
-      }).map((k) => ({ k, star: (HERO_DATA[k] || {}).star || 0 }))
-        .sort((a, b) => b.star - a.star || (HERO(a.k).ko || "").localeCompare(HERO(b.k).ko || ""));
-      for (const { k } of list) grid.appendChild(inCard(k));
-      if (!list.length) grid.appendChild(el("div", "more", "맞는 사도가 없습니다."));
-    }
-    fillGrid();
-  }
   draw();
   return s;
 }
@@ -3763,8 +3760,7 @@ const POOL_KO = (p) => (p === "공용" ? "어디서나" : `${(FLOORS[p] || {}).n
 const heroKeyByKo = (ko) => Object.keys(HERO_DATA).find((k) => HERO_DATA[k].ko === ko) || null;
 const pctTxt = (p) => `${Math.round(p * 100)}%`;
 
-// ── 이벤트 ─────────────────────────────────────────────────────────────
-// 상점 · 캠프와 같은 옷 — 이 층의 이벤트 배경, 왼쪽에 나오는 사도의 스탠딩과 말풍선(장면), 오른쪽에 선택지.
+// 새 판(eventscreen2) — 상점 · 캠프와 같은 옷: 이 층의 이벤트 배경, 왼쪽에 나오는 사도의 스탠딩과 말풍선(장면), 오른쪽에 선택지.
 // 선택지 · 결과에서 고를 것(카드 · 신탁 · 사도)은 모두 두 단계(twoStep) — 눌러 고르고 단추로 정한다.
 export function eventScreen(run, onDone, onFight) {
   const s = screen();

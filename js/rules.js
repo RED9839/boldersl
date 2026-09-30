@@ -71,6 +71,8 @@ export const SHOP_GRADE_WEIGHT = { 일반: 5, 고급: 4, 희귀: 2, 전설: 1 };
 export const SLOTS = ["무기", "방어구", "장신구"];
 // 값과 보스 보상의 등급은 기획서에 없어 **우리가 정했다**
 export const EQUIP_PRICE = { 일반: 90, 고급: 130, 희귀: 180, 전설: 250 };
+// 장비 팔기 — 가방의 장비를 사는 값의 40% 에(일반 36 · 고급 52 · 희귀 72 · 전설 100). 어디서든 장비 창에서
+export const EQUIP_SELL = 0.4;
 export const BOSS_EQUIP = [{ 고급: 3, 희귀: 2 }, { 희귀: 3, 전설: 1 }, { 전설: 1 }];   // 층마다 보스가 주는 등급
 export const SHOP_EQUIP = { 일반: 3, 고급: 3, 희귀: 2, 전설: 1 };
 
