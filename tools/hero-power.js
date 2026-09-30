@@ -5,7 +5,7 @@
 // 사도 한 명을 넣고, 나머지 둘은 돌아가며 바꾼다(한 사람 운에 휘둘리지 않게).
 // 덱은 여덟 장 전부(시작 4 + 고유 4) — 판 중반의 모습이다. 1층(전투 셋 + 보스)을 무작위 손으로 싸운다.
 // 결과: 완주율이 높은/낮은 사도 열 명씩, 그리고 전체 분포. --rows 는 전원 순위(ROW 줄)
-import { newCombat, endTurn, playCard, canPlay, useUlt, canUlt } from "../js/combat.js";
+import { newCombat, endTurn, playCard, canPlay, useUlt, canUlt, cardOf } from "../js/combat.js";
 import { kitOf, HERO_DATA } from "../js/cardbook.js";
 import { FLOORS } from "../js/data/enemies.js";
 
@@ -17,6 +17,22 @@ const keys = Object.keys(HERO_DATA);
 const START = process.argv.includes("--start");
 const kit = (k) => { const x = kitOf(k); return [...x.start, ...(START ? [] : x.unique)].map((c) => c.id); };
 
+// 고르는 대상 — 적 카드는 살아 있는 첫 적, 아군 카드는 사람이 고르듯이:
+// 회복 · 보호(회복 · 방어 · 실드 · 무적 · 해제)는 HP 비율이 가장 낮은 아군, 그 밖(버프)은 공격력이 가장 높은 아군.
+// 전에는 늘 적 번호를 넘겨서 아군 카드가 파티 0번에게 갔다 — 「아군 1명」 카드가 모의전에서 낮게 쟀다
+function aim(s, id) {
+  const c = cardOf(s, id) || {};
+  if (c.target === "아군") {
+    const live = s.party.filter((u) => !u.dead);
+    if (!live.length) return 0;
+    const guard = (c.fx || []).some((f) => ["heal", "block", "shield", "invuln", "cleanse"].includes(f.k));
+    const pick = guard ? live.reduce((a, b) => (b.hp / b.maxHp < a.hp / a.maxHp ? b : a)) : live.reduce((a, b) => (b.atk > a.atk ? b : a));
+    return pick.idx;
+  }
+  const e = s.enemies.find((x) => !x.dead);
+  return e ? e.idx : 0;
+}
+
 function fight(party, enemyIds, hp, seed) {
   const s = newCombat({ partyKeys: party, rows: {}, deck: party.flatMap(kit), enemyIds, hp, seed, enemyHp: HPX });
   let t = 0;
@@ -25,8 +41,7 @@ function fight(party, enemyIds, hp, seed) {
     while (!s.over && g++ < 30) {
       const i = s.hand.findIndex((id) => !canPlay(s, id));
       if (i < 0) break;
-      const e = s.enemies.find((x) => !x.dead);
-      if (!playCard(s, i, e ? e.idx : 0).ok) break;
+      if (!playCard(s, i, aim(s, s.hand[i])).ok) break;
     }
     for (const u of s.party) if (!canUlt(s, u.key)) useUlt(s, u.key, 0);
     endTurn(s);
