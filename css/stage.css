@@ -120,6 +120,33 @@ body:has(#screen.battle) { height: var(--app-h, 100vh); min-height: 0; overflow:
 .phone .endturn { margin: 0; min-height: 56px; font-size: 17px; }
 .phone .deckrow .pile { text-align: center; font-size: 12px; }
 
+/* ── 휴대폰 가로에서 잘리던 것 세 가지 ──────────────────────────────────
+   ① 적 머리 위 의도가 싸움터 위로 밀려 잘렸다 — 의도·그림·이름·체력이 세로로 쌓인 기둥이
+      싸움터보다 높았다. 폰에서는 그림을 조금 줄이고 의도를 그림 위에 겹쳐 띄운다.
+   ② 「요정 무리(뒤)」 가 두 줄로 꺾이고 성격 표시가 「활/발」 로 세로로 찢어졌다 — 줄바꿈을 막는다.
+   ③ 손패가 화면 아래로 잘렸다 — 카드를 한 치수 줄인다(글은 두 줄까지). */
+.phone .foe { position: relative; width: auto; min-width: clamp(96px, 44cqh, 170px); gap: 3px; }
+.phone .foe .art, .phone .stand .art { width: clamp(70px, 40cqh, 150px) !important; height: clamp(70px, 40cqh, 150px) !important; }
+/* 의도는 그림 위 제자리(흐름 안)에 둔다 — 그림 위에 겹쳐 띄웠더니 얼굴을 가리고 옆 적의 의도와 붙었다.
+   그림을 줄인 것만으로 기둥이 싸움터 안에 들어온다. 말이 길면 줄여 자르고, 칸 폭을 넘지 않는다 */
+.phone .foe .intent { max-width: 100%; gap: 4px; }
+.phone .foe .intent .isay { overflow: hidden; text-overflow: ellipsis; }
+.phone .foe .intent .igem { width: 24px; height: 24px; }
+.phone .foe .intent .igem b { font-size: 11px; }
+.phone .foe .intent .isay { font-size: 11px; white-space: nowrap; }
+.phone .foe .fname, .phone .stand .sname { white-space: nowrap; flex-wrap: nowrap; font-size: 12px; }
+.phone .nature { flex: none; white-space: nowrap; font-size: 9.5px; padding: 0 5px; margin-left: 4px; }
+
+.phone .hand .card { width: 106px; }
+.phone .hand .card .gtext { -webkit-line-clamp: 2; font-size: 10.5px; }
+/* 카드 이름은 작게, 두 줄까지 — 한 줄로 자르면 「도끼 올…」 처럼 무슨 카드인지 몰랐다 */
+.phone .hand .card .gtitle b { font-size: 10.5px; line-height: 1.15; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; word-break: keep-all; }
+.phone .hand .card .gtype { font-size: 9.5px; }
+.phone .hand .card .gtext { line-height: 1.25; }
+.phone .battle .hand { padding: 10px 0 12px; }   /* 부채꼴로 펼치면 바깥 카드가 내려간다(--dip) — 그 자리를 남겨 둔다 */
+.phone .hand .card:hover:not(.no) { transform: rotate(var(--tilt, 0deg)) translateY(var(--dip, 0px)); }
+.phone .hand .card.sel { transform: rotate(0deg) translateY(-12px) scale(1.03); }
+
 /* ── 휴대폰을 세로로 들었을 때 ───────────────────────────────────────── */
 .rotate { display: none; }
 .portrait .rotate {

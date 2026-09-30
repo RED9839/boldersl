@@ -38,6 +38,11 @@ def main():
     ap.add_argument("--width", type=int, default=1500)
     ap.add_argument("--height", type=int, default=1050)
     ap.add_argument("--no-check", action="store_true")
+    # --webgl — 소프트웨어 WebGL(SwiftShader)로 띄운다. 헤드리스는 GPU 가 없어 스파인이 그림 한 장으로 떨어진다
+    ap.add_argument("--webgl", action="store_true")
+    # --phone — 휴대폰 흉내(터치 · 모바일 UA). 휴대폰 판정이 「터치 + 짧은 변 600px 이하」 라서
+    # 마우스만 있는 검사 브라우저는 창을 좁혀도 PC 로 친다. --width/--height 가 그대로 폰 화면 크기가 된다
+    ap.add_argument("--phone", action="store_true")
     a = ap.parse_args()
 
     try:
@@ -55,9 +60,14 @@ def main():
 
     os.makedirs(a.out, exist_ok=True)
     o = Options()
-    for f in ("--headless=new", "--disable-gpu", "--hide-scrollbars",
+    gpu = ("--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist") if a.webgl else ("--disable-gpu",)
+    for f in ("--headless=new", *gpu, "--hide-scrollbars",
               f"--window-size={a.width},{a.height}", "--force-device-scale-factor=1"):
         o.add_argument(f)
+    if a.phone:
+        o.add_experimental_option("mobileEmulation", {
+            "deviceMetrics": {"width": a.width, "height": a.height, "pixelRatio": 3, "touch": True},
+            "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36"})
     d = webdriver.Chrome(options=o)
     try:
         print("사진")
@@ -231,6 +241,39 @@ def verifyBattle(d, out=None):
     check(not n["blank"], "손패 그림이 모두 그려졌다" if not n["blank"] else f"빈 그림 {n['blank']}")
     check(n["tilt"] == n["hand"], f"손패가 손에 든 것처럼 펼쳐진다 ({n['tilt']}/{n['hand']})")
     check(n["piles"] == 2, f"덱·버린 더미를 열어 볼 수 있다 ({n['piles']})")
+    # 인게임 모델 — 칸마다 스파인 캔버스로 그려졌는가, 그림 한 장으로 떨어졌는가.
+    # WebGL 이 없으면(--webgl 없이 헤드리스) 그림으로 떨어지는 게 맞다 — 그때는 알리기만 한다
+    sp = d.execute_script("""
+      const gl = (() => { try { return !!document.createElement('canvas').getContext('webgl'); } catch (e) { return false; } })();
+      const cells = (sel) => [...document.querySelectorAll(sel)].map((n) => n.querySelector('canvas') ? 'spine' : (n.querySelector('img') ? 'img' : 'none'));
+      return { gl, runtime: !!globalThis.spine, allies: cells('.stand'), foes: cells('.foe') };
+    """)
+    print(f"  참고 WebGL {'있음' if sp['gl'] else '없음'} · 스파인 런타임 {'있음' if sp['runtime'] else '없음'} · 아군 {sp['allies']} · 적 {sp['foes']}")
+    # 한 화면에 다 들어오는가 — 휴대폰 가로에서 손패가 아래로, 적 의도가 위로 잘리고 이름이 두 줄로 꺾였다.
+    # 좌표는 화면(viewport) 기준이다(zoom 이 걸려 있어도 getBoundingClientRect 는 실제 화면 좌표를 준다).
+    g = d.execute_script("""
+      const H = innerHeight, W = innerWidth;
+      const r = (n) => n.getBoundingClientRect();
+      const field = document.querySelector('.field');
+      const fr = field ? r(field) : null;
+      const cards = [...document.querySelectorAll('.hand .card')].map(r);
+      const intents = [...document.querySelectorAll('.foe .intent')].map(r);
+      const lines = (n) => { if (!n) return 0; const lh = parseFloat(getComputedStyle(n).lineHeight) || 16; return Math.round(r(n).height / lh); };
+      const names = [...document.querySelectorAll('.foe .fname')].map((n) => { const fs = parseFloat(getComputedStyle(n).fontSize) || 12; const z = r(n).height / (n.offsetHeight || 1); return { t: n.textContent, h: n.offsetHeight, one: Math.max(fs * 1.9, 22) }; });
+      const badges = [...document.querySelectorAll('.foe .fname .nature')].map((n) => ({ w: r(n).width, h: r(n).height }));
+      return { H, W, hand: cards.length ? Math.max(...cards.map((c) => c.bottom)) : 0,
+               field: fr ? [fr.top, fr.bottom] : null,
+               intentTop: intents.length ? Math.min(...intents.map((c) => c.top)) : null,
+               names, badges };
+    """)
+    check(g["hand"] <= g["H"] + 1, f"손패가 화면 안에 다 들어온다 (카드 아래 {g['hand']:.0f} / 화면 {g['H']})")
+    if g["field"] and g["intentTop"] is not None:
+        check(g["intentTop"] >= g["field"][0] - 1, f"적 머리 위 의도가 싸움터 안에 있다 (의도 위 {g['intentTop']:.0f} / 싸움터 위 {g['field'][0]:.0f})")
+    tall = [n["t"] for n in g["names"] if n["h"] > n["one"] * 1.6]
+    bad = [b for b in g["badges"] if b["h"] > b["w"]]
+    check(not tall and not bad, "적 이름과 성격 표시가 한 줄에 선다" if not tall and not bad else f"꺾인 이름 {tall} · 세로로 찢어진 성격 표시 {len(bad)}")
+    if sp["gl"] and sp["runtime"]:
+        check(all(x == "spine" for x in sp["allies"] + sp["foes"]), f"WebGL 이 있으면 아군·적 모두 스파인으로 그린다")
     from selenium.webdriver.common.by import By as _B
     d.find_element(_B.CSS_SELECTOR, ".pile2.draw").click(); time.sleep(0.6)
     pv = d.execute_script("""
