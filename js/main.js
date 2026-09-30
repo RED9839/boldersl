@@ -1,5 +1,5 @@
 // 부팅과 화면 전환. 게임의 흐름은 여기 한 곳에만 있다.
-import { lobbyScreen } from "./home-design.js";
+import { lobbyScreen } from "./lobby.js";
 import * as ui from "./ui.js";
 import * as R from "./run.js";
 import * as EV from "./events.js";
@@ -36,10 +36,11 @@ async function hasSd() {
 
 function start() {
   ui.hint("");
-  lobbyScreen(() => ui.partyScreen((party, rows) => {
-    run = R.newRun(party, rows);
-    mapStep();
-  }, start));
+  const go = (party, rows) => { run = R.newRun(party, rows); mapStep(); };
+  lobbyScreen(() => ui.partyScreen(go, start), {
+    onDex: () => ui.partyScreen(go, start, { view: "도감" }),   // 로비에서 연 도감은 나가면 로비로
+    onHelp: () => ui.openHelp("상성"),
+  });
 }
 
 function fight() {

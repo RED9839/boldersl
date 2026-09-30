@@ -139,7 +139,9 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
         wear = new sp.Skin("wear");
         wear.addSkin(base);
         const used = new Set(base.getAttachments().map((e) => e.slotIndex));
-        for (const x of extras) {
+        // 스탠딩은 Normal 만 — 덧스킨이 거의 다 이벤트 소품 · 변신이다(에르핀 Event_1 종이봉투 · 에르핀_왕도 Shackles ·
+        // 시저 Villain · 아일라 Transform 등 33명). 원작 로비도 Normal 로 선다. 덧스킨이 부품인 것은 전투 SD(코미 Weapon)뿐
+        for (const x of kind === "standing" ? [] : extras) {
           if (x === base || x.getAttachments().some((e) => used.has(e.slotIndex))) continue;
           wear.addSkin(x);
           for (const e of x.getAttachments()) used.add(e.slotIndex);

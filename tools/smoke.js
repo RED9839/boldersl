@@ -747,30 +747,70 @@ console.log("AP · 고학년 게이지 · 상성 (기획서 규칙)");
 }
 
 console.log("");
-console.log("로비와 프로필 (코덱스 화면)");
+console.log("로비와 프로필");
 {
+  const L = await import("../js/lobby.js");
   const H = await import("../js/home-design.js");
   const { HERO_DATA } = await import("../js/cardbook.js");
   const s3 = doc.querySelector("#screen");
-  let went = 0;
-  H.lobbyScreen(() => went++);
-  const persons = clickAll(s3, (n) => n.classList.contains("scene-person"));
-  check(persons.length === 3, `앞세운 사도 셋이 선다 (${persons.map((p2) => p2.attrs["aria-label"] || "?").join(", ")})`);
-  // 영문 키로 찾으면 하나도 안 걸려 목록 앞 셋이 선다 — 실제로 그랬다
-  check(/에르핀 프로필/.test(persons.map((p2) => p2.attrs["aria-label"]).join("|")), "뜻한 사도가 선다(목록 앞 셋이 아니다)");
+  let went = 0, dex = 0, help = 0;
+  const byCls = (root, cls) => (function f(n) { for (const c of n.children) { if (c.classList.contains(cls)) return c; const r = f(c); if (r) return r; } return null; })(root);
+  L.lobbyScreen(() => went++, { onDex: () => dex++, onHelp: () => help++ });
+  check(s3.className === "lobby2", "로비는 비서 + 메뉴 화면이다");
+  const plate = byCls(s3, "lb-plate");
+  check(!!plate && plate.textContent.includes("에르핀"), "처음 비서는 에르핀");
+  const line = byCls(s3, "lb-line");
+  check(!!line && line.textContent.length > 3, `비서가 인사한다 (「${line && line.textContent}」)`);
+  const stand = clickAll(s3, (n) => n.classList.contains("lb-stand"))[0];
+  const before = line.textContent;
+  let changed = false;
+  for (let i = 0; i < 6 && !changed; i++) { stand.onclick(); changed = line.textContent !== before; }
+  check(changed, "비서를 누르면 다른 말을 한다");
+  check(/에르피엔[\s\S]*모나티엄[\s\S]*벨리티엔/.test(s3.textContent), "여정이 FLOORS 차례와 같다");
+  clickAll(s3, (n) => n.classList.contains("lb-help"))[0].onclick();
+  check(help === 1, "도움말 단추");
+  clickAll(s3, (n) => n.classList.contains("lb-dex"))[0].onclick();
+  check(dex === 1, "사도 도감 단추");
+  L.lobbyScreen(() => went++, { onDex: () => dex++, onHelp: () => help++ });
   const prim = clickAll(s3, (n) => n.classList.contains("home-primary"))[0];
-  check(!!prim, "새로운 모험 단추가 있다");
+  check(!!prim && prim.textContent.includes("모험 시작"), "모험 시작 단추가 있다");
   prim.onclick();
   check(went === 1, "누르면 편성으로 넘어간다");
-  check(/에르피엔[\s\S]*모나티엄[\s\S]*벨리티엔/.test(s3.textContent), "여정이 FLOORS 차례와 같다");
 
-  // 프로필 — 로비에서 열면 읽기만, 편성에서 열면 넣을 수 있다
-  H.lobbyScreen(() => {});
-  clickAll(s3, (n) => n.classList.contains("scene-person"))[0].onclick();
+  // 비서 바꾸기 — 고르면 그 사도가 서고, 다음에 켜도 그대로
+  L.lobbyScreen(() => {}, {});
+  clickAll(s3, (n) => n.classList.contains("lb-swap"))[0].onclick();
+  for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));   // 스파인 목록을 읽는 동안(가짜 setTimeout 은 바로 돈다)
+  const modal = docBody.children.find((n) => n.classList.contains("lb-modal"));
+  const picks = modal ? clickAll(modal, (n) => n.classList.contains("lb-pick")) : [];
+  check(picks.length >= 100, `비서 후보 ${picks.length}명`);
+  const other = picks.find((b) => !b.textContent.includes("에르핀"));
+  const otherKo = other.children[other.children.length - 1].textContent;   // 이름 칸(초상 자리표시 글자는 뺀다)
+  other.onclick();
+  check(!docBody.children.includes(modal), "고르면 창이 닫힌다");
+  check(byCls(s3, "lb-plate").textContent.includes(otherKo), `고른 비서가 선다 (${otherKo})`);
+  L.lobbyScreen(() => {}, {});
+  check(byCls(s3, "lb-plate").textContent.includes(otherKo), "다시 켜도 고른 비서 그대로");
+  const { setSetting } = await import("../js/settings.js");
+  setSetting("lobbyHero", "에르핀");
+
+  // 설정 — 목소리 켜고 끄기
+  clickAll(s3, (n) => n.classList.contains("lb-set"))[0].onclick();
+  const sm = docBody.children.find((n) => n.classList.contains("lb-modal"));
+  const tg = clickAll(sm, (n) => n.classList.contains("lb-toggle"));
+  check(tg.length === 4 && tg[0].textContent.includes("목소리"), "설정 — 목소리 · 움직임 · 줄이기 · 글자");
+  tg[0].onclick();
+  const sm2 = docBody.children.find((n) => n.classList.contains("lb-modal"));
+  check(!clickAll(sm2, (n) => n.classList.contains("lb-toggle"))[0].classList.contains("on"), "목소리를 끄면 꺼진다");
+  clickAll(sm2, (n) => n.classList.contains("lb-toggle"))[0].onclick();
+  docBody.children.find((n) => n.classList.contains("lb-modal")).remove();
+
+  // 프로필 — 편성 단추 없이 열면 읽기만
+  H.profileScreen(Object.keys(HERO_DATA)[0]);
   const dlg = docBody.children.find((n) => n.classList.contains("hero-profile"));
   check(!!dlg && dlg.open, "프로필이 열린다");
-  check(clickAll(dlg, () => true).length >= 0 && dlg.textContent.includes("고학년 스킬"), "프로필에 고학년 스킬이 있다");
-  check(!clickAll(dlg, (n) => n.classList.contains("home-primary")).length, "로비에서 열면 편성 단추가 없다");
+  check(dlg.textContent.includes("고학년 스킬"), "프로필에 고학년 스킬이 있다");
+  check(!clickAll(dlg, (n) => n.classList.contains("home-primary")).length, "넣기 단추 없이 열면 읽기만");
   clickAll(dlg, (n) => n.classList.contains("profile-close"))[0].onclick();
   check(!docBody.children.includes(dlg), "닫으면 문서에서 사라진다");
 

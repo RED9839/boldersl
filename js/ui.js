@@ -403,7 +403,8 @@ function bigCard(c, pic) {
   return n;
 }
 
-export function partyScreen(onStart, onBack) {
+// opts.view — "도감" 이면 도감부터 연다(로비의 「사도 도감」). 그때 도감에서 나가면 로비(onBack)로 돌아간다
+export function partyScreen(onStart, onBack, opts = {}) {
   const s = screen();
   s.classList.add("dexscreen");
 
@@ -418,7 +419,8 @@ export function partyScreen(onStart, onBack) {
   };
 
   let picked = [];
-  let view = null;                       // null 편성 · "도감" 도감 · 사도 키면 사도 정보
+  let view = opts.view || null;          // null 편성 · "도감" 도감 · 사도 키면 사도 정보
+  let dexHome = opts.view === "도감";      // 로비에서 곧장 연 도감 — 편성으로 넘어가면 풀린다(그 뒤 도감의 ◁ 은 편성으로)
   let cameFrom = null;                   // 사도 정보에서 나가면 들어온 곳으로 돌아간다
   let tab = "능력치";                    // 사도 정보에서 먼저 뜨는 갈피
   const rows = {};
@@ -435,7 +437,7 @@ export function partyScreen(onStart, onBack) {
 
     const bar = el("div", "dbar2");
     const back = el("button", "iconbtn back", "◁");
-    back.onclick = () => { view = null; render(); };   // 도감에서 나가면 편성으로
+    back.onclick = () => { if (dexHome && onBack) return onBack(); view = null; render(); };   // 도감에서 나가면 편성으로(로비에서 왔으면 로비로)
     bar.appendChild(back);
     bar.appendChild(el("h1", "dtitle", "사도 도감"));
     bar.appendChild(fsButton("fsright"));
@@ -523,7 +525,7 @@ export function partyScreen(onStart, onBack) {
     // 아래 — 고른 셋을 알려 주고 편성으로 돌아가는 길
     const foot = el("div", "dfoot");
     const backToForm = el("button", "go", "편성으로");
-    backToForm.onclick = () => { view = null; render(); };
+    backToForm.onclick = () => { dexHome = false; view = null; render(); };
     const said = el("span", "dsaid");
     foot.appendChild(said);
     foot.appendChild(backToForm);

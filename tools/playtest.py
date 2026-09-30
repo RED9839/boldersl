@@ -24,7 +24,7 @@ ROOT = os.path.dirname(HERE)
 
 # 화면을 알아보는 표 — 클래스 하나로 가른다
 SCREENS = [
-    ("로비", ".journey-home"),
+    ("로비", ".lobby2"),
     ("팀 편성", ".teamscreen2"),
     ("사도 도감", ".dexscreen"),
     ("사도 정보", ".detailscreen"),
