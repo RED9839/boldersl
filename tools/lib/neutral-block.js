@@ -37,8 +37,8 @@ export function parseNeutral(text, warn = () => {}) {
     const shown = body.replace(/\s*\[[^\]]+\]/g, "").trim();   // [주는 피해] 는 전역 증가의 종류 표시 — 효과가 아니다
     const flash = [];
     for (const l of L) {
-      const f = l.match(/^-\s*([①④])\s*(강화|변형)\s*\*(.+?)\*\s*:\s*(.*)$/);
-      if (f) flash.push({ n: f[1] === "①" ? 1 : 4, kind: f[2], ko: f[3], text: f[4].replace(/\s*\[[^\]]+\]/g, "") });
+      const f = l.match(/^-\s*([①②③④⑤])\s*(강화|경량|연계|변형|각성)\s*\*(.+?)\*\s*:\s*(.*)$/);
+      if (f) flash.push({ n: "①②③④⑤".indexOf(f[1]) + 1, kind: f[2], ko: f[3], text: f[4].replace(/\s*\[[^\]]+\]/g, "") });
     }
     out[ko] = {
       ko, grade, price, oneOnly, blurb,

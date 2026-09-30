@@ -288,6 +288,22 @@ console.log("\n이후 화면");
   C.endTurn(s1);
   check(C.costOf(s1, got1) === CB.CARDS[got1].cost, "다음 턴부터는 제 비용");
 
+  // 중립 카드도 신탁 다섯 — 덱에 있으면 고유 카드처럼 신탁이 뜬다
+  {
+    const nids = CB.NEUTRAL_IDS.filter((id) => CB.CARDS[id].playable);
+    check(nids.every((id) => (CB.CARDS[id].flash || []).length === 5 && CB.CARDS[id].flash.every((f, i) => f.n === i + 1 && f.fx.length && !f.unparsed)),
+      `중립 카드 ${nids.length}장 모두 신탁 다섯이 다 읽힌다`);
+    const r8 = R.newRun(run.party, run.rows, 93), nid = nids[0];
+    r8.deck = r8.deck.filter((id) => !CB.CARDS[id].unique); r8.deck.push(nid);
+    check(R.flashTargets(r8).includes(nid), "가진 중립 카드가 신탁 대상이 된다");
+    let lit = null;
+    for (let i = 0; i < 300 && !lit; i++) { r8.rng = C.makeRng(i + 1); const g = R.rollEpiphany(r8)[nid]; if (g && g.kind === "card") lit = g; }
+    check(!!lit, "중립 카드에 신탁이 빛난다");
+    const s8 = C.newCombat({ partyKeys: r8.party, rows: r8.rows, deck: [nid], enemyIds: ["curburus"], seed: 5, hp: r8.hp, maxHp: r8.maxHp, glow: { [nid]: lit } });
+    C.applyEpiphany(s8, nid, 0);
+    check(s8.flash[nid] === lit.options[0].n && s8.book[nid].flashOn === lit.options[0].n, `신탁을 고르면 중립 카드가 바뀐다 (${CB.CARDS[nid].name} → ${s8.book[nid].flashKo})`);
+  }
+
   // 한 번 뺀 고유 카드는 은총 · 상점에 다시 안 나온다
   {
     const r7 = R.newRun(run.party, run.rows, 91);

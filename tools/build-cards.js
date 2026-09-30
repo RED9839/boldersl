@@ -99,7 +99,10 @@ for (const c of Object.values(D.neutral || {})) {
     id, hero: null, neutral: true, ko: c.ko, cost: c.cost, type: c.type, tags: c.tags,
     text: c.text, grade: c.grade, price: c.price, oneOnly: c.oneOnly, blurb: c.blurb,
     fx, unparsed: left && rest.length ? left : null, playable,
-    flash: c.flash,
+    // 신탁 다섯 — 고유 카드와 같다. 자리(n)대로 놓아야 flashed(card, n) 가 제 것을 집는다
+    flash: [1, 2, 3, 4, 5].map((n) => c.flash.find((f) => f.n === n)).filter(Boolean).length === 5
+      ? [1, 2, 3, 4, 5].map((n) => { const f = c.flash.find((x) => x.n === n); return { ...f, ...parse(f.text, null, `중립/${c.ko}/${f.kind}`) }; })
+      : [],
   };
 }
 

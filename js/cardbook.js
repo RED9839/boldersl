@@ -48,7 +48,7 @@ for (const [id, c] of Object.entries(BUILT.neutral || {})) {
     id, hero: null, neutral: true,
     name: c.ko, cost: c.cost === "X" ? 0 : c.cost, xcost: c.cost === "X",
     type: c.type, text: c.text, fx: c.fx || [], built: true, target: targetOf(c),
-    unique: false, signature: false, flash: null, tags: c.tags || [],
+    unique: false, signature: false, flash: c.flash && c.flash.length ? c.flash : null, tags: c.tags || [],   // 신탁 다섯 — 고유 카드처럼
     unparsed: c.unparsed || null,
     grade: c.grade, price: c.price, oneOnly: !!c.oneOnly, blurb: c.blurb, playable: !!c.playable,
   };

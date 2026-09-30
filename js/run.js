@@ -276,7 +276,7 @@ export function removeCard(run, cardId) {
 // 한 카드에 하나만 붙는다 — 이미 붙은 카드는 다시 안 나온다.
 export function flashTargets(run) {
   return run.deck.filter((id, i) => run.deck.indexOf(id) === i)
-    .filter((id) => CARDS[id] && CARDS[id].unique && (CARDS[id].flash || []).length && !run.flash[id]);
+    .filter((id) => CARDS[id] && (CARDS[id].unique || CARDS[id].neutral) && (CARDS[id].flash || []).length === 5 && !run.flash[id]);
 }
 
 export function offerFlash(run) {
