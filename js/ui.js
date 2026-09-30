@@ -211,6 +211,16 @@ export function openHelp(key = "상성") {
   kwNote = back;
 }
 
+// 전체화면 단추 — 사이트 머리 줄(전체화면 단추가 있는 곳)을 숨기는 화면들(편성 · 도감 · 상점 · 캠프 · 지도)의 머리에 단다
+function fsButton(cls = "") {
+  const b = el("button", "fsmini" + (cls ? " " + cls : ""), "⛶");
+  b.title = "전체화면";
+  b.onclick = (e) => { e.stopPropagation(); toggleFullscreen(); };
+  return b;
+}
+// 지금 칸 다음이 보스인가 — 휴식(상점) 칸은 층 중간에도 있다. 보스 바로 앞 칸(1-11)에서만 「보스에게 갑니다」
+const bossNext = (run) => { const n = M.currentNode(run); return !!(n && n.row === M.ROWS - 1); };
+
 function img(src, cls) {
   const n = el("img", cls);
   n.src = src; n.loading = "lazy"; n.alt = "";
@@ -427,6 +437,7 @@ export function partyScreen(onStart, onBack) {
     back.onclick = () => { view = null; render(); };   // 도감에서 나가면 편성으로
     bar.appendChild(back);
     bar.appendChild(el("h1", "dtitle", "사도 도감"));
+    bar.appendChild(fsButton("fsright"));
 
     const search = el("input", "dsearch");
     search.placeholder = "이름";
@@ -584,6 +595,7 @@ export function partyScreen(onStart, onBack) {
     head.appendChild(title);
     const floor = FLOORS[0];
     head.appendChild(el("span", "tm-fwhere", `${floor.n}층 · ${floor.name} — 지도에서 길을 골라 12칸 끝의 보스(${floor.boss.map((id) => ENEMIES[id].ko).join(" · ")})까지`));
+    head.appendChild(fsButton());
     const helpBtn = el("button", "tm-fhelp", "도움말");
     helpBtn.onclick = () => openHelp("상성");
     head.appendChild(helpBtn);
@@ -865,6 +877,7 @@ export function partyScreen(onStart, onBack) {
     back.onclick = () => { view = cameFrom; render(); };
     bar.appendChild(back);
     bar.appendChild(el("h1", "dtitle", "사도 정보"));
+    bar.appendChild(fsButton("fsright"));
     bar.appendChild(el("span", "dwho", h.ko));
     bar.appendChild(el("span", "dcount", `${picked.length}/3`));
     const on = picked.includes(key);
@@ -2103,6 +2116,20 @@ export function fightScreen(run, onDone, onQuit) {
       row.appendChild(cell);
     });
     box.appendChild(row);
+    // 고르기 전에 내 덱을 본다 — 무엇과 어울릴지 보고 고르게. 덱 창은 이 창 위에 뜨고, 닫으면 여기로 돌아온다
+    const look = el("button", "epideck", "내 덱 보기");
+    look.onclick = (e) => {
+      e.stopPropagation();
+      const cardFor = (id) => C.cardOf(st, id);
+      showPiles([
+        { key: "all", label: "덱 전체", ids: run.deck, why: "이 판의 덱. 신탁이 붙은 카드는 바뀐 모습으로 보입니다." },
+        { key: "hand", label: "손패", ids: st.hand, why: "지금 손에 든 카드." },
+        { key: "draw", label: "뽑을 더미", ids: st.draw, why: "차례는 안 보여 줍니다 — 섞여 있습니다." },
+        { key: "disc", label: "버린 더미", ids: st.discard, why: "덱이 바닥나면 섞여서 뽑을 더미로 돌아갑니다." },
+      ], "all", cardFor, null);
+      if (kwNote) kwNote.classList.add("onepi");
+    };
+    box.appendChild(look);
     document.body.appendChild(back);
   }
 
@@ -2272,6 +2299,7 @@ export function mapScreen(run, onEnter, onQuit) {
   deckBtn.onclick = () => showPiles([{ key: "all", label: "덱 전체", ids: run.deck, why: "이 판의 덱. 신탁이 붙은 카드는 바뀐 모습으로 보입니다." }], "all", (id) => flashedCard(run, id));
   head.appendChild(deckBtn);
   head.appendChild(gearBtn);
+  head.appendChild(fsButton());
   const menuBtn = el("button", "bmenu mmenu");
   menuBtn.title = "메뉴";
   for (let k = 0; k < 3; k++) menuBtn.appendChild(el("i"));
@@ -2777,111 +2805,276 @@ function gearPanel(run, mode, onChange, say) {
 //   쉬기  살아 있는 사도 HP 회복(최대 HP의 30%) — 쓰러진 사도는 주말농장에서 쉬는 중
 //   수련  가진 고유 카드 하나에 신탁(다섯 중 셋)
 // 캠프 + 상점이면 골디가 옆에 좌판을 폈다. 상점에 들르는 것은 캠프 선택을 쓰지 않는다.
+//
+// 「모닥불 + 고를 것」 — 왼쪽 무대에 파티 셋이 모닥불을 둘러 서고(전투 SD 스파인), 발밑에 HP 줄.
+// 오른쪽에 쉬기 · 수련 두 장, 그 아래 장비 · 골디의 좌판. 1600×900 에서 스크롤이 없다.
+// 신탁 고르기 · 장비는 위에 뜨는 창(.cp-modal) — 배치를 밀지 않게. 사도 그림은 한 번만 세우고 숫자만 고쳐 쓴다.
 export function campScreen(run, withShop, onDone, onShop) {
   const s = screen();
-  s.classList.add("rewardscreen", "campscreen");
+  s.className = "campscreen2";
+  setStageBg(s, run);
   const st = run.stops[run.camp && run.camp.key] || { used: null };
   const floor = FLOORS[run.floor] || { name: "" };
+  const offer = run.camp && run.camp.train;
+  const heal = (k) => {
+    const hp = run.hp[k] || 0, max = run.maxHp[k] || 1;
+    return hp <= 0 || st.used ? 0 : Math.min(max - hp, Math.round(max * RULES.CAMP_HEAL));
+  };
 
-  const bar = el("div", "dbar2");
-  bar.appendChild(el("h1", "dtitle", withShop ? "캠프 · 골디의 좌판" : "캠프"));
-  bar.appendChild(el("span", "rwhy", `${floor.name} — ${withShop ? "보스 앞에서 한숨 돌린다" : "길 가운데에서 한숨 돌린다"}. 쉬기와 수련 중 하나만 고릅니다.`));
-  const go = el("button", "dexbtn", withShop ? "보스에게 갑니다" : "길을 떠납니다");
-  go.onclick = onDone;
-  bar.appendChild(go);
-  s.appendChild(bar);
+  // ① 머리 — 이름 · 어디 · 골드 · 떠나기
+  const top = el("div", "cp-top");
+  const title = el("div", "cp-title");
+  title.appendChild(el("b", null, withShop ? "캠프 · 골디의 좌판" : "캠프"));
+  title.appendChild(el("span", null, `${floor.name} — ${withShop ? "보스 앞에서 한숨 돌립니다" : "길 가운데에서 한숨 돌립니다"}`));
+  top.appendChild(title);
+  const gold = el("div", "cp-gold");
+  gold.appendChild(el("i", null, "✦"));
+  const goldN = el("b", null, String(run.gold));
+  gold.appendChild(goldN);
+  gold.appendChild(el("span", null, "골드"));
+  top.appendChild(gold);
+  top.appendChild(fsButton());
+  const go = el("button", "cp-leave", bossNext(run) ? "보스에게 갑니다" : "길을 떠납니다");
+  go.onclick = () => { closeSheet(); onDone(); };
+  top.appendChild(go);
+  s.appendChild(top);
 
-  const body = el("div", "rbody");
-  s.appendChild(body);
-  let training = false;
-  draw();
+  const main = el("div", "cp-main");
+  s.appendChild(main);
 
-  function draw() {
-    body.innerHTML = "";
-    // 파티 — 지금 체력과 쉬면 얼마나 차는지
-    body.appendChild(sec("파티", st.used ? (st.used === "rest" ? "푹 쉬었습니다" : "수련을 마쳤습니다") : "쉬면 최대 HP의 30%가 찹니다"));
-    const prow = el("div", "rrow cparty");
-    for (const k of run.party) {
-      const h = HERO_DATA[k] || HERO(k);
-      const hp = run.hp[k] || 0, max = run.maxHp[k] || 1;
-      const down = hp <= 0;
-      const gain = down || st.used ? 0 : Math.min(max - hp, Math.round(max * RULES.CAMP_HEAL));
-      const c = el("div", "cmember" + (down ? " down" : ""));
-      c.appendChild(art.portrait(k, { ko: h.ko, tint: TINT(k), size: 40, slot: "battle", still: true }));
-      const info = el("div", "cinfo");
-      info.appendChild(el("b", null, h.ko));
-      const barx = el("div", "chp");
-      const fill = el("i"); fill.style.width = `${(hp / max) * 100}%`; barx.appendChild(fill);
-      if (gain) { const add = el("em"); add.style.left = `${(hp / max) * 100}%`; add.style.width = `${(gain / max) * 100}%`; barx.appendChild(add); }
-      info.appendChild(barx);
-      info.appendChild(el("span", "cnum", down ? "주말농장에서 쉬는 중" : `${hp} / ${max}${gain ? `  (+${gain})` : ""}`));
-      c.appendChild(info);
-      prow.appendChild(c);
-    }
-    body.appendChild(prow);
+  // ② 무대 — 모닥불을 둘러 선 파티
+  const stage = el("div", "cp-stage");
+  const fire = el("div", "cp-fire");
+  fire.setAttribute("aria-hidden", "true");
+  fire.appendChild(el("span", "cp-glow"));
+  const flames = el("span", "cp-flames");
+  for (let i = 0; i < 4; i++) flames.appendChild(el("i", "cp-flame f" + i));
+  fire.appendChild(flames);
+  fire.appendChild(el("span", "cp-logs"));
+  const embers = el("span", "cp-embers");
+  for (let i = 0; i < 9; i++) { const e = el("i"); e.style.setProperty("--e", String(i)); embers.appendChild(e); }
+  fire.appendChild(embers);
+  stage.appendChild(fire);
 
-    // 하나만 고른다
-    body.appendChild(sec("캠프에서", st.used ? "이번 캠프에서는 골랐습니다" : "하나만 고릅니다"));
-    const acts = el("div", "rrow cacts");
-    const rest = el("button", "cact" + (st.used === "rest" ? " on" : ""));
-    rest.appendChild(el("b", null, "쉬기"));
-    rest.appendChild(el("span", null, "살아 있는 사도 HP +30%"));
-    rest.disabled = !!st.used;
-    rest.onclick = () => { const why = R.campRest(run); if (why) return hint(why); draw(); };
-    acts.appendChild(rest);
-    const offer = run.camp && run.camp.train;
-    const train = el("button", "cact" + (st.used === "train" || training ? " on" : ""));
-    train.appendChild(el("b", null, "수련"));
-    train.appendChild(el("span", null, offer ? `「${CARDS[offer.cardId].name}」에 신탁` : "신탁을 붙일 고유 카드가 없습니다"));
-    train.disabled = !!st.used || !offer;
-    train.onclick = () => { training = !training; draw(); };
-    acts.appendChild(train);
-    body.appendChild(acts);
+  const line = el("p", "cp-line");
+  stage.appendChild(line);
 
-    if (training && offer && !st.used) {
-      const c = CARDS[offer.cardId];
-      body.appendChild(sec("수련", `「${c.name}」에 붙일 신탁 — 다섯 중 셋`));
-      const fr = el("div", "rrow flashrow");
-      fr.appendChild(flashTarget(c, offer.cardId));   // 어느 카드에 붙는지 — 이름만이 아니라 그림으로
-      for (const n of offer.picks) {
-        const f = (c.flash || [])[n - 1];
-        if (!f) continue;
-        const b = el("button", "fcard f" + n);
-        const head = el("div", "fhead2");
-        head.appendChild(el("span", "fnum", "①②③④⑤"[n - 1]));
-        head.appendChild(el("b", null, f.kind));
-        head.appendChild(el("span", "fko", f.ko));
-        b.appendChild(head);
-        b.appendChild(withKeywords(el("p", "ftext2"), shortText(f.text), c.hero));
-        b.appendChild(el("p", "fbefore", `지금: ${shortText(c.text)}`));
-        b.onclick = () => { const why = R.campTrain(run, { cardId: offer.cardId, n }); if (why) return hint(why); training = false; draw(); };
-        fr.appendChild(b);
-      }
-      body.appendChild(fr);
-    }
+  const members = run.party.map((k, i) => {
+    const h = HERO_DATA[k] || HERO(k);
+    const n = el("div", "cp-hero p" + i);
+    // 불을 본다 — 왼쪽 둘은 오른쪽을, 오른쪽 하나는 왼쪽을(게임 SD 는 왼쪽을 보고 선다)
+    n.appendChild(art.portrait(k, { ko: h.ko, tint: TINT(k), size: 200, slot: "battle", flip: i < 2 }));
+    const plate = el("div", "cp-plate");
+    const nm = el("div", "cp-name");
+    nm.appendChild(el("b", null, h.ko));
+    const num = el("span", "cp-num");
+    nm.appendChild(num);
+    plate.appendChild(nm);
+    const bar = el("div", "cp-hp");
+    const fill = el("i", "cp-fill");
+    const add = el("em", "cp-add");
+    bar.appendChild(fill);
+    bar.appendChild(add);
+    plate.appendChild(bar);
+    n.appendChild(plate);
+    stage.appendChild(n);
+    return { k, n, num, fill, add };
+  });
+  main.appendChild(stage);
 
-    body.appendChild(sec("장비", "바꿔 끼기는 캠프에서만 — 캠프 선택을 쓰지 않습니다"));
-    body.appendChild(gearPanel(run, "camp", draw, hint));
+  // ③ 오른쪽 — 하나만 고른다 · 장비 · 좌판
+  const side = el("aside", "cp-side");
+  const head = el("div", "cp-sidehead");
+  const headB = el("b");
+  const headS = el("span");
+  head.appendChild(headB);
+  head.appendChild(headS);
+  side.appendChild(head);
 
-    if (withShop) {
-      body.appendChild(sec("골디의 좌판", "들러도 캠프 선택은 그대로 남습니다"));
-      const sb = el("button", "cshop");
-      sb.appendChild(el("span", "sface", "✦"));
-      const tx = el("span", "ctext");
-      tx.appendChild(el("b", null, "골디의 상점 들르기"));
-      tx.appendChild(el("span", null, `「어서 오세요, 고객님!」 · 가진 골드 ✦ ${run.gold}`));
-      sb.appendChild(tx);
-      sb.onclick = onShop;
-      body.appendChild(sb);
-    }
+  const choices = el("div", "cp-choices");
+  const rest = choiceBtn("cp-rest", "쉬기", "살아 있는 사도의 HP를 최대 HP의 30%만큼 채웁니다");
+  const restGain = el("em", "cp-gain");
+  rest.body.appendChild(restGain);
+  rest.b.onclick = () => {
+    const before = run.party.map((k) => run.hp[k] || 0);
+    const why = R.campRest(run);
+    if (why) return say(why);
+    // 불이 한 번 확 일고, 사도마다 찬 만큼 떠오른다
+    fire.classList.remove("flare"); void fire.offsetWidth; fire.classList.add("flare");
+    members.forEach((m, i) => {
+      const d = (run.hp[m.k] || 0) - before[i];
+      if (d > 0) { const f = el("span", "cp-float", `+${d}`); m.n.appendChild(f); setTimeout(() => f.remove(), 1600); }
+    });
+    say("모닥불 곁에서 푹 쉬었습니다. 다시 걸을 힘이 납니다.");
+    refresh();
+  };
+  choices.appendChild(rest.b);
+
+  const train = choiceBtn("cp-train", "수련", offer ? `「${CARDS[offer.cardId].name}」에 신탁을 붙입니다 — 다섯 중 셋` : "신탁을 붙일 고유 카드가 없습니다");
+  if (offer) {
+    const mini = el("span", "cp-mini");
+    const c = bigCard(CARDS[offer.cardId], CARDART.pic[offer.cardId] || null);
+    c.onclick = null; c.title = "";
+    mini.appendChild(c);
+    train.b.appendChild(mini);
+  }
+  train.b.onclick = () => {
+    if (st.used || !offer) return say(st.used ? "이번 캠프에서는 이미 골랐습니다" : "신탁을 붙일 고유 카드가 없습니다");
+    openTrain();
+  };
+  choices.appendChild(train.b);
+  side.appendChild(choices);
+
+  // 캠프 선택을 쓰지 않는 것들 — 장비 · 좌판
+  const extra = el("div", "cp-extra");
+  const gearB = el("button", "cp-gear");
+  gearB.appendChild(el("i", "cp-gicon", "⚙"));
+  const gtx = el("span", "cp-xtx");
+  gtx.appendChild(el("b", null, "장비"));
+  const gsub = el("span");
+  gtx.appendChild(gsub);
+  gearB.appendChild(gtx);
+  gearB.appendChild(el("em", "cp-free", "선택을 쓰지 않습니다"));
+  gearB.onclick = openGear;
+  extra.appendChild(gearB);
+
+  if (withShop) {
+    const sb = el("button", "cp-shop");
+    const gbox = el("span", "cp-goldy");
+    gbox.appendChild(el("span", "cp-gemblem", "✦"));
+    sb.appendChild(gbox);
+    const tx = el("span", "cp-xtx");
+    tx.appendChild(el("b", null, "골디의 좌판 들르기"));
+    tx.appendChild(el("span", null, "「어서 오세요, 고객님!」 — 들러도 캠프 선택은 그대로 남습니다"));
+    sb.appendChild(tx);
+    sb.appendChild(el("em", "cp-free", `✦ ${run.gold}`));
+    sb.onclick = () => { closeSheet(); onShop(); };
+    extra.appendChild(sb);
+    // 화면에 붙은 뒤에 그린다(크기를 재야 한다). 런타임 · 자료가 없으면 금화 표식이 선다
+    spineView(gbox, "standing", "goldy", { anim: "Idle_1" }).then((v) => { if (v) gbox.classList.add("live"); });
+  }
+  side.appendChild(extra);
+  main.appendChild(side);
+
+  function choiceBtn(cls, label, sub) {
+    const b = el("button", "cp-choice " + cls);
+    b.appendChild(el("i", "cp-cicon"));
+    const body = el("span", "cp-cbody");
+    body.appendChild(el("b", null, label));
+    const subEl = el("span", "cp-csub", sub);
+    body.appendChild(subEl);
+    b.appendChild(body);
+    const stamp = el("span", "cp-stamp");
+    b.appendChild(stamp);
+    return { b, body, sub: subEl, stamp };
   }
 
-  function sec(label, why) {
-    const d = el("div", "rsec");
-    d.appendChild(el("b", null, label));
-    if (why) d.appendChild(el("span", "why", why));
-    return d;
+  function say(t) {
+    line.textContent = t || "";
+    line.classList.remove("pop"); void line.offsetWidth; line.classList.add("pop");
   }
+
+  // 숫자 · 상태만 고친다 — 사도 그림(스파인)은 다시 세우지 않는다
+  function refresh() {
+    let total = 0;
+    for (const m of members) {
+      const hp = run.hp[m.k] || 0, max = run.maxHp[m.k] || 1;
+      const down = hp <= 0, gain = heal(m.k);
+      total += gain;
+      m.n.classList.toggle("down", down);
+      m.fill.style.width = `${(hp / max) * 100}%`;
+      m.add.style.left = `${(hp / max) * 100}%`;
+      m.add.style.width = `${(gain / max) * 100}%`;
+      m.num.textContent = down ? "주말농장에서 쉬는 중" : `${hp} / ${max}${gain ? `  +${gain}` : ""}`;
+    }
+    headB.textContent = st.used ? (st.used === "rest" ? "푹 쉬었습니다" : "수련을 마쳤습니다") : "캠프에서 하나만 고릅니다";
+    headS.textContent = st.used ? "이번 캠프에서는 이미 골랐습니다 — 장비는 아직 바꿀 수 있습니다" : "쉬기와 수련 중 하나 · 장비와 좌판은 선택을 쓰지 않습니다";
+
+    const done = (x, on) => {
+      x.b.disabled = !!st.used;
+      x.b.classList.toggle("on", on);
+      x.b.classList.toggle("off", !!st.used && !on);
+      x.stamp.textContent = on ? "골랐습니다" : st.used ? "이번 캠프에서는 이미 골랐습니다" : "";
+    };
+    done(rest, st.used === "rest");
+    restGain.textContent = st.used ? "" : total ? `파티 합계 +${total} HP` : "지금은 찰 HP가 없습니다";
+    done(train, st.used === "train");
+    if (!offer && !st.used) { train.b.disabled = true; train.b.classList.add("off"); }
+    if (st.used === "train" && offer && run.flash[offer.cardId]) {
+      const f = (CARDS[offer.cardId].flash || [])[run.flash[offer.cardId] - 1];
+      train.sub.textContent = `「${CARDS[offer.cardId].name}」에 신탁 ${"①②③④⑤"[run.flash[offer.cardId] - 1]}${f ? ` ${f.ko}` : ""}을 붙였습니다`;
+    }
+    gsub.textContent = run.bag.length ? `가방에 ${run.bag.length}점 · 바꿔 끼기는 캠프에서만` : "낀 장비 보기 · 바꿔 끼기는 캠프에서만";
+    gearB.classList.toggle("new", run.bag.length > 0);
+    goldN.textContent = String(run.gold);
+  }
+
+  // ④ 위에 뜨는 창 — 신탁 고르기 · 장비. 바깥 · Esc · 닫기로 닫는다
+  let sheet = null;
+  const esc = (e) => { if (e.key === "Escape") closeSheet(); };
+  function closeSheet() {
+    if (!sheet) return;
+    sheet.remove(); sheet = null;
+    if (typeof removeEventListener === "function") removeEventListener("keydown", esc);
+  }
+  function openSheet(cls, label, why, body) {
+    closeSheet();
+    sheet = el("div", "cp-modal " + cls);
+    sheet.onpointerdown = (e) => { if (e.target === sheet) closeSheet(); };
+    const box = el("div", "cp-sheet");
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-label", label);
+    const hd = el("div", "cp-sheethead");
+    const tx = el("div");
+    tx.appendChild(el("b", null, label));
+    tx.appendChild(el("span", null, why));
+    hd.appendChild(tx);
+    const x = el("button", "cp-close", "닫기");
+    x.onclick = closeSheet;
+    hd.appendChild(x);
+    box.appendChild(hd);
+    body.classList.add("cp-sheetbody");
+    box.appendChild(body);
+    sheet.appendChild(box);
+    s.appendChild(sheet);
+    if (typeof addEventListener === "function") addEventListener("keydown", esc);
+  }
+
+  function openTrain() {
+    const c = CARDS[offer.cardId];
+    const fr = el("div", "cp-flash");
+    fr.appendChild(flashTarget(c, offer.cardId));   // 어느 카드에 붙는지 — 이름만이 아니라 그림으로
+    for (const n of offer.picks) {
+      const f = (c.flash || [])[n - 1];
+      if (!f) continue;
+      const b = el("button", "fcard f" + n);
+      const hd = el("div", "fhead2");
+      hd.appendChild(el("span", "fnum", "①②③④⑤"[n - 1]));
+      hd.appendChild(el("b", null, f.kind));
+      hd.appendChild(el("span", "fko", f.ko));
+      b.appendChild(hd);
+      b.appendChild(withKeywords(el("p", "ftext2"), shortText(f.text), c.hero));
+      b.appendChild(el("p", "fbefore", `지금: ${shortText(c.text)}`));
+      b.onclick = () => {
+        const why = R.campTrain(run, { cardId: offer.cardId, n });
+        closeSheet();
+        if (why) return say(why);
+        say(`「${c.name}」에 신탁을 붙였습니다. 불빛 아래에서 손에 익혔습니다.`);
+        refresh();
+      };
+      fr.appendChild(b);
+    }
+    openSheet("cp-trainmodal", `수련 — 「${c.name}」에 붙일 신탁`, "다섯 중 셋 · 하나를 고르면 이번 캠프의 선택을 씁니다", fr);
+  }
+
+  function openGear() {
+    const wrap = el("div", "cp-gearbody");
+    wrap.appendChild(gearPanel(run, "camp", refresh, say));
+    openSheet("cp-gearmodal", "장비", "바꿔 끼기는 캠프에서만 · 캠프 선택을 쓰지 않습니다", wrap);
+  }
+
+  say(st.used ? "불이 잦아듭니다. 떠날 채비를 합니다." : withShop ? "보스가 코앞입니다. 불을 쬐며 채비를 합니다 — 골디가 옆에 좌판을 폈습니다." : "모닥불이 탁탁 튑니다. 쉬어 갈까요, 손을 익힐까요?");
+  refresh();
   return s;
 }
 
@@ -2969,7 +3162,8 @@ export function shopScreen(run, onDone, opts = {}) {
   }
   const gold = el("div", "sh-gold");
   top.appendChild(gold);
-  const leave = el("button", "sh-leave", opts.back || "보스에게 갑니다");
+  top.appendChild(fsButton());
+  const leave = el("button", "sh-leave", opts.back || (bossNext(run) ? "보스에게 갑니다" : "길을 떠납니다"));
   let leaving = false;
   leave.onclick = () => {
     if (leaving) return;

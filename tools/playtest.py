@@ -31,7 +31,7 @@ SCREENS = [
     ("지도", ".mapscreen"),
     ("전투", ".battle"),
     ("이벤트", ".eventscreen"),
-    ("캠프", ".campscreen"),
+    ("캠프", ".campscreen2"),
     ("상점", ".shopscreen2"),
     ("보상", ".rewardscreen"),
     ("교체", ".swapscreen"),
@@ -296,7 +296,7 @@ def step_event(d, By, notes, step):
 
 
 def step_camp(d, By, notes):
-    rest = [b for b in d.find_elements(By.CSS_SELECTOR, ".cact") if b.is_enabled()]
+    rest = [b for b in d.find_elements(By.CSS_SELECTOR, ".cp-rest") if b.is_enabled()]
     if rest:
         notes["캠프에서 쉬었다"] += 1
         d.execute_script("arguments[0].click()", rest[0]); return

@@ -16,7 +16,7 @@
 //           능력치 증감: 주는 피해 ±N% · 받는 피해 ±N% · 공격력 +N% · 방어력 +N% · 치명 확률 +N%
 //           (이번 턴 · N턴간 · 이번 전투 동안 — 안 적으면 이번 턴, 「항상」 이면 내내)
 //
-//   **키워드 「X」** 설명. 최대 N. 턴 종료 시 N 감소. 적에게 거는 표식이다.
+//   **키워드 「X」** 설명. 최대 N. 적의 차례가 끝나면 N 감소. 적에게 거는 표식이다.
 //                     1개당 자신 주는 피해 +N%. 1개당 턴 종료 시 공격력 N% 피해. 「X」가 N개가 되면: …
 
 import { parseEffect } from "./effects.js";
@@ -128,14 +128,16 @@ export function parseKeyword(id, text, keywords = []) {
   else if (/아군에게\s*(?:거는|주는|나눠\s*주는|씌우는)/.test(text)) kw.carrier = "ally";
   const cap = text.match(/최대\s*(\d+)/);
   if (cap) kw.cap = Number(cap[1]);
-  if (/턴\s*종료\s*시\s*(?:전부|모두)\s*사라/.test(text)) kw.decay = "all";
-  else { const d = text.match(/턴\s*종료\s*시\s*(\d+)\s*(?:씩\s*)?(?:감소|줄어)/); if (d) kw.decay = Number(d[1]); }
+  // 줄어드는 때 — 「적의 차례가 끝나면 N 감소」(지금 글) · 「턴 종료 시 N 감소」(옛 글). 둘 다 적의 차례 뒤에 줄인다(decayKeywords)
+  const WHEN = String.raw`(?:턴\s*종료\s*시|적의\s*차례가\s*끝나면)\s*`;
+  if (new RegExp(WHEN + "(?:전부|모두)\\s*사라").test(text)) kw.decay = "all";
+  else { const d = text.match(new RegExp(WHEN + "(\\d+)\\s*(?:씩\\s*)?(?:감소|줄어)")); if (d) kw.decay = Number(d[1]); }
 
   // 첫 문장은 설명(사람이 읽는 말)이다. 그 뒤 문장은 모두 규칙이어야 한다 — 못 읽으면 left 에 남긴다.
   const sentences = text.split(/(?<=[.。])\s+/).map((x) => x.replace(/[.。]\s*$/, "").trim()).filter(Boolean);
   sentences.forEach((s, i) => {
     if (i === 0) return;
-    const meta = /최대\s*\d+|턴\s*종료\s*시\s*(?:\d+\s*(?:씩\s*)?(?:감소|줄어)|(?:전부|모두)\s*사라)|(?:적|아군)에게\s*(?:거는|붙는|쌓는|새기는|주는|나눠\s*주는|씌우는)/;
+    const meta = /최대\s*\d+|(?:턴\s*종료\s*시|적의\s*차례가\s*끝나면)\s*(?:\d+\s*(?:씩\s*)?(?:감소|줄어)|(?:전부|모두)\s*사라)|(?:적|아군)에게\s*(?:거는|붙는|쌓는|새기는|주는|나눠\s*주는|씌우는)/;
     const per = s.match(/1\s*개\s*당\s*(.+)/);
     if (per) {
       const body = per[1];
@@ -332,7 +334,7 @@ export function tickTurnEnd(s, hurt, say) {
   }
 }
 
-// 키워드 겹 줄이기(「턴 종료 시 N 감소」) — 버프 시간처럼 **다음 내 턴이 시작될 때** 부른다.
+// 키워드 겹 줄이기(「적의 차례가 끝나면 N 감소」) — 버프 시간처럼 **다음 내 턴이 시작될 때** 부른다.
 // 전에는 내 턴 끝(적의 차례 앞)에 줄여서, 「받는 피해 -8%」 같은 막는 표식이 적이 치기 전에 한 겹씩 빠졌다 —
 // 한 겹짜리는 한 번도 막지 못했다(우이(기억)의 세잎클로버). 공격 쪽 표식은 내 턴에만 쓰이니 달라지지 않는다
 export function decayKeywords(s) {
