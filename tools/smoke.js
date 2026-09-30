@@ -173,8 +173,9 @@ check(count(p, "gsig") === 0 && count(p, "ksig") === 0, "카드에 시그니처 
   const drawn = ids.filter((id) => (CA2[id] || "").includes("/cardart/")).length;
   check(count(p, "full") === drawn, `그린 것만 카드를 꽉 채운다 (${count(p, "full")}/${drawn})`);
 }
-check(count(p, "gpic") + count(p, "gglyph") === 8,
-  `여덟 장이 저마다 그림이나 무늬를 갖는다 (그림 ${count(p, "gpic")} · 무늬 ${count(p, "gglyph")})`);
+// 그림이 없는 시작 카드는 다른 사도처럼 그 사도의 SD 초상(heroart)을 세운다
+check(count(p, "gpic") + count(p, "gglyph") + count(p, "heroart") === 8,
+  `여덟 장이 저마다 그림 · 무늬 · 사도 초상을 갖는다 (그림 ${count(p, "gpic")} · 무늬 ${count(p, "gglyph")} · 초상 ${count(p, "heroart")})`);
 
 clickAll(p, (n) => n.classList.contains("sidebtn")).find((b) => b.textContent === "신탁").onclick();
 check(count(p, "flashbox") === 4, `신탁 갈피에 고유 넉 장 (${count(p, "flashbox")})`);

@@ -12,7 +12,7 @@ import { setResolution } from "./stage.js";
 import { setRenderScale } from "./spine-view.js";
 
 const KEY = "boldersl.settings";
-const DEF = { spine: true, calm: false, big: false, res: "auto", quality: "high", volMaster: 80, volVoice: 100 };
+const DEF = { spine: true, calm: false, big: false, res: "auto", quality: "high", volMaster: 20, volVoice: 10, sv: 2 };
 export const RES_CHOICES = ["auto", "1280x720", "1600x900", "1920x1080", "2560x1440"];
 export const QUALITY = { high: 1, mid: 0.75, low: 0.5 };
 let mem = null;
@@ -20,10 +20,18 @@ const subs = new Set();
 
 export function getSettings() {
   if (mem) return { ...mem };
-  try { mem = { ...DEF, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; }
-  catch { mem = { ...DEF }; }
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch { saved = {}; }
+  mem = { ...DEF, ...saved };
   // 옛 설정 — 「사도 목소리」 켜고 끄기였다. 끈 사람은 목소리 음량 0 으로
   if (mem.voice === false) { mem.volVoice = 0; delete mem.voice; }
+  // 음량 기본값을 낮췄다(전체 20 · 목소리 10) — 그 전에 저장된 설정(80 · 100)도 한 번 새 기본으로.
+  // 판 번호는 저장된 쪽(saved)에서 본다 — 합친 쪽(mem)은 기본값의 sv 가 끼어 늘 새 판으로 보인다
+  if ((saved.sv || 1) < 2 && (saved.volMaster != null || saved.volVoice != null)) {
+    const muted = saved.voice === false || saved.volVoice === 0;
+    mem.volMaster = DEF.volMaster; mem.volVoice = muted ? 0 : DEF.volVoice;
+  }
+  mem.sv = 2;
   return { ...mem };
 }
 
