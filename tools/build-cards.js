@@ -10,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import D from "../js/data/design.js";
 import { parseEffect } from "../js/effects.js";
+import { parsePassive } from "../js/passive.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -102,13 +103,33 @@ for (const c of Object.values(D.neutral || {})) {
   };
 }
 
+// ── 장비 — 스탯 줄은 늘 돈다. 효과 줄은 **다 읽힐 때만** 켠다(effectOn) ─────────────
+// 지금 게임이 켜는 것은 스탯 줄과 애착 Lv.3 스탯뿐이다. 효과·애착 카드 강화는 규칙이 붙는 대로 켠다.
+const equip = {};
+let nEquip = 0, nEffRead = 0;
+const heroByKo = Object.fromEntries(Object.entries(heroes).map(([k, h]) => [h.ko, k]));
+for (const e of Object.values(D.equip || {})) {
+  const id = "장비_" + e.ko.replace(/\s+/g, "").replace(/[\[\]()]/g, "");
+  let effectRead = false;
+  if (e.effect) {
+    const rs = parsePassive("효과: " + e.effect.replace(/\s*\[[^\]]+\]/g, ""));
+    effectRead = rs.length > 0 && rs.every((r) => r.fx.length && !(r.left || "").replace(/이 사도가?|궁극기|^사$|[\s.,·()%+\-]/g, ""));
+  }
+  nEquip++; if (effectRead) nEffRead++;
+  equip[id] = {
+    id, ko: e.ko, grade: e.grade, global: e.global, slot: e.slot, blurb: e.blurb,
+    affinity: e.affinity ? heroByKo[e.affinity] || null : null, affinityKo: e.affinity,
+    stats: e.stats, effect: e.effect, effectRead, affinityText: e.affinityText, affinityLv3: e.affinityLv3,
+  };
+}
+
 const out = {
   _meta: {
     source: "기획서(js/data/design.js) 에서 만든 것. 손으로 고치지 말 것 — 기획서를 고치고 다시 돌린다.",
     built: new Date().toISOString().slice(0, 10),
     note: "unparsed 가 있는 카드는 그만큼 효과가 덜 돈다. tools/check-effects.js 가 몇 %인지 센다.",
   },
-  heroes, cards, starter, neutral,
+  heroes, cards, starter, neutral, equip,
 };
 
 const dst = path.join(HERE, "..", "js", "data", "built.js");
@@ -123,4 +144,5 @@ const withFx = Object.values(cards).filter((c) => c.fx.length).length;
 console.log(`사도 ${nH}명 · 카드 ${nCard}장 → js/data/built.js (${(fs.statSync(dst).size / 1024).toFixed(0)}KB)`);
 console.log(`  효과가 붙은 카드 ${withFx}/${nCard} (${((withFx / nCard) * 100).toFixed(1)}%)`);
 console.log(`  글자를 다 못 읽은 곳 ${nUnparsed}`);
+console.log(`  장비 ${nEquip}종 — 스탯 줄 전부 · 효과 줄이 다 읽히는 것 ${nEffRead}종(아직 안 켬)`);
 console.log(`  중립 카드 ${nNeutral}장 중 효과가 다 도는 것 ${nPlayable}장 — 상점은 이것만 판다`);

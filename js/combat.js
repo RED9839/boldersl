@@ -10,7 +10,6 @@ import { ENEMIES } from "./data/enemies.js";
 import REL from "./data/relations.js";
 import DESIGN from "./data/design.js";
 import { traitSum } from "./data/traits.js";
-import { relicSum, RELICS } from "./data/relics.js";
 import * as R from "./rules.js";
 import TALK from "./data/talk.js";
 import { 이가, 을를 } from "./ko.js";
@@ -67,20 +66,22 @@ const st = (u, id) => u.status[id] || 0;
 const addSt = (u, id, v) => { u.status[id] = Math.max(0, st(u, id) + v); if (!u.status[id]) delete u.status[id]; };
 
 // ── 전투 시작 ──────────────────────────────────────────────────────────
-export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noBonds, noNature, traits, relics, flash, enemyHp }) {
+export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noBonds, noNature, traits, gear, flash, enemyHp }) {
   const rng = makeRng(seed);
   const party = partyKeys.map((key, i) => {
     // 스탯은 기획서가 원본이다. 기획서에 없는 사도만 옛 heroes.js 를 본다.
     const d = HERO_DATA[key] || null;
     const base = d || HEROES[key] || {};
     const baseHp = d ? d.hp : (HEROES[key] || {}).hp || 50;
+    // 장비 스탯 줄 — 공격·방어·치명은 여기서 더한다(HP 는 한 판의 최대 HP 에 이미 들어 있다)
+    const g = (gear && gear[key]) || { atk: 0, def: 0, crit: 0 };
     return {
       key, side: "party",
       ko: base.ko || key,
       tint: (HEROES[key] || {}).tint || "#8a8a9a",
       maxHp: (maxHp && maxHp[key]) || baseHp,
       hp: hp && hp[key] != null ? hp[key] : (maxHp && maxHp[key]) || baseHp,
-      atk: d ? d.atk : 10, def: d ? d.def : 3, crit: d ? d.crit : 5,
+      atk: (d ? d.atk : 10) + (g.atk || 0), def: (d ? d.def : 3) + (g.def || 0), crit: (d ? d.crit : 5) + (g.crit || 0),
       row: (rows && rows[key]) || base.row || "mid",
       block: 0, shield: 0, status: {}, idx: i, dead: false,
     };
@@ -118,11 +119,6 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
   // 기본 스탯이 위치에서 나오기 때문이다(전열 탱커 HP 90 · 후열 딜러 HP 55).
 
   s.noNature = !!noNature;   // 상성을 끄고 재려면 필요하다
-  // 유물 — 원작의 아티팩트를 옮긴 것. 사도당 최대 3개, 한 전투 동안 적용, 중첩된다.
-  s.relics = (relics || []).slice();
-  s.discount = {};
-  for (const u of s.party) s.discount[u.key] = rel(s, "discount", u.key);
-  for (const x of s.relics) say(s, `유물 — ${x.hero ? HERO(x.hero).ko + "의 " : ""}${RELIC_KO(x.id)}`);
 
   // 각별한 짝은 첫 턴에 SP 를 하나 얹어 준다
   s.startSp = s.noBonds ? 0 : Math.min(MAX_START_SP, s.bonds.reduce((a, b) => a + b.tier.sp, 0));
@@ -167,9 +163,6 @@ function emit(s, ev, info) {
 
 // 번뜩임 값 — 없으면 0
 const tr = (s, at) => traitSum(s.traits, at);
-// 유물 값 — hero 를 주면 그 사도에게 붙은 것까지 센다
-const rel = (s, at, hero) => relicSum(s.relics || [], at, hero);
-const RELIC_KO = (id) => (RELICS[id] ? RELICS[id].ko : id);
 
 function shuffle(rng, a) {
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
@@ -197,7 +190,7 @@ export const alive = (arr) => arr.filter((u) => !u.dead);
 function beginTurn(s) {
   s.turn++;
   // AP 는 **이월되지 않는다**(기획서). 매 턴 새로 받는다.
-  const gain = Math.max(0, s.apPerTurn + rel(s, "spturn") - s.apJam)
+  const gain = Math.max(0, s.apPerTurn - s.apJam)
     + (s.turn === 1 ? s.startSp : 0);
   if (s.apJam) say(s, `방해로 AP -${s.apJam}`);
   s.apJam = 0;
@@ -216,7 +209,7 @@ function beginTurn(s) {
   for (const e of alive(s.enemies)) rollIntent(s, e);
 
   // 번뜩임 '성급한 손' — SP 를 더 받는 대신 손패가 한 장 적다
-  draw(s, 5 + (s.turn === 1 ? (s.opening || 0) + rel(s, "openhand") : 0) - tr(s, "handdown"));
+  draw(s, 5 + (s.turn === 1 ? (s.opening || 0) : 0) - tr(s, "handdown"));
   emit(s, "turnStart", {});
   checkOver(s);
 }
@@ -521,9 +514,7 @@ export function useUlt(s, heroKey, targetIdx = 0) {
 
 export function costOf(s, cardId) {
   const c = cardOf(s, cardId);
-  // 유물이 그 사도의 카드값을 깎아 준다 (사도당 최대 3개 — 원작과 같다)
-  const off = c.hero ? (s.discount[c.hero] || 0) : 0;
-  return Math.max(0, c.cost - s.nextCheaper - off);
+  return Math.max(0, c.cost - s.nextCheaper);
 }
 
 // 낼 수 있는가 — 낼 수 없으면 왜인지 돌려준다(화면이 그대로 보여 준다)
@@ -610,11 +601,7 @@ export function playCard(s, handIdx, targetIdx) {
   s.acting = null;
   if (c.ego && c.hero) speak(s, c.hero, "ego");
   if (c.hero === "ner") s.nerWorked = true;
-  if (c.hero) {
-    const onPlay = rel(s, "spOnPlay", c.hero);
-    if (onPlay) { s.ap += onPlay; say(s, `${HERO(c.hero).ko}의 예식용 깃발 — AP +${onPlay}`); }
-    s.lastHero = c.hero;
-  }
+  if (c.hero) s.lastHero = c.hero;
   checkOver(s);
   return { ok: true, combo };
 }
@@ -674,11 +661,8 @@ const boost = (v, combo, owner, s) => {
   let out = v;
   if (combo) out = out * combo.tier.mult + combo.tier.flat;
   if (owner) out = dealt(owner, out);
-  // 사도별 보정 (강화 평타 · 옛 유물)
-  if (owner) {
-    if (owner.key === "erpin" && s.erpinChain > 0) out += 4;     // 강화 평타
-    out += rel(s, "heroDmg", owner.key);                         // 유물 '숫돌'
-  }
+  // 사도별 보정 (강화 평타)
+  if (owner && owner.key === "erpin" && s.erpinChain > 0) out += 4;
   if (owner) {
     if (owner.row === "back") out += s.rearBuff;                 // 에르핀 '뒷줄에 호령'
   }
@@ -702,7 +686,7 @@ function applyFx(s, c, f, ctx) {
   switch (f.k) {
     case "damage": { const t = one(); if (t) hurt(s, t, boost(f.v, combo, owner, s), { from: owner }); break; }
     case "aoe": { const d = boost(f.v, combo, owner, s); for (const t of reachable.slice()) hurt(s, t, d, { from: owner }); break; }
-    case "block": if (owner) owner.block += Math.round(f.v * (combo ? combo.tier.mult : 1)) + tr(s, "block") + rel(s, "heroBlock", owner.key); break;
+    case "block": if (owner) owner.block += Math.round(f.v * (combo ? combo.tier.mult : 1)) + tr(s, "block"); break;
     case "blockAlly": { const t = ally(); if (t) { t.block += f.v; speak(s, t.key, "heal"); } break; }
     case "blockAll": for (const u of alive(s.party)) u.block += f.v; break;
     case "heal": if (owner) owner.hp = Math.min(owner.maxHp, owner.hp + f.v); break;

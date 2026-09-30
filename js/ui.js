@@ -3,7 +3,7 @@ import { HEROES, ROSTER } from "./data/heroes.js";
 import { CARDS } from "./cardbook.js";
 import { TRAITS } from "./data/traits.js";
 import { ENEMIES, FLOORS } from "./data/enemies.js";
-import { HERO_DATA, kitOf } from "./cardbook.js";
+import { HERO_DATA, kitOf, EQUIP } from "./cardbook.js";
 import CARDART from "./data/cardart.js";
 import { shortText, splitKeywords, cardParts } from "./card-text.js";
 
@@ -904,7 +904,7 @@ export function fightScreen(run, onDone) {
   const floor = R.currentFloor(run);
   const st = C.newCombat({
     partyKeys: run.party, rows: run.rows, deck: run.deck.slice(),
-    enemyIds, hp: run.hp, maxHp: run.maxHp, traits: run.traits, relics: run.relics, flash: run.flash,
+    enemyIds, hp: run.hp, maxHp: run.maxHp, traits: run.traits, gear: R.gearStats(run), flash: run.flash,
     seed: (run.seed + run.floor * 101 + run.node * 7) >>> 0,
   });
 
@@ -1397,8 +1397,27 @@ export function rewardScreen(run, onPick) {
   const body = el("div", "rbody");
   s.appendChild(body);
 
-  // ① 고유 카드
   const got = run.reward || R.rollReward(run);
+  // ⓪ 장비 — 보스만. 셋 중 하나를 가방에 넣고, 빈 칸이면 바로 낀다
+  if (got.equip && got.equip.length) {
+    const eqBox = el("div");
+    body.appendChild(eqBox);
+    const drawEq = () => {
+      eqBox.innerHTML = "";
+      eqBox.appendChild(sec("장비", got.equipTaken ? "가방에 넣었습니다" : "보스가 남긴 장비 — 셋 중 하나"));
+      if (!got.equipTaken) {
+        const row = el("div", "rrow");
+        for (const id of got.equip) {
+          const b = el("button", "sprice", "이걸 가진다");
+          b.onclick = () => { R.takeEquip(run, id); drawEq(); };
+          row.appendChild(equipCard(id, b));
+        }
+        eqBox.appendChild(row);
+      } else eqBox.appendChild(gearPanel(run, "empty", null, hint));
+    };
+    drawEq();
+  }
+  // ① 고유 카드
   const cards = got.cards;
   body.appendChild(sec("고유 카드", cards.length ? "덱에 한 장 넣습니다" : "더 얻을 고유 카드가 없습니다"));
   const row = el("div", "rrow");
@@ -1457,6 +1476,95 @@ export function rewardScreen(run, onPick) {
     return d;
   }
   return s;
+}
+
+// ── 장비 ────────────────────────────────────────────────────────────────
+// 칸은 사도당 무기·방어구·장신구. 기획서: 얻는 곳은 보상·상점·이벤트, **바꿔 끼기는 휴식 노드(캠프)에서.**
+//   mode "empty" — 보상·상점: 가방의 장비를 **빈 칸에만** 끼운다
+//   mode "camp"  — 캠프: 바꿔 끼고 뺄 수 있다
+// 지금 도는 것은 스탯 줄과 애착 Lv.3 스탯뿐이다. 효과 줄은 글만 보여 주고 「아직 안 돈다」고 적는다.
+const STAT_KO = { hp: "HP", atk: "공격", def: "방어", crit: "치명" };
+const statText = (st) => Object.entries(st || {}).filter(([, v]) => v).map(([k, v]) => `${STAT_KO[k]} +${v}${k === "crit" ? "%" : ""}`).join(" · ");
+
+function equipCard(id, extra) {
+  const e = EQUIP[id];
+  const n = el("div", "ecard g-" + e.grade);
+  const head = el("div", "ehead");
+  head.appendChild(el("span", "eslot", e.slot));
+  head.appendChild(el("b", null, e.ko));
+  head.appendChild(el("span", "egrade", e.global ? "전설(글로벌)" : e.grade));
+  n.appendChild(head);
+  n.appendChild(el("p", "eqstat", statText(e.stats) || "스탯 없음"));
+  if (e.affinityKo) n.appendChild(el("p", "eaff", `애착: ${e.affinityKo}${e.affinityLv3 ? ` — 끼면 ${statText(e.affinityLv3)} 더` : ""}`));
+  if (e.effect) {
+    const p = el("p", "eeff");
+    p.appendChild(el("span", "eoff", "효과 · 아직 안 돈다"));
+    p.appendChild(document.createTextNode(" " + shortText(e.effect.replace(/\s*\[[^\]]+\]/g, ""))));
+    n.appendChild(p);
+  }
+  if (e.blurb) n.appendChild(el("p", "eblurb", e.blurb));
+  if (extra) n.appendChild(extra);
+  return n;
+}
+
+function gearPanel(run, mode, onChange, say) {
+  const box = el("div", "gearpanel");
+  const draw = () => {
+    box.innerHTML = "";
+    // 사도마다 세 칸
+    const rows = el("div", "grows");
+    for (const k of run.party) {
+      const h = HERO_DATA[k] || HERO(k);
+      const g = R.gearOf(run, k);
+      const r = el("div", "grow");
+      const who = el("div", "gwho");
+      who.appendChild(art.portrait(k, { ko: h.ko, tint: TINT(k), size: 28, slot: "battle", still: true }));
+      who.appendChild(el("b", null, h.ko));
+      r.appendChild(who);
+      const slots = el("div", "gslots");
+      for (const sl of RULES.SLOTS) {
+        const id = g[sl];
+        const c = el("div", "gslot" + (id ? " full" : ""));
+        c.appendChild(el("span", "gsl", sl));
+        if (id) {
+          const e = EQUIP[id];
+          c.appendChild(el("b", null, e.ko));
+          const st = statText(R.statsOf(id, k));
+          c.appendChild(el("span", "gst", st + (e.affinity === k ? " · 애착" : "")));
+          if (mode === "camp") {
+            const x = el("button", "gout", "빼기");
+            x.onclick = () => { const why = R.unequip(run, k, sl); if (why && say) say(why); draw(); onChange && onChange(); };
+            c.appendChild(x);
+          }
+        } else c.appendChild(el("span", "gempty", "비어 있음"));
+        slots.appendChild(c);
+      }
+      r.appendChild(slots);
+      rows.appendChild(r);
+    }
+    box.appendChild(rows);
+    // 가방
+    if (run.bag.length) {
+      box.appendChild(el("p", "gbagh", mode === "camp" ? "가방 — 누구에게 낄지 고릅니다(차 있으면 바꿔 낍니다)" : "가방 — 빈 칸이 있는 사도에게 바로 낄 수 있습니다. 바꿔 끼기는 캠프에서"));
+      const bag = el("div", "rrow gbag");
+      for (const id of run.bag.slice()) {
+        const e = EQUIP[id];
+        const btns = el("div", "gto");
+        for (const k of run.party) {
+          const h = HERO_DATA[k] || HERO(k);
+          const full = !!R.gearOf(run, k)[e.slot];
+          const b = el("button", "gtobtn" + (e.affinity === k ? " aff" : ""), `${h.ko}${full ? " (바꾸기)" : ""}${e.affinity === k ? " ♥" : ""}`);
+          b.disabled = mode !== "camp" && full;
+          b.onclick = () => { const why = R.equip(run, k, id, { swap: mode === "camp" }); if (why && say) say(why); draw(); onChange && onChange(); };
+          btns.appendChild(b);
+        }
+        bag.appendChild(equipCard(id, btns));
+      }
+      box.appendChild(bag);
+    } else box.appendChild(el("p", "rnone", "가방이 비었습니다."));
+  };
+  draw();
+  return box;
 }
 
 // ── 캠프 ────────────────────────────────────────────────────────────────
@@ -1545,6 +1653,9 @@ export function campScreen(run, withShop, onDone, onShop) {
       }
       body.appendChild(fr);
     }
+
+    body.appendChild(sec("장비", "바꿔 끼기는 캠프에서만 — 캠프 선택을 쓰지 않습니다"));
+    body.appendChild(gearPanel(run, "camp", draw, hint));
 
     if (withShop) {
       body.appendChild(sec("골디의 좌판", "들러도 캠프 선택은 그대로 남습니다"));
@@ -1652,6 +1763,27 @@ export function shopScreen(run, onDone, opts = {}) {
     for (const [it, i] of unique) urow.appendChild(item(it, i));
     if (!unique.length) urow.appendChild(el("p", "rnone", "이 파티의 고유 카드는 이미 다 가졌습니다."));
     body.appendChild(urow);
+
+    const eq = shop.items.map((it, i) => [it, i]).filter(([it]) => it.kind === "equip");
+    if (eq.length) {
+      body.appendChild(sec("장비", "사면 가방에 들어갑니다 · 빈 칸이면 바로 낄 수 있습니다"));
+      const erow = el("div", "rrow");
+      for (const [it, i] of eq) {
+        const b = el("button", "sprice", it.sold ? "팔렸습니다" : `✦ ${it.price} 골드`);
+        b.disabled = !!it.sold;
+        if (!it.sold && run.gold < it.price) b.classList.add("short");
+        b.onclick = () => {
+          const why = R.buy(run, i);
+          if (why) return say(why === "골드가 모자랍니다" ? GOLDY.poor : why);
+          say("장인의 손길이 닿은 정품이에요! …와작."); draw();
+        };
+        const c = equipCard(it.id, b);
+        if (it.sold) c.classList.add("sold");
+        erow.appendChild(c);
+      }
+      body.appendChild(erow);
+      if (run.bag.length) body.appendChild(gearPanel(run, "empty", draw, say));
+    }
 
     const price = R.removePrice(run);
     body.appendChild(sec("카드 제거", shop.removeUsed ? "이번에는 이미 한 장 뺐습니다" : `덱에서 한 장을 뺍니다 · ${price} 골드 · 쓸 때마다 값이 오릅니다`));

@@ -55,6 +55,9 @@ for (const [id, c] of Object.entries(BUILT.neutral || {})) {
 }
 export const NEUTRAL_IDS = Object.keys(BUILT.neutral || {});
 
+// 장비 — 사도당 무기·방어구·장신구 한 칸씩. 지금은 스탯 줄과 애착 Lv.3 스탯만 돈다.
+export const EQUIP = BUILT.equip || {};
+
 // ③ 옛 카드 — 교주 공용과 임시 카드(갓 구운 빵)가 여기 있다.
 //    기획서에 없는 것만 가져온다. 이름이 겹치면 기획서가 이긴다.
 for (const [id, c] of Object.entries(OLD)) {

@@ -4,9 +4,8 @@ import { HERO_DATA } from "./cardbook.js";
 
 // 스탯은 기획서가 원본이다. 기획서에 없는 사도만 옛 heroes.js 를 본다.
 const base = (k) => HERO_DATA[k] || HEROES[k] || { hp: 50, row: "mid" };
-import { offerRelics, countOn } from "./data/relics.js";
 import { CARDS as OLD_CARDS, EXTRA } from "./data/cards.js";
-import { CARDS, NEUTRAL_IDS } from "./cardbook.js";
+import { CARDS, NEUTRAL_IDS, EQUIP } from "./cardbook.js";
 import { FLOORS } from "./data/enemies.js";
 import * as R from "./rules.js";
 import { buildDeck, makeRng, partyBonds } from "./combat.js";
@@ -20,7 +19,8 @@ export function newRun(partyKeys, rows, seed = Date.now()) {
     traits: [],                   // 옛 번뜩임 체계 — 지금은 안 쓴다(tools/sim.js 가 아직 잰다)
     flash: {},                    // 카드 id → 번뜩임 번호(1~5). 카드마다 하나만.
     reward: null,                 // 이번 보상에서 굴린 것 — 다시 그려도 안 바뀐다
-    relics: [],                   // 얻은 유물 [{id, hero|null}] — 사도당 3개까지
+    bag: [],                      // 얻었지만 안 낀 장비 id
+    gear: {},                     // { 사도키: { 무기: id, 방어구: id, 장신구: id } }
     gold: R.GOLD_START,
     shop: null,                   // 이번 상점에서 굴린 진열 — 다시 그려도 안 바뀐다
     shopSeen: {},                 // 층마다 한 번 — { 0: true }
@@ -78,7 +78,10 @@ export function uniqueIdsOf(heroKey) {
 export function rollReward(run) {
   const [lo, hi] = R.GOLD_FIGHT;
   const gold = isBoss(run) ? R.GOLD_BOSS : lo + Math.floor(run.rng() * (hi - lo + 1)) + run.floor * 5;
+  const lastBoss = isBoss(run) && run.floor >= FLOORS.length - 1;
   run.reward = {
+    equip: isBoss(run) && !lastBoss ? offerEquip(run, R.BOSS_EQUIP[run.floor] || R.BOSS_EQUIP[0], 3) : null,
+    equipTaken: null,
     gold, goldTaken: false,
     cards: rewardCards(run),
     flash: run.rng() < R.FLASH_CHANCE ? offerFlash(run) : null,
@@ -157,6 +160,7 @@ export function rollShop(run) {
     items: [
       ...neutral.map((id) => ({ id, kind: "neutral", price: CARDS[id].price, sold: false })),
       ...unique.map((id) => ({ id, kind: "unique", price: R.PRICE_UNIQUE + (CARDS[id].signature ? 35 : 0), sold: false })),
+      ...offerEquip(run, R.SHOP_EQUIP, 1).map((id) => ({ id, kind: "equip", price: R.EQUIP_PRICE[EQUIP[id].grade], sold: false })),
     ],
     removeUsed: false,
     gift: null,
@@ -182,7 +186,7 @@ export function buy(run, idx) {
   if (run.gold < it.price) return "골드가 모자랍니다";
   run.gold -= it.price;
   it.sold = true;
-  run.deck.push(it.id);
+  if (it.kind === "equip") run.bag.push(it.id); else run.deck.push(it.id);
   return null;
 }
 
@@ -225,13 +229,86 @@ export function takeFlash(run, pick) {
   return true;
 }
 
-// 유물 — 원작 아티팩트. 사도에게 붙는 것은 사도당 3개까지.
-export function offerRelic(run) { return offerRelics(run.rng, run.relics, run.party); }
-export function takeRelic(run, relicId, heroKey) {
-  if (!relicId) return false;
-  if (heroKey && countOn(run.relics, heroKey) >= 3) return false;
-  run.relics.push({ id: relicId, hero: heroKey || null });
-  return true;
+// ── 장비 ────────────────────────────────────────────────────────────────
+// 칸은 사도당 무기·방어구·장신구 하나씩. 스탯 줄은 사도 스탯에 그대로 더한다.
+// 애착 장비를 그 사도가 끼면 Lv.3 스탯이 더 붙는다(기획서: Lv.3 보너스는 작은 스탯 가산).
+// HP 는 한 판의 최대 HP 에 바로 넣고, 공격·방어·치명은 전투를 열 때 넣는다(gearStats).
+export function statsOf(equipId, heroKey) {
+  const e = EQUIP[equipId];
+  const out = { hp: 0, atk: 0, def: 0, crit: 0 };
+  if (!e) return out;
+  for (const k in out) out[k] += e.stats[k] || 0;
+  if (e.affinity && e.affinity === heroKey && e.affinityLv3) for (const k in out) out[k] += e.affinityLv3[k] || 0;
+  return out;
+}
+export function gearOf(run, heroKey) { return (run.gear && run.gear[heroKey]) || {}; }
+export function gearStats(run) {
+  const out = {};
+  for (const k of run.party) {
+    const t = { hp: 0, atk: 0, def: 0, crit: 0 };
+    for (const id of Object.values(gearOf(run, k))) { const s = statsOf(id, k); for (const x in t) t[x] += s[x]; }
+    out[k] = t;
+  }
+  return out;
+}
+const owned = (run) => new Set([...(run.bag || []), ...Object.values(run.gear || {}).flatMap((g) => Object.values(g))]);
+
+// 최대 HP 가 바뀌면 지금 HP 도 같이 — 늘면 그만큼 차고, 줄면 넘치는 만큼만 깎인다. 주말농장에 간 사도는 그대로 0
+function shiftHp(run, k, d) {
+  if (!d) return;
+  run.maxHp[k] = Math.max(1, (run.maxHp[k] || 1) + d);
+  if ((run.hp[k] || 0) > 0) run.hp[k] = Math.max(1, Math.min(run.maxHp[k], run.hp[k] + Math.max(0, d)));
+}
+
+// 낀다 — swap 이 아니면 빈 칸에만(바꿔 끼기는 캠프에서)
+export function equip(run, heroKey, equipId, { swap = false } = {}) {
+  const e = EQUIP[equipId];
+  if (!e) return "그런 장비가 없습니다";
+  if (!run.party.includes(heroKey)) return "파티에 없는 사도입니다";
+  const i = run.bag.indexOf(equipId);
+  if (i < 0) return "가방에 없는 장비입니다";
+  const g = (run.gear[heroKey] = run.gear[heroKey] || {});
+  const old = g[e.slot];
+  if (old && !swap) return `${e.slot} 칸이 차 있습니다 — 바꿔 끼기는 캠프에서`;
+  run.bag.splice(i, 1);
+  if (old) { shiftHp(run, heroKey, -statsOf(old, heroKey).hp); run.bag.push(old); }
+  g[e.slot] = equipId;
+  shiftHp(run, heroKey, statsOf(equipId, heroKey).hp);
+  return null;
+}
+
+// 뺀다 — 캠프에서만
+export function unequip(run, heroKey, slot) {
+  const g = gearOf(run, heroKey);
+  const id = g[slot];
+  if (!id) return "빈 칸입니다";
+  shiftHp(run, heroKey, -statsOf(id, heroKey).hp);
+  delete g[slot];
+  run.bag.push(id);
+  return null;
+}
+
+// 무작위로 n개 — 등급 가중치 { 희귀: 3, 전설: 1 }, 이미 가진 것은 빼고
+export function offerEquip(run, weights, n) {
+  const have = owned(run);
+  const pool = Object.keys(EQUIP).filter((id) => !have.has(id) && weights[EQUIP[id].grade]);
+  const out = [];
+  while (out.length < n && pool.length) {
+    const w = pool.map((id) => weights[EQUIP[id].grade]);
+    let r = run.rng() * w.reduce((a, b) => a + b, 0), i = 0;
+    while (r >= w[i]) r -= w[i++];
+    out.push(...pool.splice(i, 1));
+  }
+  return out;
+}
+
+// 보스 보상의 장비 — 셋 중 하나를 가방에 넣는다(보상 화면이 빈 칸에 바로 끼게 해 준다)
+export function takeEquip(run, equipId) {
+  const rw = run.reward;
+  if (!rw || !rw.equip || !rw.equip.includes(equipId) || rw.equipTaken) return "고를 수 없습니다";
+  run.bag.push(equipId);
+  rw.equipTaken = equipId;
+  return null;
 }
 
 // 다음 칸으로. 층을 넘으면 사도를 한 명 바꿀 수 있다.
@@ -251,6 +328,9 @@ export function advance(run) {
 export function swapHero(run, outKey, inKey) {
   if (!run.party.includes(outKey) || run.party.includes(inKey)) return false;
   run.party[run.party.indexOf(outKey)] = inKey;
+  // 나가는 사도의 장비는 가방으로 돌아온다
+  for (const id of Object.values(gearOf(run, outKey))) run.bag.push(id);
+  delete run.gear[outKey];
   run.bench = Object.keys(HERO_DATA).filter((k) => !run.party.includes(k));
   run.deck = run.deck.filter((id) => CARDS[id].hero !== outKey);
   run.deck.push(...buildDeck([inKey]).filter((id) => CARDS[id].hero === inKey));

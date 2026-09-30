@@ -449,6 +449,70 @@ console.log("\n캠프");
   check(/캠프로 돌아간다/.test(back.textContent), "캠프에서 연 상점은 캠프로 돌아간다");
 }
 
+console.log("\n장비");
+{
+  const { EQUIP } = await import("../js/cardbook.js");
+  const ids = Object.keys(EQUIP);
+  check(ids.length === 103, `기획서의 장비 103종을 읽는다 (${ids.length})`);
+  const slots = {}; for (const id of ids) slots[EQUIP[id].slot] = (slots[EQUIP[id].slot] || 0) + 1;
+  check(slots["무기"] === 35 && slots["방어구"] === 23 && slots["장신구"] === 45, `칸: 무기 ${slots["무기"]} · 방어구 ${slots["방어구"]} · 장신구 ${slots["장신구"]}`);
+  check(ids.every((id) => Object.values(EQUIP[id].stats).some(Boolean)), "모든 장비에 스탯 줄이 있다");
+  const r = R.newRun(run.party.slice(), { ...run.rows }, 31);
+  const k = r.party[0];
+  // HP 가 붙는 장비 하나
+  const hpItem = ids.find((id) => EQUIP[id].stats.hp > 0 && EQUIP[id].affinity !== k);
+  const e = EQUIP[hpItem];
+  r.bag.push(hpItem);
+  const mh = r.maxHp[k], h0 = r.hp[k];
+  check(R.equip(r, k, hpItem) === null && R.gearOf(r, k)[e.slot] === hpItem, `빈 칸에 낀다 (${e.ko} → ${e.slot})`);
+  check(r.maxHp[k] === mh + e.stats.hp && r.hp[k] === h0 + e.stats.hp, `HP 스탯은 최대 HP 에 바로 (+${e.stats.hp})`);
+  const same = ids.find((id) => id !== hpItem && EQUIP[id].slot === e.slot && EQUIP[id].affinity !== k);
+  r.bag.push(same);
+  check(/캠프에서/.test(R.equip(r, k, same) || ""), "차 있는 칸은 캠프에서만 바꾼다");
+  check(R.equip(r, k, same, { swap: true }) === null && r.bag.includes(hpItem), "캠프에서는 바꿔 끼고, 뺀 것은 가방으로");
+  check(r.maxHp[k] === mh + EQUIP[same].stats.hp, "바꾸면 최대 HP 도 따라 바뀐다");
+  // 전투에 스탯이 들어간다
+  const atkItem = ids.find((id) => EQUIP[id].stats.atk > 0 && EQUIP[id].slot !== e.slot && EQUIP[id].affinity !== k);
+  r.bag.push(atkItem); R.equip(r, k, atkItem);
+  const g = R.gearStats(r)[k];
+  const B = (await import("../js/data/built.js")).default;
+  const sG = C2.newCombat({ partyKeys: r.party, rows: r.rows, deck: [], enemyIds: ["fairymobcloserange"], seed: 2, hp: r.hp, maxHp: r.maxHp, gear: R.gearStats(r) });
+  check(sG.party[0].atk === B.heroes[k].atk + g.atk, `전투에서 공격이 오른다 (${B.heroes[k].atk} → ${sG.party[0].atk})`);
+  // 애착 — 그 사도가 끼면 Lv.3 스탯이 더
+  const aff = ids.find((id) => EQUIP[id].affinity && EQUIP[id].affinityLv3);
+  const ak = EQUIP[aff].affinity;
+  const plain = R.statsOf(aff, "아무개"), mine = R.statsOf(aff, ak);
+  check(Object.keys(plain).some((x) => mine[x] > plain[x]), `애착 사도가 끼면 Lv.3 스탯이 더 붙는다 (${EQUIP[aff].ko} · ${EQUIP[aff].affinityKo})`);
+  // 보스 보상 — 마지막 보스는 안 준다
+  r.node = 3; r.floor = 0; R.rollReward(r);
+  check(r.reward.equip && r.reward.equip.length === 3, "보스를 잡으면 장비 셋 중 하나");
+  const pick = r.reward.equip[0];
+  check(R.takeEquip(r, pick) === null && r.bag.includes(pick) && R.takeEquip(r, r.reward.equip[1]) !== null, "하나만 가방에 넣는다");
+  r.floor = 2; R.rollReward(r);
+  check(!r.reward.equip, "마지막 보스는 장비를 안 준다(판이 끝난다)");
+  // 보상 화면 · 캠프 화면 · 상점
+  r.floor = 0; r.node = 3; R.rollReward(r);
+  const rw = ui.rewardScreen(r, () => {});
+  check(count(rw, "ecard") === 3, "보상 화면에 장비 카드 셋");
+  R.enterCamp(r, "campshop");
+  const cs = ui.campScreen(r, true, () => {}, () => {});
+  check(count(cs, "grow") === 3 && count(cs, "gslot") === 9, "캠프에서 사도 셋 × 세 칸을 본다");
+  check(/아직 안 돈다/.test(cs.textContent) || !r.bag.length, "아직 안 도는 효과는 그렇다고 적는다");
+  r.gold = 5000; r.shop = null; r.shopSeen = {};
+  const sp = ui.shopScreen(r, () => {});
+  check(r.shop.items.some((it) => it.kind === "equip"), "골디의 상점에 장비 한 점");
+  const before = r.bag.length;
+  const eqBtn = clickAll(sp, (n) => n.classList.contains("sprice") && n.closest && n.closest(".ecard"));
+  const idx = r.shop.items.findIndex((it) => it.kind === "equip");
+  R.buy(r, idx);
+  check(r.bag.length === before + 1, "장비를 사면 가방에 들어간다");
+  // 사도가 나가면 장비는 가방으로
+  const outK = r.party[0], nGear = Object.keys(R.gearOf(r, outK)).length, bagN = r.bag.length;
+  const inK = r.bench[0];
+  R.swapHero(r, outK, inK);
+  check(r.bag.length === bagN + nGear && !r.gear[outK], `나가는 사도의 장비는 가방으로 (${nGear}개)`);
+}
+
 const e1 = ui.endScreen("lose", run, () => {});
 check(e1.textContent.includes("여기까지"), "진 화면이 그려진다");
 const e2 = ui.endScreen("clear", run, () => {});
