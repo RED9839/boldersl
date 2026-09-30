@@ -33,6 +33,10 @@ export const SHIN_CHANCE = 0.05;
 export const GOLD_START = 99;
 export const GOLD_FIGHT = [15, 25];      // 보통 싸움 — 층이 오를수록 +5씩
 export const GOLD_BOSS = 75;
+// 엘리트 칸(docs/10-지도.md) — 한 단계 센 싸움을 체력 ×1.5 로. 이기면 장비 하나 · 번뜩임 · 골드 ×1.5
+export const ELITE_HP = 1.5;
+export const ELITE_GOLD = 1.5;
+export const ELITE_EQUIP = [{ 일반: 2, 고급: 3 }, { 고급: 3, 희귀: 2 }, { 희귀: 3, 전설: 1 }];   // 층마다 엘리트가 주는 등급
 export const SHOP_NEUTRAL = 3;           // 진열하는 중립 카드
 export const SHOP_UNIQUE = 2;            // 파티 사도의 고유 카드
 export const PRICE_UNIQUE = 75;          // 시그니처는 +35
@@ -57,9 +61,9 @@ export const SHOP_EQUIP = { 일반: 3, 고급: 3, 희귀: 2, 전설: 1 };
 // 회복량은 우리가 정했다 — 기획서에 캠프가 없다.
 export const CAMP_HEAL = 0.3;            // 최대 HP 기준, 쓰러진 사도는 빼고
 
-// ── 궁극기 게이지 ─────────────────────────────────────────────────────
+// ── 고학년 게이지 ─────────────────────────────────────────────────────
 // 파티 공용 0~300%. 카드에 쓴 AP 1당 +10%. 0코 카드는 충전하지 않는다.
-// 전투가 끝나면 0%. 같은 사도의 궁극기는 연속으로 쓸 수 없다.
+// 전투가 끝나면 0%. 같은 사도의 고학년 스킬은 연속으로 쓸 수 없다.
 export const GAUGE_MAX = 300;
 export const GAUGE_PER_AP = 10;
 export const ULT_COSTS = [150, 200, 250, 300];
@@ -90,7 +94,7 @@ export function natureEdge(attacker, defender) {
 // ── 전역 증가·감소 ────────────────────────────────────────────────────
 // 같은 종류는 가장 큰 값 하나만, 다른 종류끼리는 더한다.
 export const GLOBAL_KINDS = [
-  "주는피해", "기본공격피해", "고유카드피해", "궁극기피해", "위치별피해", "받는피해감소", "상성", "취약약화",
+  "주는피해", "기본공격피해", "고유카드피해", "고학년 스킬피해", "위치별피해", "받는피해감소", "상성", "취약약화",
 ];
 export function globalBonus(mods) {
   // mods: [{kind, v}] — v 는 0.07 처럼 비율

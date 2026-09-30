@@ -66,7 +66,8 @@ for (const kind of ["ingame", "standing"]) {
 
 // 적 — tools/extract-spine.py 가 assets/monsterspine 에 꺼내 둔다. key 가 곧 몬스터 폴더 이름이다.
 // 저주 인형 셋은 게임에 따로 된 스파인이 없고 curseddoll 한 벌을 성격 스킨으로 나눠 입는다.
-const ENEMY_DIR = { elfcurseddolldealer: "curseddoll", elfcurseddolltanker: "curseddoll", witchcurseddollwizard: "curseddoll" };
+// 저주 인형은 종족 · 역할이 달라도 한 벌을 나눠 입는다 — 이름에 curseddoll 이 들어가면 모두 그 한 벌
+const ENEMY_DIR = new Proxy({}, { get: (_, k) => (typeof k === "string" && k.includes("curseddoll") ? "curseddoll" : undefined) });
 manifest.enemy = {};
 const msrc = path.join(AS, "monsterspine");
 if (!fs.existsSync(msrc)) trouble.push("적 스파인을 아직 안 꺼냈습니다 — python tools/extract-spine.py");

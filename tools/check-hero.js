@@ -23,7 +23,7 @@ if (!files.length) { console.log("쓰는 법: node tools/check-hero.js 파일.md
 
 const STATUS = ["취약", "약화", "기절", "도발", "침묵", "감전", "중독", "힘"];
 const ULT_COST = [150, 200, 250, 300];
-const TYPES = ["공격", "스킬", "강화", "쉴드", "회복"];
+const TYPES = ["공격", "스킬", "강화", "방어", "회복"];
 const FLASH = ["강화", "경량", "연계", "변형", "각성"];
 
 let heroes = 0, bad = 0, pieces = 0, read = 0;
@@ -85,7 +85,7 @@ for (const file of files) {
     const cards = [
       ...h.start.map((c) => ({ ...c, where: `시작 「${c.ko}」` })),
       ...h.unique.flatMap((u) => [{ ...u, where: `고유 「${u.ko}」` }, ...u.flash.map((f) => ({ ...f, where: `「${u.ko}」 ${f.kind} 「${f.ko}」` }))]),
-      ...(h.ult ? [{ ...h.ult, where: `궁극기 「${h.ult.ko}」` }] : []),
+      ...(h.ult ? [{ ...h.ult, where: `고학년 스킬 「${h.ult.ko}」` }] : []),
     ];
     let makes = 0, uses = 0;
     for (const c of cards) {
@@ -170,7 +170,7 @@ for (const file of files) {
     }
 
     // ── 모양 ──
-    if (h.ult && !ULT_COST.includes(h.ult.cost)) errs.push(`궁극기 비용 ${h.ult.cost}% — 150·200·250·300 가운데 하나`);
+    if (h.ult && !ULT_COST.includes(h.ult.cost)) errs.push(`고학년 스킬 비용 ${h.ult.cost}% — 150·200·250·300 가운데 하나`);
     for (const u of h.unique) {
       if (!TYPES.includes(u.type)) errs.push(`고유 「${u.ko}」 타입 「${u.type}」 — 공격·스킬·강화 가운데 하나`);
       u.flash.forEach((f, i) => { if (f.kind !== FLASH[i]) errs.push(`「${u.ko}」 번뜩임 ${i + 1}번이 「${f.kind}」 — 「${FLASH[i]}」 여야 한다`); });
@@ -214,7 +214,7 @@ function fxLabel(f) {
   }
 }
 function whenLabel(w) {
-  return { fightStart: "전투 시작", turnStart: "턴 시작", turnEnd: "턴 끝", play: `카드${w.type ? "(" + w.type + ")" : ""}${w.who === "any" ? "(아군)" : ""}${w.every ? ` ${w.every}장마다` : ""}${w.nth ? ` ${w.nth}장째` : ""}`, kill: w.mine ? "처치" : "적 쓰러짐", hurt: w.who === "any" ? "아군 피격" : "피격", lowHp: `HP ${Math.round(w.pct * 100)}% 이하`, allyDown: "아군 쓰러짐", ult: "궁극기", combo: "연계", debuff: "디버프 걺", stackReach: `${w.id} ${w.n}개`, always: "항상" }[w.on] || w.on;
+  return { fightStart: "전투 시작", turnStart: "턴 시작", turnEnd: "턴 끝", play: `카드${w.type ? "(" + w.type + ")" : ""}${w.who === "any" ? "(아군)" : ""}${w.every ? ` ${w.every}장마다` : ""}${w.nth ? ` ${w.nth}장째` : ""}`, kill: w.mine ? "처치" : "적 쓰러짐", hurt: w.who === "any" ? "아군 피격" : "피격", lowHp: `HP ${Math.round(w.pct * 100)}% 이하`, allyDown: "아군 쓰러짐", ult: "고학년 스킬", combo: "연계", debuff: "디버프 걺", stackReach: `${w.id} ${w.n}개`, always: "항상" }[w.on] || w.on;
 }
 function condLabel(c) { return c.c === "stack" ? `${c.id} ${c.n}+` : c.c === "hp" ? `HP ${Math.round(c.pct * 100)}% 이하` : c.c === "foes" ? `적 ${c.n}명+` : c.c; }
 function perLabel(p) { return p.stat === "dot" ? `턴 끝 피해 ${Math.round(p.ratio * 100)}%` : p.stat === "hot" ? `턴 끝 회복 ${Math.round(p.ratio * 100)}%` : `${{ dealt: "주는 피해", taken: "받는 피해", atk: "공격력", def: "방어력", crit: "치명" }[p.stat]} ${p.v > 0 ? "+" : ""}${Math.round(p.v * 100)}%${p.who === "allies" ? "(아군 전원)" : ""}`; }

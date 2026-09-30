@@ -127,7 +127,7 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
     skeleton = new sp.Skeleton(data);
     const byName = (n) => n && (data.findSkin(n) || data.skins.find((s) => s.name.toLowerCase() === n.toLowerCase()));
     // 먹보곰처럼 기본 스킨이 아예 없는 것도 있다 — 그때는 첫 스킨이라도 입혀야 보인다
-    const wear = byName(kind === "minimi" ? key : skin) || (data.defaultSkin ? null : data.skins[0]);
+    const wear = byName(skin || (kind === "minimi" ? key : null)) || (data.defaultSkin ? null : data.skins[0]);
     if (wear) { skeleton.setSkin(wear); skeleton.setSlotsToSetupPose(); }
     state = new sp.AnimationState(new sp.AnimationStateData(data));
   } catch { drop(); return null; }

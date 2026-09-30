@@ -73,6 +73,9 @@ const heroesOf = (run) => run.party.map((k) => ({ key: k, ko: koOf(k), race: (HE
 const hasHero = (run, name) => heroesOf(run).some((h) => h.ko === name || h.ko.startsWith(name + "("));
 const fallen = (run) => run.party.filter((k) => (run.hp[k] || 0) <= 0);
 
+// 이 층에서 아직 나올 이벤트가 남았는가 — 지도에 이벤트 칸이 많은 길을 고르면 한 판에 한 번씩이라 바닥날 수 있다
+export function eventLeft(run) { return EVENTS.some((e) => eligible(run, e)); }
+
 function eligible(run, ev) {
   if ((run.eventsSeen || []).includes(ev.id)) return false;           // 한 판에 한 번
   if (ev.pool !== "공용" && ev.pool !== run.floor) return false;
@@ -96,7 +99,8 @@ export function rollEvents(run, n = 1) {
 
 // 이벤트 칸에 들어간다 — 들어올 때 한 번만 굴린다. 「지도 공개」 가 있으면 둘 중 고른다.
 export function enterEvent(run) {
-  const key = `${run.floor}:${run.node}`;
+  // 지도가 있으면 그 칸(run.map.at)으로 — 한 층에 이벤트 칸이 여럿이어도 겹치지 않게
+  const key = `${run.floor}:${run.map && run.map.at ? run.map.at : run.node}`;
   if (!run.event || run.event.key !== key) {
     const n = run.scout ? 2 : 1;
     const evs = rollEvents(run, n);
@@ -122,7 +126,7 @@ export function optionsOf(run, ev) {
     if (o.when === "hp30") return run.party.some((k) => (run.hp[k] || 0) > 0 && run.hp[k] / run.maxHp[k] <= 0.3);
     return true;
   });
-  return [...opts, { label: ev.leave || "떠난다", out: ev.leaveOut || "없음", say: ev.leaveSay || null, leave: true }];
+  return [...opts, { label: ev.leave || "떠납니다", out: ev.leaveOut || "없음", say: ev.leaveSay || null, leave: true }];
 }
 
 // 이 선택지가 실제로 무엇을 하는가 — 사도에 따라 바뀌는 값(E5 네르)을 반영한 결과 글
@@ -344,7 +348,7 @@ export function resolve(run, value) {
       if (E.shinChance && !run.noShin && run.rng() < E.shinChance) {
         run.shin = run.shin || {};
         run.shin[p.offer.cardId] = true;
-        E.log.push("신뜩임! 번뜩임 위에 한 줄이 더 얹혔다 (피해 ×1.3)");
+        E.log.push("신뜩임! 번뜩임 위에 한 줄이 더 얹혔습니다 (피해 ×1.3)");
       }
       break;
     }
@@ -386,7 +390,7 @@ export function afterEventFight(run, won) {
   if (!E) return;
   E.phase = "result";
   if (!won || !f) return;
-  E.log.push(`${f.name}을(를) 물리쳤다`);
+  E.log.push(`${f.name}을(를) 물리쳤습니다`);
   let out = f.win;
   if (f.winGamble) {
     let r = run.rng(), g = f.winGamble[f.winGamble.length - 1];

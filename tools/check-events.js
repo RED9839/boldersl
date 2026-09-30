@@ -103,7 +103,7 @@ console.log("선택지 전부 골라 보기");
           if (run.event.pending.length) stuck.push(`${ev.id} 「${probe.label}」 고를 것이 안 끝난다`);
           if (run.event.log.some((l) => l.includes("읽지 못한"))) stuck.push(`${ev.id} 「${probe.label}」 읽지 못한 결과`);
           tried++;
-        } catch (e) { crashed.push(`${ev.id} 「${probe.label || "떠난다"}」: ${e.message}`); break; }
+        } catch (e) { crashed.push(`${ev.id} 「${probe.label || "떠납니다"}」: ${e.message}`); break; }
       }
     }
   }

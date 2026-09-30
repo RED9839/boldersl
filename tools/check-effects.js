@@ -31,7 +31,7 @@ for (const h of H) {
     look(`${h.ko}/고유/${u.ko}`, u.text, h);
     for (const f of u.flash) look(`${h.ko}/${u.ko}/${f.kind}`, f.text, h);
   }
-  if (h.ult) look(`${h.ko}/궁극기/${h.ult.ko}`, h.ult.text, h);
+  if (h.ult) look(`${h.ko}/고학년 스킬/${h.ult.ko}`, h.ult.text, h);
 }
 
 const pc = (n) => ((n / total) * 100).toFixed(1) + "%";

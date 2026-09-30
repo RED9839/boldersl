@@ -5,7 +5,7 @@ import { TRAITS } from "./data/traits.js";
 import { ENEMIES, FLOORS } from "./data/enemies.js";
 import { HERO_DATA, kitOf, EQUIP } from "./cardbook.js";
 import CARDART from "./data/cardart.js";
-import { shortText, splitKeywords, cardParts } from "./card-text.js";
+import { shortText, splitKeywords, cardParts, polite } from "./card-text.js";
 
 // 사도 정보는 기획서가 원본이다. 빛깔만 옛 heroes.js 가 들고 있다.
 const HERO = (k) => HERO_DATA[k] || HEROES[k] || { ko: k, row: "mid", nature: null };
@@ -15,7 +15,9 @@ import * as RULES from "./rules.js";
 import * as R from "./run.js";
 import * as EV from "./events.js";
 import * as art from "./art.js";
-import { getZoom } from "./stage.js";
+import * as M from "./map.js";
+import { getZoom, toggleFullscreen } from "./stage.js";
+import { getSettings, setSetting } from "./settings.js";
 
 const $ = (sel) => document.querySelector(sel);
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
@@ -36,17 +38,17 @@ function screen() {
 // ── 편성 ───────────────────────────────────────────────────────────────
 // 카제나의 「요원 도감 → 상세 정보」 얼개다.
 //   도감   왼쪽 종족 레일 · 초상 격자(이격까지 135명) · 위에 정렬 · 아래 고른 셋
-//   정보   왼쪽 갈피(능력치·카드·번뜩임·궁극기) · 오른쪽 내용
+//   정보   왼쪽 갈피(능력치·카드·번뜩임·고학년 스킬) · 오른쪽 내용
 // 카드는 실제 카드 꼴로 세워 그린다 — 코스트·이름·타입·그림·효과·태그.
-// 그림은 꺼내 둔 스킬 아이콘을 쓴다(궁극기=졸업, 시그니처=입학, 나머지=어사이드).
+// 그림은 꺼내 둔 스킬 아이콘을 쓴다(고학년 스킬=졸업, 시그니처=입학, 나머지=어사이드).
 
 const NATURES = ["순수", "광기", "냉정", "우울", "활발", "공명"];
 const ROWS_KO = { front: "전열", mid: "중열", back: "후열" };
 const ROLES = ["탱커", "딜러", "서포터"];
 const NTINT = { 순수: "#7fd3a8", 광기: "#d9737f", 냉정: "#7fd6f5", 우울: "#9a8cc0", 활발: "#f5dc5a", 공명: "#c9c9d6" };
 // 카드 타입 — 원작 도감처럼 한 글자 표시와 빛깔을 준다
-const TMARK = { 공격: "✕", 스킬: "◈", 쉴드: "⬢", 방어: "⬢", 회복: "✚", 강화: "▲", 기술: "◆" };
-const TKIND = { 공격: "atk", 스킬: "skill", 쉴드: "def", 방어: "def", 회복: "heal", 강화: "buff", 기술: "skill" };
+const TMARK = { 공격: "✕", 스킬: "◈", 방어: "⬢", 쉴드: "⬢", 회복: "✚", 강화: "▲", 기술: "◆" };
+const TKIND = { 공격: "atk", 스킬: "skill", 방어: "def", 쉴드: "def", 회복: "heal", 강화: "buff", 기술: "skill" };
 
 const isEcho = (k) => k.includes("_");            // 이격 — 에르핀_왕도
 const baseName = (k) => k.split("_")[0];
@@ -132,7 +134,8 @@ function showCard(c, heroKey) {
 // 더미를 열어 본다 — 이름만 늘어놓으면 무엇을 하는 카드인지 모른다(실제로 그런 말을 들었다).
 // 손패와 같은 카드 꼴로 펼치고, 뽑을 더미 · 버린 더미 · 사라진 카드 · 덱 전체를 오간다.
 // piles: [{ key, label, ids, why }] · pick: 처음 열 칸 · cardFor: id → 이 판에서의 카드(번뜩임 반영)
-function showPiles(piles, pick, cardFor) {
+// onDetail: id → 카드를 누르면 가운데에 자세히(전투의 카드 창). 없으면 보기만 한다
+function showPiles(piles, pick, cardFor, onDetail) {
   if (kwNote) { kwNote.remove(); kwNote = null; }
   const back = el("div", "pilemodal");
   const box = el("div", "pilebox");
@@ -191,7 +194,9 @@ function showPiles(piles, pick, cardFor) {
       if (bag.get(id) > 1) who.appendChild(el("span", "pn", `×${bag.get(id)}`));
       cell.appendChild(who);
       const card = bigCard(c, CARDART.pic[id] || null);
-      card.onclick = null;                  // 여기서는 보기만 한다
+      card.onclick = onDetail ? () => onDetail(id) : null;   // 누르면 자세히 — 더미 창 위에 뜬다
+      card.title = onDetail ? "눌러서 자세히 보기" : "";
+      if (onDetail) card.classList.add("canzoom");
       if (c.flashOn) card.appendChild(el("span", "pflash", `${"①②③④⑤"[c.flashOn - 1]} ${c.flashKind}`));
       cell.appendChild(card);
       // 카드에는 줄여서 앉혔으니, 아래에 전문을 붙인다
@@ -425,7 +430,7 @@ export function partyScreen(onStart, onBack) {
     const dexBtn = el("button", "dexbtn", "사도 도감 ↗");
     dexBtn.onclick = () => { filter.q = ""; view = "도감"; render(); };
     bar.appendChild(dexBtn);
-    const go = el("button", "go", "떠난다");
+    const go = el("button", "go", "떠납니다");
     go.onclick = () => { for (const k of picked) rows[k] = rows[k] || HERO_DATA[k].row; onStart(picked, rows); };
     bar.appendChild(go);
     s.appendChild(bar);
@@ -466,9 +471,9 @@ export function partyScreen(onStart, onBack) {
     side.appendChild(el("div", "tlabel", "이 층을 지나려면"));
     const goals = el("div", "tgoals");
     for (const [mark, text] of [
-      ["★", "싸움 셋을 이기고 보스를 넘는다"],
+      ["★", "싸움 셋을 이기고 보스를 넘습니다"],
       ["★", `보스는 ${floor.boss.map((id) => ENEMIES[id].ko).join(" · ")}`],
-      ["★", "쓰러진 사도는 주말농장으로 간다 — 그 판에서 다시 못 쓴다"],
+      ["★", "쓰러진 사도는 주말농장으로 갑니다 — 그 판에서 다시 못 씁니다"],
     ]) {
       const g = el("div", "tgoal");
       g.appendChild(el("i", null, mark));
@@ -532,7 +537,7 @@ export function partyScreen(onStart, onBack) {
         pos.appendChild(b);
       }
       n.appendChild(pos);
-      n.appendChild(el("div", "thome", `${ROWS_KO[h.row]} ${h.role} · 적은 전열부터 노린다`));
+      n.appendChild(el("div", "thome", `${ROWS_KO[h.row]} ${h.role} · 적은 전열부터 노립니다`));
 
       const x = el("button", "tdrop", "빼기");
       x.onclick = () => { picked.splice(i, 1); delete rows[key]; fill(); };
@@ -728,7 +733,7 @@ export function partyScreen(onStart, onBack) {
     emb.appendChild(el("span", null, h.race));
     emb.appendChild(el("i", null, h.nature));
     side.appendChild(emb);
-    for (const t of ["능력치", "카드", "번뜩임", "궁극기"]) {
+    for (const t of ["능력치", "카드", "번뜩임", "고학년 스킬"]) {
       const b = el("button", "sidebtn" + (tab === t ? " on" : ""), t);
       b.onclick = () => { tab = t; render(); };
       side.appendChild(b);
@@ -827,7 +832,7 @@ export function partyScreen(onStart, onBack) {
     left.appendChild(g2);
     wrap.appendChild(left);
 
-    // 오른쪽 — 궁극기. 인게임 고학년 스킬이고, 그 아이콘을 그대로 쓴다(기획서).
+    // 오른쪽 — 고학년 스킬. 인게임 고학년 스킬이고, 그 아이콘을 그대로 쓴다(기획서).
     if (h.ult) {
       const side = el("aside", "egoside");
       const hex = el("div", "hex");
@@ -835,7 +840,7 @@ export function partyScreen(onStart, onBack) {
       if (CA.ult) hex.appendChild(img(CA.ult, "hexpic"));
       side.appendChild(hex);
       side.appendChild(el("div", "egoname", h.ult.ko));
-      side.appendChild(el("div", "egolabel", "궁극기"));
+      side.appendChild(el("div", "egolabel", "고학년 스킬"));
       side.appendChild(withKeywords(el("p", "egotext"), shortText(h.ult.text), key));
       wrap.appendChild(side);
     }
@@ -879,7 +884,7 @@ export function partyScreen(onStart, onBack) {
 
   function ultPane(key, h, CA) {
     const w = el("div", "pane");
-    if (!h.ult) { w.appendChild(el("p", "note", "이 사도는 궁극기가 없습니다.")); return w; }
+    if (!h.ult) { w.appendChild(el("p", "note", "이 사도는 고학년 스킬이 없습니다.")); return w; }
     const big = el("div", "ultbig");
     const hex = el("div", "hex big");
     hex.appendChild(el("span", "hexcost", h.ult.cost + "%"));
@@ -906,32 +911,44 @@ export function partyScreen(onStart, onBack) {
 // ── 전투 ───────────────────────────────────────────────────────────────
 // 카제나의 전투 화면을 따라 네 구역으로 짠다 — 적 · 아군 상태창 · 손패 · 코스트 창.
 // 손패는 사도 배치 순서를 따른다(앞줄 사도의 카드가 왼쪽에 온다).
-export function fightScreen(run, onDone) {
+// onQuit — 메뉴의 「메인화면으로」. 없으면 그 줄을 안 보인다
+export function fightScreen(run, onDone, onQuit) {
   const s = screen();
   s.classList.add("battle");
   const enemyIds = R.currentEnemies(run);
   const floor = R.currentFloor(run);
   // 싸움터 배경 — 층마다 한 장, 보스·이벤트 전투는 따로. 그림이 없으면(assets 는 저장소에 없다) 어두운 바탕이 남는다.
-  const bg = BATTLE_BG[floor.n] || BATTLE_BG[1];
-  // 변수에 담긴 url() 은 그 변수를 쓰는 css 파일 기준으로 풀린다 — 그래서 문서 기준 절대 주소로 넘긴다
-  const bgFile = `assets/bg/${run.eventFight ? bg.event : R.isBoss(run) ? bg.boss : bg.fight}.jpg`;
-  s.style.setProperty("--stagebg", `url("${typeof location === "object" ? new URL(bgFile, location.href).href : bgFile}")`);
+  setStageBg(s, run);
   const st = C.newCombat({
     partyKeys: run.party, rows: run.rows, deck: run.deck.slice(),
     enemyIds, hp: run.hp, maxHp: run.maxHp, traits: run.traits, gear: R.gearStats(run), flash: run.flash,
+    enemyHp: run.elite && !run.eventFight ? RULES.ENEMY_HP * RULES.ELITE_HP : undefined,   // 엘리트 칸 — 체력 ×1.5
     // 이벤트가 걸어 둔 「다음 전투」 효과는 여기서 한 번 가져간다 · 신뜩임이 붙은 카드
     next: EV.takeNextFight(run), shin: run.shin,
-    seed: (run.seed + run.floor * 101 + run.node * 7 + (run.eventFight ? 555 : 0)) >>> 0,
+    seed: (run.seed + run.floor * 101 + run.node * 7 + (run.step || 0) * 13 + (run.eventFight ? 555 : 0)) >>> 0,
   });
 
   // ① 머리 — 어디서 싸우는가
   const head = el("div", "bhead");
   head.appendChild(el("span", "bwhere", `${floor.n}층 · ${floor.name}`));
-  head.appendChild(el("span", "bsub", `${floor.sub} · ${run.eventFight ? `이벤트 — ${run.eventFight.name}` : R.isBoss(run) ? "층의 끝" : `${run.node + 1}번째 싸움`}`));
+  const mapNode = M.currentNode(run);
+  const stageTag = mapNode ? `${M.stageName(run, mapNode)} ${M.KIND_KO[mapNode.type]}` : `${run.node + 1}번째 싸움`;
+  head.appendChild(el("span", "bsub", `${floor.sub} · ${run.eventFight ? `이벤트 — ${run.eventFight.name}` : R.isBoss(run) ? `${mapNode ? M.stageName(run, mapNode) + " " : ""}층의 끝` : stageTag}`));
   const flashBox = el("span", "bflash");
   for (const id of run.traits) { const t = TRAITS[id]; const c = el("span", "flash", t.ko); c.title = t.text; flashBox.appendChild(c); }
   head.appendChild(flashBox);
   s.appendChild(head);
+
+  // 오른쪽 위 메뉴 — 이어하기 · 설정 · 메인화면으로
+  const menuBtn = el("button", "bmenu");
+  menuBtn.title = "메뉴";
+  for (let k = 0; k < 3; k++) menuBtn.appendChild(el("i"));
+  menuBtn.onclick = () => openMenu();
+  s.appendChild(menuBtn);
+
+  // 위쪽 안내는 두지 않는다 — 고르고 끄는 법은 해 보면 안다. 막혔을 때(AP 모자람 등)만 잠깐 띄우고 지운다
+  let sayT = 0;
+  const say = (m) => { hint(m); clearTimeout(sayT); if (m) sayT = setTimeout(() => hint(""), 1800); };
 
   // ② 싸움터 — 왼쪽에 아군, 오른쪽에 적. 가장자리에 덱과 버린 더미.
   const field = el("div", "field");
@@ -947,7 +964,7 @@ export function fightScreen(run, onDone) {
   field.appendChild(turnTag);
   s.appendChild(field);
 
-  // ③ 궁극기 게이지 — 파티 공용
+  // ③ 고학년 게이지 — 파티 공용
   const gaugeBox = el("div", "gauge");
   const gaugeBar = el("div", "gbar");
   const gaugeFill = el("i");
@@ -994,7 +1011,7 @@ export function fightScreen(run, onDone) {
   logLast.onclick = () => logWrap.classList.toggle("open");
   logWrap.appendChild(logLast);
   logWrap.appendChild(logBox);
-  s.appendChild(logWrap);
+  // 기록 줄은 화면에 두지 않는다 — 싸움터에서 다 보이고(패시브 이름 · 피해 숫자) 자리만 먹었다. 만들어는 둔다(draw 가 채운다)
 
   let selCard = -1;
   // 적 칸 — 미리보기를 그 위에 얹으려고 idx 로 들고 있는다
@@ -1049,7 +1066,8 @@ export function fightScreen(run, onDone) {
     const hb = hpBar(u);
     n.appendChild(hb);
     n.appendChild(chips(u));
-    if (clickable && !u.dead) n.onclick = () => onPick(u);
+    n.onclick = () => openFoe(u);              // 누르면 적 정보 — 카드는 끌어서만 낸다
+    n.title = "눌러서 적 정보 보기";
     // 카드를 고른 채 적에 올리면 그 적을 쳤을 때의 결과를 모두에게 보여 준다(광역 곁가지까지)
     n.onmouseenter = () => { if (selCard >= 0 && !u.dead) paintPreview(selCard, u.idx); };
     n.onmouseleave = () => paintPreview(selCard, null);
@@ -1073,7 +1091,8 @@ export function fightScreen(run, onDone) {
     n.appendChild(hpBar(u));
     n.appendChild(chips(u));
     if (st.bubble && st.bubble.hero === u.key) n.appendChild(el("div", "bubble", st.bubble.text));
-    if (clickable && !u.dead) n.onclick = () => onPick(u);
+    n.onclick = () => openHero(u);              // 누르면 사도 정보
+    n.title = "눌러서 사도 정보 보기";
     return n;
   }
 
@@ -1093,7 +1112,7 @@ export function fightScreen(run, onDone) {
     box.appendChild(top);
     box.appendChild(chips(u));
 
-    // 궁극기 — 게이지가 차면 누를 수 있다
+    // 고학년 스킬 — 게이지가 차면 누를 수 있다
     const ult = C.ultOf(u.key);
     if (ult && !u.dead) {
       const why = C.canUlt(st, u.key);
@@ -1107,23 +1126,18 @@ export function fightScreen(run, onDone) {
       }
       b.appendChild(el("span", "ucost", `${ult.cost}%`));
       b.appendChild(el("span", "uname", ult.ko));
-      b.title = why || ult.text;
-      b.onclick = () => {
-        const r = C.useUlt(st, u.key, 0);
-        if (!r.ok) return hint(r.why);
-        hint("");
-        draw();
-      };
+      b.title = "눌러서 고학년 스킬 보기";
+      b.onclick = () => openUlt(u);
       box.appendChild(b);
     }
 
     n.appendChild(box);
-    if (clickable && !u.dead) n.onclick = () => onPick(u);
     return n;
   }
 
   function hpBar(u) {
-    const wrap = el("div", "hpwrap");
+    // 실드·방어가 있으면 막대에 테를 두른다 — 숫자를 안 읽어도 누가 막혀 있는지 보인다
+    const wrap = el("div", "hpwrap" + (u.shield > 0 ? " shielded" : "") + (u.block > 0 ? " blocked" : ""));
     const bar = el("div", "bar");
     const fill = el("i");
     fill.style.width = Math.max(0, (u.hp / u.maxHp) * 100) + "%";
@@ -1212,8 +1226,11 @@ export function fightScreen(run, onDone) {
 
   // ── 그리기 ───────────────────────────────────────────────────────────
   function draw() {
+    closeModal();
     const need = selCard >= 0 ? targetsNeeded(st.hand[selCard]) : null;
 
+    field.style.setProperty("--nf", String(Math.max(1, st.enemies.length)));
+    field.style.setProperty("--na", String(Math.max(1, st.party.length)));
     foeZone.innerHTML = "";
     foeEls.clear();
     for (const u of st.enemies) foeZone.appendChild(foeNode(u, need === "enemy", (t) => play(t.idx)));
@@ -1242,12 +1259,12 @@ export function fightScreen(run, onDone) {
       { key: "all", label: "덱 전체", ids: run.deck, why: "이 판의 덱. 번뜩임이 붙은 카드는 바뀐 모습으로 보입니다." },
     ];
     const cardFor = (id) => C.cardOf(st, id);
-    drawPile.onclick = () => showPiles(piles(), "draw", cardFor);
+    drawPile.onclick = () => showPiles(piles(), "draw", cardFor, openCard);
     discPile.innerHTML = "";
     discPile.appendChild(el("span", "pnum", String(st.discard.length)));
     discPile.appendChild(el("span", "plab", "버린 것"));
     discPile.title = "눌러서 버린 카드 보기";
-    discPile.onclick = () => showPiles(piles(), "disc", cardFor);
+    discPile.onclick = () => showPiles(piles(), "disc", cardFor, openCard);
     turnTag.textContent = `${st.turn}턴`;
     // 턴이 바뀌면 싸움터 가운데에 크게 알린다 — 적이 무엇을 했는지 보기 전에 턴이 넘어간 걸 알아야 한다.
     if (st.turn !== shownTurn && !st.over) {
@@ -1265,7 +1282,7 @@ export function fightScreen(run, onDone) {
     apBox.appendChild(el("span", "aplabel", "AP"));
     apBox.title = st.turn === 1 && st.startSp
       ? `매 턴 ${st.apPerTurn} · 사이가 좋아 첫 턴 +${st.startSp}`
-      : `매 턴 ${st.apPerTurn} · 남으면 사라진다`;
+      : `매 턴 ${st.apPerTurn} · 남으면 사라집니다`;
     // 눈금 — 몇 개 남았는지 숫자보다 빨리 읽힌다
     const pips = el("span", "appips");
     const most = Math.max(st.ap, st.apPerTurn || RULES.AP_PER_TURN);
@@ -1340,18 +1357,20 @@ export function fightScreen(run, onDone) {
       b.title = why || "";
       b.onmouseenter = () => { if (!why) paintPreview(i, null); };
       b.onmouseleave = () => paintPreview(selCard, null);
-      b.onpointerdown = (e) => { if (!why) startDrag(e, i, id, b); };
+      b.dataset.i = String(i);
+      b.onpointerdown = (e) => startDrag(e, i, id, b, !!why);
+      // 자세히 — 오른쪽 클릭(PC) · 길게 누르기(폰, startDrag 가 잰다)
+      b.oncontextmenu = (e) => { e.preventDefault(); if (drag) stopDrag(true); openCard(id); };
       b.onclick = () => {
         if (dragDone) return;                 // 방금 끌어서 낸 카드 — 뒤따라오는 click 은 버린다
-        if (why) return hint(why);
+        if (why) return say(why);
         hint("");
         const want = targetsNeeded(id);
-        if (want) {
-          // 고르기만 하고 아무 말이 없으면 "안 써진다"고 느낀다 — 실제로 그런 말을 들었다.
-          selCard = selCard === i ? -1 : i;
-          hint(selCard < 0 ? "" : want === "enemy" ? "칠 적을 고릅니다" : "도울 아군을 고릅니다");
-          draw();
-        } else { selCard = i; play(0); }
+        // 고르기만 하고 아무 말이 없으면 "안 써진다"고 느낀다 — 실제로 그런 말을 들었다.
+        // 눌러서는 어떤 카드도 안 나간다 — 잘못 눌러 나가 버리는 일이 잦았다(방어 · 버프부터, 공격도 같게).
+        // 들어 올려 보여 주기만 하고, 끌어 놓아야 쓴다(startDrag → dropCard).
+        selCard = selCard === i ? -1 : i;
+        draw();
       };
       hand.appendChild(b);
     }
@@ -1398,9 +1417,17 @@ export function fightScreen(run, onDone) {
   // 화면은 CSS zoom 이 걸려 있어 fixed 좌표를 배율로 나눈다(clientX 는 실제 화면 좌표).
   let drag = null, dragDone = false;
   const zoomNow = () => (typeof getZoom === "function" && getZoom()) || 1;
-  function startDrag(e, i, id, card) {
+  function startDrag(e, i, id, card, locked) {
     if (st.over || (e.pointerType === "mouse" && e.button !== 0)) return;
-    drag = { i, id, card, x0: e.clientX, y0: e.clientY, on: false, over: null, need: targetsNeeded(id) };
+    drag = { i, id, card, x0: e.clientX, y0: e.clientY, on: false, over: null, need: targetsNeeded(id), locked };
+    // 움직이지 않고 0.5초 누르고 있으면 자세히 본다 — 뒤따르는 click 은 버린다
+    drag.hold = setTimeout(() => {
+      if (!drag || drag.on) return;
+      const d = drag; drag = null;
+      d.card.onpointermove = d.card.onpointerup = d.card.onpointercancel = null;
+      dragDone = true; setTimeout(() => { dragDone = false; }, 400);
+      openCard(d.id);
+    }, 450);
     try { card.setPointerCapture(e.pointerId); } catch { /* 가짜 DOM */ }
     card.onpointermove = moveDrag;
     card.onpointerup = endDrag;
@@ -1427,13 +1454,14 @@ export function fightScreen(run, onDone) {
     // 칠 수 있는 대상을 빛낸다 — draw() 로 다시 그리면 끄는 카드가 사라지니 표시만 단다
     if (drag.need === "enemy") for (const [, { n }] of foeEls) { if (!n.classList.contains("dead")) n.classList.add("tgt", "dtgt"); }
     if (drag.need === "party") for (const [, n] of standEls) { if (!n.classList.contains("dead")) n.classList.add("tgt", "dtgt"); }
-    hint(drag.need === "enemy" ? "칠 적 위에 놓습니다" : drag.need === "party" ? "도울 아군 위에 놓습니다" : "위로 끌어 올려 놓으면 씁니다");
     if (!drag.need) paintPreview(drag.i, null);
   }
   function moveDrag(e) {
     if (!drag) return;
     if (!drag.on) {
       if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 10) return;
+      clearTimeout(drag.hold);
+      if (drag.locked) { stopDrag(true); return; }        // 못 내는 카드는 끌지 않는다
       beginDrag();
     }
     const z = zoomNow(), x = e.clientX / z, y = e.clientY / z;
@@ -1445,8 +1473,7 @@ export function fightScreen(run, onDone) {
     // 손 밑에 무엇이 있나 — 끌리는 그림과 화살은 pointer-events 가 없어 밑이 잡힌다
     let t = null;
     if (drag.need) {
-      const hit = document.elementFromPoint(e.clientX, e.clientY);
-      t = hit && hit.closest(drag.need === "enemy" ? ".foe.dtgt" : ".stand.dtgt");
+      t = pickTarget(e.clientX, e.clientY, drag.need === "enemy" ? ".foe.dtgt" : ".stand.dtgt");
     } else {
       const hr = hand.getBoundingClientRect();
       t = e.clientY < hr.top - 10 ? drag.fx : null;       // 손패 위로 올라왔다
@@ -1459,9 +1486,34 @@ export function fightScreen(run, onDone) {
       if (drag.need === "enemy") paintPreview(drag.i, t ? Number(t.dataset.idx) : null);
     }
   }
+  // 끌어 놓을 대상 — 이름표 · 체력 칸만이 아니라 서 있는 그림 전체(칸 밖으로 넘친 캔버스까지)를 잡고,
+  // 그 둘레 24px 까지 넉넉히 본다. 여럿이 걸리면 가운데가 가까운 쪽. 아무 데도 안 걸려도 110px 안이면 그쪽.
+  function pickTarget(x, y, sel) {
+    const pad = 24 * zoomNow(), near = 110 * zoomNow();
+    let best = null, bestD = Infinity;
+    for (const n of document.querySelectorAll(sel)) {
+      const rs = [n.getBoundingClientRect()];
+      const cv = n.querySelector(".art canvas");
+      if (cv) {
+        // 캔버스는 칸의 3배 폭 · 2배 높이다 — 가운데 1/3 폭, 위 1/4 을 뺀 만큼을 몸으로 친다
+        const r = cv.getBoundingClientRect();
+        rs.push({ left: r.left + r.width / 3, right: r.right - r.width / 3, top: r.top + r.height * 0.25, bottom: r.bottom });
+      }
+      const L = Math.min(...rs.map((r) => r.left)), R = Math.max(...rs.map((r) => r.right));
+      const T = Math.min(...rs.map((r) => r.top)), B = Math.max(...rs.map((r) => r.bottom));
+      const cx = (L + R) / 2, cy = (T + B) / 2;
+      const inside = x >= L - pad && x <= R + pad && y >= T - pad && y <= B + pad;
+      const edge = Math.hypot(Math.max(L - x, 0, x - R), Math.max(T - y, 0, y - B));
+      const score = (inside ? 0 : 10000) + Math.hypot(x - cx, (y - cy) * 0.6);
+      if ((inside || edge < near) && score < bestD) { best = n; bestD = score; }
+    }
+    return best;
+  }
+
   function stopDrag(cancel) {
     const d = drag; drag = null;
     if (!d) return;
+    clearTimeout(d.hold);
     d.card.onpointermove = d.card.onpointerup = d.card.onpointercancel = null;
     if (!d.on) return;
     dragDone = true; setTimeout(() => { dragDone = false; }, 0);
@@ -1476,17 +1528,290 @@ export function fightScreen(run, onDone) {
     const over = d.over;
     stopDrag(!over);
     if (!over) return;
+    dropCard(d.i, d.need ? Number(over.dataset.idx) : 0);
+  }
+  // 카드를 대상에 놓았다 — 끌기가 끝나면 여기로 온다. tools/smoke.js 도 이 길로 낸다(가짜 DOM 에서는 끌 수 없다)
+  function dropCard(handIdx, targetIdx) {
     hint("");
-    selCard = d.i;
-    play(d.need ? Number(over.dataset.idx) : 0);
+    selCard = handIdx;
+    play(targetIdx);
+  }
+  s.dropCard = dropCard;
+
+  // ── 가운데 창 — 고학년 스킬 · 카드 자세히 ──────────────────────────────
+  // 바깥을 누르거나 Esc 로 닫는다. 판이 다시 그려지면(draw) 닫는다 — 낡은 값을 들고 있지 않게.
+  let modal = null;
+  function closeModal() { if (modal) { modal.remove(); modal = null; if (typeof removeEventListener === "function") removeEventListener("keydown", escClose); } }
+  function escClose(e) { if (e.key === "Escape") closeModal(); }
+  function openModal(kind) {
+    closeModal();
+    const back = el("div", "bmodal " + kind);
+    const box = el("div", "bmbox");
+    back.appendChild(box);
+    back.onclick = (e) => { if (e.target === back) closeModal(); };
+    document.body.appendChild(back);
+    if (typeof addEventListener === "function") addEventListener("keydown", escClose);
+    modal = back;
+    return box;
+  }
+  function termList(terms) {
+    const dl = el("dl", "bmterms");
+    for (const t of terms) {
+      dl.appendChild(el("dt", null, t.ko));
+      dl.appendChild(el("dd", null, t.text || "풀이가 아직 없습니다."));
+    }
+    return dl;
+  }
+  function openUlt(u) {
+    const ult = C.ultOf(u.key);
+    if (!ult) return;
+    const why = C.canUlt(st, u.key);
+    const box = openModal("ultmodal");
+    const pic = CARDART.pic[u.key + "_ult"];
+    const face = el("div", "bmface");
+    if (pic) face.appendChild(img(pic));
+    else face.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: 0, slot: "battle", still: true }));
+    box.appendChild(face);
+    const body = el("div", "bmbody");
+    body.appendChild(el("span", "bmkind", `${u.ko} · 고학년 스킬`));
+    body.appendChild(el("h3", "bmname", ult.ko));
+    const meter = el("div", "bmmeter");
+    meter.appendChild(el("span", null, `게이지 ${ult.cost}% 를 씁니다`));
+    meter.appendChild(el("b", st.gauge >= ult.cost ? "ok" : null, `지금 ${st.gauge}%`));
+    body.appendChild(meter);
+    const { action, terms } = cardParts({ text: ult.text, type: "고학년 스킬" }, u.key);
+    body.appendChild(withKeywords(el("p", "bmtext"), action, u.key));
+    if (terms.length) body.appendChild(termList(terms));
+    const row = el("div", "bmbtns");
+    const go = el("button", "bmuse", why ? why : "사용합니다");
+    go.disabled = !!why;
+    go.onclick = () => {
+      const r = C.useUlt(st, u.key, 0);
+      closeModal();
+      if (!r.ok) return say(r.why);
+      hint(""); draw();
+    };
+    const x = el("button", "bmclose", "닫기");
+    x.onclick = closeModal;
+    row.appendChild(go); row.appendChild(x);
+    body.appendChild(row);
+    box.appendChild(body);
+  }
+  // 적 정보 — 누구인지 · 체력 · 걸린 상태 · 이번 수와 할 수 있는 수 전부
+  const INTENT_DO = (it) => {
+    const v = it.v != null ? it.v : "";
+    return { attack: `앞줄을 칩니다 · 피해 ${v}`, back: `뒷줄을 칩니다 · 피해 ${v}`, attackAll: `파티 전체를 칩니다 · 피해 ${v}`,
+      multi: `앞줄을 ${it.n}번 칩니다 · 피해 ${v}×${it.n}`, charge: "힘을 모읍니다 — 다음 턴에 큰 수",
+      block: `방어 +${v}`, guard: `적 전체 방어 +${v}`, heal: `가장 다친 적 회복 ${v}`,
+      buff: "스스로 강해집니다", debuff: `아군 전체에 ${it.id || "상태"} ${v}`, jam: `다음 턴 AP -${v}` }[it.t] || it.t;
+  };
+  function openFoe(u) {
+    const box = openModal("foemodal");
+    const face = el("div", "bmface foe");
+    face.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: 0, slot: "foe", still: true }));
+    box.appendChild(face);
+    const body = el("div", "bmbody");
+    const nat = ENEMY_NATURE[u.key];
+    const E = ENEMIES[u.key] || {};
+    body.appendChild(el("span", "bmkind", ["적", u.boss ? "보스" : null, (u.row || E.row) === "back" ? "뒷줄" : "앞줄", nat ? `성격 ${nat}` : null].filter(Boolean).join(" · ")));
+    body.appendChild(el("h3", "bmname", u.ko));
+    const meter = el("div", "bmmeter");
+    meter.appendChild(el("span", null, u.dead ? "쓰러졌습니다" : `체력 ${Math.max(0, u.hp)} / ${u.maxHp}`));
+    if (u.block > 0) meter.appendChild(el("b", "blk", `방어 ${u.block}`));
+    if (u.shield > 0) meter.appendChild(el("b", "blk", `실드 ${u.shield}`));
+    body.appendChild(meter);
+    if (u.intent && !u.dead) {
+      const it = u.intent, hit = C.intentHit(u);
+      const now = el("p", "bmtext");
+      now.appendChild(el("b", "bmnow", "이번 수 "));
+      now.appendChild(document.createTextNode(`「${it.say}」 — ${INTENT_DO(hit != null ? { ...it, v: hit } : it)}`));
+      if (it.t === "charge" && it.next) now.appendChild(document.createTextNode(` (다음 턴: ${it.next.say} ${it.next.v})`));
+      body.appendChild(now);
+      if (INTENT_HELP[it.t]) body.appendChild(el("p", "bmhelp", INTENT_HELP[it.t]));
+    }
+    // 걸린 상태 — 낱말 풀이까지
+    const sts = Object.entries(u.status || {}).filter(([, v]) => v);
+    if (sts.length) {
+      const chipsRow = el("div", "bmchips");
+      for (const [k, v] of sts) chipsRow.appendChild(el("span", "chip", `${k} ${v}`));
+      body.appendChild(chipsRow);
+      const { terms } = cardParts({ text: sts.map(([k]) => k).join(", ") }, null);
+      if (terms.length) body.appendChild(termList(terms));
+    }
+    // 할 수 있는 수 — 무엇이 올지 가늠할 수 있게
+    const moves = [...(E.open ? [E.open] : []), ...(E.intents || [])];
+    const seenSay = new Set();
+    const list = el("dl", "bmterms bmmoves");
+    for (const it of moves) {
+      if (seenSay.has(it.say)) continue;
+      seenSay.add(it.say);
+      list.appendChild(el("dt", null, it.say));
+      list.appendChild(el("dd", null, INTENT_DO(it)));
+    }
+    if (moves.length) {
+      body.appendChild(el("span", "bmsub", E.pick === "shuffle" ? "할 수 있는 수 — 무작위(같은 수를 세 번 잇지 않습니다)" : "할 수 있는 수 — 적힌 순서대로"));
+      body.appendChild(list);
+    }
+    if (E.phase) body.appendChild(el("p", "bmhelp", `체력이 ${Math.round(E.phase.at * 100)}% 아래로 떨어지면 수가 바뀐다${E.phase.say ? ` — 「${E.phase.say}」` : ""}`));
+    const row = el("div", "bmbtns");
+    const x = el("button", "bmclose", "닫기");
+    x.onclick = closeModal;
+    row.appendChild(x);
+    body.appendChild(row);
+    box.appendChild(body);
+  }
+
+  // 메뉴 — 가운데 창. 떠 있는 동안 판은 멈춰 있다(턴제라 아무것도 흐르지 않는다)
+  function openMenu(page = "main") {
+    const box = openModal("menumodal");
+    const body = el("div", "bmbody");
+    box.appendChild(body);
+    if (page === "quit") {
+      body.appendChild(el("h3", "bmname", "메인화면으로 갈까요?"));
+      body.appendChild(el("p", "bmhelp", "이 판은 저장되지 않습니다 — 나가면 처음부터 다시 떠납니다."));
+      const row = el("div", "bmbtns");
+      const yes = el("button", "bmuse danger", "나갑니다");
+      yes.onclick = () => { closeModal(); if (onQuit) onQuit(); };
+      const no = el("button", "bmclose", "돌아가기");
+      no.onclick = () => openMenu();
+      row.appendChild(yes); row.appendChild(no);
+      body.appendChild(row);
+      return;
+    }
+    body.appendChild(el("h3", "bmname", "메뉴"));
+    body.appendChild(el("span", "bmkind", `${floor.n}층 · ${floor.name} · ${st.turn}턴`));
+    const list = el("div", "mlist");
+    const item = (label, sub, fn, cls) => {
+      const b = el("button", "mitem" + (cls ? " " + cls : ""));
+      b.appendChild(el("b", null, label));
+      if (sub) b.appendChild(el("span", null, sub));
+      b.onclick = fn;
+      list.appendChild(b);
+      return b;
+    };
+    item("이어하기", null, closeModal, "main");
+    // 설정 — 켜고 끄는 단추. 누르면 바로 걸린다
+    const set = getSettings();
+    const toggle = (label, sub, on, fn) => {
+      const b = item(label, sub, fn, "tog" + (on ? " on" : ""));
+      b.appendChild(el("i", "sw"));
+      return b;
+    };
+    const fsOn = typeof document === "object" && !!document.fullscreenElement;
+    if (typeof document === "object" && document.documentElement && document.documentElement.requestFullscreen) {
+      toggle("전체화면", "주소창 · 작업 표시줄을 숨깁니다", fsOn, async () => { await toggleFullscreen(); openMenu(); });
+    }
+    toggle("사도 움직임", "끄면 그림 한 장 — 느린 기계에서 가볍습니다", set.spine !== false, () => {
+      setSetting("spine", !(set.spine !== false)); closeModal(); draw(); openMenu();
+    });
+    toggle("움직임 줄이기", "반짝임 · 튀는 효과를 끕니다", !!set.calm, () => { setSetting("calm", !set.calm); openMenu(); });
+    toggle("글자 크게", "이름 · 카드 글 · 체력 숫자를 한 치수 더", !!set.big, () => { setSetting("big", !set.big); openMenu(); });
+    body.appendChild(list);
+    if (onQuit) {
+      const q = el("div", "mlist");
+      const b = el("button", "mitem quit");
+      b.appendChild(el("b", null, "메인화면으로"));
+      b.appendChild(el("span", null, "이 판은 저장되지 않습니다"));
+      b.onclick = () => openMenu("quit");
+      q.appendChild(b);
+      body.appendChild(q);
+    }
+  }
+
+  // 사도 정보 — 체력 · 걸린 것 · 패시브 · 전용 키워드 · 고학년 스킬
+  function openHero(u) {
+    const h = HERO(u.key);
+    const box = openModal("heromodal");
+    const face = el("div", "bmface hero");
+    face.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: 0, slot: "event", still: true }));
+    box.appendChild(face);
+    const body = el("div", "bmbody");
+    const nat = C.natureOf(u.key);
+    body.appendChild(el("span", "bmkind", [h.race, h.role, ROW_KO[u.row], nat ? `성격 ${nat}` : null, h.eldain ? "엘다인" : null].filter(Boolean).join(" · ")));
+    body.appendChild(el("h3", "bmname", u.ko));
+    const meter = el("div", "bmmeter");
+    meter.appendChild(el("span", null, u.dead ? "쓰러졌습니다" : `체력 ${Math.max(0, u.hp)} / ${u.maxHp}`));
+    if (u.block > 0) meter.appendChild(el("b", "blk", `방어 ${u.block}`));
+    if (u.shield > 0) meter.appendChild(el("b", "blk", `실드 ${u.shield}`));
+    body.appendChild(meter);
+    // 걸린 것 — 상태 · 증감 · 전용 키워드 개수(싸움터의 칩과 같은 것)
+    const c0 = chips(u);
+    if (c0.children.length) { c0.className = "bmchips"; body.appendChild(c0); }
+    // 패시브 — 「이름: 하는 일 · 이름: 하는 일」
+    if (h.passive) {
+      body.appendChild(el("span", "bmsub", "패시브"));
+      const pl = el("dl", "bmterms");
+      for (const part of String(h.passive).split(/\s·\s(?=[^:·]{1,24}:)/)) {
+        const m = part.match(/^([^:]{1,24}):\s*(.+)$/);
+        pl.appendChild(el("dt", null, m ? m[1] : "패시브"));
+        pl.appendChild(withKeywords(el("dd"), m ? m[2] : part, u.key));
+      }
+      body.appendChild(pl);
+    }
+    if (h.keyword && h.keyword.ko) {
+      body.appendChild(el("span", "bmsub", "전용 키워드"));
+      const kl = el("dl", "bmterms");
+      kl.appendChild(el("dt", null, h.keyword.ko));
+      kl.appendChild(el("dd", null, h.keyword.text || ""));
+      body.appendChild(kl);
+    }
+    const ult = C.ultOf(u.key);
+    if (ult) {
+      body.appendChild(el("span", "bmsub", `고학년 스킬 · 게이지 ${ult.cost}%`));
+      const ul = el("dl", "bmterms");
+      ul.appendChild(el("dt", null, ult.ko));
+      ul.appendChild(withKeywords(el("dd"), cardParts({ text: ult.text }, u.key).action, u.key));
+      body.appendChild(ul);
+    }
+    const row = el("div", "bmbtns");
+    if (ult && !u.dead) {
+      const why = C.canUlt(st, u.key);
+      const go = el("button", "bmuse", why ? "게이지가 모자랍니다" : "고학년 스킬 쓰기");
+      go.disabled = !!why;
+      go.onclick = () => openUlt(u);
+      row.appendChild(go);
+    }
+    const x = el("button", "bmclose", "닫기");
+    x.onclick = closeModal;
+    row.appendChild(x);
+    body.appendChild(row);
+    box.appendChild(body);
+  }
+
+  function openCard(id) {
+    const c = C.cardOf(st, id);
+    if (!c) return;
+    const box = openModal("cardmodal");
+    const big = bigCard({ ...c, cost: C.costOf(st, id) }, CARDART.pic[id] || null);
+    big.onclick = null; big.title = "";
+    big.classList.add("bmcard");
+    box.appendChild(big);
+    const body = el("div", "bmbody");
+    body.appendChild(el("span", "bmkind", c.hero ? `${HERO(c.hero).ko}의 카드 · ${c.type}` : `공용 카드 · ${c.type}`));
+    body.appendChild(el("h3", "bmname", c.name));
+    const meter = el("div", "bmmeter");
+    meter.appendChild(el("span", null, c.xcost ? "비용 X — 남은 AP 를 모두 씁니다" : `비용 ${C.costOf(st, id)} AP`));
+    body.appendChild(meter);
+    const { action, terms } = cardParts(c, c.hero);
+    body.appendChild(withKeywords(el("p", "bmtext"), action, c.hero));
+    if (terms.length) body.appendChild(termList(terms));
+    // 낼 수 없는 까닭은 손에 든 카드일 때만 — 더미에서 연 카드는 원래 못 낸다
+    const why = st.hand.includes(id) ? C.canPlay(st, id) : null;
+    if (why) body.appendChild(el("p", "bmwhy", why));
+    const row = el("div", "bmbtns");
+    const x = el("button", "bmclose", "닫기");
+    x.onclick = closeModal;
+    row.appendChild(x);
+    body.appendChild(row);
+    box.appendChild(body);
   }
 
   function play(targetIdx) {
     if (selCard < 0) return;
     const r = C.playCard(st, selCard, targetIdx);
     selCard = -1;
-    if (!r.ok) hint(r.why);
-    else if (r.combo) hint(r.combo.quip);
+    if (!r.ok) say(r.why);
+    else if (r.combo) say(r.combo.quip);
     draw();
   }
 
@@ -1503,6 +1828,39 @@ export function fightScreen(run, onDone) {
   return s;
 }
 
+// 화면 뒤에 그 싸움의 배경을 깐다 — 전투와, 이긴 뒤의 보상 화면이 같은 그림을 쓴다.
+// 변수에 담긴 url() 은 그 변수를 쓰는 css 파일 기준으로 풀린다 — 그래서 문서 기준 절대 주소로 넘긴다
+function setStageBg(s, run) {
+  const floor = R.currentFloor(run);
+  const bg = BATTLE_BG[floor.n] || BATTLE_BG[1];
+  const bgFile = `assets/bg/${run.eventFight ? bg.event : R.isBoss(run) ? bg.boss : bg.fight}.jpg`;
+  s.style.setProperty("--stagebg", `url("${typeof location === "object" ? new URL(bgFile, location.href).href : bgFile}")`);
+}
+
+// 가운데 창 — 전투 밖(보상 등)에서 쓴다. 바깥 · Esc 로 닫는다. 전투 안에는 같은 모양의 openModal 이 따로 있다
+let outModal = null;
+function centerModal(kind) {
+  closeCenter();
+  const back = el("div", "bmodal " + kind);
+  const box = el("div", "bmbox");
+  back.appendChild(box);
+  back.onclick = (e) => { if (e.target === back) closeCenter(); };
+  document.body.appendChild(back);
+  if (typeof addEventListener === "function") addEventListener("keydown", escCenter);   // 가짜 DOM(tools/smoke.js)에는 없다
+  outModal = back;
+  return box;
+}
+function closeCenter() { if (outModal) { outModal.remove(); outModal = null; if (typeof removeEventListener === "function") removeEventListener("keydown", escCenter); } }
+function escCenter(e) { if (e.key === "Escape") closeCenter(); }
+function termDl(terms) {
+  const dl = el("dl", "bmterms");
+  for (const t of terms) {
+    dl.appendChild(el("dt", null, t.ko));
+    dl.appendChild(el("dd", null, t.text || "풀이가 아직 없습니다."));
+  }
+  return dl;
+}
+
 // 싸움터 배경 — assets/bg (tools/extract-bg.py 가 게임에서 뽑은 16:9 그림)
 // 에르피엔은 숲속 버섯 마을, 모나티엄은 엘프 도시, 벨리티엔은 마녀 왕국의 보랏빛 숲
 const BATTLE_BG = {
@@ -1510,6 +1868,186 @@ const BATTLE_BG = {
   2: { fight: "stage8_1", boss: "stage9_1", event: "stage4_1" },
   3: { fight: "stage23_1", boss: "stage25_1", event: "stage16_1" },
 };
+
+// ── 지도 ───────────────────────────────────────────────────────────────
+// 층마다 갈림길이 있는 길(js/map.js). 파티 미니미가 지금 칸에 서 있고, 이어진 칸을 누르면 그리로 걸어가 들어간다.
+// 칸은 왼쪽에서 오른쪽으로 여덟 줄 — 맨 끝이 보스. 지나온 칸은 흐리게, 갈 수 있는 칸은 빛난다.
+const MAP_ICON = {
+  start: '<svg viewBox="0 0 24 24"><path d="M5 21V3h2v1h11l-2.5 4L18 12H7v9H5z"/></svg>',
+  fight: '<svg viewBox="0 0 24 24" class="stroke"><path d="M5 4l11 11M19 4L8 15M6.5 15.5l2 2M17.5 15.5l-2 2M4.5 19.5l2.5-2.5M19.5 19.5L17 17"/></svg>',
+  event: '<svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 2.9-1.8 4.2-3.2 5.2-1.1.8-1.8 1.3-1.8 2.3v.5h-4v-.6c0-2.6 1.6-3.8 2.9-4.7 1.1-.8 2.1-1.5 2.1-2.7a3 3 0 0 0-6 0H5a7 7 0 0 1 7-7zm-2 17h4v3h-4v-3z"/></svg>',
+  elite: '<svg viewBox="0 0 24 24"><path d="M4 3l3.5 4.2L12 4l4.5 3.2L20 3l-.8 7.2c1.1 1.1 1.8 2.6 1.8 4.3 0 4-4 7.5-9 7.5s-9-3.5-9-7.5c0-1.7.7-3.2 1.8-4.3L4 3zm4.5 10.5a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2zm7 0a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2zM9.5 18.5h5l-2.5 1.6-2.5-1.6z"/></svg>',
+  camp: '<svg viewBox="0 0 24 24"><path d="M12 2c1 3 4 4.5 4 8a4 4 0 0 1-8 0c0-1.6.8-2.8 1.6-3.6.2 1.4.9 2.2 1.9 2.6C11 7 10.8 4.4 12 2zM3 19l8.3-3 .7.3.7-.3L21 19v2l-9-3.2L3 21v-2z"/></svg>',
+  campshop: '<svg viewBox="0 0 24 24"><path d="M9 2c1 2.6 3.4 3.8 3.4 6.8a3.4 3.4 0 0 1-6.8 0c0-1.3.6-2.3 1.3-3 .2 1.2.8 1.8 1.6 2.2C8.1 6 7.9 3.8 9 2zM2 17l7-2.5 7 2.5v2l-7-2.5L2 19v-2zm15-7a4 4 0 1 1 0 8 4 4 0 0 1 0-8zm-.7 1.8v4.4h1.4v-4.4h-1.4z"/></svg>',
+  boss: '<svg viewBox="0 0 24 24"><path d="M2 7l5 4 5-7 5 7 5-4-2 12H4L2 7zm2.6 13.5h14.8V22H4.6v-1.5z"/></svg>',
+};
+const MAP_HELP = {
+  start: "출발 — 여기서 길을 고릅니다",
+  fight: "일반 전투 — 이기면 고유 카드나 번뜩임", elite: "엘리트 전투 — 센 적(체력 ×1.5). 이기면 장비 하나 · 번뜩임 · 골드 더",
+  event: "이벤트 — 무슨 일이 생길지 모릅니다", camp: "휴식 — 쉬거나 수련합니다",
+  campshop: "휴식 + 골디의 상점 — 카드 · 장비 · 카드 제거", boss: "보스 — 이 층의 끝",
+};
+
+export function mapScreen(run, onEnter, onQuit) {
+  const s = screen();
+  s.classList.add("mapscreen");
+  const map = M.mapOf(run);
+  const floor = R.currentFloor(run);
+  setStageBg(s, run);
+
+  // 머리 — 어디 · 파티 · 골드 · 덱
+  const head = el("div", "mhead");
+  const where = el("div", "mwhere");
+  where.appendChild(el("b", null, `${floor.n}층 · ${floor.name}`));
+  where.appendChild(el("span", null, `${floor.sub} · ${floor.n}-0 ~ ${floor.n}-${map.rows.length - 1} · 갈 곳을 고릅니다`));
+  head.appendChild(where);
+  const party = el("div", "mparty-hp");
+  for (const k of run.party) {
+    const h = HERO(k);
+    const cell = el("div", "mhero" + ((run.hp[k] || 0) <= 0 ? " dead" : ""));
+    const pic = CARDART.pic[k + "_ult"];
+    const face = el("span", "mface");
+    if (pic) face.appendChild(img(pic)); else face.appendChild(el("b", null, (h.ko || k).slice(0, 1)));
+    cell.appendChild(face);
+    const info = el("div", "minfo");
+    info.appendChild(el("b", null, h.ko || k));
+    const bar = el("div", "bar");
+    const fill = el("i");
+    fill.style.width = Math.max(0, ((run.hp[k] || 0) / (run.maxHp[k] || 1)) * 100) + "%";
+    bar.appendChild(fill);
+    info.appendChild(bar);
+    info.appendChild(el("span", "mhp", (run.hp[k] || 0) <= 0 ? "주말농장" : `${run.hp[k]} / ${run.maxHp[k]}`));
+    cell.appendChild(info);
+    party.appendChild(cell);
+  }
+  head.appendChild(party);
+  const gold = el("span", "mgold", `✦ ${run.gold} 골드`);
+  head.appendChild(gold);
+  const deckBtn = el("button", "mdeck", `덱 ${run.deck.length}장`);
+  deckBtn.onclick = () => showPiles([{ key: "all", label: "덱 전체", ids: run.deck, why: "이 판의 덱. 번뜩임이 붙은 카드는 바뀐 모습으로 보입니다." }], "all", (id) => flashedCard(run, id));
+  head.appendChild(deckBtn);
+  const menuBtn = el("button", "bmenu mmenu");
+  menuBtn.title = "메뉴";
+  for (let k = 0; k < 3; k++) menuBtn.appendChild(el("i"));
+  menuBtn.onclick = () => {
+    const box = centerModal("menumodal");
+    const body = el("div", "bmbody");
+    body.appendChild(el("h3", "bmname", "메뉴"));
+    body.appendChild(el("span", "bmkind", `${floor.n}층 · ${floor.name}`));
+    const list = el("div", "mlist");
+    const go = el("button", "mitem main"); go.appendChild(el("b", null, "이어하기")); go.onclick = closeCenter; list.appendChild(go);
+    if (onQuit) {
+      const q = el("button", "mitem quit"); q.appendChild(el("b", null, "메인화면으로")); q.appendChild(el("span", null, "이 판은 저장되지 않습니다"));
+      q.onclick = () => { closeCenter(); onQuit(); };
+      list.appendChild(q);
+    }
+    body.appendChild(list);
+    box.appendChild(body);
+  };
+  head.appendChild(menuBtn);
+  s.appendChild(head);
+
+  // 판 — 칸 · 길 · 미니미. 가로로 긴 띠라 화면을 넘으면 끌어서(마우스 · 손가락 · 휠) 넘겨 본다 — 배율은 줄이지 않는다
+  const board = el("div", "mboard");
+  s.appendChild(board);
+  const strip = el("div", "mstrip");
+  board.appendChild(strip);
+  // 칸 사이는 늘 같은 간격(px) — 열은 COL 간격, 자리(레인) 넷은 판 높이의 가로줄 넷
+  const phone = typeof document === "object" && document.documentElement && document.documentElement.classList && document.documentElement.classList.contains("phone");
+  const COL = phone ? 150 : 190, PAD = phone ? 90 : 120;
+  const W = PAD * 2 + (map.rows.length - 1) * COL;
+  strip.style.width = W + "px";
+  const posOf = (n) => ({ x: PAD + n.row * COL, y: n.lane == null ? 50 : 17 + n.lane * 22 });   // x px · y %
+  const svg = document.createElementNS ? document.createElementNS("http://www.w3.org/2000/svg", "svg") : el("svg");
+  if (svg.setAttribute) { svg.setAttribute("viewBox", `0 0 ${W} 100`); svg.setAttribute("preserveAspectRatio", "none"); }
+  svg.classList.add("medges");
+  strip.appendChild(svg);
+  const can = new Set(M.reachable(run));
+  const ahead = M.aheadOf(run);              // 지금 자리에서 앞으로 닿는 칸 — 그 밖은 흐리게(이제 못 가는 곳)
+  const seen = new Set(map.seen);
+  for (const row of map.rows) for (const n of row) for (const to of n.next) {
+    const t = M.nodeById(map, to), a = posOf(n), b = posOf(t);
+    if (!document.createElementNS) break;
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    // 카제나처럼 — 칸에서 곧게 나와 가운데서 꺾여 다음 칸으로 곧게 들어간다
+    const mx = (a.x + b.x) / 2, k = COL * 0.18;
+    line.setAttribute("d", a.y === b.y ? `M${a.x},${a.y} L${b.x},${b.y}` : `M${a.x},${a.y} L${mx - k},${a.y} L${mx + k},${b.y} L${b.x},${b.y}`);
+    line.setAttribute("vector-effect", "non-scaling-stroke");
+    const walked = seen.has(n.id) && seen.has(to);
+    const open = map.at === n.id && can.has(to);
+    const live = ahead.has(to) && (ahead.has(n.id) || map.at === n.id);
+    line.setAttribute("class", walked ? "walked" : open ? "open" : live ? "live" : "gone");
+    svg.appendChild(line);
+  }
+  let busy = false, dragged = false;
+  const party3 = el("div", "mwalkers");
+  for (const k of run.party) {
+    if ((run.hp[k] || 0) <= 0) continue;
+    party3.appendChild(art.portrait(k, { ko: HERO(k).ko, tint: TINT(k), size: 96, slot: "map" }));
+  }
+  const here = M.currentNode(run) || map.rows[0][0];
+  const place = (p) => { party3.style.left = p.x + "px"; party3.style.top = p.y + "%"; };
+  place(posOf(here));
+  for (const row of map.rows) for (const n of row) {
+    const p = posOf(n);
+    const b = el("button", `mnode t-${n.type}` + (can.has(n.id) ? " can" : "") + (seen.has(n.id) ? " seen" : "") + (map.at === n.id ? " here" : "")
+      + (!ahead.has(n.id) && !seen.has(n.id) && map.at !== n.id ? " gone" : ""));
+    b.style.left = p.x + "px"; b.style.top = p.y + "%";
+    const tile = el("span", "mring");
+    const icon = el("span", "micon");
+    icon.innerHTML = MAP_ICON[n.type] || "";
+    tile.appendChild(icon);
+    b.appendChild(tile);
+    b.appendChild(el("span", "mlabel", n.type === "start" ? M.stageName(run, n) : M.KIND_KO[n.type]));
+    const foes = M.enemiesAt(run, n).map((id) => (ENEMIES[id] || {}).ko || id);
+    b.title = `${M.stageName(run, n)} · ` + (MAP_HELP[n.type] || "") + (foes.length ? `\n적: ${foes.join(", ")}` : "");
+    b.dataset.id = n.id;
+    b.onclick = () => {
+      if (dragged || busy || !can.has(n.id)) return;       // 끌다가 놓은 것은 누른 것이 아니다
+      busy = true;
+      board.classList.add("going");
+      b.classList.add("pick");
+      party3.classList.add("walking");
+      place(p);
+      setTimeout(() => {
+        const node = M.enterNode(run, n.id);
+        if (node) onEnter(node);
+      }, typeof window === "object" ? 900 : 0);
+    };
+    strip.appendChild(b);
+  }
+  strip.appendChild(party3);
+
+  // 끌어서 넘기기 — 마우스는 눌러 끌고, 휠은 가로로. 손가락은 브라우저가 알아서 넘긴다(overflow-x)
+  let dragX = null, startLeft = 0;
+  board.onpointerdown = (e) => {
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    dragX = e.clientX; startLeft = board.scrollLeft; dragged = false;
+  };
+  board.onpointermove = (e) => {
+    if (dragX == null) return;
+    const dx = e.clientX - dragX;
+    if (Math.abs(dx) > 6) { dragged = true; board.classList.add("dragging"); }
+    if (dragged) board.scrollLeft = startLeft - dx / ((typeof getZoom === "function" && getZoom()) || 1);
+  };
+  const endDragMap = () => { dragX = null; board.classList.remove("dragging"); setTimeout(() => { dragged = false; }, 0); };
+  board.onpointerup = endDragMap;
+  board.onpointerleave = endDragMap;
+  board.onwheel = (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { board.scrollLeft += e.deltaY; e.preventDefault(); } };
+  // 처음 열면 지금 칸이 왼쪽 1/3 쯤에 오게
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => { board.scrollLeft = Math.max(0, posOf(here).x - board.clientWidth * 0.3); });
+  s.enterNode = (id) => { const b = [...strip.children].find((c) => c.dataset && c.dataset.id === id); if (b) b.onclick(); };  // tools/smoke.js 가 쓴다
+  return s;
+}
+
+// 덱 보기에서 — 번뜩임이 붙은 카드는 바뀐 모습으로
+function flashedCard(run, id) {
+  const c = CARDS[id];
+  if (!c) return null;
+  const n = (run.flash || {})[id];
+  const f = n && c.flash && c.flash[n - 1];
+  return f ? { ...c, text: f.text, flashOn: n, flashKind: f.kind } : c;
+}
 
 // 적의 수 — 마름모에 마우스를 올리면 뜨는 설명
 const INTENT_HELP = {
@@ -1532,13 +2070,14 @@ const NATURE_SKIN = { 순수: "Skin_Naive", 광기: "Skin_Mad", 냉정: "Skin_Co
 export function rewardScreen(run, onPick) {
   const s = screen();
   s.classList.add("rewardscreen");
+  setStageBg(s, run);                     // 방금 싸운 자리 그대로 — 전투 화면과 같은 배경
 
   const bar = el("div", "dbar2");
   bar.appendChild(el("h1", "dtitle", "이겼습니다"));
   bar.appendChild(el("span", "rwhy", "카드 한 장을 덱에 넣거나 번뜩임 하나를 얻습니다. 둘 다 안 해도 됩니다."));
   const rgot = run.reward || R.rollReward(run);
   if (rgot.gold) bar.appendChild(el("span", "sgold", `✦ +${rgot.gold} 골드`));
-  const skip = el("button", "dexbtn", "그냥 간다");
+  const skip = el("button", "dexbtn", "그냥 갑니다");
   skip.onclick = () => onPick(null, null);
   bar.appendChild(skip);
   s.appendChild(bar);
@@ -1557,7 +2096,7 @@ export function rewardScreen(run, onPick) {
       if (!got.equipTaken) {
         const row = el("div", "rrow");
         for (const id of got.equip) {
-          const b = el("button", "sprice", "이걸 가진다");
+          const b = el("button", "sprice", "이걸 가집니다");
           b.onclick = () => { R.takeEquip(run, id); drawEq(); };
           row.appendChild(equipCard(id, b));
         }
@@ -1581,8 +2120,9 @@ export function rewardScreen(run, onPick) {
     } else who.appendChild(el("b", null, "공용"));
     pick.appendChild(who);
     const card = bigCard(c, CARDART.pic[id] || null);
-    card.onclick = () => onPick(id, null);
-    card.title = "눌러서 덱에 넣기";
+    // 누르면 바로 넣지 않는다 — 가운데에 자세히 띄우고, 거기서 「덱에 넣습니다」
+    card.onclick = () => rewardCard(id);
+    card.title = "눌러서 자세히 보기";
     pick.appendChild(card);
     row.appendChild(pick);
   }
@@ -1612,10 +2152,65 @@ export function rewardScreen(run, onPick) {
       b.appendChild(head);
       b.appendChild(withKeywords(el("p", "ftext2"), shortText(f.text), c.hero));
       b.appendChild(el("p", "fbefore", `지금: ${shortText(c.text)}`));
-      b.onclick = () => onPick(null, { cardId: offer.cardId, n });
+      b.onclick = () => rewardFlash(offer.cardId, n, f);
       fr.appendChild(b);
     }
     body.appendChild(fr);
+  }
+
+  // 보상 카드 자세히 — 여기서 골라야 덱에 들어간다
+  function rewardCard(id) {
+    const c = CARDS[id];
+    const box = centerModal("cardmodal");
+    const big = bigCard(c, CARDART.pic[id] || null);
+    big.onclick = null; big.title = "";
+    big.classList.add("bmcard");
+    box.appendChild(big);
+    const body = el("div", "bmbody");
+    body.appendChild(el("span", "bmkind", c.hero ? `${HERO(c.hero).ko}의 고유 카드 · ${c.type}` : `공용 카드 · ${c.type}`));
+    body.appendChild(el("h3", "bmname", c.name));
+    const meter = el("div", "bmmeter");
+    meter.appendChild(el("span", null, c.xcost ? "비용 X — 남은 AP 를 모두 씁니다" : `비용 ${c.cost} AP`));
+    if (c.flash && c.flash.length) meter.appendChild(el("span", null, `번뜩임 ${c.flash.length}가지`));
+    body.appendChild(meter);
+    const { action, terms } = cardParts(c, c.hero);
+    body.appendChild(withKeywords(el("p", "bmtext"), action, c.hero));
+    if (terms.length) body.appendChild(termDl(terms));
+    const row = el("div", "bmbtns");
+    const go = el("button", "bmuse", "덱에 넣습니다");
+    go.onclick = () => { closeCenter(); onPick(id, null); };
+    const x = el("button", "bmclose", "닫기");
+    x.onclick = closeCenter;
+    row.appendChild(go); row.appendChild(x);
+    body.appendChild(row);
+    box.appendChild(body);
+  }
+  // 번뜩임 — 무엇이 바뀌는지 한 번 더 보여 주고 붙인다
+  function rewardFlash(cardId, n, f) {
+    const c = CARDS[cardId];
+    const box = openFlashBox();
+    function openFlashBox() { return centerModal("cardmodal flashmodal"); }
+    const big = bigCard(c, CARDART.pic[cardId] || null);
+    big.onclick = null; big.title = "";
+    big.classList.add("bmcard");
+    box.appendChild(big);
+    const body = el("div", "bmbody");
+    body.appendChild(el("span", "bmkind", `번뜩임 ${"①②③④⑤"[n - 1]} ${f.kind} · 「${c.name}」에 붙습니다`));
+    body.appendChild(el("h3", "bmname", f.ko || f.kind));
+    body.appendChild(el("span", "bmsub", "바뀐 뒤"));
+    body.appendChild(withKeywords(el("p", "bmtext"), shortText(f.text), c.hero));
+    body.appendChild(el("span", "bmsub", "지금"));
+    body.appendChild(withKeywords(el("p", "bmhelp"), shortText(c.text), c.hero));
+    const { terms } = cardParts({ ...c, text: f.text }, c.hero);
+    if (terms.length) body.appendChild(termDl(terms));
+    const row = el("div", "bmbtns");
+    const go = el("button", "bmuse", "이 번뜩임을 붙입니다");
+    go.onclick = () => { closeCenter(); onPick(null, { cardId, n }); };
+    const x = el("button", "bmclose", "닫기");
+    x.onclick = closeCenter;
+    row.appendChild(go); row.appendChild(x);
+    body.appendChild(row);
+    box.appendChild(body);
   }
 
   function sec(label, why) {
@@ -1647,7 +2242,7 @@ function equipCard(id, extra) {
   if (e.affinityKo) n.appendChild(el("p", "eaff", `애착: ${e.affinityKo}${e.affinityLv3 ? ` — 끼면 ${statText(e.affinityLv3)} 더` : ""}`));
   if (e.effect) {
     const p = el("p", "eeff");
-    p.appendChild(el("span", "eoff", "효과 · 아직 안 돈다"));
+    p.appendChild(el("span", "eoff", "효과 · 아직 안 돕니다"));
     p.appendChild(document.createTextNode(" " + shortText(e.effect.replace(/\s*\[[^\]]+\]/g, ""))));
     n.appendChild(p);
   }
@@ -1730,7 +2325,7 @@ export function campScreen(run, withShop, onDone, onShop) {
   const bar = el("div", "dbar2");
   bar.appendChild(el("h1", "dtitle", withShop ? "캠프 · 골디의 좌판" : "캠프"));
   bar.appendChild(el("span", "rwhy", `${floor.name} — ${withShop ? "보스 앞에서 한숨 돌린다" : "길 가운데에서 한숨 돌린다"}. 쉬기와 수련 중 하나만 고릅니다.`));
-  const go = el("button", "dexbtn", withShop ? "보스에게 간다" : "길을 떠난다");
+  const go = el("button", "dexbtn", withShop ? "보스에게 갑니다" : "길을 떠납니다");
   go.onclick = onDone;
   bar.appendChild(go);
   s.appendChild(bar);
@@ -1861,7 +2456,7 @@ export function shopScreen(run, onDone, opts = {}) {
   bar.appendChild(el("h1", "dtitle", "골디의 상점"));
   const gold = el("span", "sgold");
   bar.appendChild(gold);
-  const leave = el("button", "dexbtn", opts.back || "보스에게 간다");
+  const leave = el("button", "dexbtn", opts.back || "보스에게 갑니다");
   leave.onclick = () => { say(GOLDY.bye); setTimeout(onDone, 0); };
   bar.appendChild(leave);
   s.appendChild(bar);
@@ -2008,7 +2603,7 @@ export function swapScreen(run, onDone) {
   const bar = el("div", "dbar2");
   bar.appendChild(el("h1", "dtitle", "사도 교체"));
   bar.appendChild(el("span", "rwhy", "층을 넘었습니다. 한 명을 바꿀 수 있습니다 — 그대로 가도 됩니다."));
-  const keep = el("button", "go", "그대로 간다");
+  const keep = el("button", "go", "그대로 갑니다");
   keep.onclick = onDone;
   bar.appendChild(keep);
   s.appendChild(bar);
@@ -2050,13 +2645,13 @@ export function swapScreen(run, onDone) {
     plate.appendChild(el("b", null, h.ko));
     plate.appendChild(el("span", "tsub", `${RK[h.row] || ""} ${h.role || ""}`));
     face.appendChild(plate);
-    if (on) face.appendChild(el("span", "sout", "내보낸다"));
+    if (on) face.appendChild(el("span", "sout", "내보냅니다"));
     n.appendChild(face);
     const e = earned(k);
     n.appendChild(el("div", "shp" + (down ? " down" : ""), down ? "주말농장" : `체력 ${run.hp[k]} / ${run.maxHp[k]}`));
     n.appendChild(el("div", "slose", e.uniq
-      ? `모은 고유 카드 ${e.uniq}장${e.lit ? ` · 번뜩임 ${e.lit}개` : ""} — 바꾸면 같이 나간다`
-      : "아직 모은 고유 카드가 없다"));
+      ? `모은 고유 카드 ${e.uniq}장${e.lit ? ` · 번뜩임 ${e.lit}개` : ""} — 바꾸면 같이 나갑니다`
+      : "아직 모은 고유 카드가 없습니다"));
     n.onclick = () => { outKey = on ? null : k; draw(); };
     return n;
   }
@@ -2192,7 +2787,7 @@ export function eventScreen(run, onDone, onFight) {
     bar.appendChild(el("span", "rwhy", `이벤트 · ${POOL_KO(ev.pool)} · ${ev.kind}`));
     bar.appendChild(el("span", "evgold", `✦ ${run.gold} 골드`));
     if (E.phase === "result" && !E.pending.length) {
-      const go = el("button", "dexbtn", "길을 떠난다");
+      const go = el("button", "dexbtn", "길을 떠납니다");
       go.onclick = () => { EV.leaveEvent(run); onDone(); };
       bar.appendChild(go);
     }
@@ -2240,7 +2835,7 @@ export function eventScreen(run, onDone, onFight) {
           tag.appendChild(el("b", null, opt.race ? `${opt.race} · ${by.ko}` : opt.when ? "진짜 환자" : by.ko));
           b.appendChild(tag);
         }
-        b.appendChild(el("b", "evlabel", opt.label));
+        b.appendChild(el("b", "evlabel", polite(opt.label)));   // 선택지는 문서의 말(한다체) — 화면에서는 합니다체
         b.appendChild(el("span", "evout", describe(opt)));
         if (opt.price && EV.outOf(run, opt) === opt.price.out) b.appendChild(el("span", "evnote", opt.price.why));
         if (lock) b.appendChild(el("span", "evlock", lock));
@@ -2260,10 +2855,10 @@ export function eventScreen(run, onDone, onFight) {
 
     // 결과
     const res = el("div", "evresult");
-    if (E.label) res.appendChild(el("b", "evchose", `「${E.label}」`));
+    if (E.label) res.appendChild(el("b", "evchose", `「${polite(E.label)}」`));
     if (E.say) res.appendChild(el("p", "evsay", E.say));
     for (const line of E.log) res.appendChild(el("p", "evlog", line));
-    if (!E.log.length && !E.pending.length) res.appendChild(el("p", "evlog", "아무 일도 없었다."));
+    if (!E.log.length && !E.pending.length) res.appendChild(el("p", "evlog", "아무 일도 없었습니다."));
     body.appendChild(res);
 
     const p = E.pending[0];
@@ -2277,7 +2872,7 @@ export function eventScreen(run, onDone, onFight) {
     if (opt.gamble) return opt.gamble.map((g) => `${pctTxt(g.p)} ${g.out}`).join(" / ");
     if (opt.judge) {
       const j = EV.judgeOf(run, opt);
-      if (j.pick) return `사도 1명을 골라 겨룬다 — HP ${opt.judge.at} 이상이면 ${opt.judge.pass}, 아니면 ${opt.judge.fail}`;
+      if (j.pick) return `사도 1명을 골라 겨룹니다 — HP ${opt.judge.at} 이상이면 ${opt.judge.pass}, 아니면 ${opt.judge.fail}`;
       return `${HERO(j.who || "").ko || "?"} 공격 ${j.value} → ${j.pass ? `성공: ${opt.judge.pass}` : `실패: ${opt.judge.fail}`} (${opt.judge.at} 이상이면 성공)`;
     }
     const out = EV.outOf(run, opt);
@@ -2322,7 +2917,7 @@ export function eventScreen(run, onDone, onFight) {
         row.appendChild(w);
       }
       wrap.appendChild(row);
-      const skip = el("button", "srmbtn", "받지 않는다");
+      const skip = el("button", "srmbtn", "받지 않습니다");
       skip.onclick = () => say(null);
       wrap.appendChild(skip);
     } else if (p.k === "flash") {
@@ -2344,7 +2939,7 @@ export function eventScreen(run, onDone, onFight) {
       }
       wrap.appendChild(fr);
       if (run.event.shinChance && !run.noShin) wrap.appendChild(el("p", "evnote", `고르면 ${pctTxt(run.event.shinChance)} 확률로 신뜩임(피해 ×1.3)이 얹힙니다`));
-      const skip = el("button", "srmbtn", "받지 않는다");
+      const skip = el("button", "srmbtn", "받지 않습니다");
       skip.onclick = () => say(null);
       wrap.appendChild(skip);
     } else if (p.k === "pickHero" || p.k === "judgePick") {
@@ -2364,7 +2959,7 @@ export function eventScreen(run, onDone, onFight) {
       }
       wrap.appendChild(row);
     } else if (p.k === "gambleChoice") {
-      title("골라서 받는다", "아는 얼굴 앞이라 바로 읽어 준다");
+      title("골라서 받습니다", "아는 얼굴 앞이라 바로 읽어 줍니다");
       const row = el("div", "evopts");
       for (const o of p.options) {
         const b = el("button", "evopt");
@@ -2393,7 +2988,7 @@ export function endScreen(kind, run, onRestart) {
   bar.appendChild(el("span", "rwhy", clear
     ? `${run.party.map((k) => HERO(k).ko).join(" · ")}와 함께.`
     : `${floor.n}층 ${floor.name} · ${R.isBoss(run) ? "보스" : `${run.node + 1}번째 싸움`} 에서 멈췄습니다.`));
-  const again = el("button", "go", "다시 떠난다");
+  const again = el("button", "go", "다시 떠납니다");
   again.onclick = onRestart;
   bar.appendChild(again);
   s.appendChild(bar);

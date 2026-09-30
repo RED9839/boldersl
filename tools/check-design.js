@@ -33,7 +33,7 @@ flash === H.length * 20 ? ok(`번뜩임 ${flash}개 — 고유 카드마다 다�
 // ── 빠진 것 ────────────────────────────────────────────────────────────
 console.log("");
 console.log("빠진 것");
-for (const [field, ko] of [["hp", "HP"], ["atk", "공격"], ["def", "방어"], ["crit", "치명"], ["passive", "패시브"], ["ult", "궁극기"], ["blurb", "설명"]]) {
+for (const [field, ko] of [["hp", "HP"], ["atk", "공격"], ["def", "방어"], ["crit", "치명"], ["passive", "패시브"], ["ult", "고학년 스킬"], ["blurb", "설명"]]) {
   const miss = H.filter((h) => h[field] == null || h[field] === "");
   miss.length ? fail(`${ko} 없는 사도 ${miss.length}: ${miss.slice(0, 3).map((h) => h.ko).join(", ")}`) : ok(`${ko} — 135명 모두 있다`);
 }
@@ -50,11 +50,11 @@ for (const [k, [lo, hi]] of Object.entries(RANGE)) {
              : ok(`${k} ${Math.min(...H.map((h) => h[k]))}~${Math.max(...H.map((h) => h[k]))} — 표 범위 안`);
 }
 
-// 궁극기 비용은 150/200/250/300 중 하나
+// 고학년 스킬 비용은 150/200/250/300 중 하나
 const COSTS = [150, 200, 250, 300];
 const badUlt = H.filter((h) => h.ult && !COSTS.includes(h.ult.cost));
-badUlt.length ? fail(`궁극기 비용이 규칙 밖인 사도 ${badUlt.length}: ${badUlt.slice(0, 3).map((h) => `${h.ko} ${h.ult.cost}%`).join(", ")}`)
-              : ok("궁극기 비용이 모두 150/200/250/300%");
+badUlt.length ? fail(`고학년 스킬 비용이 규칙 밖인 사도 ${badUlt.length}: ${badUlt.slice(0, 3).map((h) => `${h.ko} ${h.ult.cost}%`).join(", ")}`)
+              : ok("고학년 스킬 비용이 모두 150/200/250/300%");
 
 // 번뜩임은 ①강화 ②경량 ③연계 ④변형 ⑤각성 순서
 const KIND = ["강화", "경량", "연계", "변형", "각성"];
@@ -64,7 +64,7 @@ for (const h of H) for (const u of h.unique)
 badFlash.length ? fail(`번뜩임 순서가 어긋난 곳 ${badFlash.length}: ${badFlash.slice(0, 3).join(", ")}`)
                 : ok("번뜩임이 모두 ①강화 ②경량 ③연계 ④변형 ⑤각성 순서");
 
-// 시작 카드는 역할별 구성이 정해져 있다(딜러 기본2·강1·쉴드1 / 서포터 기본2·회복2 / 탱커 기본2·쉴드2)
+// 시작 카드는 역할별 구성이 정해져 있다(딜러 기본2·강1·방어1 / 서포터 기본2·회복2 / 탱커 기본2·방어2)
 const roleBad = H.filter((h) => h.start.length !== 4);
 roleBad.length ? fail(`시작 카드가 넷이 아닌 사도 ${roleBad.length}`) : ok("시작 카드가 모두 넷");
 
@@ -85,8 +85,8 @@ for (const ko of SAMPLE) {
   const sigName = h.unique[0].ko;
   const inRaw = block.includes(`**${sigName}**`);
   const ultIn = block.includes(`**${h.ult.ko}**`);
-  inRaw && ultIn ? ok(`${ko} — 시그니처 「${sigName}」·궁극기 「${h.ult.ko}」가 원문에 있다`)
-                 : fail(`${ko} — 원문과 안 맞는다 (시그니처 ${inRaw} · 궁극기 ${ultIn})`);
+  inRaw && ultIn ? ok(`${ko} — 시그니처 「${sigName}」·고학년 스킬 「${h.ult.ko}」가 원문에 있다`)
+                 : fail(`${ko} — 원문과 안 맞는다 (시그니처 ${inRaw} · 고학년 스킬 ${ultIn})`);
 }
 
 console.log("");

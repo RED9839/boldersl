@@ -1,6 +1,6 @@
 // 카드 일러스트를 그리기 전에 알아야 할 것을 한 장으로 뽑는다.
 //
-//   node tools/art-brief.js 에르핀          그 사도의 카드 여덟 장 + 궁극기
+//   node tools/art-brief.js 에르핀          그 사도의 카드 여덟 장 + 고학년 스킬
 //   node tools/art-brief.js 에르핀_s2       카드 한 장
 //   node tools/art-brief.js --todo          아직 그림이 없는 자리 (사도별로 센다)
 //   node tools/art-brief.js --todo --list   그 자리를 다 늘어놓는다
@@ -33,7 +33,7 @@ function slotsOf(key) {
   Object.entries(B.cards)
     .filter(([, c]) => c.hero === key && c.unique)
     .forEach(([id, c], i) => out.push({ id, kind: i === 0 ? "고유·시그니처" : "고유", n: i, card: c }));
-  if (h.ult) out.push({ id: `${key}_ult`, kind: "궁극기", n: 0, card: { ko: h.ult.ko, cost: h.ult.cost + "%", type: "궁극기", text: h.ult.text } });
+  if (h.ult) out.push({ id: `${key}_ult`, kind: "고학년 스킬", n: 0, card: { ko: h.ult.ko, cost: h.ult.cost + "%", type: "고학년 스킬", text: h.ult.text } });
   return out;
 }
 
@@ -57,8 +57,8 @@ function briefOf(key) {
     ...s,
     pic: CARDART.pic[s.id] || null,
     // 원작 아이콘은 임시 자리메움이다. 그것도 '그려야 할 자리'로 센다.
-    // 궁극기만 빼 둔다 — 인게임 고학년 스킬 아이콘을 그대로 쓴다(기획서). 그려도 안 바뀐다.
-    fixed: s.kind === "궁극기",
+    // 고학년 스킬만 빼 둔다 — 인게임 고학년 스킬 아이콘을 그대로 쓴다(기획서). 그려도 안 바뀐다.
+    fixed: s.kind === "고학년 스킬",
     drawn: (CARDART.pic[s.id] || "").startsWith("assets/cardart/"),
     out: `assets/cardart/${key}/${s.id}.png`,
   }));
@@ -180,7 +180,7 @@ const WORLD = `[세계 규칙 — 어기면 tools/world-check.js 에 걸린다]
 
 // ── 아직 안 그린 자리 ──────────────────────────────────────────────────
 if (flag("--todo")) {
-  // 자리는 사도당 아홉 — 시작 넷 · 고유 넷 · 궁극기 하나. 전부 그린다.
+  // 자리는 사도당 아홉 — 시작 넷 · 고유 넷 · 고학년 스킬 하나. 전부 그린다.
   // 원작 아이콘이 박혀 있는 자리도 '그린 것'이 아니다. 임시로 메워 둔 것이라 똑같이 센다.
   const rows = [];
   for (const key of Object.keys(ARTMAP.art)) {
@@ -189,10 +189,10 @@ if (flag("--todo")) {
     if (todo.length) rows.push({ key, todo, done: b.slots.length - todo.length, all: b.slots.length });
   }
   const nTodo = rows.reduce((a, r) => a + r.todo.length, 0);
-  const nAll = Object.keys(ARTMAP.art).length * 8;   // 사도당 여덟 장. 궁극기는 안 그린다.
+  const nAll = Object.keys(ARTMAP.art).length * 8;   // 사도당 여덟 장. 고학년 스킬은 안 그린다.
   console.log(`그릴 자리 ${nTodo} / ${nAll} · 아직 남은 사도 ${rows.length}명`);
   console.log(`  그 가운데 ${rows.reduce((a, r) => a + r.todo.filter((s) => s.pic).length, 0)} 자리는 원작 아이콘이 임시로 박혀 있다 — 그것도 다시 그린다.`);
-  console.log(`  궁극기 ${Object.keys(ARTMAP.art).length}장은 원작 고학년 스킬 아이콘을 그대로 쓴다 — 그릴 자리가 아니다.`);
+  console.log(`  고학년 스킬 ${Object.keys(ARTMAP.art).length}장은 원작 고학년 스킬 아이콘을 그대로 쓴다 — 그릴 자리가 아니다.`);
   console.log("");
   console.log("한 사도를 여덟 장 통째로 끝내는 편이 결이 고르다. 참고 그림을 한 번만 물리면 되고,");
   console.log("같은 손과 같은 빛으로 여덟 장이 나오기 때문이다.");

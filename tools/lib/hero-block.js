@@ -12,7 +12,7 @@
 //   **고유 카드 4장**
 //   - **마력탄 폭주** (1·공격, 시그니처) …
 //       - ① 강화 *마력탄 대난사*: …
-//   **궁극기 (고학년 · 덱 밖 · 비용 300%)** **돌겨어어어!!! 억⋯?** — …
+//   **고학년 스킬 (덱 밖 · 비용 300%)** **돌겨어어어!!! 억⋯?** — …
 
 export const NATURES = ["순수", "광기", "냉정", "우울", "활발", "공명"];
 const ROW_KO = { 전열: "front", 중열: "mid", 후열: "back" };
@@ -91,9 +91,9 @@ export function parseHeroBlock(raw, warn = () => {}) {
   if (h.unique.length !== 4) warn(`${name} — 고유 카드가 ${h.unique.length}장 (넷이어야 한다)`);
   for (const u of h.unique) if (u.flash.length !== 5) warn(`${name}/${u.ko} — 번뜩임이 ${u.flash.length}개 (다섯이어야 한다)`);
 
-  const ult = body.match(/\*\*궁극기[^*]*비용\s*(\d+)%\)\*\*\s*\*\*(.+?)\*\*\s*—\s*(.+)/);
+  const ult = body.match(/\*\*(?:고학년 스킬|궁극기)[^*]*비용\s*(\d+)%\)\*\*\s*\*\*(.+?)\*\*\s*—\s*(.+)/);
   if (ult) h.ult = { cost: Number(ult[1]), ko: ult[2].trim(), text: ult[3].trim() };
-  else warn(`${name} — 궁극기를 못 읽었다`);
+  else warn(`${name} — 고학년 스킬을 못 읽었다`);
   return h;
 }
 

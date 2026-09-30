@@ -89,7 +89,7 @@ def main():
             if cards: cards[0].click()
         time.sleep(1.5)
         shot(d, a.out, "4-사도정보-능력치")   # 들어가면 능력치가 먼저 뜬다
-        for tab in ("카드", "번뜩임", "궁극기"):
+        for tab in ("카드", "번뜩임", "고학년 스킬"):
             for b in d.find_elements(By.CSS_SELECTOR, ".sidebtn"):
                 if b.text == tab:
                     b.click(); time.sleep(1.0); shot(d, a.out, f"5-사도정보-{tab}"); break
@@ -105,9 +105,23 @@ def main():
                 if c.find_element(By.CSS_SELECTOR, ".dname").text == name:
                     c.click(); break
             time.sleep(0.6)
-        go = [b for b in d.find_elements(By.CSS_SELECTOR, "button") if b.text == "떠난다"]
+        go = [b for b in d.find_elements(By.CSS_SELECTOR, "button") if b.text == "떠납니다"]
         if go:
             go[0].click(); time.sleep(2.0)
+            # 떠나면 지도가 먼저 뜬다 — 찍고, 첫 칸(전투)을 눌러 들어간다
+            if d.find_elements(By.CSS_SELECTOR, ".mapscreen"):
+                shot(d, a.out, "5z-지도")
+                if not a.no_check:
+                    m = d.execute_script("""return { nodes: document.querySelectorAll('.mnode').length, can: document.querySelectorAll('.mnode.can').length,
+                      boss: document.querySelectorAll('.mnode.t-boss').length, edges: document.querySelectorAll('.medges path').length,
+                      walkers: document.querySelectorAll('.mwalkers .art').length };""")
+                    print("지도에 보이는 것")
+                    check(m["nodes"] >= 10, f"칸이 깔린다 ({m['nodes']})")
+                    check(2 <= m["can"] <= 4, f"처음엔 첫 줄 2~4 갈래에서 고른다 ({m['can']})")
+                    check(m["boss"] == 1, "보스 칸이 하나")
+                    check(m["edges"] >= m["nodes"] - 1, f"칸이 길로 이어진다 ({m['edges']})")
+                    check(m["walkers"] == 3, f"파티 미니미 셋이 선다 ({m['walkers']})")
+                d.find_element(By.CSS_SELECTOR, ".mnode.can").click(); time.sleep(2.4)
             shot(d, a.out, "6-전투")
             if not a.no_check: verifyBattle(d, a.out)
             # 이길 때까지 눌러 보고 보상 화면을 찍는다
@@ -118,9 +132,10 @@ def main():
                 try:
                     hand = [c for c in d.find_elements(By.CSS_SELECTOR, ".hand .card") if "no" not in c.get_attribute("class")]
                     if hand:
-                        d.execute_script("arguments[0].click()", hand[0]); time.sleep(0.12)
-                        tg = d.find_elements(By.CSS_SELECTOR, ".foe.tgt") or d.find_elements(By.CSS_SELECTOR, ".stand.tgt")
-                        if tg: d.execute_script("arguments[0].click()", tg[0]); time.sleep(0.12)
+                        # 카드는 끌어서만 낸다 — 끌기가 끝날 때 부르는 dropCard 로 첫 적(아군 카드면 첫 아군)에게 놓는다
+                        d.execute_script("""const c = arguments[0], sc = document.querySelector("#screen");
+                          const f = document.querySelector(".foe:not(.dead)");
+                          sc.dropCard(Number(c.dataset.i), f ? Number(f.dataset.idx) : 0);""", hand[0]); time.sleep(0.15)
                     else:
                         e = d.find_elements(By.CSS_SELECTOR, ".endturn")
                         if not e: break
@@ -236,7 +251,7 @@ def verifyBattle(d, out=None):
     check(n["face"] == n["hand"], "카드마다 그림이나 무늬가 있다")
     check(n["own"] == n["hand"], "카드마다 누구 것인지 띠가 있다")
     check(n["lit"] == n["ap"] and n["pips"] >= n["ap"], f"AP 눈금이 숫자와 맞는다 ({n['lit']}/{n['pips']} · {n['ap']})")
-    check(n["ticks"] == 4, f"궁극기 게이지에 비용 눈금 넷 ({n['ticks']})")
+    check(n["ticks"] == 4, f"고학년 게이지에 비용 눈금 넷 ({n['ticks']})")
     check(n["allies"] == 3 and n["foes"] > 0, f"아군 {n['allies']} · 적 {n['foes']}")
     check(not n["blank"], "손패 그림이 모두 그려졌다" if not n["blank"] else f"빈 그림 {n['blank']}")
     check(n["tilt"] == n["hand"], f"손패가 손에 든 것처럼 펼쳐진다 ({n['tilt']}/{n['hand']})")

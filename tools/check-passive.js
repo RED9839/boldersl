@@ -89,15 +89,15 @@ console.log("본보기 — 네르");
 }
 
 console.log("");
-console.log("궁극기");
+console.log("고학년 스킬");
 {
   const s = fight(["에르핀", "네르", "티그"]); tough(s);
   s.gauge = 300;
   const hp = s.enemies.map((e) => e.hp);
   const r = useUlt(s, "에르핀", 0);
-  check(r.ok, `에르핀 궁극기를 쓴다 (${r.why || "ok"})`);
-  check(s.enemies.every((e, i) => e.hp < hp[i]), "궁극기가 적 전체를 친다 — 전에는 게이지만 먹었다");
-  check(s.party.find((u) => u.key === "에르핀").invuln === true, "궁극기의 무적이 걸린다");
+  check(r.ok, `에르핀 고학년 스킬을 쓴다 (${r.why || "ok"})`);
+  check(s.enemies.every((e, i) => e.hp < hp[i]), "고학년 스킬이 적 전체를 친다 — 전에는 게이지만 먹었다");
+  check(s.party.find((u) => u.key === "에르핀").invuln === true, "고학년 스킬의 무적이 걸린다");
 }
 
 console.log("");

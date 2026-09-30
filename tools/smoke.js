@@ -100,7 +100,7 @@ check(take("에르핀"), "빈 자리를 눌러 서랍에서 고른다");
 check(count(p, "empty") === 2, "고르면 자리가 찬다");
 check(count(p, "tdrawer") === 1 && !count(p, "open"), "고르면 서랍이 닫힌다");
 // 위치는 고르는 것이 아니라 정해진 것이다 — 보여 주기만 한다
-check(/후열 딜러 · 적은 전열부터 노린다/.test(p.textContent), "정해진 위치를 알려 준다");
+check(/후열 딜러 · 적은 전열부터 노립니다/.test(p.textContent), "정해진 위치를 알려 준다");
 {
   const pos = clickAll(p, (n) => n.classList.contains("pbtn"));
   check(pos.length === 0, `위치를 누를 수 없다 (누를 수 있는 것 ${pos.length})`);
@@ -146,7 +146,7 @@ clickAll(p, (n) => n.classList.contains("sidebtn")).find((b) => b.textContent ==
 check(count(p, "gcard") === 8, `카드 여덟 장이 세워진다 (${count(p, "gcard")})`);
 check(count(p, "cardrow") === 2, "시작 카드와 고유 카드가 갈라져 있다");
 check(count(p, "gcost") === 8, "여덟 장 모두 코스트가 적혀 있다");
-check(count(p, "egoside") === 1, "오른쪽에 궁극기 자리가 있다");
+check(count(p, "egoside") === 1, "오른쪽에 고학년 스킬 자리가 있다");
 check(count(p, "gsig") === 0 && count(p, "ksig") === 0, "카드에 시그니처 표시를 달지 않는다");
 {
   const CA2 = (await import("../js/data/cardart.js")).default.pic;
@@ -161,16 +161,16 @@ check(count(p, "gpic") + count(p, "gglyph") === 8,
 clickAll(p, (n) => n.classList.contains("sidebtn")).find((b) => b.textContent === "번뜩임").onclick();
 check(count(p, "flashbox") === 4, `번뜩임 갈피에 고유 넉 장 (${count(p, "flashbox")})`);
 check(count(p, "flash") === 20, `번뜩임 스무 개 (${count(p, "flash")})`);
-clickAll(p, (n) => n.classList.contains("sidebtn")).find((b) => b.textContent === "궁극기").onclick();
-check(count(p, "ultbig") === 1, "궁극기 갈피가 그려진다");
-check(/게이지 \d+% 를 씁니다/.test(p.textContent), "궁극기에 게이지 값이 적힌다");
+clickAll(p, (n) => n.classList.contains("sidebtn")).find((b) => b.textContent === "고학년 스킬").onclick();
+check(count(p, "ultbig") === 1, "고학년 스킬 갈피가 그려진다");
+check(/게이지 \d+% 를 씁니다/.test(p.textContent), "고학년 스킬에 게이지 값이 적힌다");
 
 clickAll(p).find((n) => n.classList.contains("back")).onclick();
 check(count(p, "dexgrid") === 1, "도감으로 돌아온다");
 clickAll(p).find((n) => n.classList.contains("back")).onclick();
 check(count(p, "tcard") === 3, "다시 편성으로 돌아온다");
 
-const goBtn = clickAll(p).find((n) => n.textContent === "떠난다");
+const goBtn = clickAll(p).find((n) => n.textContent === "떠납니다");
 check(goBtn && !goBtn.disabled, "셋을 고르면 떠날 수 있다");
 goBtn.onclick();
 check(started && started.party.length === 3, "편성이 넘어온다");
@@ -231,10 +231,14 @@ for (let t = 0; t < 40 && !result; t++) {
   for (let g = 0; g < 12 && !result; g++) {
     const hand = clickAll(f, (n) => n.classList.contains("card") && !n.classList.contains("no"));
     if (!hand.length) break;
-    hand[0].onclick();
-    // 대상이 필요한 카드면 적을 한 번 더 누른다
-    const tgt = clickAll(f, (n) => n.classList.contains("tgt"));
-    if (tgt.length) tgt[0].onclick();
+    // 카드는 끌어서만 낸다 — 가짜 DOM 에서는 끌 수 없으니 끌기가 끝날 때 부르는 dropCard 로 놓는다.
+    // 눌러서는 안 나가는지도 본다(누르면 들리기만)
+    const c = hand[0];
+    const before = clickAll(f, (n) => n.classList.contains("card")).length;
+    c.onclick();
+    if (t === 0 && g === 0) check(clickAll(f, (n) => n.classList.contains("card")).length === before, "카드를 눌러서는 안 나간다(들리기만)");
+    const foe = clickAll(f, (n) => n.classList.contains("foe") && !n.classList.contains("dead"))[0];
+    f.dropCard(Number(c.dataset.i), foe ? Number(foe.dataset.idx) : 0);
   }
   if (!result) endBtn.onclick();
 }
@@ -248,18 +252,19 @@ console.log("전투 화면 얼개 (카제나 구성)");
 
   check(has(f2, "foes") === 1, "적 구역이 있다");
   check(has(f2, "allies") === 1, "아군 상태창이 있다");
-  check(has(f2, "gauge") === 1, "궁극기 게이지가 있다");
+  check(has(f2, "gauge") === 1, "고학년 게이지가 있다");
   check(has(f2, "apbox") === 1, "코스트 창(AP)이 있다");
   check(has(f2, "hand") === 1, "손패가 있다");
   check(has(f2, "foe") >= 1, `적이 그려진다 (${has(f2, "foe")})`);
   check(has(f2, "ally") === 3, `아군 셋이 그려진다 (${has(f2, "ally")})`);
   check(has(f2, "intent") >= 1, "적의 의도가 보인다");
-  check(has(f2, "ultbtn") === 3, `궁극기 단추가 셋 (${has(f2, "ultbtn")})`);
+  check(has(f2, "ultbtn") === 3, `고학년 스킬 단추가 셋 (${has(f2, "ultbtn")})`);
   check(has(f2, "card") > 0, `손패가 그려진다 (${has(f2, "card")}장)`);
 }
 
 console.log("\n이후 화면");
-if (result === "win") {
+// 전투를 이겼든 졌든 본다 — 이긴 판에서만 보던 때, 전투가 지면 보상 화면 검사가 통째로 빠졌다(카드를 끌어서만 내게 바꾼 뒤)
+{
   let picked = { card: "없음", flash: null };
   R.rollReward(run);
   const rw = ui.rewardScreen(run, (id, f) => (picked = { card: id, flash: f }));
@@ -288,7 +293,12 @@ if (result === "win") {
     check(/이번에는 번뜩임이 일어나지 않았습니다/.test(rw3.textContent), "안 뜬 것은 안 떴다고 적어 준다");
   }
 
+  // 누르면 바로 넣지 않고 가운데에 자세히 — 거기서 「덱에 넣습니다」
   cards[0].onclick();
+  check(picked.card === "없음", "보상 카드를 눌러서는 바로 안 넣는다(자세히 창)");
+  const useBtn = clickAll(document.body, (n) => n.classList.contains("bmuse"))[0];
+  check(!!useBtn && useBtn.textContent === "덱에 넣습니다", "자세히 창에 「덱에 넣습니다」가 있다");
+  if (useBtn) useBtn.onclick();
   check(picked.card !== "없음", "카드를 고를 수 있다");
   R.takeReward(run, picked.card);
 
@@ -322,7 +332,11 @@ if (result === "win") {
   const rw2 = ui.rewardScreen(run, (id, f) => (picked = { card: id, flash: f }));
   const flashes = clickAll(rw2, (n) => n.classList.contains("fcard"));
   check(flashes.length === 3, `다섯 중 셋을 보여 준다 (${flashes.length})`);
+  // 번뜩임도 누르면 한 번 더 보여 주고, 창에서 「이 번뜩임을 붙입니다」
   flashes[0].onclick();
+  const flashUse = clickAll(document.body, (n) => n.classList.contains("bmuse") && n.textContent === "이 번뜩임을 붙입니다").pop();
+  check(!!flashUse, "번뜩임 창에 「이 번뜩임을 붙입니다」가 있다");
+  if (flashUse) flashUse.onclick();
   check(picked.flash && picked.flash.cardId && picked.flash.n, "번뜩임을 고를 수 있다");
   R.takeFlash(run, picked.flash);
   check(run.flash[picked.flash.cardId] === picked.flash.n, "번뜩임이 그 카드에 붙는다");
@@ -445,8 +459,8 @@ console.log("\n캠프");
   check(fl.length === 3, `수련은 번뜩임 다섯 중 셋 (${fl.length})`);
   fl[0].onclick();
   check(r.flash[r.camp.train.cardId] && r.stops["0:campshop"].used === "train", "수련하면 번뜩임이 붙는다");
-  const back = ui.shopScreen(r, () => {}, { back: "캠프로 돌아간다" });
-  check(/캠프로 돌아간다/.test(back.textContent), "캠프에서 연 상점은 캠프로 돌아간다");
+  const back = ui.shopScreen(r, () => {}, { back: "캠프로 돌아갑니다" });
+  check(/캠프로 돌아갑니다/.test(back.textContent), "캠프에서 연 상점은 캠프로 돌아간다");
 }
 
 console.log("\n장비");
@@ -497,7 +511,7 @@ console.log("\n장비");
   R.enterCamp(r, "campshop");
   const cs = ui.campScreen(r, true, () => {}, () => {});
   check(count(cs, "grow") === 3 && count(cs, "gslot") === 9, "캠프에서 사도 셋 × 세 칸을 본다");
-  check(/아직 안 돈다/.test(cs.textContent) || !r.bag.length, "아직 안 도는 효과는 그렇다고 적는다");
+  check(/아직 안 돕니다/.test(cs.textContent) || !r.bag.length, "아직 안 도는 효과는 그렇다고 적는다");
   r.gold = 5000; r.shop = null; r.shopSeen = {};
   const sp = ui.shopScreen(r, () => {});
   check(r.shop.items.some((it) => it.kind === "equip"), "골디의 상점에 장비 한 점");
@@ -519,7 +533,7 @@ const e2 = ui.endScreen("clear", run, () => {});
 check(e2.textContent.includes("끝까지"), "이긴 화면이 그려진다");
 
 console.log("");
-console.log("AP · 궁극기 게이지 · 상성 (기획서 규칙)");
+console.log("AP · 고학년 게이지 · 상성 (기획서 규칙)");
 {
   const C = await import("../js/combat.js");
   const R = await import("../js/rules.js");
@@ -533,7 +547,7 @@ console.log("AP · 궁극기 게이지 · 상성 (기획서 규칙)");
   C.endTurn(st);
   check(st.ap <= R.AP_PER_TURN + 2, `AP 는 이월되지 않는다 (9 남기고 넘겼는데 ${st.ap})`);
 
-  // 궁극기 게이지 — 쓴 AP 1당 +10%, 0코 카드는 충전 없음
+  // 고학년 게이지 — 쓴 AP 1당 +10%, 0코 카드는 충전 없음
   const g = mk();
   g.ap = 9; g.gauge = 0;
   const free = g.hand.find((id) => C.costOf(g, id) === 0);
@@ -543,11 +557,11 @@ console.log("AP · 궁극기 게이지 · 상성 (기획서 규칙)");
   g.hand = [paid]; C.playCard(g, 0, 0);
   check(g.gauge === before + cost * R.GAUGE_PER_AP, `쓴 AP 1당 게이지 +10% (${cost}코 → +${g.gauge - before}%)`);
 
-  // 궁극기는 덱 밖이고 기획서에서 온다
+  // 고학년 스킬은 덱 밖이고 기획서에서 온다
   for (const k of ["erpin", "ner", "elena"]) {
     const u = C.ultOf(k);
-    check(u && R.ULT_COSTS.includes(u.cost), `${HEROES[k].ko}의 궁극기 「${u ? u.ko : "?"}」 ${u ? u.cost : "?"}%`);
-    check(!C.buildDeck([k]).some((id) => id === k + "_ego"), `${HEROES[k].ko}의 궁극기가 덱에 없다`);
+    check(u && R.ULT_COSTS.includes(u.cost), `${HEROES[k].ko}의 고학년 스킬 「${u ? u.ko : "?"}」 ${u ? u.cost : "?"}%`);
+    check(!C.buildDeck([k]).some((id) => id === k + "_ego"), `${HEROES[k].ko}의 고학년 스킬이 덱에 없다`);
   }
 
   const uz = mk();
@@ -591,7 +605,7 @@ console.log("로비와 프로필 (코덱스 화면)");
   clickAll(s3, (n) => n.classList.contains("scene-person"))[0].onclick();
   const dlg = docBody.children.find((n) => n.classList.contains("hero-profile"));
   check(!!dlg && dlg.open, "프로필이 열린다");
-  check(clickAll(dlg, () => true).length >= 0 && dlg.textContent.includes("궁극기"), "프로필에 궁극기가 있다");
+  check(clickAll(dlg, () => true).length >= 0 && dlg.textContent.includes("고학년 스킬"), "프로필에 고학년 스킬이 있다");
   check(!clickAll(dlg, (n) => n.classList.contains("home-primary")).length, "로비에서 열면 편성 단추가 없다");
   clickAll(dlg, (n) => n.classList.contains("profile-close"))[0].onclick();
   check(!docBody.children.includes(dlg), "닫으면 문서에서 사라진다");
@@ -708,7 +722,7 @@ console.log("낱말 (docs/06-낱말.md)");
     ["세력", "종족"],
     ["상세 정보", "사도 정보"],
     ["전투원", "사도"],
-    ["에고", "궁극기"],
+    ["에고", "고학년 스킬"],
     ["오퍼레이터", "사도"],
     ["요원", "사도"],
   ];
@@ -774,19 +788,19 @@ console.log("카드 그림");
   const gone = ids.filter((id) => !fsNode.existsSync(pathNode.join(root, CA.pic[id])));
   check(gone.length === 0, gone.length ? `가리키는 그림 중 없는 것 ${gone.length}장` : `카드 그림 ${ids.length}장이 모두 있다`);
 
-  // 자리는 사도당 아홉 — 시작 넷 · 고유 넷 · 궁극기 하나
+  // 자리는 사도당 아홉 — 시작 넷 · 고유 넷 · 고학년 스킬 하나
   const B2 = (await import("../js/data/built.js")).default;
   const heroes = Object.keys(B2.heroes);
   const sum = CA._meta.drawn + CA._meta.icon + CA._meta.ult + CA._meta.none;
   check(sum === heroes.length * 9, `카드 자리가 사도 × 9 다 (${sum} / ${heroes.length * 9})`);
-  // 궁극기는 그려도 안 바뀐다 — 인게임 고학년 스킬 아이콘이 곧 그 사도의 궁극기 표다
+  // 고학년 스킬은 그려도 안 바뀐다 — 인게임 고학년 스킬 아이콘이 곧 그 사도의 고학년 스킬 표다
   const ultDrawn = heroes.filter((k) => (CA.pic[k + "_ult"] || "").includes("/cardart/"));
-  check(!ultDrawn.length, ultDrawn.length ? `궁극기에 그린 그림이 끼어들었다 ${ultDrawn.length}` : "궁극기는 원작 고학년 스킬 아이콘을 쓴다");
+  check(!ultDrawn.length, ultDrawn.length ? `고학년 스킬에 그린 그림이 끼어들었다 ${ultDrawn.length}` : "고학년 스킬은 원작 고학년 스킬 아이콘을 쓴다");
 
-  // 궁극기와 시그니처는 한 명도 빠지지 않는다
+  // 고학년 스킬과 시그니처는 한 명도 빠지지 않는다
   const ult = heroes.filter((k) => CA.pic[k + "_ult"]).length;
   const sig = heroes.filter((k) => CA.pic[k + "_u0"]).length;
-  check(ult === heroes.length && sig === heroes.length, `궁극기 ${ult}/${heroes.length} · 시그니처 ${sig}/${heroes.length}`);
+  check(ult === heroes.length && sig === heroes.length, `고학년 스킬 ${ult}/${heroes.length} · 시그니처 ${sig}/${heroes.length}`);
 
   // 우리가 그린 것이 있으면 원작 아이콘을 이긴다 — 이 규칙이 깨지면 그려도 안 바뀐다
   const drawn = ids.filter((id) => CA.pic[id].startsWith("assets/cardart/"));
@@ -795,6 +809,90 @@ console.log("카드 그림");
 }
 
 console.log("");
+console.log("지도 (js/map.js · docs/10-지도.md)");
+{
+  const M = await import("../js/map.js");
+  // 씨앗 200개 × 세 층 — 모양 규칙이 늘 지켜지는가
+  // 1-1 은 일반 전투 2~4 갈래 · 1-2~1-10 은 줄마다 2~4칸(싸움 칸 하나는) · 1-11 휴식(상점) 하나 · 1-12 보스
+  let bad = [], seen = new Set();
+  const KINDS = new Set(["fight", "elite", "camp", "campshop", "event", "boss"]);
+  for (let seed = 1; seed <= 200; seed++) for (let f = 0; f < 3; f++) {
+    const m = M.genMap(seed * 7919, f);
+    if (m.rows[0].length !== 1 || m.rows[0][0].type !== "start" || m.at !== m.rows[0][0].id) bad.push(`${seed}/${f} 출발 칸(1-0)`);
+    const rows = m.rows.slice(1), ids = new Set(rows.flat().map((n) => n.id));     // 1-1 … 1-12
+    const types = rows.map((r) => r.map((n) => n.type));
+    if (rows.length !== 12) bad.push(`${seed}/${f} 줄 ${rows.length}`);
+    if (!types[0].every((t) => t === "fight") || types[0].length < 2 || types[0].length > 4) bad.push(`${seed}/${f} 첫 줄 ${types[0]}`);
+    if (types[10].join() !== "campshop" || types[11].join() !== "boss") bad.push(`${seed}/${f} 보스 앞 · 보스`);
+    for (let r = 1; r <= 9; r++) {
+      if (types[r].length < 2 || types[r].length > 4) bad.push(`${seed}/${f} ${r + 1}줄 칸 수 ${types[r].length}`);
+      if (!types[r].some((t) => t === "fight" || t === "elite")) bad.push(`${seed}/${f} ${r + 1}줄에 싸움이 없다`);
+      if (r < 3 && types[r].some((t) => t === "elite" || t === "camp")) bad.push(`${seed}/${f} ${r + 1}줄에 이른 엘리트 · 휴식`);
+      if (types[r].some((t) => !KINDS.has(t))) bad.push(`${seed}/${f} 모르는 칸 ${types[r]}`);
+    }
+    // 모든 칸이 첫 줄에서 닿고, 모든 칸에서 보스에 닿는다
+    const reach = new Set(rows[0].map((n) => n.id));
+    for (const r of rows) for (const n of r) if (reach.has(n.id)) n.next.forEach((x) => reach.add(x));
+    if (reach.size !== ids.size) bad.push(`${seed}/${f} 못 닿는 칸 ${ids.size - reach.size}`);
+    for (let r = 0; r < rows.length - 1; r++) for (const n of rows[r]) {
+      if (!n.next.length) bad.push(`${seed}/${f} ${n.id} 막다른 칸`);
+      if (n.next.some((x) => !rows[r + 1].some((z) => z.id === x))) bad.push(`${seed}/${f} ${n.id} 줄을 건너뛴다`);
+    }
+    // 선은 같은 자리 · 바로 옆 자리로만, 서로 엇갈리지 않는다(1-10 → 1-11 로 모이는 것은 뺀다)
+    for (let r = 0; r < rows.length - 3; r++) {
+      const L = [];
+      for (const nd of rows[r]) for (const x of nd.next) { const t = rows[r + 1].find((z) => z.id === x); L.push([nd.lane, t.lane]); }
+      if (L.some(([i, j]) => Math.abs(i - j) > 1)) bad.push(`${seed}/${f} ${r + 1}줄 선이 두 자리 넘게 건너뛴다`);
+      if (L.some(([a1, b1]) => L.some(([a2, b2]) => (a1 < a2 && b1 > b2)))) bad.push(`${seed}/${f} ${r + 1}줄 선이 엇갈린다`);
+    }
+    seen.add(types.map((t) => t.join("")).join("|"));
+  }
+  check(!bad.length, bad.length ? `지도 모양이 규칙을 어긴다 ${bad.length}: ${bad.slice(0, 3).join(" · ")}` : "지도 600장이 모두 규칙대로다(1-1 일반 2~4갈래 · 줄마다 2~4칸 · 1-11 휴식(상점) · 1-12 보스 · 다 이어짐 · 선은 옆 자리까지만 · 엇갈림 없음)");
+  check(seen.size > 500, `씨앗마다 길이 다르다 (${seen.size}가지)`);
+  check(JSON.stringify(M.genMap(42, 1)) === JSON.stringify(M.genMap(42, 1)), "같은 씨앗 · 같은 층이면 같은 지도");
+  {
+    const all = [];
+    for (let seed = 1; seed <= 200; seed++) all.push(...M.genMap(seed, 0).rows.flat().map((n) => n.type));
+    const cnt = (t) => all.filter((x) => x === t).length;
+    check(cnt("elite") > 0 && cnt("camp") > 0 && cnt("event") > 0, `여섯 가지 칸이 다 나온다 (일반 ${cnt("fight")} · 엘리트 ${cnt("elite")} · 휴식 ${cnt("camp")} · 휴식(상점) ${cnt("campshop")} · 이벤트 ${cnt("event")} · 보스 ${cnt("boss")})`);
+  }
+
+  // 칸에 들어가기 — 싸움은 세기(node), 엘리트는 run.elite, 보스는 node 3
+  const mr = R.newRun(started.party, started.rows, 99);
+  const starts = M.reachable(mr);
+  check(starts.length >= 2 && starts.length <= 4, `처음엔 첫 줄 2~4 갈래에서 고른다 (${starts.length})`);
+  check(M.enterNode(mr, "r5c0") === null, "이어지지 않은 칸에는 못 간다");
+  const first = M.enterNode(mr, starts[0]);
+  check(first && first.type === "fight" && mr.node === 0 && !R.isBoss(mr) && !mr.elite, "첫 칸은 약한 일반 싸움");
+  check(M.stageName(mr, first) === "1-1", `칸 이름은 층-줄 (${M.stageName(mr, first)})`);
+  // 보스까지 걸어가 본다 — 엘리트가 있으면 그리로
+  while (M.reachable(mr).length) {
+    const opts = M.reachable(mr).map((id) => M.nodeById(M.mapOf(mr), id));
+    const pickN = opts.find((n) => n.type === "elite") || opts[0];
+    const n = M.enterNode(mr, pickN.id);
+    if (n.type === "elite") {
+      check(mr.elite && mr.node >= 1, `엘리트는 한 단계 센 싸움 (node ${mr.node})`);
+      R.rollReward(mr);
+      check(mr.reward.equip && mr.reward.equip.length && mr.reward.flash !== undefined, "엘리트를 이기면 장비를 고른다");
+      mr.elite = false; mr.reward = null;
+    }
+  }
+  check(M.currentNode(mr).type === "boss" && R.isBoss(mr) && M.stageName(mr, M.currentNode(mr)) === "1-12", "끝 칸은 1-12 보스");
+  const adv2 = R.advance(mr);
+  check(mr.floor === 1 && adv2.swap, "보스를 넘으면 다음 층(사도 교체 기회)");
+  check(M.mapOf(mr).floor === 1 && M.currentNode(mr).type === "start" && M.stageName(mr, M.currentNode(mr)) === "2-0" && M.reachable(mr).length >= 2, "다음 층은 새 지도, 2-0 출발 칸부터");
+
+  // 화면 — 칸을 누르면 들어간다
+  let entered = null;
+  const mr2 = R.newRun(started.party, started.rows, 7);
+  const ms = ui.mapScreen(mr2, (n) => (entered = n), () => {});
+  check(count(ms, "mnode") >= 10, `지도에 칸이 깔린다 (${count(ms, "mnode")})`);
+  check(count(ms, "can") === M.reachable(mr2).length && count(ms, "can") >= 2, `갈 수 있는 칸만 빛난다 (${count(ms, "can")})`);
+  check(count(ms, "t-start") === 1, "맨 앞에 출발 칸(1-0)");
+  ms.enterNode(M.reachable(mr2)[0]);
+  check(entered && entered.type === "fight", "칸을 누르면 그 칸으로 들어간다");
+}
+
 console.log("모듈이 읽히는가");
 {
   const JS = pathNode.join(pathNode.dirname(f2u(import.meta.url)), "..", "js");

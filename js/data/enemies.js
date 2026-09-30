@@ -86,10 +86,10 @@ export const ENEMIES = {
   drones: {
     ko: "경비 드론", hp: 51, row: "back", nature: "냉정", tint: "#7fb6d9",
     intents: [
-      { t: "attackAll", v: 10, say: "전방위 사격" },
+      { t: "attackAll", v: 7, say: "전방위 사격" },   // 10 → 7 — 2층 싸움 셋에 다 끼어 2층이 3층보다 셌다
       { t: "jam", v: 1, say: "경보음" },
       { t: "block", v: 12, say: "장갑 전개" },
-      { t: "multi", v: 5, n: 3, say: "조준 연사" },
+      { t: "multi", v: 4, n: 3, say: "조준 연사" },
     ],
   },
   elfcurseddolldealer: {
@@ -146,6 +146,226 @@ export const ENEMIES = {
       { t: "back", v: 9, say: "스며든다" },
       { t: "debuff", id: "약화", v: 2, say: "빛이 흔들린다" },
       { t: "multi", v: 3, n: 3, say: "여럿으로 갈라진다" },
+    ],
+  },
+
+  // ── 에르피엔 · 새 얼굴 — 요정 저주 인형 · 과자 병정 · 숲의 작은 것들 ──────────
+  // 요정 왕국은 과자와 꽃의 나라다. 에르핀이 몰래 챙기는 간식이 거꾸로 덤빈다.
+  fairycurseddolldealer: {
+    ko: "요정 저주 인형 · 딜러", hp: 34, row: "back", nature: "활발", tint: "#e0a0c0",
+    pick: "shuffle",
+    intents: [
+      { t: "back", v: 9, say: "날개 실로 찌른다", w: 2 },
+      { t: "debuff", id: "약화", v: 1, say: "가루를 흩뿌린다" },
+      { t: "charge", say: "실을 감는다", next: { t: "back", v: 16, say: "실을 끊어 날린다" } },
+    ],
+  },
+  fairycurseddolltanker: {
+    ko: "요정 저주 인형 · 방패", hp: 52, row: "front", nature: "순수", tint: "#c0a0d8",
+    intents: [
+      { t: "guard", v: 7, say: "날개로 가린다" },
+      { t: "attack", v: 9, say: "둔하게 부딪힌다" },
+      { t: "block", v: 9, say: "몸을 만다" },
+      { t: "attack", v: 11, say: "굴러 온다" },
+    ],
+  },
+  fairycurseddollsupporter: {
+    ko: "요정 저주 인형 · 응원", hp: 30, row: "back", nature: "순수", tint: "#f0c0d8",
+    pick: "shuffle",
+    intents: [
+      { t: "heal", v: 8, say: "반짝이 가루를 뿌린다" },
+      { t: "buff", id: "힘", v: 1, say: "실을 팽팽히 당긴다" },
+      { t: "back", v: 6, say: "톡 쏜다", w: 2 },
+    ],
+  },
+  marshmallowtanker: {
+    ko: "마시멜로 방패병", hp: 48, row: "front", nature: "순수", tint: "#f0e6d8",
+    intents: [
+      { t: "block", v: 10, say: "말랑하게 부푼다" },
+      { t: "attack", v: 8, say: "몸으로 민다" },
+      { t: "guard", v: 6, say: "줄을 맞춘다" },
+      { t: "attack", v: 12, say: "통통 튀어 부딪힌다" },
+    ],
+  },
+  marshmallowdealer: {
+    ko: "마시멜로 창병", hp: 28, row: "back", nature: "활발", tint: "#e8f0d8",
+    pick: "shuffle",
+    intents: [
+      { t: "back", v: 8, say: "꼬치를 찌른다", w: 2 },
+      { t: "multi", v: 3, n: 3, say: "꼬치를 연달아 찌른다" },
+      { t: "attack", v: 7, say: "앞으로 달려든다" },
+    ],
+  },
+  marshmallowsupporter: {
+    ko: "마시멜로 응원단", hp: 26, row: "back", nature: "활발", tint: "#d8f0e0",
+    pick: "shuffle",
+    intents: [
+      { t: "buff", id: "힘", v: 2, say: "꽃 깃발을 흔든다" },
+      { t: "heal", v: 7, say: "설탕을 덧바른다" },
+      { t: "debuff", id: "약화", v: 1, say: "달콤한 냄새" },
+    ],
+  },
+  buseuleogi: {
+    ko: "과자 부스러기", hp: 20, row: "front", nature: "광기", tint: "#c08a5a",
+    pick: "shuffle",
+    intents: [
+      { t: "attack", v: 6, say: "와작 문다", w: 2 },
+      { t: "multi", v: 2, n: 3, say: "부스러기가 튄다" },
+      { t: "buff", id: "힘", v: 1, say: "설탕을 핥는다" },
+    ],
+  },
+  lupalu: {
+    ko: "꽃방울 요정", hp: 38, row: "back", nature: "우울", tint: "#f0b0c0",
+    intents: [
+      { t: "debuff", id: "약화", v: 2, say: "꽃가루가 날린다" },
+      { t: "back", v: 10, say: "방울을 굴린다" },
+      { t: "heal", v: 9, say: "꽃잎이 덮는다" },
+      { t: "jam", v: 1, say: "방울이 딸랑인다" },
+    ],
+  },
+  mogmaekim: {
+    ko: "젤리 토끼", hp: 32, row: "front", nature: "활발", tint: "#b0d870",
+    pick: "shuffle",
+    intents: [
+      { t: "attack", v: 8, say: "폴짝 뛰어든다", w: 2 },
+      { t: "block", v: 8, say: "말랑하게 굳는다" },
+      { t: "multi", v: 4, n: 2, say: "통통 두 번 튄다" },
+    ],
+  },
+
+  // ── 모나티엄 · 새 얼굴 — 엘프 도시의 병사 · 기계 · 저주 인형 ─────────────────
+  elfsoldierlongrange: {
+    ko: "엘프 궁수", hp: 38, row: "back", nature: "냉정", tint: "#7fa8c8",
+    pick: "shuffle",
+    intents: [
+      { t: "back", v: 11, say: "뒷줄을 겨눈다", w: 2 },
+      { t: "multi", v: 4, n: 3, say: "화살을 잇달아 쏜다" },
+      { t: "debuff", id: "취약", v: 1, say: "표식을 쏜다" },
+    ],
+  },
+  droneg: {
+    ko: "지상 드론", hp: 58, row: "front", nature: "냉정", tint: "#8a9aa8",
+    intents: [
+      { t: "block", v: 12, say: "장갑을 내린다" },
+      { t: "attack", v: 12, say: "다리로 걷어찬다" },
+      { t: "jam", v: 1, say: "소음을 낸다" },
+      { t: "attack", v: 14, say: "돌진한다" },
+    ],
+  },
+  cranker: {
+    ko: "크랭커", hp: 84, row: "front", nature: "광기", tint: "#6fb0b8",
+    intents: [
+      { t: "buff", id: "힘", v: 2, say: "태엽을 감는다" },
+      { t: "attack", v: 14, say: "집게팔을 휘두른다" },
+      { t: "charge", say: "증기를 뿜는다", next: { t: "attackAll", v: 12, say: "주위를 쓸어 버린다" } },
+      { t: "block", v: 14, say: "몸통을 닫는다" },
+    ],
+    phase: {
+      at: 0.4, say: "태엽이 헛돈다",
+      intents: [
+        { t: "multi", v: 6, n: 3, say: "마구 두드린다" },
+        { t: "attack", v: 14, say: "집게팔을 휘두른다" },
+        { t: "jam", v: 2, say: "증기가 샌다" },
+      ],
+    },
+  },
+  elfcurseddollsupporter: {
+    ko: "엘프 저주 인형 · 응원", hp: 42, row: "back", nature: "우울", tint: "#9aa0c8",
+    pick: "shuffle",
+    intents: [
+      { t: "heal", v: 10, say: "실로 꿰맨다" },
+      { t: "guard", v: 8, say: "실을 둘러친다" },
+      { t: "back", v: 8, say: "실바늘을 던진다", w: 2 },
+    ],
+  },
+  elfcurseddollwizard: {
+    ko: "엘프 저주 인형 · 술사", hp: 44, row: "back", nature: "냉정", tint: "#a0b0d8",
+    intents: [
+      { t: "debuff", id: "취약", v: 2, say: "문양이 빛난다" },
+      { t: "back", v: 13, say: "빛줄기를 쏜다" },
+      { t: "jam", v: 1, say: "주문을 읊는다" },
+      { t: "attackAll", v: 7, say: "빛이 번진다" },
+    ],
+  },
+  goldring: {
+    ko: "보물 상자 왕", hp: 96, row: "front", nature: "활발", tint: "#d8c060",
+    intents: [
+      { t: "block", v: 16, say: "뚜껑을 닫는다" },
+      { t: "attack", v: 16, say: "와락 문다" },
+      { t: "buff", id: "힘", v: 3, say: "보석을 삼킨다" },
+      { t: "multi", v: 6, n: 3, say: "금화를 뱉는다" },
+    ],
+    phase: {
+      at: 0.5, say: "뚜껑이 삐걱거린다",
+      intents: [
+        { t: "charge", say: "크게 입을 벌린다", next: { t: "attack", v: 28, say: "통째로 삼킨다" } },
+        { t: "multi", v: 6, n: 3, say: "금화를 뱉는다" },
+      ],
+    },
+  },
+
+  // ── 벨리티엔 · 새 얼굴 — 마녀 저주 인형 · 뿌리 밑의 마법 것들 ───────────────
+  witchcurseddolldealer: {
+    ko: "마녀 저주 인형 · 딜러", hp: 50, row: "back", nature: "광기", tint: "#b07fb0",
+    open: { t: "debuff", id: "취약", v: 1, say: "눈이 붉게 빛난다" },
+    intents: [
+      { t: "back", v: 15, say: "그림자 바늘" },
+      { t: "multi", v: 5, n: 3, say: "실이 춤춘다" },
+      { t: "charge", say: "실을 감는다", next: { t: "back", v: 26, say: "실을 끊어 날린다" } },
+    ],
+  },
+  witchcurseddolltanker: {
+    ko: "마녀 저주 인형 · 방패", hp: 80, row: "front", nature: "우울", tint: "#8f7fa8",
+    intents: [
+      { t: "guard", v: 12, say: "검은 천을 두른다" },
+      { t: "attack", v: 13, say: "무겁게 내려친다" },
+      { t: "buff", id: "힘", v: 2, say: "실이 팽팽해진다" },
+      { t: "attack", v: 15, say: "밀어붙인다" },
+    ],
+  },
+  witchcurseddollsupporter: {
+    ko: "마녀 저주 인형 · 응원", hp: 46, row: "back", nature: "냉정", tint: "#c0a0d0",
+    pick: "shuffle",
+    intents: [
+      { t: "heal", v: 13, say: "약초를 달인다" },
+      { t: "debuff", id: "약화", v: 2, say: "쓴 연기" },
+      { t: "back", v: 10, say: "빗자루로 찌른다", w: 2 },
+    ],
+  },
+  pumpkin: {
+    ko: "호박 머리", hp: 64, row: "front", nature: "광기", tint: "#d89040",
+    intents: [
+      { t: "attack", v: 13, say: "덩굴로 후린다" },
+      { t: "debuff", id: "약화", v: 2, say: "빙글빙글 웃는다" },
+      { t: "charge", say: "불빛이 커진다", next: { t: "attackAll", v: 13, say: "불똥을 뿌린다" } },
+      { t: "block", v: 12, say: "껍질을 굳힌다" },
+    ],
+  },
+  hatsnail: {
+    ko: "모자 달팽이", hp: 56, row: "front", nature: "우울", tint: "#a07860",
+    intents: [
+      { t: "block", v: 16, say: "모자 속으로 숨는다" },
+      { t: "attack", v: 11, say: "느릿느릿 들이받는다" },
+      { t: "debuff", id: "약화", v: 1, say: "끈적한 길을 남긴다" },
+      { t: "attack", v: 14, say: "껍질로 굴러든다" },
+    ],
+  },
+  nependers: {
+    ko: "식충 화분", hp: 52, row: "back", nature: "광기", tint: "#c06060",
+    intents: [
+      { t: "back", v: 14, say: "덥석 문다" },
+      { t: "heal", v: 10, say: "꿀꺽 삼킨다" },
+      { t: "debuff", id: "취약", v: 2, say: "단 향을 풍긴다" },
+      { t: "multi", v: 5, n: 2, say: "잎으로 두 번 문다" },
+    ],
+  },
+  magicfork: {
+    ko: "마법 포크", hp: 30, row: "back", nature: "활발", tint: "#c08090",
+    pick: "shuffle",
+    intents: [
+      { t: "multi", v: 4, n: 3, say: "콕콕콕 찌른다", w: 2 },
+      { t: "back", v: 9, say: "날아서 찌른다" },
+      { t: "jam", v: 1, say: "리본이 나풀댄다" },
     ],
   },
 
@@ -217,32 +437,41 @@ for (const [id, e] of Object.entries(ENEMIES)) e.id = id;
 
 // 층 — 지어낸 곳이 아니라 엘리아스의 실제 지도에서 온다(docs/03-세계관.md).
 // 요정 왕국에서 시작해 엘프 도시를 지나 세계수 뿌리까지 내려간다.
-export const FLOORS = [
+// 적은 그 층의 것만 — 에르피엔은 요정 · 과자 · 숲, 모나티엄은 엘프 병사 · 기계 · 엘프 저주 인형,
+// 벨리티엔은 마녀 저주 인형 · 뿌리 밑의 마법 것들(docs/11-적.md).
+//   pools[세기]  약(1-1~1-3) · 중(1-4~1-6) · 강(1-7~1-10) 싸움이 세 벌씩 — 지도의 칸마다 하나를 고른다
+//   elites       엘리트 칸 전용 두 벌 — 그 층에서 가장 사나운 짝
+//   fights       옛 도구(tools/sim.js · 로비 미리보기)가 보는 대표 셋 — pools 의 첫 벌
+const FLOOR_DEFS = [
   {
     n: 1, name: "에르피엔", sub: "요정 왕국 · 세계수 주변",
-    fights: [
-      ["fairymobcloserange", "fairymoblongrange"],
-      ["fairymoblongrange", "ginseng", "fairymobcloserange"],
-      ["gluttonbear", "ginseng"],
+    pools: [
+      [["fairymobcloserange", "fairymoblongrange"], ["buseuleogi", "buseuleogi", "marshmallowdealer"], ["mogmaekim", "fairymoblongrange"]],
+      [["fairymoblongrange", "ginseng", "fairymobcloserange"], ["marshmallowtanker", "marshmallowdealer", "marshmallowsupporter"], ["fairycurseddolltanker", "lupalu"]],
+      [["gluttonbear", "ginseng"], ["fairycurseddolltanker", "fairycurseddolldealer", "fairycurseddollsupporter"], ["marshmallowtanker", "marshmallowdealer", "lupalu"]],
     ],
+    elites: [["gluttonbear", "fairycurseddolldealer", "marshmallowdealer"], ["fairycurseddolltanker", "fairycurseddolldealer", "marshmallowsupporter", "fairycurseddolldealer"]],
     boss: ["curburus"],
   },
   {
     n: 2, name: "모나티엄", sub: "엘프 도시 · 동부",
-    fights: [
-      ["elfsoldiercloserange", "drones"],
-      ["elfcurseddolldealer", "elfsoldiercloserange"],
-      ["elfcurseddolltanker", "drones", "elfcurseddolldealer"],
+    pools: [
+      [["elfsoldiercloserange", "elfsoldierlongrange"], ["droneg", "elfsoldierlongrange"], ["elfsoldiercloserange", "drones"]],
+      [["elfcurseddolldealer", "elfsoldiercloserange"], ["elfsoldiercloserange", "elfsoldierlongrange", "elfsoldierlongrange"], ["droneg", "elfcurseddollwizard"]],
+      [["elfcurseddolltanker", "drones", "elfcurseddolldealer"], ["cranker", "elfsoldierlongrange", "elfsoldierlongrange"], ["elfcurseddolltanker", "elfcurseddollsupporter", "elfcurseddollwizard"]],
     ],
+    elites: [["cranker", "drones"], ["goldring", "elfsoldiercloserange"]],
     boss: ["golem", "drones"],
   },
   {
     n: 3, name: "벨리티엔", sub: "마녀 왕국 · 세계수 뿌리",
-    fights: [
-      ["oldtree", "wisps"],
-      ["witchcurseddollwizard", "oldtree"],
-      ["witchcurseddollwizard", "wisps", "oldtree"],
+    pools: [
+      [["oldtree", "wisps"], ["hatsnail", "magicfork"], ["pumpkin", "wisps"]],
+      [["witchcurseddollwizard", "oldtree"], ["nependers", "hatsnail", "wisps"], ["witchcurseddolltanker", "witchcurseddolldealer"]],
+      [["witchcurseddollwizard", "wisps", "oldtree"], ["pumpkin", "nependers", "magicfork"], ["witchcurseddolltanker", "witchcurseddollsupporter", "witchcurseddolldealer"]],
     ],
+    elites: [["oldtree", "nependers", "magicfork"], ["pumpkin", "witchcurseddolldealer", "magicfork"]],
     boss: ["imoogi", "witchcurseddollwizard"],
   },
 ];
+export const FLOORS = FLOOR_DEFS.map((f) => ({ ...f, fights: f.pools.map((p) => p[0]) }));

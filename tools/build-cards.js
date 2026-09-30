@@ -45,7 +45,7 @@ for (const h of wanted) {
     hp: h.hp, atk: h.atk, def: h.def, crit: h.crit, dmgType: h.dmgType,
     blurb: h.blurb, passive: h.passive, source: h.source || null,
     keyword: h.keyword || null,
-    ult: h.ult ? { ...h.ult, ...parse(h.ult.text, kw, `${h.ko}/궁극기`) } : null,
+    ult: h.ult ? { ...h.ult, ...parse(h.ult.text, kw, `${h.ko}/고학년 스킬`) } : null,
   };
 
   const mine = [];
@@ -89,10 +89,10 @@ let nNeutral = 0, nPlayable = 0;
 for (const c of Object.values(D.neutral || {})) {
   const id = "중립_" + c.ko.replace(/\s+/g, "").replace(/[\[\]()]/g, "");
   const { fx, left } = parseEffect(c.text);
-  // 남은 글자가 문장 부호뿐이어야 다 읽힌 것이다. 「궁극기 게이지」 의 「궁극기」 만 예외(게이지 규칙이 뒤쪽만 먹는다).
+  // 남은 글자가 문장 부호뿐이어야 다 읽힌 것이다. 「고학년 게이지」 의 「고학년 스킬」 만 예외(게이지 규칙이 뒤쪽만 먹는다).
   // 한 글자라도 남으면 판에서 빼는 이유 — 「전열 아군」 에서 「전열」 을 못 읽으면 전원에게 걸리고,
   // 「물리 아군」 을 못 읽으면 아무에게나 걸린다. 반쯤 읽힌 카드는 틀리게 돈다.
-  const rest = (left || "").replace(/궁극기/g, "").replace(/[\s.,·()%+\-]/g, "");
+  const rest = (left || "").replace(/고학년(?:\s*스킬)?|궁극기/g, "").replace(/[\s.,·()%+\-]/g, "");
   const playable = fx.length > 0 && rest.length === 0;
   nNeutral++; if (playable) nPlayable++;
   neutral[id] = {
@@ -113,7 +113,7 @@ for (const e of Object.values(D.equip || {})) {
   let effectRead = false;
   if (e.effect) {
     const rs = parsePassive("효과: " + e.effect.replace(/\s*\[[^\]]+\]/g, ""));
-    effectRead = rs.length > 0 && rs.every((r) => r.fx.length && !(r.left || "").replace(/이 사도가?|궁극기|^사$|[\s.,·()%+\-]/g, ""));
+    effectRead = rs.length > 0 && rs.every((r) => r.fx.length && !(r.left || "").replace(/이 사도가?|고학년(?:\s*스킬)?|궁극기|^사$|[\s.,·()%+\-]/g, ""));
   }
   nEquip++; if (effectRead) nEffRead++;
   equip[id] = {

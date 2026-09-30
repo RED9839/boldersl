@@ -142,7 +142,7 @@ const RULES = [
   { re: /드로우\s*(\d+)/g, make: (m) => ({ k: "draw", v: Number(m[1]) }) },
   // AP
   { re: /AP\s*([+\-])\s*(\d+)/g, make: (m) => ({ k: "ap", v: (m[1] === "-" ? -1 : 1) * Number(m[2]) }) },
-  // 궁극기 게이지
+  // 고학년 게이지
   { re: /게이지\s*([+\-])\s*(\d+)\s*%/g, make: (m) => ({ k: "gauge", v: (m[1] === "-" ? -1 : 1) * Number(m[2]) }) },
   // 상태 — 취약·약화 (N턴)
   {
@@ -210,10 +210,10 @@ const RULES = [
   // "소멸" 은 tag 가 잡는다. "이번 전투" 는 지속을 뜻한다
   { re: /이번\s*전투(?:\s*동안)?/g, make: () => null },   // 증감의 길이(999턴)로 이미 읽었다
 
-  // ── 궁극기 게이지를 쓰는 꼴 ────────────────────────────────────────
+  // ── 고학년 게이지를 쓰는 꼴 ────────────────────────────────────────
   // "게이지 300%를 써서" 는 비용 설명이다 — 비용은 ult.cost 가 이미 들고 있으니 효과로 세지 않는다
   { re: /게이지\s*\d+\s*%\s*(?:를\s*)?써/g, make: () => null },
-  { re: /궁극기\s*게이지/g, make: () => null },      // 설명말 — 못 읽은 것으로 세지 않는다
+  { re: /(?:고학년(?:\s*스킬)?|궁극기)\s*게이지/g, make: () => null },      // 설명말 — 못 읽은 것으로 세지 않는다
   { re: /AP\s*소모\s*없(?:음|이)/g, make: () => ({ k: "tag", id: "AP없음" }) },
 
   // ── 침묵·면역 ──────────────────────────────────────────────────────
@@ -296,7 +296,7 @@ export function parseEffect(text, { keyword, keywords } = {}) {
   return { fx, left: rest };
 }
 
-// 카드 한 장 — 시작·고유·번뜩임·궁극기 모두 같은 꼴로 읽는다
+// 카드 한 장 — 시작·고유·번뜩임·고학년 스킬 모두 같은 꼴로 읽는다
 export function parseCard(card, hero) {
   const keyword = hero && hero.keyword ? hero.keyword.ko : null;
   const { fx, left } = parseEffect(card.text, { keyword });

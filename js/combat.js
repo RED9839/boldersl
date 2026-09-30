@@ -99,7 +99,7 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
     rng, party, enemies, bonds: partyBonds(partyKeys),
     // AP — 파티 공용, 매 턴 3, **남으면 사라진다**(기획서).
     turn: 0, ap: 0, apPerTurn: R.AP_PER_TURN, apJam: 0, tentacles: 0,
-    // 궁극기 게이지 — 파티 공용 0~300%. 카드에 쓴 AP 1당 +10%. 0코는 충전 없음.
+    // 고학년 게이지 — 파티 공용 0~300%. 카드에 쓴 AP 1당 +10%. 0코는 충전 없음.
     gauge: 0, lastUlt: null,
     partyDmg: 0, crit: 0, rearBuff: 0, overdrive: false,
     draw: shuffle(rng, deck.slice()), hand: [], discard: [], gone: [],
@@ -146,7 +146,7 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
   // 이벤트가 걸어 둔 「다음 전투」 효과(docs/08-이벤트.md) — 이 전투에서 한 번
   if (next) {
     if (next.ap) { s.startSp += next.ap; say(s, `이벤트 — 첫 턴 AP ${next.ap > 0 ? "+" : ""}${next.ap}`); }
-    if (next.gauge) { s.gauge = Math.min(R.GAUGE_MAX, s.gauge + next.gauge); say(s, `이벤트 — 궁극기 게이지 +${next.gauge}%`); }
+    if (next.gauge) { s.gauge = Math.min(R.GAUGE_MAX, s.gauge + next.gauge); say(s, `이벤트 — 고학년 게이지 +${next.gauge}%`); }
     if (next.hand) { s.opening = (s.opening || 0) + next.hand; say(s, `이벤트 — 첫 손패 +${next.hand}`); }
     if (next.weak) { for (const u of s.party) if (!u.dead) addSt(u, "약화", next.weak); say(s, `이벤트 — 아군 전원 약화 ${next.weak}턴`); }
     if (next.hpCut) { for (const u of s.party) if (!u.dead) u.hp = Math.max(1, u.hp - Math.round(u.maxHp * next.hpCut)); say(s, `이벤트 — 시작하자마자 오작동, HP -${Math.round(next.hpCut * 100)}%`); }
@@ -474,8 +474,8 @@ export function draw(s, n) {
   if (burned) say(s, `손이 가득 차 ${burned}장이 사라졌다 (최대 ${R.HAND_MAX}장)`);
 }
 
-// ── 궁극기 — 덱 밖에 따로 있고, 게이지를 비용만큼 써서 AP 없이 쓴다(기획서) ──────
-// 같은 사도의 궁극기는 연속으로 쓸 수 없다. 전투가 끝나면 게이지는 0 이 된다.
+// ── 고학년 스킬 — 덱 밖에 따로 있고, 게이지를 비용만큼 써서 AP 없이 쓴다(기획서) ──────
+// 같은 사도의 고학년 스킬은 연속으로 쓸 수 없다. 전투가 끝나면 게이지는 0 이 된다.
 // 기획서는 한글 이름을 키로 쓰고(에르핀·에르핀_왕도), 게임은 영문 키를 쓴다(erpin).
 // HEROES 의 ko 로 이어 준다 — 사도를 늘릴 때 손으로 표를 적지 않아도 되게.
 const DESIGN_KEY = {};
@@ -495,8 +495,8 @@ export function canUlt(s, heroKey) {
   const u = s.party.find((x) => x.key === heroKey);
   if (!u || u.dead) return "나설 수 없습니다";
   const ult = ultOf(heroKey);
-  if (!ult) return "궁극기가 없습니다";
-  if (s.lastUlt === heroKey) return "같은 사도의 궁극기는 연속으로 쓸 수 없습니다";
+  if (!ult) return "고학년 스킬이 없습니다";
+  if (s.lastUlt === heroKey) return "같은 사도의 고학년 스킬은 연속으로 쓸 수 없습니다";
   if (s.gauge < ult.cost) return `게이지가 모자랍니다 (${s.gauge}% / ${ult.cost}%)`;
   return null;
 }
@@ -508,10 +508,10 @@ export function useUlt(s, heroKey, targetIdx = 0) {
   s.gauge -= ult.cost;
   s.lastUlt = heroKey;
   const owner = s.party.find((x) => x.key === heroKey);
-  say(s, `${owner.ko} 궁극기 — ${ult.ko} (게이지 ${ult.cost}%)`);
+  say(s, `${owner.ko} 고학년 스킬 — ${ult.ko} (게이지 ${ult.cost}%)`);
   speak(s, heroKey, "ego");
   // 효과는 아직 산문이다(기획서 그대로). 효과 파서가 붙기 전까지는 게이지만 돈다.
-  // 전에는 옛 효과 실행기(applyFx)로 돌려서 아무 일도 없었다 — 궁극기는 게이지만 먹었다.
+  // 전에는 옛 효과 실행기(applyFx)로 돌려서 아무 일도 없었다 — 고학년 스킬은 게이지만 먹었다.
   if (ult.fx && ult.fx.length) {
     const prev = s.acting; s.acting = heroKey;
     runFx(s, ult.fx, { owner, combo: null, targetIdx }, fxApi(s));
@@ -559,7 +559,7 @@ export function playCard(s, handIdx, targetIdx) {
   // X 코스트는 남은 AP 를 전부 쓴다. 그 수가 곧 X 다.
   const paid = c.xcost ? s.ap : costOf(s, cardId);
   s.ap -= paid;
-  // 궁극기 게이지 — 카드에 쓴 AP 1당 +10%. 0코 카드는 충전하지 않는다.
+  // 고학년 게이지 — 카드에 쓴 AP 1당 +10%. 0코 카드는 충전하지 않는다.
   if (paid > 0) {
     s.gauge = Math.min(R.GAUGE_MAX, s.gauge + paid * R.GAUGE_PER_AP);
   }

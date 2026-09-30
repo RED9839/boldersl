@@ -40,7 +40,10 @@ export const isBoss = (run) => run.node >= 3;
 export function currentEnemies(run) {
   if (run.eventFight) return run.eventFight.enemies;      // 이벤트가 연 전투(js/events.js)
   const f = currentFloor(run);
-  return isBoss(run) ? f.boss : f.fights[run.node];
+  if (isBoss(run)) return f.boss;
+  // 지도의 칸이 정해 둔 짝(js/map.js) — 없으면(옛 저장 · 도구) 세기의 대표 싸움
+  const at = run.map && run.map.at && run.map.rows.flat().find((n) => n.id === run.map.at);
+  return (at && at.foes) || f.fights[run.node];
 }
 
 export function bonds(run) { return partyBonds(run.party); }
@@ -78,15 +81,18 @@ export function uniqueIdsOf(heroKey) {
 // 볼 때마다 카드가 바뀐다(전에 그랬다).
 export function rollReward(run) {
   const [lo, hi] = R.GOLD_FIGHT;
-  const gold = isBoss(run) ? R.GOLD_BOSS : lo + Math.floor(run.rng() * (hi - lo + 1)) + run.floor * 5;
+  const base = isBoss(run) ? R.GOLD_BOSS : lo + Math.floor(run.rng() * (hi - lo + 1)) + run.floor * 5;
+  const gold = run.elite ? Math.round(base * R.ELITE_GOLD) : base;
   const lastBoss = isBoss(run) && run.floor >= FLOORS.length - 1;
+  // 엘리트 — 장비 셋 가운데 하나 · 번뜩임은 확률 없이
+  const equipFrom = isBoss(run) && !lastBoss ? R.BOSS_EQUIP[run.floor] || R.BOSS_EQUIP[0] : run.elite ? R.ELITE_EQUIP[run.floor] || R.ELITE_EQUIP[0] : null;
   run.reward = {
-    equip: isBoss(run) && !lastBoss ? offerEquip(run, R.BOSS_EQUIP[run.floor] || R.BOSS_EQUIP[0], 3) : null,
+    equip: equipFrom ? offerEquip(run, equipFrom, 3) : null,
     equipTaken: null,
     gold, goldTaken: false,
     cards: rewardCards(run),
     // 프리클이 「다음 보상에서 몰래」 챙겨 둔 번뜩임(이벤트 B2)은 확률 없이 뜬다
-    flash: run.rewardFlash || run.rng() < R.FLASH_CHANCE ? offerFlash(run) : null,
+    flash: run.rewardFlash || run.elite || run.rng() < R.FLASH_CHANCE ? offerFlash(run) : null,
   };
   if (run.rewardFlash && run.reward.flash) run.rewardFlash = false;   // 몰래 챙긴 번뜩임은 한 번
   return run.reward;
@@ -115,7 +121,8 @@ export function nextStop(run) {
 }
 
 export function enterCamp(run, kind) {
-  const key = `${run.floor}:${kind}`;
+  // 지도의 칸마다 따로 — 한 층에 휴식 칸이 여럿일 수 있다
+  const key = `${run.floor}:${kind}${run.map && run.map.at ? ":" + run.map.at : ""}`;
   if (!run.stops[key]) {
     run.stops[key] = { used: null };
     run.camp = { key, train: offerFlash(run) };   // 수련 선택지는 들어올 때 한 번만 굴린다

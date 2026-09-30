@@ -408,3 +408,577 @@ body:has(#screen.battle) .bottom,
 .battle .foe.dover .art, .battle .stand.dover .art { filter: drop-shadow(0 0 3px #fff4cf) drop-shadow(0 0 14px #f6d58e); }
 .battle .foe.dover .fname, .battle .stand.dover .sname { color: #f6d58e; }
 .phone .dghost { width: 118px; }
+
+/* ══ 실드 · 방어 — 체력 막대에 테 ═══════════════════════════════════════════
+   방어(카드 종류로는 「쉴드」)가 생기면 파란 테, 실드(패시브 등)까지 있으면 파란 테가 빛난다. */
+.battle .hpwrap.blocked .bar { border-color: #5fc8ff; box-shadow: 0 0 0 2px #5fc8ff, 0 0 6px #5fc8ff88, 0 1px 3px #0009; }
+.battle .hpwrap.shielded .bar {
+  border-color: #5fc8ff;
+  box-shadow: 0 0 0 2px #5fc8ff, 0 0 10px #5fc8ffcc, 0 1px 3px #0009;
+  animation: shieldglow 1.4s ease-in-out infinite alternate;
+}
+@keyframes shieldglow {
+  from { box-shadow: 0 0 0 2px #5fc8ff, 0 0 6px #5fc8ff99, 0 1px 3px #0009; }
+  to   { box-shadow: 0 0 0 2px #8fdcff, 0 0 14px #5fc8ffee, 0 1px 3px #0009; }
+}
+.battle .hpwrap .nums .sh { color: #8fdcff; font-weight: 800; }
+.battle .hpwrap .nums .b { color: #8fdcff; font-weight: 800; }
+@media (prefers-reduced-motion: reduce) { .battle .hpwrap.shielded .bar { animation: none; } }
+
+/* ══ 글자 크기 — 한 치수씩 키운다 ═══════════════════════════════════════════
+   배율(js/stage.js)이 PC 에서 0.9 안팎이라, 적어 둔 10px 은 화면에서 9px 로 보였다. */
+.battle .stand .sname, .battle .foe .fname { font-size: 15px; font-weight: 800; }
+.battle .hpwrap .nums, .battle .stand .hpwrap .nums, .battle .foe .hpwrap .nums { font-size: 13px; font-weight: 700; }
+.battle .stand .hp, .battle .stand .hpwrap { width: 108px; }
+.battle .foe .hpwrap { width: 124px; }
+.battle .chip, .battle .chips span { font-size: 12px; padding: 1px 8px; }
+.battle .nature { font-size: 11.5px; }
+.battle .isay { font-size: 13px; }
+.battle .igem { width: 34px; height: 34px; }
+.battle .igem b { font-size: 15px; }
+.battle .stand .bubble { font-size: 13.5px; max-width: 250px; }
+.battle .foe .pv b { font-size: 30px; }
+
+.bwhere { font-size: 20px; }
+.battle .bsub { font-size: 13px; }
+.battle .flash { font-size: 12px; }
+.turntag { font-size: 13px; }
+.battle .loglast { font-size: 13.5px; }
+.battle .lglab, .battle .lgmore { font-size: 12px; }
+.battle .logwrap.open .log { font-size: 13.5px; }
+body:has(#screen.battle) #hint:not(:empty) { font-size: 16px; }
+.battle .pile2 .pnum { font-size: 20px; }
+.battle .pile2 .plab { font-size: 10.5px; }
+
+.battle .ally .nm { font-size: 15px; }
+.battle .ally .ultbtn.grad { font-size: 12px; }
+.battle .gauge .gnum { font-size: 14px; }
+.battle .gauge .glabel { font-size: 11.5px; }
+.battle .apbox .aplabel { font-size: 11px; }
+.battle .endturn { font-size: 16px; }
+
+/* 손패 카드 — 이름 · 효과 글 */
+.battle .hand .card .gcost { font-size: 17px; }
+.battle .hand .card .gtitle b { font-size: 14px; }
+.battle .hand .card .gtype { font-size: 11px; }
+.battle .hand .card .gtext { font-size: 12.5px; line-height: 1.45; }
+
+/* 휴대폰 — 배율이 작아(0.72~0.76) 조금 더 */
+.phone .battle .stand .sname, .phone .battle .foe .fname { font-size: 15px; }
+.phone .battle .hpwrap .nums { font-size: 14px; }
+.phone .battle .foe .intent .isay { font-size: 13px; }
+.phone .battle .ally .nm { font-size: 15px; }
+.phone .battle .ally .ultbtn.grad { font-size: 12.5px; }
+.phone .battle .hand .card .gtitle b { font-size: 13px; }
+.phone .battle .hand .card .gtext { font-size: 12.5px; }
+.phone .battle .hand .card .gtype { font-size: 11px; }
+
+/* 휴대폰 — 글자를 키웠더니 적 이름끼리 붙고, 말풍선이 가운데 위 턴 표시를 덮었다 */
+.phone .battle .field { grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); }
+.phone .battle .foes { gap: 18px; }
+.phone .battle .foe .fname { font-size: 13.5px; }
+.phone .battle .foe .nature { font-size: 10.5px; padding: 0 5px; }
+.phone .battle .foe .hpwrap { width: 104px; }
+.phone .turntag { left: auto; right: 62px; top: 8px; transform: none; }
+
+/* 고학년 단추가 떨리던 것 — journey.css 의 button:hover { translateY(-2px) } 가 단추에 transform 을 걸면
+   단추가 아이콘(absolute)의 기준이 되어 아이콘이 튀고, 마우스가 빠졌다 들어왔다 하며 떨었다. 사도 칸의 단추는 움직이지 않는다 */
+.battle .ally .ultbtn, .battle .ally .ultbtn:hover { transform: none !important; }
+.battle .ally .ultbtn.grad { cursor: pointer; }
+.battle .ally:has(.ultbtn.grad) { cursor: pointer; }
+
+/* ══ 가운데 창 — 고학년 스킬 · 카드 자세히 ═════════════════════════════════
+   어두운 유리 한 장. 왼쪽에 그림(아이콘 · 카드), 오른쪽에 이름 · 하는 일 · 낱말 풀이 · 단추. */
+.bmodal {
+  position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 24px;
+  background: #07051099; backdrop-filter: blur(5px);
+  animation: bmfade .16s ease-out;
+}
+@keyframes bmfade { from { opacity: 0; } }
+.bmbox {
+  display: flex; gap: 26px; align-items: flex-start; width: min(760px, 100%);
+  max-height: calc(var(--app-h, 100vh) - 48px); overflow: auto;
+  padding: 26px 28px; border-radius: 16px; color: #f4f1ff;
+  background: linear-gradient(160deg, #221d36f2, #120f1cf2);
+  border: 1px solid #ffffff26; box-shadow: 0 0 0 1px #0008, 0 30px 80px #000c, inset 0 1px 0 #ffffff14;
+  animation: bmpop .18s ease-out;
+}
+@keyframes bmpop { from { transform: translateY(10px) scale(.97); opacity: 0; } }
+.bmface {
+  flex: none; width: 150px; height: 150px; border-radius: 50%; overflow: hidden; padding: 4px;
+  background: conic-gradient(#f6d58e, #d9a54a, #f6d58e); box-shadow: 0 0 30px #f6d58e55, 0 10px 24px #000b;
+}
+.bmface img, .bmface .art { width: 100% !important; height: 100% !important; object-fit: cover; border-radius: 50%; display: block; border: 3px solid #120f1c; }
+.bmcard { flex: none; width: 250px; cursor: default !important; }
+.bmcard:hover { transform: none !important; }
+.bmbody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.bmkind { font-size: 13px; font-weight: 700; letter-spacing: .04em; color: #b9b2d6; }
+.bmname { margin: 0; font-size: 26px; font-weight: 900; letter-spacing: -.3px; color: #fff; }
+.bmmeter { display: flex; gap: 12px; align-items: baseline; font-size: 14px; color: #d9d2f2; }
+.bmmeter b { color: #ff9f8f; }
+.bmmeter b.ok { color: #f6d58e; }
+.bmtext {
+  margin: 4px 0 0; font-size: 17px; line-height: 1.65; color: #fff; word-break: keep-all;
+  padding: 12px 14px; border-radius: 10px; background: #ffffff0d; border-left: 3px solid #f6d58e;
+}
+.bmterms { margin: 2px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 7px 12px; font-size: 14px; line-height: 1.55; }
+.bmterms dt { font-weight: 800; color: #f6d58e; white-space: nowrap; }
+.bmterms dd { margin: 0; color: #d9d2f2; word-break: keep-all; }
+.bmwhy { margin: 0; font-size: 13.5px; color: #ff9f8f; }
+.bmbtns { display: flex; gap: 10px; margin-top: 6px; }
+.bmbtns button { min-height: 44px; padding: 0 22px; border-radius: 10px; font-size: 15px; font-weight: 800; }
+.bmuse {
+  color: #221a08; background: linear-gradient(180deg, #ffe7a8, #f0b94a); border: 0;
+  box-shadow: 0 0 18px #f6d58e66;
+}
+.bmuse:disabled { color: #b9b2d6; background: #ffffff14; box-shadow: none; opacity: 1; font-weight: 600; }
+.bmclose { color: #f4f1ff; background: #ffffff10; border: 1px solid #ffffff2e; }
+.bmodal button:hover:not(:disabled) { transform: none; filter: brightness(1.08); }
+
+/* 휴대폰 — 가로 540 줄. 그림을 줄이고 글은 그대로 크게 */
+.phone .bmbox { gap: 18px; padding: 18px 20px; width: min(900px, 100%); }
+.phone .bmface { width: 110px; height: 110px; }
+.phone .bmcard { width: 190px; }
+.phone .bmname { font-size: 22px; }
+.phone .bmtext { font-size: 16px; }
+.bmcard .gcost { font-size: 20px; }
+.bmcard .gtitle b { font-size: 17px; }
+.bmcard .gtype { font-size: 12px; }
+.bmcard .gtext { font-size: 14px; line-height: 1.5; -webkit-line-clamp: 5; }
+
+/* ── 적을 띄운다 — 둘 셋이 붙어 서면 끌어 놓을 때 옆 적에 걸렸다 ───────────── */
+.battle .foes { justify-content: space-evenly; gap: 40px; padding-right: 10px; }
+.phone .battle .foes { gap: 28px; }
+.battle .foe { cursor: pointer; }
+/* 옛 표적 표시(네모 테)는 걷는다 — 끄는 동안의 빛(.dtgt · .dover)이 대신한다. 누르면 적 정보 */
+.battle .foe.tgt:hover .art, .battle .stand.tgt:hover .art { outline: none; }
+.battle .foe:hover .fname { color: #f6d58e; }
+
+/* ── 적 정보창 ───────────────────────────────────────────────────────────── */
+.bmface.foe {
+  width: 170px; height: 170px; border-radius: 16px; padding: 0;
+  background: radial-gradient(circle at 50% 70%, #3a2a3c, #15121f 75%);
+  border: 1px solid #ffffff26; box-shadow: 0 10px 24px #000b;
+}
+.bmface.foe .art, .bmface.foe img { border: 0 !important; border-radius: 0 !important; object-fit: contain !important; }
+.bmmeter b.blk { color: #8fdcff; }
+.bmnow { color: #f6d58e; }
+.bmhelp { margin: -2px 0 0; font-size: 13.5px; line-height: 1.55; color: #b9b2d6; }
+.bmsub { margin-top: 4px; font-size: 12.5px; font-weight: 800; letter-spacing: .04em; color: #b9b2d6; }
+.bmchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.bmchips .chip { font-size: 13px; padding: 2px 10px; border-radius: 99px; background: #ffffff12; border: 1px solid #ffffff2e; color: #f4f1ff; }
+.bmmoves dt { color: #f4f1ff; }
+.bmmoves dd { color: #d9d2f2; }
+.phone .bmface.foe { width: 120px; height: 120px; }
+
+/* ══ 메뉴 — 오른쪽 위 ☰ ════════════════════════════════════════════════════
+   머리띠의 전체화면 단추는 전투에서 치운다(메뉴 안에 있다). 위쪽 안내 줄은 막혔을 때만 잠깐 뜬다. */
+body:has(#screen.battle) .top { display: none; }
+.battle .bmenu {
+  position: absolute; right: 16px; top: 12px; z-index: 30; width: 46px; height: 46px; min-height: 0; padding: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  border-radius: 12px; background: #0d0b16c7; backdrop-filter: blur(6px); border: 1px solid #ffffff26;
+  box-shadow: 0 6px 16px #000a; transition: border-color .15s, box-shadow .15s;
+}
+.battle .bmenu i { display: block; width: 20px; height: 2.5px; border-radius: 2px; background: #f4f1ff; }
+.battle .bmenu:hover:not(:disabled) { transform: none; border-color: #f6d58e; box-shadow: 0 0 16px #f6d58e55, 0 6px 16px #000a; }
+.battle .bmenu:hover i { background: #f6d58e; }
+.phone .battle .bmenu { right: 10px; top: 8px; width: 44px; height: 44px; }
+
+.menumodal .bmbox { width: min(460px, 100%); flex-direction: column; gap: 0; }
+.menumodal .bmbody { width: 100%; gap: 8px; }
+.menumodal .bmname { font-size: 24px; }
+.mlist { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.mitem {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%;
+  min-height: 52px; padding: 10px 16px; border-radius: 12px; text-align: left;
+  background: #ffffff0c; border: 1px solid #ffffff1f; color: #f4f1ff; transition: background .15s, border-color .15s;
+}
+.mitem b { font-size: 16px; font-weight: 800; }
+.mitem span { font-size: 12.5px; color: #b9b2d6; }
+.mitem:hover:not(:disabled) { transform: none; background: #ffffff16; border-color: #f6d58e88; }
+.mitem.main { align-items: center; background: linear-gradient(180deg, #ffe7a8, #f0b94a); border: 0; color: #221a08; }
+.mitem.main:hover:not(:disabled) { background: linear-gradient(180deg, #fff0c4, #f6c55a); }
+/* 켜고 끄는 단추 — 오른쪽에 스위치 */
+.mitem.tog { padding-right: 70px; }
+.mitem .sw {
+  position: absolute; right: 16px; top: 50%; width: 42px; height: 24px; margin-top: -12px; border-radius: 99px;
+  background: #ffffff22; border: 1px solid #ffffff2e; transition: background .15s;
+}
+.mitem .sw:after {
+  content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%;
+  background: #d9d2f2; transition: transform .15s, background .15s;
+}
+.mitem.tog.on .sw { background: #f0b94a; border-color: #f6d58e; }
+.mitem.tog.on .sw:after { transform: translateX(18px); background: #fff; }
+.mitem.quit b { color: #ffb3a8; }
+.mitem.quit:hover:not(:disabled) { border-color: #ff9f8f; background: #ff9f8f14; }
+.bmuse.danger { color: #fff; background: linear-gradient(180deg, #e0707f, #b04055); box-shadow: 0 0 16px #e0707f55; }
+
+/* ── 설정: 움직임 줄이기 · 글자 크게 ───────────────────────────────────────── */
+.calm .battle *, .calm .battle *:before, .calm .battle *:after,
+.calm .bmodal, .calm .bmbox, .calm .dragfx path { animation: none !important; transition: none !important; }
+.bigtext .battle .stand .sname, .bigtext .battle .foe .fname { font-size: 17px; }
+.bigtext .battle .hpwrap .nums { font-size: 15px; }
+.bigtext .battle .hand .card .gtitle b { font-size: 16px; }
+.bigtext .battle .hand .card .gtext { font-size: 14.5px; }
+.bigtext .battle .ally .nm { font-size: 17px; }
+.bigtext .battle .ally .ultbtn.grad { font-size: 13.5px; }
+.bigtext .battle .isay { font-size: 15px; }
+.bigtext .bmtext { font-size: 19px; }
+.bigtext .bmterms { font-size: 16px; }
+
+/* ══ 서 있는 크기 — 높이만이 아니라 폭 · 인원수로 ═══════════════════════════════
+   높이(cqh)로만 정했더니 세로가 긴 화면(16:10 · 5:4)에서 사도가 화면을 다 차지했고,
+   적이 셋 넷이면 오른쪽 끝 적이 화면 밖으로 나갔다(1280×1024 에서 셋, 1920×1080 에서 넷).
+   이제 칸 폭 = min(높이의 38%, 제 쪽 폭 ÷ 인원수). 칸 높이는 폭의 1.4배를 넘지 않는다.
+   --na · --nf 는 ui.js 가 싸움터(.field)에 단다. cqw · cqh 는 싸움터 크기다. */
+#screen.battle .field { --colA: 50cqw; --colF: 38cqw; }
+#screen.battle .stand { --bw: clamp(78px, min(38cqh, calc(var(--colA) / var(--na, 3))), 220px); width: var(--bw); }
+#screen.battle .stand .art {
+  width: var(--bw) !important; height: clamp(90px, min(52cqh, calc(var(--bw) * 1.4)), 280px) !important;
+}
+#screen.battle .foe { --bw: clamp(70px, min(38cqh, calc(var(--colF) / var(--nf, 2) - 10px)), 220px); width: var(--bw); min-width: 0; }
+#screen.battle .foe .art {
+  width: var(--bw) !important; height: clamp(80px, min(52cqh, calc(var(--bw) * 1.4)), 280px) !important;
+}
+#screen.battle .foe.boss { --bw: clamp(110px, min(50cqh, calc(var(--colF) * 1.3 / var(--nf, 1) - 10px)), 320px); }
+#screen.battle .foes { gap: calc(60px / var(--nf, 2)); }
+/* 좁아진 칸에서도 이름 · 체력이 칸을 넘지 않게 — 이름은 두 줄까지, 성격 표시는 이름 밑으로 내려도 된다 */
+#screen.battle .foe .fname { max-width: calc(var(--bw) + 24px); flex-wrap: wrap; justify-content: center; row-gap: 2px; white-space: normal; text-align: center; }
+#screen.battle .foe .hpwrap { width: min(124px, calc(var(--bw) - 4px)); }
+#screen.battle .foe .intent { max-width: calc(var(--bw) + 40px); }
+#screen.battle .foe .intent .isay { overflow: hidden; text-overflow: ellipsis; }
+
+/* ── 뽑을 더미 · 버린 더미 — 같은 높이에 ─────────────────────────────────── */
+#screen.battle .pile2.draw { left: 20px; bottom: 330px; }
+#screen.battle .pile2.disc { right: 34px; bottom: 330px; }
+.phone #screen.battle .pile2.draw { left: 12px; bottom: 206px; }
+.phone #screen.battle .pile2.disc { right: 22px; bottom: 206px; }
+
+/* ── 사도 정보창 ─────────────────────────────────────────────────────────── */
+.battle .stand { cursor: pointer; }
+.battle .stand:hover .sname { color: #f6d58e; }
+.bmface.hero {
+  width: 180px; height: 240px; border-radius: 16px; padding: 0; overflow: hidden;
+  background: radial-gradient(circle at 50% 30%, #3a3158, #15121f 80%);
+  border: 1px solid #ffffff26; box-shadow: 0 10px 24px #000b;
+}
+.bmface.hero .art, .bmface.hero img { width: 100% !important; height: 100% !important; border: 0 !important; border-radius: 0 !important; object-fit: cover !important; object-position: 50% 8% !important; }
+.bmchips .chip, .bmchips span { font-size: 13px; padding: 2px 10px; border-radius: 99px; background: #ffffff12; border: 1px solid #ffffff2e; color: #f4f1ff; }
+.bmchips .chip.bad { color: #ffb3b3; border-color: #5d2f36; }
+.bmchips .chip.key { color: #f6d58e; border-color: #f6d58e55; }
+.heromodal .bmbox { width: min(820px, 100%); }
+.phone .bmface.hero { width: 130px; height: 175px; }
+
+/* 적이 여럿이면 옆 적의 그림(칸 밖으로 넘친 캔버스)이 의도 표시를 덮었다 — 의도 · 이름 · 체력은 그림 위에 */
+#screen.battle .foe .intent, #screen.battle .foe .fname, #screen.battle .foe .hpwrap, #screen.battle .stand .sname, #screen.battle .stand .hpwrap { position: relative; z-index: 4; }
+
+/* 배경 그림 몇 장(stage2_1 · stage3_1)은 위쪽 가장자리에 게임 UI 조각이 묻어 있다 — 위를 13% 잘라 낸다(아래에 맞춰 키운다) */
+#screen.battle, .phone #screen.battle { background-size: auto, max(115%, calc(var(--app-h, 100vh) * 1.15 * 16 / 9)) auto, auto; background-position: 0 0, 50% 100%, 0 0; }
+/* 이름은 한 줄 — 두 줄로 꺾이면 읽기 나쁘다(tools/shot.py 가 본다). 칸보다 넓어도 된다 */
+#screen.battle .foe .fname { max-width: none; flex-wrap: nowrap; white-space: nowrap; }
+
+/* 낱말 풀이 쪽지는 가운데 창(.bmodal 80) · 더미 창(60) 보다 위에 — 창 안의 낱말을 눌러도 풀이가 뒤에 숨지 않게 */
+.kwnote { z-index: 95; }
+.pilegrid .gcard.canzoom { cursor: zoom-in; transition: transform .12s, box-shadow .12s; }
+.pilegrid .gcard.canzoom:hover { transform: translateY(-3px); box-shadow: 0 0 0 2px #f6d58e, 0 10px 22px #000a; }
+
+/* ══ 보상 — 전투 화면과 같은 배경 · 같은 결 ═════════════════════════════════
+   이긴 자리 그대로(--stagebg, ui.js 의 setStageBg). 밝은 도감 판이던 것을 어두운 유리 + 금선으로. */
+body:has(#screen.rewardscreen) .top { display: none; }
+#screen.rewardscreen {
+  --ink: #f4f1ff; --dim: #b9b2d6; --line: #ffffff26; --hot: #f6d58e; --sel: #f6d58e;
+  position: fixed; inset: 0; z-index: 1; max-width: none; margin: 0; min-height: 0; height: var(--app-h, 100vh);
+  border-radius: 0; padding: 0; overflow-y: auto; color: var(--ink);
+  display: flex; flex-direction: column; align-items: center;
+  background:
+    linear-gradient(180deg, #0a0814cc 0, #0a081499 30%, #0a0814cc 75%, #0a0814f2 100%),
+    var(--stagebg, none) 50% 100% / max(115%, calc(var(--app-h, 100vh) * 1.15 * 16 / 9)) auto no-repeat,
+    radial-gradient(ellipse at 50% 20%, #2a2340, #0e0c17 80%);
+}
+#screen.rewardscreen .dbar2 {
+  position: sticky; top: 0; z-index: 3; width: 100%; padding: 16px max(24px, calc((100% - 1180px) / 2));
+  background: linear-gradient(180deg, #0d0b16f2, #0d0b16c7); backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--line);
+}
+#screen.rewardscreen .dtitle { color: #fff; font-size: 26px; text-shadow: 0 2px 10px #000; }
+#screen.rewardscreen .rwhy { color: var(--dim); font-size: 13.5px; }
+#screen.rewardscreen .sgold { color: #f6d58e; }
+#screen.rewardscreen .dexbtn {
+  background: #ffffff12; border: 1px solid var(--line); color: var(--ink); font-size: 13.5px; padding: 10px 18px;
+}
+#screen.rewardscreen .dexbtn:hover:not(:disabled) { transform: none; border-color: #f6d58e; }
+#screen.rewardscreen .rbody { width: min(1180px, 100%); padding: 22px 24px 40px; gap: 6px; }
+#screen.rewardscreen .rsec b { font-size: 17px; color: #fff; text-shadow: 0 1px 4px #000; }
+#screen.rewardscreen .rsec .why, #screen.rewardscreen .rnone { color: var(--dim); font-size: 13px; }
+#screen.rewardscreen .rrow { gap: 20px; }
+#screen.rewardscreen .rpick { width: 210px; }
+#screen.rewardscreen .rwho { background: #0d0b16c7; border: 1px solid var(--line); color: var(--ink); backdrop-filter: blur(4px); }
+#screen.rewardscreen .rwho .art { background: #1a1628; }
+#screen.rewardscreen .rwho b { font-size: 13.5px; }
+#screen.rewardscreen .rpick .gcard { box-shadow: 0 12px 28px #000a; cursor: zoom-in; }
+#screen.rewardscreen .rpick .gcard:hover { transform: translateY(-6px); box-shadow: 0 0 0 2px #f6d58e, 0 16px 32px #000c; }
+#screen.rewardscreen .gcard .gtitle b { font-size: 14px; }
+#screen.rewardscreen .gcard .gtext { font-size: 12.5px; }
+/* 번뜩임 · 장비 카드도 유리판 */
+#screen.rewardscreen .fcard, #screen.rewardscreen .ecard, #screen.rewardscreen .grow {
+  background: #0d0b16d9; border: 1px solid var(--line); color: var(--ink); backdrop-filter: blur(4px);
+  box-shadow: 0 10px 24px #0009;
+}
+#screen.rewardscreen .fcard:hover { transform: translateY(-4px); border-color: #f6d58e; box-shadow: 0 0 0 1px #f6d58e, 0 14px 28px #000b; }
+#screen.rewardscreen .fnum { color: #f6d58e; }
+#screen.rewardscreen .fko, #screen.rewardscreen .fbefore { color: var(--dim); }
+#screen.rewardscreen .fbefore { border-top-color: var(--line); }
+#screen.rewardscreen .ftext2 { font-size: 13.5px; }
+#screen.rewardscreen .eqstat { color: #9fe3b4; }
+#screen.rewardscreen .eaff { color: #ffb3c8; }
+#screen.rewardscreen .eslot, #screen.rewardscreen .eoff { background: #ffffff14; color: var(--dim); }
+#screen.rewardscreen .egrade, #screen.rewardscreen .eblurb, #screen.rewardscreen .eeff { color: var(--dim); }
+#screen.rewardscreen .sprice { background: linear-gradient(180deg, #ffe7a8, #f0b94a); color: #221a08; border: 0; }
+.phone #screen.rewardscreen .rpick { width: 170px; }
+.phone #screen.rewardscreen .dtitle { font-size: 22px; }
+#screen.rewardscreen .sgold { background: #0d0b16c7; border: 1px solid #f6d58e88; color: #f6d58e; font-weight: 800; }
+#screen.rewardscreen .rsec { justify-content: center; }
+#screen.rewardscreen .rrow { justify-content: center; }
+#screen.rewardscreen .rpick { width: 230px; }
+#screen.rewardscreen .rnone { text-align: center; }
+
+/* ══ 지도 — 갈림길을 고르며 간다. 파티 미니미가 칸에서 칸으로 걷는다 ═══════════════
+   배경은 이 층의 싸움터(--stagebg). 칸은 둥근 유리 단추 + 금선, 갈 수 있는 칸만 빛난다. */
+body:has(#screen.mapscreen) .top { display: none; }
+#screen.mapscreen {
+  position: fixed; inset: 0; z-index: 1; max-width: none; margin: 0; padding: 0; border-radius: 0;
+  height: var(--app-h, 100vh); overflow: hidden; color: #f4f1ff;
+  background:
+    linear-gradient(180deg, #0a0814d9 0, #0a081466 22%, #0a081440 55%, #0a0814cc 100%),
+    var(--stagebg, none) 50% 100% / max(115%, calc(var(--app-h, 100vh) * 1.15 * 16 / 9)) auto no-repeat,
+    radial-gradient(ellipse at 50% 20%, #2a2340, #0e0c17 80%);
+}
+/* 머리 */
+.mhead {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 5; display: flex; align-items: center; gap: 18px;
+  padding: 14px 20px; background: linear-gradient(180deg, #0d0b16e6, #0d0b1600);
+}
+.mwhere { display: flex; flex-direction: column; gap: 2px; margin-right: auto; }
+.mwhere b { font-size: 22px; font-weight: 900; text-shadow: 0 2px 8px #000; }
+.mwhere span { font-size: 13px; color: #d9d2f2; text-shadow: 0 1px 4px #000; }
+.mparty-hp { display: flex; gap: 10px; }
+.mhero {
+  display: flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border-radius: 99px;
+  background: #0d0b16c7; border: 1px solid #ffffff26; backdrop-filter: blur(4px);
+}
+.mhero.dead { opacity: .45; filter: grayscale(1); }
+.mface { width: 38px; height: 38px; border-radius: 50%; overflow: hidden; flex: none; background: #1a1628; border: 1.5px solid #ffffff55; display: grid; place-items: center; }
+.mface img { width: 100%; height: 100%; object-fit: cover; }
+.minfo { display: flex; flex-direction: column; gap: 2px; min-width: 88px; }
+.minfo b { font-size: 13px; }
+.minfo .bar { height: 6px; margin: 0; background: #0a0812; border: 1px solid #0008; }
+.minfo .bar i { background: linear-gradient(90deg, #6fd39a, #9fe3b4); }
+.mhp { font-size: 11.5px; color: #d9d2f2; }
+.mgold { font-size: 15px; font-weight: 800; color: #f6d58e; padding: 8px 14px; border-radius: 99px; background: #0d0b16c7; border: 1px solid #f6d58e66; }
+.mdeck { font-size: 14px; font-weight: 800; padding: 9px 16px; border-radius: 10px; background: #0d0b16c7; border: 1px solid #ffffff26; color: #f4f1ff; }
+.mdeck:hover:not(:disabled) { transform: none; border-color: #f6d58e; }
+#screen.mapscreen .bmenu { position: static; flex: none; }
+
+/* 판 */
+.mboard { position: absolute; left: 0; right: 0; top: 70px; bottom: 16px; }
+.medges { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.medges path { fill: none; stroke: #ffffff4d; stroke-width: 2.5; stroke-dasharray: 2 9; stroke-linecap: round; }
+.medges path.walked { stroke: #f6d58e99; stroke-dasharray: none; stroke-width: 3; }
+.medges path.open { stroke: #f6d58e; stroke-width: 3.5; stroke-dasharray: 3 8; animation: mdash .8s linear infinite; filter: drop-shadow(0 0 4px #f6d58e); }
+@keyframes mdash { to { stroke-dashoffset: -11; } }
+
+.mnode {
+  position: absolute; z-index: 2; transform: translate(-50%, -50%); padding: 0; min-height: 0; border: 0; background: none;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: default; color: #f4f1ff;
+}
+.mnode:hover:not(:disabled) { transform: translate(-50%, -50%); }
+.mring {
+  width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 35%, #2c2544, #15121f 75%);
+  border: 2px solid #ffffff40; box-shadow: 0 6px 16px #000b; transition: transform .15s, box-shadow .15s, border-color .15s;
+}
+.mring svg { width: 28px; height: 28px; fill: #d9d2f2; }
+.mlabel { font-size: 12.5px; font-weight: 800; text-shadow: 0 1px 3px #000, 0 0 8px #000; white-space: nowrap; }
+.mnode.t-fight .mring svg { fill: #ff9f8f; }
+.mnode.t-event .mring svg { fill: #b7a6ff; }
+.mnode.t-shop .mring svg { fill: #f6d58e; }
+.mnode.t-camp .mring svg, .mnode.t-campshop .mring svg { fill: #ffb86b; }
+.mnode.t-boss .mring { width: 78px; height: 78px; border-color: #ff8f8f; background: radial-gradient(circle at 50% 35%, #4a2030, #1c0e16 75%); }
+.mnode.t-boss .mring svg { width: 38px; height: 38px; fill: #ffb3b3; }
+/* 지나온 칸 · 지금 칸 · 갈 수 있는 칸 */
+.mnode.seen .mring { opacity: .55; border-color: #f6d58e66; }
+.mnode.here .mring { opacity: 1; border-color: #f6d58e; }
+.mnode:not(.can):not(.seen):not(.here) { opacity: .6; }
+.mnode.can { cursor: pointer; opacity: 1; }
+.mnode.can .mring { border-color: #f6d58e; box-shadow: 0 0 0 3px #f6d58e33, 0 0 22px #f6d58e88, 0 6px 16px #000b; animation: mpulse 1.2s ease-in-out infinite alternate; }
+.mnode.can:hover .mring { transform: scale(1.12); box-shadow: 0 0 0 4px #f6d58e66, 0 0 30px #f6d58ecc, 0 6px 16px #000b; }
+.mnode.can .mlabel { color: #f6d58e; }
+@keyframes mpulse { from { box-shadow: 0 0 0 2px #f6d58e33, 0 0 12px #f6d58e66, 0 6px 16px #000b; } to { box-shadow: 0 0 0 4px #f6d58e44, 0 0 26px #f6d58eaa, 0 6px 16px #000b; } }
+.mboard.going .mnode:not(.pick) { opacity: .35; }
+.mnode.pick .mring { transform: scale(1.18); }
+
+/* 파티 미니미 — 지금 칸 위에 선다. 고르면 그리로 걷는다(깡충거리며) */
+.mwalkers {
+  position: absolute; z-index: 4; display: flex; align-items: flex-end; pointer-events: none;
+  transform: translate(-50%, -96%); transition: left .85s ease-in-out, top .85s ease-in-out;
+}
+.mwalkers .art { width: 84px !important; height: 84px !important; margin: 0 -22px; background: none; overflow: visible; }
+.mwalkers .art:nth-child(2) { margin-bottom: 6px; }
+.mwalkers .art img { object-fit: contain; object-position: bottom; }
+.mwalkers.walking .art { animation: mhop .28s ease-in-out infinite alternate; }
+.mwalkers.walking .art:nth-child(2) { animation-delay: .09s; }
+.mwalkers.walking .art:nth-child(3) { animation-delay: .18s; }
+@keyframes mhop { from { transform: translateY(0); } to { transform: translateY(-10px); } }
+.calm .mwalkers { transition: none; }
+
+/* 휴대폰 — 머리 줄을 줄인다 */
+.phone .mhead { padding: 8px 12px; gap: 10px; }
+.phone .mwhere b { font-size: 18px; }
+.phone .mwhere span { display: none; }
+.phone .minfo { min-width: 64px; }
+.phone .minfo b { font-size: 12px; }
+.phone .mface { width: 30px; height: 30px; }
+.phone .mboard { top: 58px; }
+.phone .mring { width: 50px; height: 50px; }
+.phone .mnode.t-boss .mring { width: 64px; height: 64px; }
+.phone .mwalkers .art { width: 70px !important; height: 70px !important; margin: 0 -18px; }
+.mring svg.stroke { fill: none !important; stroke: #ff9f8f; stroke-width: 2.4; stroke-linecap: round; }
+.mnode.t-fight .mring svg.stroke path { fill: none; }
+#screen.mapscreen .mmenu { width: 46px; height: 46px; min-height: 0; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; border-radius: 12px; background: #0d0b16c7; border: 1px solid #ffffff26; }
+#screen.mapscreen .mmenu i { display: block; width: 20px; height: 2.5px; border-radius: 2px; background: #f4f1ff; }
+#screen.mapscreen .mmenu:hover:not(:disabled) { transform: none; border-color: #f6d58e; }
+.mwalkers .art { width: 104px !important; height: 104px !important; margin: 0 -26px; }
+.phone .mwalkers .art { width: 80px !important; height: 80px !important; margin: 0 -20px; }
+/* 발이 칸 아이콘 위쪽 테에 닿게 — 아이콘을 가리지 않는다 */
+.mwalkers { transform: translate(-50%, calc(-100% - 22px)); }
+
+/* ══ 캠프 · 상점 · 이벤트도 같은 결 ═══════════════════════════════════════════
+   셋 다 .rewardscreen 을 함께 달고 있어 배경과 글자색은 어두워졌는데, 칸들은 흰 판 그대로라
+   흰 글자가 흰 바탕에 묻혔다. 칸을 모두 어두운 유리로. */
+#screen.rewardscreen :is(.cmember, .cact, .grow, .gslot.full, .evscene, .evopt, .evresult, .evpickhero, .evfork, .shost, .sitem, .shaggle, .srmbtn, .dkcard, .ehero, .flashbox, .statc) {
+  background: #0d0b16d1; border-color: #ffffff26; color: #f4f1ff; backdrop-filter: blur(4px);
+}
+#screen.rewardscreen .gslot { background: #ffffff0a; border-color: #ffffff2e; color: #d9d2f2; }
+#screen.rewardscreen .gout { background: #ffffff14; border-color: #ffffff2e; color: #f4f1ff; }
+#screen.rewardscreen :is(.cinfo b, .cact b, .evlabel, .evq, .evnpc, .stalk b, .evchose) { color: #fff; }
+#screen.rewardscreen :is(.cnum, .cact span, .evout, .evnote, .evby, .evtext p, .stalk, .sline2, .sblurb, .evsay, .evlog, .evfork p, .evkind, .evlock) { color: #d9d2f2; }
+#screen.rewardscreen .chp { background: #0a0812; }
+#screen.rewardscreen .cact:hover:not(:disabled), #screen.rewardscreen .evopt:hover:not(:disabled),
+#screen.rewardscreen .evfork:hover, #screen.rewardscreen .evpickhero:hover { transform: none; border-color: #f6d58e; box-shadow: 0 0 0 1px #f6d58e, 0 10px 22px #000a; }
+#screen.rewardscreen .cact.on { border-color: #f6d58e; background: #2a2210d9; }
+#screen.rewardscreen .cact:disabled:not(.on) { opacity: .45; }
+#screen.rewardscreen .evopt.leave { background: #0d0b1699; border-style: dashed; }
+#screen.rewardscreen .evopt.locked { opacity: .5; }
+#screen.rewardscreen :is(.evgold, .sgold) { background: #0d0b16c7; border: 1px solid #f6d58e88; color: #f6d58e; }
+#screen.rewardscreen .evscene .art { background: #1a1628; }
+#screen.rewardscreen .srmbtn.on { background: #3a1f24; color: #ffb3b3; border-color: #5d2f36; }
+#screen.rewardscreen .sgrade { background: #ffffff14; color: #d9d2f2; }
+
+/* 줄 이름 1-1 … 1-12 — 판 위쪽에. 지금 줄 · 다음 줄은 금빛 */
+.mcol { position: absolute; top: 0; z-index: 1; transform: translateX(-50%); font-size: 13px; font-weight: 800; letter-spacing: .04em; color: #d9d2f2b3; text-shadow: 0 1px 3px #000; padding: 2px 8px; border-radius: 99px; }
+.mcol.now { color: #f6d58e; background: #0d0b16b3; }
+.mcol.next { color: #fff; background: #0d0b16b3; border: 1px solid #f6d58e66; }
+/* 엘리트 — 붉은 테 · 뿔 달린 얼굴 */
+.mnode.t-elite .mring { border-color: #ff6f8f; background: radial-gradient(circle at 50% 35%, #4a1f30, #1c0e16 75%); }
+.mnode.t-elite .mring svg { fill: #ff8fa6; }
+.mnode.t-elite .mlabel { color: #ffb3c2; }
+.mnode.t-elite.can .mring { border-color: #ff8fa6; }
+.phone .mcol { font-size: 11.5px; }
+/* 휴대폰 — 한 줄에 넷이면 칸 이름이 아래 칸에 겹쳤다. 칸을 줄이고 판을 머리 줄 밑으로 */
+.phone .mboard { top: 72px; bottom: 6px; }
+.phone .mring { width: 44px; height: 44px; }
+.phone .mring svg { width: 22px; height: 22px; }
+.phone .mlabel { font-size: 11px; }
+.phone .mnode { gap: 1px; }
+.phone .mcol { top: -4px; }
+
+/* 길 — 곧은 선. 앞으로 갈 수 있는 길만 또렷하게, 이제 못 가는 칸 · 길은 가라앉힌다 */
+.medges path { stroke-dasharray: none; stroke-width: 2; stroke: #ffffff2e; }
+.medges path.live { stroke: #ffffff8c; stroke-width: 2.5; }
+.medges path.gone { stroke: #ffffff14; }
+.medges path.walked { stroke: #f6d58ecc; stroke-width: 3.5; }
+.medges path.open { stroke: #f6d58e; stroke-width: 4; stroke-dasharray: 6 6; }
+.mnode.gone { opacity: .28 !important; filter: grayscale(.7); }
+.mnode:not(.can):not(.seen):not(.here):not(.gone) { opacity: .9; }
+
+/* ══ 지도 v3 — 가로로 긴 띠 · 카제나 같은 납작한 마름모 칸 ═══════════════════════
+   칸 사이는 늘 같은 간격(열 190px, 휴대폰 150px). 화면을 넘으면 끌어서(마우스) · 손가락 · 휠로 넘긴다.
+   배율을 줄여 한 화면에 욱여넣지 않는다 — 전에는 12줄을 화면 폭에 흩어 놓아 칸끼리 퍼져 보였다. */
+#screen.mapscreen .mboard {
+  overflow-x: auto; overflow-y: hidden; cursor: grab; scrollbar-width: none;
+  -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+}
+#screen.mapscreen .mboard::-webkit-scrollbar { display: none; }
+#screen.mapscreen .mboard.dragging { cursor: grabbing; }
+#screen.mapscreen .mboard.dragging .mnode { pointer-events: none; }
+.mstrip { position: relative; height: 100%; min-width: 100%; }
+.mstrip .medges { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+/* 길 — 곧게 나와 가운데서 꺾인다 */
+#screen.mapscreen .medges path { stroke: #ffffff33; stroke-width: 2; stroke-dasharray: none; stroke-linejoin: round; animation: none; filter: none; }
+#screen.mapscreen .medges path.live { stroke: #ffffffb3; stroke-width: 2.2; }
+#screen.mapscreen .medges path.gone { stroke: #ffffff17; }
+#screen.mapscreen .medges path.walked { stroke: #f6d58e; stroke-width: 3; }
+#screen.mapscreen .medges path.open { stroke: #f6d58e; stroke-width: 3; stroke-dasharray: 7 6; animation: mdash .8s linear infinite; filter: drop-shadow(0 0 4px #f6d58e); }
+
+/* 칸 — 납작한 마름모 타일. 종류마다 색: 일반 분홍 · 엘리트 보라 · 이벤트 청록 · 휴식 주황 · 보스 빨강 */
+#screen.mapscreen .mnode { gap: 0; }
+#screen.mapscreen .mring {
+  --c1: #5a5570; --c2: #34304a; --edge: #ffffff55;
+  width: 76px; height: 76px; border-radius: 12px; padding: 0; opacity: 1;
+  transform: scaleY(.58) rotate(45deg);
+  background: linear-gradient(135deg, var(--c1), var(--c2));
+  border: 2px solid var(--edge);
+  box-shadow: 0 0 0 5px #0d0b1666, 0 8px 18px #000c;
+  display: grid; place-items: center; animation: none;
+  transition: transform .15s, box-shadow .15s, filter .15s;
+}
+#screen.mapscreen .micon { display: grid; place-items: center; transform: rotate(-45deg) scaleY(1.724); }
+#screen.mapscreen .micon svg { width: 30px; height: 30px; fill: #fff; filter: drop-shadow(0 1px 2px #0008); }
+#screen.mapscreen .micon svg.stroke { fill: none !important; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; }
+#screen.mapscreen .mlabel { margin-top: -14px; font-size: 12.5px; font-weight: 800; color: #f4f1ff; text-shadow: 0 1px 3px #000, 0 0 8px #000; }
+#screen.mapscreen .t-fight .mring { --c1: #ff6f8f; --c2: #b8304f; --edge: #ffc2cf; }
+#screen.mapscreen .t-elite .mring { --c1: #a57cf0; --c2: #5a37a8; --edge: #d8c4ff; }
+#screen.mapscreen .t-event .mring { --c1: #4fd0e0; --c2: #1f7f96; --edge: #b8f2fa; }
+#screen.mapscreen .t-camp .mring, #screen.mapscreen .t-campshop .mring { --c1: #ffb558; --c2: #c9701c; --edge: #ffe0b0; }
+#screen.mapscreen .t-start .mring { --c1: #f6d58e; --c2: #a8823a; --edge: #fff3cf; width: 64px; height: 64px; }
+#screen.mapscreen .t-boss .mring { --c1: #ff5a6a; --c2: #8c1f2c; --edge: #ffb3bb; width: 100px; height: 100px; }
+#screen.mapscreen .t-boss .micon svg { width: 40px; height: 40px; }
+#screen.mapscreen .t-elite .mlabel { color: #d8c4ff; }
+#screen.mapscreen .t-boss .mlabel { margin-top: -18px; color: #ffb3bb; font-size: 14px; }
+/* 상점이 붙은 휴식 — 오른쪽 위 작은 간판 */
+#screen.mapscreen .t-campshop .mring::after {
+  content: "₲"; position: absolute; right: -8px; top: -8px; width: 22px; height: 22px; border-radius: 6px;
+  display: grid; place-items: center; font-size: 13px; font-weight: 900; color: #221a08; background: #f6d58e;
+  transform: rotate(-45deg) scaleY(1.724); box-shadow: 0 0 0 2px #0d0b16;
+}
+
+/* 상태 — 갈 수 있는 칸은 빛나고 들썩인다. 지나온 칸 · 못 가는 칸은 잿빛 */
+#screen.mapscreen .mnode.can { opacity: 1; }
+#screen.mapscreen .mnode.can .mring { box-shadow: 0 0 0 4px #f6d58e, 0 0 26px #f6d58ecc, 0 8px 18px #000c; animation: mtile 1.1s ease-in-out infinite alternate; }
+#screen.mapscreen .mnode.can:hover .mring { transform: scaleY(.58) rotate(45deg) scale(1.1); }
+@keyframes mtile { from { filter: brightness(1); } to { filter: brightness(1.18); } }
+#screen.mapscreen .mnode.can .mlabel { color: #f6d58e; }
+#screen.mapscreen .mnode.seen .mring, #screen.mapscreen .mnode.gone .mring { --c1: #4a465c; --c2: #2a2738; --edge: #ffffff33; }
+#screen.mapscreen .mnode.seen { opacity: .75; }
+#screen.mapscreen .mnode.gone { opacity: .35 !important; filter: none; }
+#screen.mapscreen .mnode.here { opacity: 1; }
+#screen.mapscreen .mnode.here .mring { --edge: #fff; box-shadow: 0 0 0 4px #ffffff66, 0 8px 18px #000c; }
+#screen.mapscreen .mnode:not(.can):not(.seen):not(.here):not(.gone) .mring { filter: saturate(.75) brightness(.85); }
+#screen.mapscreen .mboard.going .mnode:not(.pick) { opacity: .35; }
+#screen.mapscreen .mnode.pick .mring { transform: scaleY(.58) rotate(45deg) scale(1.15); }
+
+/* 미니미는 지금 칸 위에 — 타일을 가리지 않게 조금 위로 */
+#screen.mapscreen .mwalkers { transform: translate(-50%, calc(-100% - 18px)); }
+
+/* 휴대폰 — 열 150px · 타일을 줄인다 */
+.phone #screen.mapscreen .mring { width: 58px; height: 58px; }
+.phone #screen.mapscreen .micon svg { width: 24px; height: 24px; }
+.phone #screen.mapscreen .t-boss .mring { width: 76px; height: 76px; }
+.phone #screen.mapscreen .t-start .mring { width: 50px; height: 50px; }
+.phone #screen.mapscreen .mlabel { margin-top: -10px; font-size: 11.5px; }
+.phone #screen.mapscreen .mboard { top: 62px; }
+#screen.mapscreen .mlabel { margin-top: 0; }
+#screen.mapscreen .t-boss .mlabel { margin-top: -4px; }
+.phone #screen.mapscreen .mlabel { margin-top: 0; }

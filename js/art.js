@@ -11,6 +11,7 @@
 // 인게임 그림은 저장소에 넣지 않는다. 각자 제 기기에서 꺼내 assets/ 에 둔다.
 
 import { loadSpineManifest, hasSpine, spineView } from "./spine-view.js";
+import ARTMAP from "./data/artmap.js";
 
 const MODES = ["placeholder", "sd", "custom"];
 
@@ -84,7 +85,12 @@ export function portrait(key, { ko, tint, size = 72, slot = "battle", still = fa
     // 싸움터에 서는 큰 칸(전투 SD·적)은 모두 같은 배율로 — 사도 키가 날개·무기 장식에 따라 들쭉날쭉하지 않게.
     // 초상처럼 작은 칸은 얼굴이 보이게 그대로 꽉 맞춘다
     const unit = (kind === "ingame" || kind === "enemy") && size >= 80 ? SPINE_UNIT : 0;
-    spineView(el, kind, key, { flip, skin, unit }).then((v) => { if (!v) { el.classList.remove("art-spine"); drawStill(el, key, slot, ko, tint); } });
+    // 미니미는 한 아틀라스에 모두가 들어 있다 — 스킨 이름이 Mini_<영문 이름>(에르핀 → Mini_Erpin, 대소문자는 안 가린다)
+    const wear = kind === "minimi" && !skin && ARTMAP.art && ARTMAP.art[key] ? `Mini_${ARTMAP.art[key]}` : skin;
+    spineView(el, kind, key, { flip, skin: wear, unit }).then((v) => {
+      if (!v) { el.classList.remove("art-spine"); drawStill(el, key, slot, ko, tint); return; }
+      el.spine = v;                        // 동작을 바꿀 수 있게(지도에서 걸을 때 등)
+    });
     return el;
   }
   drawStill(el, key, slot, ko, tint);

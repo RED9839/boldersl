@@ -34,8 +34,8 @@ export { SHORT };
 // 글을 조각으로 가른다. [{ t: "피해 " }, { t: "취약", kw: {...} }, { t: " 1턴" }]
 // 화면은 kw 가 붙은 조각에만 밑줄을 긋고 풀이를 매단다.
 //
-// **잘못 걸리는 자리가 있다.** "방어" 는 "방어력" 안에도 있고, "궁극기" 는
-// "궁극기 게이지" 안에도 있다. 그래서 긴 낱말부터 찾고, 뒤에 붙으면 안 되는
+// **잘못 걸리는 자리가 있다.** "방어" 는 "방어력" 안에도 있고, "고학년 스킬" 는
+// "고학년 게이지" 안에도 있다. 그래서 긴 낱말부터 찾고, 뒤에 붙으면 안 되는
 // 글자를 따로 적어 둔다(keywords.js 의 notAfter).
 import KW from "./data/keywords.js";
 
@@ -86,6 +86,22 @@ export function splitKeywords(text, heroKey) {
 // 그 카드에서만 쓰는 낱말 — "N턴간 <낱말>: <풀이>" 꼴로 글머리에 선 것만 본다.
 // 번뜩임 글은 「코스트 0.」 로 시작할 수 있다 — 그 뒤의 이름표를 본다(코스트는 카드 머리에 따로 보인다)
 const LOCAL = /^(?:코스트\s*\d+\s*\.\s*)?(\d+턴간|이번 전투 동안|이번 턴)\s*([가-힣]{2,5})\s*:\s*/;
+
+// 한다체 → 합니다체 — 문장 끝 「…다」 만 바꾼다(「산다」 → 「삽니다」 · 「듣는다」 → 「듣습니다」 · 「했다」 → 「했습니다」).
+// 이벤트 선택지처럼 설계 문서의 말(한다체)을 화면 안내(합니다체)로 올릴 때 쓴다. 「마다」 는 조사라 건드리지 않는다.
+const SYL = (ch, jong) => String.fromCharCode(0xac00 + Math.floor((ch.charCodeAt(0) - 0xac00) / 28) * 28 + jong);
+export function polite(t) {
+  return String(t).replace(/[가-힣]+다(?=$|[\s.!?)…,·—(」])/g, (s) => {
+    if (s.endsWith("마다")) return s;
+    const head = s.slice(0, -1);
+    if (head.length >= 2 && head.endsWith("는")) return head.slice(0, -1) + "습니다";
+    const ch = head[head.length - 1];
+    if (ch === "니") return s;                                   // 이미 합니다체
+    const jong = (ch.charCodeAt(0) - 0xac00) % 28;
+    if (jong === 4 || jong === 0) return head.slice(0, -1) + SYL(ch, 17) + "니다";   // 한다 → 합니다 · 크다 → 큽니다
+    return head + "습니다";                                       // 했다 · 없다 → 했습니다 · 없습니다
+  });
+}
 
 export function cardParts(card, heroKey) {
   const full = shortText(card.text);

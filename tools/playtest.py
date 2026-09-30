@@ -28,6 +28,7 @@ SCREENS = [
     ("팀 편성", ".teamscreen"),
     ("사도 도감", ".dexscreen"),
     ("사도 정보", ".detailscreen"),
+    ("지도", ".mapscreen"),
     ("전투", ".battle"),
     ("이벤트", ".eventscreen"),
     ("캠프", ".campscreen"),
@@ -116,7 +117,7 @@ def play(d, By, base, a, notes, r):
             if c.find_element(By.CSS_SELECTOR, ".dname").text == name: c.click(); break
         time.sleep(0.35)
     shot(d, a, f"{r}-2-편성")
-    [b for b in d.find_elements(By.CSS_SELECTOR, "button") if b.text == "떠난다"][0].click(); time.sleep(1.6)
+    [b for b in d.find_elements(By.CSS_SELECTOR, "button") if b.text == "떠납니다"][0].click(); time.sleep(1.6)
 
     seen = set()
     last = None
@@ -147,6 +148,8 @@ def play(d, By, base, a, notes, r):
                 if not step_battle(d, By, notes): time.sleep(0.12)
             elif here == "보상":
                 step_reward(d, By, notes); time.sleep(0.5)
+            elif here == "지도":
+                step_map(d, By, notes, step); time.sleep(1.2)
             elif here == "교체":
                 step_swap(d, By, notes); time.sleep(0.5)
             elif here == "이벤트":
@@ -168,6 +171,18 @@ def play(d, By, base, a, notes, r):
     notes["900걸음 안에 안 끝났다"] += 1
 
 
+def step_map(d, By, notes, step):
+    # 갈 수 있는 칸 가운데 하나 — 걸음 수로 돌려 가며 고른다(전투만 고르지 않게)
+    can = d.find_elements(By.CSS_SELECTOR, ".mnode.can")
+    if not can:
+        notes["지도에서 갈 곳이 없다"] += 1
+        return
+    b = can[step % len(can)]
+    kind = next((c[2:] for c in b.get_attribute("class").split() if c.startswith("t-")), "?")
+    notes[f"지도에서 고른 칸 — {kind}"] += 1
+    d.execute_script("arguments[0].click()", b)
+
+
 def step_battle(d, By, notes):
     able = [c for c in d.find_elements(By.CSS_SELECTOR, ".hand .card") if "no" not in c.get_attribute("class")]
     if able:
@@ -176,19 +191,40 @@ def step_battle(d, By, notes):
               if "dead" not in t.get_attribute("class")]
         if d.find_elements(By.CSS_SELECTOR, ".foe.tgt.dead") or d.find_elements(By.CSS_SELECTOR, ".stand.tgt.dead"):
             notes["쓰러진 쪽도 표적처럼 보인다"] += 1
-        if d.find_elements(By.CSS_SELECTOR, ".card.sel") and not tg:
-            notes["카드를 골랐는데 고를 대상이 없다"] += 1
         if tg:
-            d.execute_script("arguments[0].click()", tg[0]); time.sleep(0.1)
+            # 대상 카드는 끌어서 대상 위에 놓아야 나간다
+            from selenium.webdriver.common.action_chains import ActionChains
+            c = d.find_elements(By.CSS_SELECTOR, ".card.sel")[0]
+            before = d.execute_script("return document.querySelectorAll('.hand .card').length")
+            ActionChains(d, duration=40).move_to_element(c).click_and_hold().move_by_offset(0, -60).move_to_element(tg[0]).release().perform()
+            time.sleep(0.3)
+            if d.find_elements(By.CSS_SELECTOR, ".battle") and d.execute_script("return document.querySelectorAll('.hand .card').length") == before:
+                notes["끌어 놓아도 안 나간 대상 카드"] += 1
+                if d.find_elements(By.CSS_SELECTOR, ".card.sel"): d.execute_script("arguments[0].click()", d.find_elements(By.CSS_SELECTOR, ".card.sel")[0])
+            else:
+                notes["끌어 놓아 낸 대상 카드"] += 1
         elif d.find_elements(By.CSS_SELECTOR, ".card.sel"):
-            # 고르긴 했는데 고를 대상이 없다 — 이건 막히는 자리다
-            notes["카드를 골랐는데 고를 대상이 없다"] += 1
-            d.execute_script("arguments[0].click()", d.find_elements(By.CSS_SELECTOR, ".card.sel")[0])
+            # 대상이 없는 카드(방어 · 버프)는 눌러서는 안 나간다 — 손패 위로 끌어 올려 놓는다
+            from selenium.webdriver.common.action_chains import ActionChains
+            c = d.find_elements(By.CSS_SELECTOR, ".card.sel")[0]
+            # 나갔는가는 AP 가 아니라 판의 모양으로 — 0코 카드는 AP 가 안 준다
+            look = "return [...document.querySelectorAll('.hand .card')].length + '|' + ((document.querySelector('.pile2.disc .pnum')||{}).textContent||'') + '|' + ((document.querySelector('.apnum')||{}).textContent||'')"
+            ap0 = d.execute_script(look)
+            ActionChains(d, duration=40).move_to_element(c).click_and_hold().move_by_offset(0, -60).move_by_offset(0, -220).release().perform()
+            time.sleep(0.3)
+            if d.find_elements(By.CSS_SELECTOR, ".battle") and d.execute_script(look) == ap0:
+                notes["끌어 올려도 안 나간 카드"] += 1
+                d.execute_script("arguments[0].click()", c) if c.is_displayed() else None
+            else:
+                notes["끌어 올려 낸 카드"] += 1
         return True
     ult = [b for b in d.find_elements(By.CSS_SELECTOR, ".ultbtn") if "no" not in b.get_attribute("class")]
     if ult:
         d.execute_script("arguments[0].click()", ult[0]); time.sleep(0.15)
-        notes["궁극기를 썼다"] += 1
+        # 누르면 효과를 읽는 창이 뜬다 — 거기서 「사용합니다」
+        use = d.find_elements(By.CSS_SELECTOR, ".bmodal .bmuse:not(:disabled)")
+        if use: d.execute_script("arguments[0].click()", use[0]); time.sleep(0.15)
+        notes["고학년 스킬을 썼다"] += 1
         return True
     e = d.find_elements(By.CSS_SELECTOR, ".endturn")
     if e:
@@ -201,14 +237,20 @@ def step_battle(d, By, notes):
 def step_reward(d, By, notes):
     cards = d.find_elements(By.CSS_SELECTOR, ".rpick .gcard")
     flashes = d.find_elements(By.CSS_SELECTOR, ".fcard")
+    # 누르면 가운데에 자세히가 뜬다 — 거기서 「덱에 넣습니다」 · 「이 번뜩임을 붙입니다」
+    def confirm():
+        time.sleep(0.2)
+        use = d.find_elements(By.CSS_SELECTOR, ".bmodal .bmuse")
+        if use: d.execute_script("arguments[0].click()", use[0])
+        else: notes["보상 자세히 창이 안 떴다"] += 1
     if flashes:
         notes["번뜩임이 떴다"] += 1
-        d.execute_script("arguments[0].click()", flashes[0]); return
+        d.execute_script("arguments[0].click()", flashes[0]); confirm(); return
     if cards:
         notes["고유 카드를 얻었다"] += 1
-        d.execute_script("arguments[0].click()", cards[0]); return
+        d.execute_script("arguments[0].click()", cards[0]); confirm(); return
     notes["보상에 고를 것이 없었다"] += 1
-    skip = [b for b in d.find_elements(By.CSS_SELECTOR, "button") if b.text == "그냥 간다"]
+    skip = [b for b in d.find_elements(By.CSS_SELECTOR, "button") if b.text == "그냥 갑니다"]
     if skip: d.execute_script("arguments[0].click()", skip[0])
 
 
@@ -227,7 +269,7 @@ def step_event(d, By, notes, step):
             if el:
                 notes["이벤트: 고를 것을 골랐다"] += 1
                 d.execute_script("arguments[0].click()", el[0]); return
-    if click_text(d, By, "길을 떠난다"):
+    if click_text(d, By, "길을 떠납니다"):
         return
     forks = d.find_elements(By.CSS_SELECTOR, ".evfork")
     if forks:
@@ -251,17 +293,17 @@ def step_camp(d, By, notes):
     if rest:
         notes["캠프에서 쉬었다"] += 1
         d.execute_script("arguments[0].click()", rest[0]); return
-    click_text(d, By, "길을 떠난다", "보스에게 간다")
+    click_text(d, By, "길을 떠납니다", "보스에게 갑니다")
 
 
 def step_shop(d, By, notes):
     notes["골디의 상점에 들렀다"] += 1
-    click_text(d, By, "캠프로 돌아간다", "보스에게 간다")
+    click_text(d, By, "캠프로 돌아갑니다", "보스에게 갑니다", "길을 떠납니다")   # 지도의 상점 칸은 「길을 떠납니다」
 
 
 def step_swap(d, By, notes):
     notes["사도를 바꿀 기회가 왔다"] += 1
-    keep = [b for b in d.find_elements(By.CSS_SELECTOR, "button") if b.text in ("그대로 간다", "그냥 간다")]
+    keep = [b for b in d.find_elements(By.CSS_SELECTOR, "button") if b.text in ("그대로 갑니다", "그냥 갑니다")]
     if keep: d.execute_script("arguments[0].click()", keep[0]); return
     outs = d.find_elements(By.CSS_SELECTOR, ".hero")
     if outs: d.execute_script("arguments[0].click()", outs[0])

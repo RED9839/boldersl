@@ -157,7 +157,7 @@ export const STARTER = {
   fricle: ["fricle_vine", "fricle_lash", "fricle_plan", "fricle_fry"],
 };
 
-// 궁극기(고학년)는 **덱 밖**이다(기획서). 게이지를 비용만큼 써서 AP 없이 쓴다 —
+// 고학년 스킬는 **덱 밖**이다(기획서). 게이지를 비용만큼 써서 AP 없이 쓴다 —
 // combat.js 의 ultOf/useUlt 가 기획서에서 직접 읽는다. 여기 ego 카드는 그때까지의 자취다.
 
 // 나머지 — 전투 보상으로만 나온다
