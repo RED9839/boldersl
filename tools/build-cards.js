@@ -10,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import D from "../js/data/design.js";
 import { parseEffect } from "../js/effects.js";
+import { parsePassive } from "../js/passive.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -80,13 +81,55 @@ function mk(id, hero, c, kw, where, extra) {
   return { id, hero, ko: c.ko, cost: c.cost, type: c.type, text: c.text, ...parse(c.text, kw, where), ...extra };
 }
 
+// ── 중립 카드 — 어느 사도에도 속하지 않는다. 골디의 상점에서 판다 ─────────────
+// cards 와 따로 둔다: 사도 카드 1,080장을 세는 검사들이 이것까지 세지 않게.
+// **다 읽힌 것만 판다**(playable). 반쯤 읽힌 카드는 사면 반만 도는데 멀쩡해 보인다 — 가장 나쁜 경우다.
+const neutral = {};
+let nNeutral = 0, nPlayable = 0;
+for (const c of Object.values(D.neutral || {})) {
+  const id = "중립_" + c.ko.replace(/\s+/g, "").replace(/[\[\]()]/g, "");
+  const { fx, left } = parseEffect(c.text);
+  // 남은 글자가 문장 부호뿐이어야 다 읽힌 것이다. 「궁극기 게이지」 의 「궁극기」 만 예외(게이지 규칙이 뒤쪽만 먹는다).
+  // 한 글자라도 남으면 판에서 빼는 이유 — 「전열 아군」 에서 「전열」 을 못 읽으면 전원에게 걸리고,
+  // 「물리 아군」 을 못 읽으면 아무에게나 걸린다. 반쯤 읽힌 카드는 틀리게 돈다.
+  const rest = (left || "").replace(/궁극기/g, "").replace(/[\s.,·()%+\-]/g, "");
+  const playable = fx.length > 0 && rest.length === 0;
+  nNeutral++; if (playable) nPlayable++;
+  neutral[id] = {
+    id, hero: null, neutral: true, ko: c.ko, cost: c.cost, type: c.type, tags: c.tags,
+    text: c.text, grade: c.grade, price: c.price, oneOnly: c.oneOnly, blurb: c.blurb,
+    fx, unparsed: left && rest.length ? left : null, playable,
+    flash: c.flash,
+  };
+}
+
+// ── 장비 — 스탯 줄은 늘 돈다. 효과 줄은 **다 읽힐 때만** 켠다(effectOn) ─────────────
+// 지금 게임이 켜는 것은 스탯 줄과 애착 Lv.3 스탯뿐이다. 효과·애착 카드 강화는 규칙이 붙는 대로 켠다.
+const equip = {};
+let nEquip = 0, nEffRead = 0;
+const heroByKo = Object.fromEntries(Object.entries(heroes).map(([k, h]) => [h.ko, k]));
+for (const e of Object.values(D.equip || {})) {
+  const id = "장비_" + e.ko.replace(/\s+/g, "").replace(/[\[\]()]/g, "");
+  let effectRead = false;
+  if (e.effect) {
+    const rs = parsePassive("효과: " + e.effect.replace(/\s*\[[^\]]+\]/g, ""));
+    effectRead = rs.length > 0 && rs.every((r) => r.fx.length && !(r.left || "").replace(/이 사도가?|궁극기|^사$|[\s.,·()%+\-]/g, ""));
+  }
+  nEquip++; if (effectRead) nEffRead++;
+  equip[id] = {
+    id, ko: e.ko, grade: e.grade, global: e.global, slot: e.slot, blurb: e.blurb,
+    affinity: e.affinity ? heroByKo[e.affinity] || null : null, affinityKo: e.affinity,
+    stats: e.stats, effect: e.effect, effectRead, affinityText: e.affinityText, affinityLv3: e.affinityLv3,
+  };
+}
+
 const out = {
   _meta: {
     source: "기획서(js/data/design.js) 에서 만든 것. 손으로 고치지 말 것 — 기획서를 고치고 다시 돌린다.",
     built: new Date().toISOString().slice(0, 10),
     note: "unparsed 가 있는 카드는 그만큼 효과가 덜 돈다. tools/check-effects.js 가 몇 %인지 센다.",
   },
-  heroes, cards, starter,
+  heroes, cards, starter, neutral, equip,
 };
 
 const dst = path.join(HERE, "..", "js", "data", "built.js");
@@ -101,3 +144,5 @@ const withFx = Object.values(cards).filter((c) => c.fx.length).length;
 console.log(`사도 ${nH}명 · 카드 ${nCard}장 → js/data/built.js (${(fs.statSync(dst).size / 1024).toFixed(0)}KB)`);
 console.log(`  효과가 붙은 카드 ${withFx}/${nCard} (${((withFx / nCard) * 100).toFixed(1)}%)`);
 console.log(`  글자를 다 못 읽은 곳 ${nUnparsed}`);
+console.log(`  장비 ${nEquip}종 — 스탯 줄 전부 · 효과 줄이 다 읽히는 것 ${nEffRead}종(아직 안 켬)`);
+console.log(`  중립 카드 ${nNeutral}장 중 효과가 다 도는 것 ${nPlayable}장 — 상점은 이것만 판다`);

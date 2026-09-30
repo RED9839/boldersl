@@ -41,7 +41,24 @@ for (const [id, c] of Object.entries(BUILT.cards)) {
   };
 }
 
-// ② 옛 카드 — 교주 공용과 임시 카드(갓 구운 빵)가 여기 있다.
+// ② 중립 카드 — 어느 사도에도 속하지 않는다. 골디의 상점에서 산다.
+//    효과가 다 읽힌 것(playable)만 판다. 나머지도 장부에는 두어 도감·검사가 볼 수 있게 한다.
+for (const [id, c] of Object.entries(BUILT.neutral || {})) {
+  book[id] = {
+    id, hero: null, neutral: true,
+    name: c.ko, cost: c.cost === "X" ? 0 : c.cost, xcost: c.cost === "X",
+    type: c.type, text: c.text, fx: c.fx || [], built: true, target: targetOf(c),
+    unique: false, signature: false, flash: null, tags: c.tags || [],
+    unparsed: c.unparsed || null,
+    grade: c.grade, price: c.price, oneOnly: !!c.oneOnly, blurb: c.blurb, playable: !!c.playable,
+  };
+}
+export const NEUTRAL_IDS = Object.keys(BUILT.neutral || {});
+
+// 장비 — 사도당 무기·방어구·장신구 한 칸씩. 지금은 스탯 줄과 애착 Lv.3 스탯만 돈다.
+export const EQUIP = BUILT.equip || {};
+
+// ③ 옛 카드 — 교주 공용과 임시 카드(갓 구운 빵)가 여기 있다.
 //    기획서에 없는 것만 가져온다. 이름이 겹치면 기획서가 이긴다.
 for (const [id, c] of Object.entries(OLD)) {
   if (book[id]) continue;

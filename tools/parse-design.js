@@ -23,6 +23,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseHeroBlock, slug } from "./lib/hero-block.js";
+import { parseNeutral } from "./lib/neutral-block.js";
+import { parseEquip } from "./lib/equip-block.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = process.argv[2] || DESIGN_DOC;
@@ -47,6 +49,12 @@ for (const raw of blocks) {
   heroes[key] = h;
 }
 
+// ── 중립 카드 — 골디의 상점에서 판다 ─────────────────────────────────
+const neutral = parseNeutral(text, warn);
+
+// ── 장비 — 사도당 무기·방어구·장신구 한 칸씩 ───────────────────────────
+const equip = parseEquip(text, warn);
+
 // ── 내보내기 ───────────────────────────────────────────────────────────
 const out = {
   _meta: {
@@ -55,6 +63,8 @@ const out = {
     built: new Date().toISOString().slice(0, 10),
   },
   heroes,
+  neutral,
+  equip,
 };
 
 const dst = path.join(HERE, "..", "js", "data", "design.js");
@@ -69,6 +79,7 @@ const n = Object.keys(heroes).length;
 const byNature = {};
 for (const h of Object.values(heroes)) byNature[h.nature] = (byNature[h.nature] || 0) + 1;
 console.log(`사도 ${n}명 · 카드 ${nCard}장 · 번뜩임 ${nFlash}개 → js/data/design.js (${(fs.statSync(dst).size / 1024).toFixed(0)}KB)`);
+console.log(`  중립 카드 ${Object.keys(neutral).length}장 (상점용) · 장비 ${Object.keys(equip).length}종`);
 console.log(`  성격: ${Object.entries(byNature).map(([k, v]) => `${k} ${v}`).join(" · ")}`);
 if (trouble.length) {
   console.log(`  못 읽은 것 ${trouble.length}:`);

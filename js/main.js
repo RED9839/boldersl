@@ -55,7 +55,18 @@ function reward() {
     const { swap } = R.advance(run);
     if (run.done === "clear") return ui.endScreen("clear", run, start);
     if (swap) return ui.swapScreen(run, fight);
+    const stop = R.nextStop(run);            // 층 가운데 캠프 · 보스 앞 캠프 + 상점
+    if (stop) return camp(stop);
     fight();
+  });
+}
+
+function camp(kind) {
+  ui.hint("");
+  R.enterCamp(run, kind);
+  ui.campScreen(run, kind === "campshop", fight, () => {
+    if (!run.shop || run.shop.floor !== run.floor) R.rollShop(run);
+    ui.shopScreen(run, () => camp(kind), { back: "캠프로 돌아간다" });
   });
 }
 

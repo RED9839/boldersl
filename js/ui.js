@@ -3,7 +3,7 @@ import { HEROES, ROSTER } from "./data/heroes.js";
 import { CARDS } from "./cardbook.js";
 import { TRAITS } from "./data/traits.js";
 import { ENEMIES, FLOORS } from "./data/enemies.js";
-import { HERO_DATA, kitOf } from "./cardbook.js";
+import { HERO_DATA, kitOf, EQUIP } from "./cardbook.js";
 import CARDART from "./data/cardart.js";
 import { shortText, splitKeywords, cardParts } from "./card-text.js";
 
@@ -904,7 +904,7 @@ export function fightScreen(run, onDone) {
   const floor = R.currentFloor(run);
   const st = C.newCombat({
     partyKeys: run.party, rows: run.rows, deck: run.deck.slice(),
-    enemyIds, hp: run.hp, maxHp: run.maxHp, traits: run.traits, relics: run.relics, flash: run.flash,
+    enemyIds, hp: run.hp, maxHp: run.maxHp, traits: run.traits, gear: R.gearStats(run), flash: run.flash,
     seed: (run.seed + run.floor * 101 + run.node * 7) >>> 0,
   });
 
@@ -1389,6 +1389,8 @@ export function rewardScreen(run, onPick) {
   const bar = el("div", "dbar2");
   bar.appendChild(el("h1", "dtitle", "이겼습니다"));
   bar.appendChild(el("span", "rwhy", "카드 한 장을 덱에 넣거나 번뜩임 하나를 얻습니다. 둘 다 안 해도 됩니다."));
+  const rgot = run.reward || R.rollReward(run);
+  if (rgot.gold) bar.appendChild(el("span", "sgold", `✦ +${rgot.gold} 골드`));
   const skip = el("button", "dexbtn", "그냥 간다");
   skip.onclick = () => onPick(null, null);
   bar.appendChild(skip);
@@ -1397,8 +1399,27 @@ export function rewardScreen(run, onPick) {
   const body = el("div", "rbody");
   s.appendChild(body);
 
-  // ① 고유 카드
   const got = run.reward || R.rollReward(run);
+  // ⓪ 장비 — 보스만. 셋 중 하나를 가방에 넣고, 빈 칸이면 바로 낀다
+  if (got.equip && got.equip.length) {
+    const eqBox = el("div");
+    body.appendChild(eqBox);
+    const drawEq = () => {
+      eqBox.innerHTML = "";
+      eqBox.appendChild(sec("장비", got.equipTaken ? "가방에 넣었습니다" : "보스가 남긴 장비 — 셋 중 하나"));
+      if (!got.equipTaken) {
+        const row = el("div", "rrow");
+        for (const id of got.equip) {
+          const b = el("button", "sprice", "이걸 가진다");
+          b.onclick = () => { R.takeEquip(run, id); drawEq(); };
+          row.appendChild(equipCard(id, b));
+        }
+        eqBox.appendChild(row);
+      } else eqBox.appendChild(gearPanel(run, "empty", null, hint));
+    };
+    drawEq();
+  }
+  // ① 고유 카드
   const cards = got.cards;
   body.appendChild(sec("고유 카드", cards.length ? "덱에 한 장 넣습니다" : "더 얻을 고유 카드가 없습니다"));
   const row = el("div", "rrow");
@@ -1448,6 +1469,376 @@ export function rewardScreen(run, onPick) {
       fr.appendChild(b);
     }
     body.appendChild(fr);
+  }
+
+  function sec(label, why) {
+    const d = el("div", "rsec");
+    d.appendChild(el("b", null, label));
+    if (why) d.appendChild(el("span", "why", why));
+    return d;
+  }
+  return s;
+}
+
+// ── 장비 ────────────────────────────────────────────────────────────────
+// 칸은 사도당 무기·방어구·장신구. 기획서: 얻는 곳은 보상·상점·이벤트, **바꿔 끼기는 휴식 노드(캠프)에서.**
+//   mode "empty" — 보상·상점: 가방의 장비를 **빈 칸에만** 끼운다
+//   mode "camp"  — 캠프: 바꿔 끼고 뺄 수 있다
+// 지금 도는 것은 스탯 줄과 애착 Lv.3 스탯뿐이다. 효과 줄은 글만 보여 주고 「아직 안 돈다」고 적는다.
+const STAT_KO = { hp: "HP", atk: "공격", def: "방어", crit: "치명" };
+const statText = (st) => Object.entries(st || {}).filter(([, v]) => v).map(([k, v]) => `${STAT_KO[k]} +${v}${k === "crit" ? "%" : ""}`).join(" · ");
+
+function equipCard(id, extra) {
+  const e = EQUIP[id];
+  const n = el("div", "ecard g-" + e.grade);
+  const head = el("div", "ehead");
+  head.appendChild(el("span", "eslot", e.slot));
+  head.appendChild(el("b", null, e.ko));
+  head.appendChild(el("span", "egrade", e.global ? "전설(글로벌)" : e.grade));
+  n.appendChild(head);
+  n.appendChild(el("p", "eqstat", statText(e.stats) || "스탯 없음"));
+  if (e.affinityKo) n.appendChild(el("p", "eaff", `애착: ${e.affinityKo}${e.affinityLv3 ? ` — 끼면 ${statText(e.affinityLv3)} 더` : ""}`));
+  if (e.effect) {
+    const p = el("p", "eeff");
+    p.appendChild(el("span", "eoff", "효과 · 아직 안 돈다"));
+    p.appendChild(document.createTextNode(" " + shortText(e.effect.replace(/\s*\[[^\]]+\]/g, ""))));
+    n.appendChild(p);
+  }
+  if (e.blurb) n.appendChild(el("p", "eblurb", e.blurb));
+  if (extra) n.appendChild(extra);
+  return n;
+}
+
+function gearPanel(run, mode, onChange, say) {
+  const box = el("div", "gearpanel");
+  const draw = () => {
+    box.innerHTML = "";
+    // 사도마다 세 칸
+    const rows = el("div", "grows");
+    for (const k of run.party) {
+      const h = HERO_DATA[k] || HERO(k);
+      const g = R.gearOf(run, k);
+      const r = el("div", "grow");
+      const who = el("div", "gwho");
+      who.appendChild(art.portrait(k, { ko: h.ko, tint: TINT(k), size: 28, slot: "battle", still: true }));
+      who.appendChild(el("b", null, h.ko));
+      r.appendChild(who);
+      const slots = el("div", "gslots");
+      for (const sl of RULES.SLOTS) {
+        const id = g[sl];
+        const c = el("div", "gslot" + (id ? " full" : ""));
+        c.appendChild(el("span", "gsl", sl));
+        if (id) {
+          const e = EQUIP[id];
+          c.appendChild(el("b", null, e.ko));
+          const st = statText(R.statsOf(id, k));
+          c.appendChild(el("span", "gst", st + (e.affinity === k ? " · 애착" : "")));
+          if (mode === "camp") {
+            const x = el("button", "gout", "빼기");
+            x.onclick = () => { const why = R.unequip(run, k, sl); if (why && say) say(why); draw(); onChange && onChange(); };
+            c.appendChild(x);
+          }
+        } else c.appendChild(el("span", "gempty", "비어 있음"));
+        slots.appendChild(c);
+      }
+      r.appendChild(slots);
+      rows.appendChild(r);
+    }
+    box.appendChild(rows);
+    // 가방
+    if (run.bag.length) {
+      box.appendChild(el("p", "gbagh", mode === "camp" ? "가방 — 누구에게 낄지 고릅니다(차 있으면 바꿔 낍니다)" : "가방 — 빈 칸이 있는 사도에게 바로 낄 수 있습니다. 바꿔 끼기는 캠프에서"));
+      const bag = el("div", "rrow gbag");
+      for (const id of run.bag.slice()) {
+        const e = EQUIP[id];
+        const btns = el("div", "gto");
+        for (const k of run.party) {
+          const h = HERO_DATA[k] || HERO(k);
+          const full = !!R.gearOf(run, k)[e.slot];
+          const b = el("button", "gtobtn" + (e.affinity === k ? " aff" : ""), `${h.ko}${full ? " (바꾸기)" : ""}${e.affinity === k ? " ♥" : ""}`);
+          b.disabled = mode !== "camp" && full;
+          b.onclick = () => { const why = R.equip(run, k, id, { swap: mode === "camp" }); if (why && say) say(why); draw(); onChange && onChange(); };
+          btns.appendChild(b);
+        }
+        bag.appendChild(equipCard(id, btns));
+      }
+      box.appendChild(bag);
+    } else box.appendChild(el("p", "rnone", "가방이 비었습니다."));
+  };
+  draw();
+  return box;
+}
+
+// ── 캠프 ────────────────────────────────────────────────────────────────
+// 한 층에 두 번 — 가운데 캠프, 보스 앞 캠프 + 상점. 슬더스 모닥불처럼 **하나만** 고른다.
+//   쉬기  살아 있는 사도 HP 회복(최대 HP의 30%) — 쓰러진 사도는 주말농장에서 쉬는 중
+//   수련  가진 고유 카드 하나에 번뜩임(다섯 중 셋)
+// 캠프 + 상점이면 골디가 옆에 좌판을 폈다. 상점에 들르는 것은 캠프 선택을 쓰지 않는다.
+export function campScreen(run, withShop, onDone, onShop) {
+  const s = screen();
+  s.classList.add("rewardscreen", "campscreen");
+  const st = run.stops[run.camp && run.camp.key] || { used: null };
+  const floor = FLOORS[run.floor] || { name: "" };
+
+  const bar = el("div", "dbar2");
+  bar.appendChild(el("h1", "dtitle", withShop ? "캠프 · 골디의 좌판" : "캠프"));
+  bar.appendChild(el("span", "rwhy", `${floor.name} — ${withShop ? "보스 앞에서 한숨 돌린다" : "길 가운데에서 한숨 돌린다"}. 쉬기와 수련 중 하나만 고릅니다.`));
+  const go = el("button", "dexbtn", withShop ? "보스에게 간다" : "길을 떠난다");
+  go.onclick = onDone;
+  bar.appendChild(go);
+  s.appendChild(bar);
+
+  const body = el("div", "rbody");
+  s.appendChild(body);
+  let training = false;
+  draw();
+
+  function draw() {
+    body.innerHTML = "";
+    // 파티 — 지금 체력과 쉬면 얼마나 차는지
+    body.appendChild(sec("파티", st.used ? (st.used === "rest" ? "푹 쉬었습니다" : "수련을 마쳤습니다") : "쉬면 최대 HP의 30%가 찹니다"));
+    const prow = el("div", "rrow cparty");
+    for (const k of run.party) {
+      const h = HERO_DATA[k] || HERO(k);
+      const hp = run.hp[k] || 0, max = run.maxHp[k] || 1;
+      const down = hp <= 0;
+      const gain = down || st.used ? 0 : Math.min(max - hp, Math.round(max * RULES.CAMP_HEAL));
+      const c = el("div", "cmember" + (down ? " down" : ""));
+      c.appendChild(art.portrait(k, { ko: h.ko, tint: TINT(k), size: 40, slot: "battle", still: true }));
+      const info = el("div", "cinfo");
+      info.appendChild(el("b", null, h.ko));
+      const barx = el("div", "chp");
+      const fill = el("i"); fill.style.width = `${(hp / max) * 100}%`; barx.appendChild(fill);
+      if (gain) { const add = el("em"); add.style.left = `${(hp / max) * 100}%`; add.style.width = `${(gain / max) * 100}%`; barx.appendChild(add); }
+      info.appendChild(barx);
+      info.appendChild(el("span", "cnum", down ? "주말농장에서 쉬는 중" : `${hp} / ${max}${gain ? `  (+${gain})` : ""}`));
+      c.appendChild(info);
+      prow.appendChild(c);
+    }
+    body.appendChild(prow);
+
+    // 하나만 고른다
+    body.appendChild(sec("캠프에서", st.used ? "이번 캠프에서는 골랐습니다" : "하나만 고릅니다"));
+    const acts = el("div", "rrow cacts");
+    const rest = el("button", "cact" + (st.used === "rest" ? " on" : ""));
+    rest.appendChild(el("b", null, "쉬기"));
+    rest.appendChild(el("span", null, "살아 있는 사도 HP +30%"));
+    rest.disabled = !!st.used;
+    rest.onclick = () => { const why = R.campRest(run); if (why) return hint(why); draw(); };
+    acts.appendChild(rest);
+    const offer = run.camp && run.camp.train;
+    const train = el("button", "cact" + (st.used === "train" || training ? " on" : ""));
+    train.appendChild(el("b", null, "수련"));
+    train.appendChild(el("span", null, offer ? `「${CARDS[offer.cardId].name}」에 번뜩임` : "번뜩임을 붙일 고유 카드가 없습니다"));
+    train.disabled = !!st.used || !offer;
+    train.onclick = () => { training = !training; draw(); };
+    acts.appendChild(train);
+    body.appendChild(acts);
+
+    if (training && offer && !st.used) {
+      const c = CARDS[offer.cardId];
+      body.appendChild(sec("수련", `「${c.name}」에 붙일 번뜩임 — 다섯 중 셋`));
+      const fr = el("div", "rrow flashrow");
+      for (const n of offer.picks) {
+        const f = (c.flash || [])[n - 1];
+        if (!f) continue;
+        const b = el("button", "fcard f" + n);
+        const head = el("div", "fhead2");
+        head.appendChild(el("span", "fnum", "①②③④⑤"[n - 1]));
+        head.appendChild(el("b", null, f.kind));
+        head.appendChild(el("span", "fko", f.ko));
+        b.appendChild(head);
+        b.appendChild(withKeywords(el("p", "ftext2"), shortText(f.text), c.hero));
+        b.appendChild(el("p", "fbefore", `지금: ${shortText(c.text)}`));
+        b.onclick = () => { const why = R.campTrain(run, { cardId: offer.cardId, n }); if (why) return hint(why); training = false; draw(); };
+        fr.appendChild(b);
+      }
+      body.appendChild(fr);
+    }
+
+    body.appendChild(sec("장비", "바꿔 끼기는 캠프에서만 — 캠프 선택을 쓰지 않습니다"));
+    body.appendChild(gearPanel(run, "camp", draw, hint));
+
+    if (withShop) {
+      body.appendChild(sec("골디의 좌판", "들러도 캠프 선택은 그대로 남습니다"));
+      const sb = el("button", "cshop");
+      sb.appendChild(el("span", "sface", "✦"));
+      const tx = el("span", "ctext");
+      tx.appendChild(el("b", null, "골디의 상점 들르기"));
+      tx.appendChild(el("span", null, `「어서 오세요, 고객님!」 · 가진 골드 ✦ ${run.gold}`));
+      sb.appendChild(tx);
+      sb.onclick = onShop;
+      body.appendChild(sb);
+    }
+  }
+
+  function sec(label, why) {
+    const d = el("div", "rsec");
+    d.appendChild(el("b", null, label));
+    if (why) d.appendChild(el("span", "why", why));
+    return d;
+  }
+  return s;
+}
+
+// ── 골디의 상점 ─────────────────────────────────────────────────────────
+// 층마다 보스 앞에서 한 번. 골디(황금에서 태어난 용족 상인 · 교단 상점 담당)가 판다.
+// 인물 사전 그대로: '고객님' 하고 부르고, 정품만 팔고, **할인은 웃으며 거절한다.** 말하다 말고 와작.
+// 파는 것 — 중립 카드 셋(효과가 다 도는 것만) · 파티 사도의 고유 카드 둘 · 카드 제거 한 번.
+const GOLDY = {
+  hello: "어서 오세요, 고객님! 오늘 들어온 물건은 전부 정품이에요.",
+  buy: ["탁월한 선택이세요!", "센스가 좋으시네요!", "좋은 물건은 주인을 알아보는 법이죠!"],
+  poor: "좋은 물건에는 그만한 값이 있는 법이죠. 조금 더 모아 오세요!",
+  haggle: "할인은 안 돼요! 대신 품질은 제가 보증하죠. …와작.",
+  remove: "필요 없는 걸 덜어 내는 게 제일 좋은 세공이에요.",
+  bye: "또 오세요, 고객님! …와작.",
+  // 파티에 있으면 먼저 건네는 말 — 인물 사전의 관계에서
+  greet: {
+    실비아: "황금대공! 이건 선물이에요. 값은 안 받아요 — 장사가 아니니까요.",
+    비비: "오, 오랜만이네요. 옛날 이야기는… 다음에 하죠. 신상 보실래요?",
+    시스트: "시스트 씨는 오늘도 협회 이름 안 팔고 구경만 하시는 거죠? 정품만 있어요.",
+    "시온 더 다크불릿": "우리 가게에서 일하던 시온 씨! 방은 지낼 만해요?",
+    피라: "피라 씨, 요즘 연금술은 어때요? 금 이야기라면 언제든 환영이에요.",
+    리츠: "리츠 씨, 오늘은 승부 말고 쇼핑이죠? 여기선 힘자랑 금지예요.",
+    클로에: "협회 회의는 다음 주예요, 클로에 씨. 오늘은 손님으로 오셨네요!",
+    에슈르: "에슈르 씨, 그때 학교에 피신시켜 줘서 고마웠어요.",
+  },
+};
+
+export function shopScreen(run, onDone, opts = {}) {
+  const s = screen();
+  s.classList.add("rewardscreen", "shopscreen");
+  const shop = run.shop || R.rollShop(run);
+
+  const bar = el("div", "dbar2");
+  bar.appendChild(el("h1", "dtitle", "골디의 상점"));
+  const gold = el("span", "sgold");
+  bar.appendChild(gold);
+  const leave = el("button", "dexbtn", opts.back || "보스에게 간다");
+  leave.onclick = () => { say(GOLDY.bye); setTimeout(onDone, 0); };
+  bar.appendChild(leave);
+  s.appendChild(bar);
+
+  // 골디 — 그림이 없어서 금화 표식과 말풍선으로 선다
+  const host = el("div", "shost");
+  host.appendChild(el("div", "sface", "✦"));
+  const talk = el("div", "stalk");
+  const who = el("b", null, "골디");
+  const line = el("p", "sline2");
+  talk.appendChild(who);
+  talk.appendChild(line);
+  host.appendChild(talk);
+  const haggle = el("button", "shaggle", "깎아 주세요");
+  haggle.onclick = () => say(GOLDY.haggle);
+  host.appendChild(haggle);
+  s.appendChild(host);
+  function say(t) { line.textContent = t; }
+
+  const body = el("div", "rbody");
+  s.appendChild(body);
+
+  const firstWord = run.party.map((k) => (HERO_DATA[k] || HERO(k)).ko).find((ko) => GOLDY.greet[ko]);
+  say(firstWord ? GOLDY.greet[firstWord] : GOLDY.hello);
+
+  let removing = false;
+  draw();
+
+  function draw() {
+    gold.textContent = `✦ ${run.gold} 골드`;
+    body.innerHTML = "";
+    if (shop.gift) {
+      body.appendChild(sec("선물", "실비아가 있어서 골디가 한 장을 덱에 넣어 줬습니다"));
+      const row = el("div", "rrow");
+      row.appendChild(item({ id: shop.gift, price: 0, sold: true, gift: true }, -1));
+      body.appendChild(row);
+    }
+    const neutral = shop.items.map((it, i) => [it, i]).filter(([it]) => it.kind === "neutral");
+    const unique = shop.items.map((it, i) => [it, i]).filter(([it]) => it.kind === "unique");
+    body.appendChild(sec("중립 카드", "어느 사도의 것도 아닙니다. 공격력·방어력이 가장 높은 아군 기준으로 돕니다"));
+    const nrow = el("div", "rrow");
+    for (const [it, i] of neutral) nrow.appendChild(item(it, i));
+    if (!neutral.length) nrow.appendChild(el("p", "rnone", "오늘은 진열할 중립 카드가 없습니다."));
+    body.appendChild(nrow);
+
+    body.appendChild(sec("고유 카드", "파티 사도의 고유 카드 — 전투 보상으로도 나옵니다"));
+    const urow = el("div", "rrow");
+    for (const [it, i] of unique) urow.appendChild(item(it, i));
+    if (!unique.length) urow.appendChild(el("p", "rnone", "이 파티의 고유 카드는 이미 다 가졌습니다."));
+    body.appendChild(urow);
+
+    const eq = shop.items.map((it, i) => [it, i]).filter(([it]) => it.kind === "equip");
+    if (eq.length) {
+      body.appendChild(sec("장비", "사면 가방에 들어갑니다 · 빈 칸이면 바로 낄 수 있습니다"));
+      const erow = el("div", "rrow");
+      for (const [it, i] of eq) {
+        const b = el("button", "sprice", it.sold ? "팔렸습니다" : `✦ ${it.price} 골드`);
+        b.disabled = !!it.sold;
+        if (!it.sold && run.gold < it.price) b.classList.add("short");
+        b.onclick = () => {
+          const why = R.buy(run, i);
+          if (why) return say(why === "골드가 모자랍니다" ? GOLDY.poor : why);
+          say("장인의 손길이 닿은 정품이에요! …와작."); draw();
+        };
+        const c = equipCard(it.id, b);
+        if (it.sold) c.classList.add("sold");
+        erow.appendChild(c);
+      }
+      body.appendChild(erow);
+      if (run.bag.length) body.appendChild(gearPanel(run, "empty", draw, say));
+    }
+
+    const price = R.removePrice(run);
+    body.appendChild(sec("카드 제거", shop.removeUsed ? "이번에는 이미 한 장 뺐습니다" : `덱에서 한 장을 뺍니다 · ${price} 골드 · 쓸 때마다 값이 오릅니다`));
+    const rm = el("button", "srmbtn" + (removing ? " on" : ""), removing ? "그만두기" : "뺄 카드 고르기");
+    rm.disabled = shop.removeUsed;
+    rm.onclick = () => {
+      if (!removing && run.gold < price) return say(GOLDY.poor);
+      removing = !removing; draw();
+    };
+    body.appendChild(rm);
+    if (removing && !shop.removeUsed) {
+      const grid = el("div", "rrow sdeck");
+      run.deck.forEach((id) => {
+        const c = CARDS[id];
+        if (!c) return;
+        const card = bigCard(c, CARDART.pic[id] || null);
+        card.onclick = () => {
+          const why = R.removeCard(run, id);
+          if (why) return say(why === "골드가 모자랍니다" ? GOLDY.poor : why);
+          removing = false; say(GOLDY.remove); draw();
+        };
+        card.title = "눌러서 덱에서 빼기";
+        const wrap = el("div", "rpick small");
+        wrap.appendChild(card);
+        grid.appendChild(wrap);
+      });
+      body.appendChild(grid);
+    }
+  }
+
+  function item(it, i) {
+    const c = CARDS[it.id];
+    const pick = el("div", "rpick sitem" + (it.sold && !it.gift ? " sold" : ""));
+    const tag = el("div", "rwho");
+    if (c.hero) {
+      tag.appendChild(art.portrait(c.hero, { ko: HERO(c.hero).ko, tint: TINT(c.hero), size: 26, slot: "battle", still: true }));
+      tag.appendChild(el("b", null, HERO(c.hero).ko));
+    } else tag.appendChild(el("b", "sgrade g-" + (c.grade || ""), `${c.grade || "중립"} · 중립`));
+    pick.appendChild(tag);
+    const card = bigCard(c, CARDART.pic[it.id] || null);
+    pick.appendChild(card);
+    if (c.blurb) pick.appendChild(el("p", "sblurb", c.blurb));
+    const b = el("button", "sprice", it.gift ? "선물" : it.sold ? "팔렸습니다" : `✦ ${it.price} 골드`);
+    b.disabled = !!it.sold;
+    if (!it.sold && run.gold < it.price) b.classList.add("short");
+    b.onclick = () => {
+      const why = R.buy(run, i);
+      if (why) return say(why === "골드가 모자랍니다" ? GOLDY.poor : why);
+      say(GOLDY.buy[Math.floor(Math.random() * GOLDY.buy.length)]);
+      draw();
+    };
+    pick.appendChild(b);
+    return pick;
   }
 
   function sec(label, why) {
