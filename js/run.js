@@ -25,6 +25,8 @@ export function newRun(partyKeys, rows, seed = Date.now()) {
     shop: null,                   // 이번 상점에서 굴린 진열 — 다시 그려도 안 바뀐다
     shopSeen: {},                 // 층마다 한 번 — { 0: true }
     removals: 0,                  // 카드 제거를 몇 번 했나 — 값이 오른다
+    stops: {},                    // 들른 캠프 — { "0:camp": { used: "rest" } }
+    camp: null,                   // 지금 캠프에서 굴린 수련 선택지
     deck: buildDeck(partyKeys),
     floor: 0, node: 0,            // node 0..2 전투, 3 보스
     bench: Object.keys(HERO_DATA).filter((k) => !partyKeys.includes(k)),
@@ -95,6 +97,46 @@ export function takeReward(run, cardId) {
 //   중립 카드 셋(효과가 다 도는 것만) · 파티 사도의 고유 카드 둘 · 카드 제거(한 번)
 // 골디는 **할인하지 않는다**(인물 사전: 할인 요구에는 웃으며 단호). 값은 기획서의 골드 그대로.
 export const needsShop = (run) => isBoss(run) && !run.shopSeen[run.floor] && !run.done;
+
+// ── 캠프 ────────────────────────────────────────────────────────────────
+// 한 층: 전투(0) → 전투(1) → 캠프 → 전투(2) → 캠프 + 상점 → 보스(3)
+// 전투 칸 번호(node)는 그대로 두고, 그 사이에 들르는 칸을 끼운다.
+export function nextStop(run) {
+  if (run.done) return null;
+  if (run.node === 2 && !run.stops[`${run.floor}:camp`]) return "camp";
+  if (run.node === 3 && !run.stops[`${run.floor}:campshop`]) return "campshop";
+  return null;
+}
+
+export function enterCamp(run, kind) {
+  const key = `${run.floor}:${kind}`;
+  if (!run.stops[key]) {
+    run.stops[key] = { used: null };
+    run.camp = { key, train: offerFlash(run) };   // 수련 선택지는 들어올 때 한 번만 굴린다
+  }
+  return run.stops[key];
+}
+
+// 쉬기 — 살아 있는 사도만. 쓰러진 사도는 주말농장에서 쉬는 중이다
+export function campRest(run) {
+  const st = run.stops[run.camp && run.camp.key];
+  if (!st || st.used) return "이번 캠프에서는 이미 골랐습니다";
+  for (const k of run.party) {
+    if ((run.hp[k] || 0) <= 0) continue;
+    run.hp[k] = Math.min(run.maxHp[k], run.hp[k] + Math.round(run.maxHp[k] * R.CAMP_HEAL));
+  }
+  st.used = "rest";
+  return null;
+}
+
+// 수련 — 가진 고유 카드 하나에 번뜩임(다섯 중 셋)
+export function campTrain(run, pick) {
+  const st = run.stops[run.camp && run.camp.key];
+  if (!st || st.used) return "이번 캠프에서는 이미 골랐습니다";
+  if (!takeFlash(run, pick)) return "수련할 카드가 없습니다";
+  st.used = "train";
+  return null;
+}
 
 export function rollShop(run) {
   const has = new Set(run.deck);

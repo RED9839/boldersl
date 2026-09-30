@@ -1459,6 +1459,115 @@ export function rewardScreen(run, onPick) {
   return s;
 }
 
+// ── 캠프 ────────────────────────────────────────────────────────────────
+// 한 층에 두 번 — 가운데 캠프, 보스 앞 캠프 + 상점. 슬더스 모닥불처럼 **하나만** 고른다.
+//   쉬기  살아 있는 사도 HP 회복(최대 HP의 30%) — 쓰러진 사도는 주말농장에서 쉬는 중
+//   수련  가진 고유 카드 하나에 번뜩임(다섯 중 셋)
+// 캠프 + 상점이면 골디가 옆에 좌판을 폈다. 상점에 들르는 것은 캠프 선택을 쓰지 않는다.
+export function campScreen(run, withShop, onDone, onShop) {
+  const s = screen();
+  s.classList.add("rewardscreen", "campscreen");
+  const st = run.stops[run.camp && run.camp.key] || { used: null };
+  const floor = FLOORS[run.floor] || { name: "" };
+
+  const bar = el("div", "dbar2");
+  bar.appendChild(el("h1", "dtitle", withShop ? "캠프 · 골디의 좌판" : "캠프"));
+  bar.appendChild(el("span", "rwhy", `${floor.name} — ${withShop ? "보스 앞에서 한숨 돌린다" : "길 가운데에서 한숨 돌린다"}. 쉬기와 수련 중 하나만 고릅니다.`));
+  const go = el("button", "dexbtn", withShop ? "보스에게 간다" : "길을 떠난다");
+  go.onclick = onDone;
+  bar.appendChild(go);
+  s.appendChild(bar);
+
+  const body = el("div", "rbody");
+  s.appendChild(body);
+  let training = false;
+  draw();
+
+  function draw() {
+    body.innerHTML = "";
+    // 파티 — 지금 체력과 쉬면 얼마나 차는지
+    body.appendChild(sec("파티", st.used ? (st.used === "rest" ? "푹 쉬었습니다" : "수련을 마쳤습니다") : "쉬면 최대 HP의 30%가 찹니다"));
+    const prow = el("div", "rrow cparty");
+    for (const k of run.party) {
+      const h = HERO_DATA[k] || HERO(k);
+      const hp = run.hp[k] || 0, max = run.maxHp[k] || 1;
+      const down = hp <= 0;
+      const gain = down || st.used ? 0 : Math.min(max - hp, Math.round(max * RULES.CAMP_HEAL));
+      const c = el("div", "cmember" + (down ? " down" : ""));
+      c.appendChild(art.portrait(k, { ko: h.ko, tint: TINT(k), size: 40, slot: "battle", still: true }));
+      const info = el("div", "cinfo");
+      info.appendChild(el("b", null, h.ko));
+      const barx = el("div", "chp");
+      const fill = el("i"); fill.style.width = `${(hp / max) * 100}%`; barx.appendChild(fill);
+      if (gain) { const add = el("em"); add.style.left = `${(hp / max) * 100}%`; add.style.width = `${(gain / max) * 100}%`; barx.appendChild(add); }
+      info.appendChild(barx);
+      info.appendChild(el("span", "cnum", down ? "주말농장에서 쉬는 중" : `${hp} / ${max}${gain ? `  (+${gain})` : ""}`));
+      c.appendChild(info);
+      prow.appendChild(c);
+    }
+    body.appendChild(prow);
+
+    // 하나만 고른다
+    body.appendChild(sec("캠프에서", st.used ? "이번 캠프에서는 골랐습니다" : "하나만 고릅니다"));
+    const acts = el("div", "rrow cacts");
+    const rest = el("button", "cact" + (st.used === "rest" ? " on" : ""));
+    rest.appendChild(el("b", null, "쉬기"));
+    rest.appendChild(el("span", null, "살아 있는 사도 HP +30%"));
+    rest.disabled = !!st.used;
+    rest.onclick = () => { const why = R.campRest(run); if (why) return hint(why); draw(); };
+    acts.appendChild(rest);
+    const offer = run.camp && run.camp.train;
+    const train = el("button", "cact" + (st.used === "train" || training ? " on" : ""));
+    train.appendChild(el("b", null, "수련"));
+    train.appendChild(el("span", null, offer ? `「${CARDS[offer.cardId].name}」에 번뜩임` : "번뜩임을 붙일 고유 카드가 없습니다"));
+    train.disabled = !!st.used || !offer;
+    train.onclick = () => { training = !training; draw(); };
+    acts.appendChild(train);
+    body.appendChild(acts);
+
+    if (training && offer && !st.used) {
+      const c = CARDS[offer.cardId];
+      body.appendChild(sec("수련", `「${c.name}」에 붙일 번뜩임 — 다섯 중 셋`));
+      const fr = el("div", "rrow flashrow");
+      for (const n of offer.picks) {
+        const f = (c.flash || [])[n - 1];
+        if (!f) continue;
+        const b = el("button", "fcard f" + n);
+        const head = el("div", "fhead2");
+        head.appendChild(el("span", "fnum", "①②③④⑤"[n - 1]));
+        head.appendChild(el("b", null, f.kind));
+        head.appendChild(el("span", "fko", f.ko));
+        b.appendChild(head);
+        b.appendChild(withKeywords(el("p", "ftext2"), shortText(f.text), c.hero));
+        b.appendChild(el("p", "fbefore", `지금: ${shortText(c.text)}`));
+        b.onclick = () => { const why = R.campTrain(run, { cardId: offer.cardId, n }); if (why) return hint(why); training = false; draw(); };
+        fr.appendChild(b);
+      }
+      body.appendChild(fr);
+    }
+
+    if (withShop) {
+      body.appendChild(sec("골디의 좌판", "들러도 캠프 선택은 그대로 남습니다"));
+      const sb = el("button", "cshop");
+      sb.appendChild(el("span", "sface", "✦"));
+      const tx = el("span", "ctext");
+      tx.appendChild(el("b", null, "골디의 상점 들르기"));
+      tx.appendChild(el("span", null, `「어서 오세요, 고객님!」 · 가진 골드 ✦ ${run.gold}`));
+      sb.appendChild(tx);
+      sb.onclick = onShop;
+      body.appendChild(sb);
+    }
+  }
+
+  function sec(label, why) {
+    const d = el("div", "rsec");
+    d.appendChild(el("b", null, label));
+    if (why) d.appendChild(el("span", "why", why));
+    return d;
+  }
+  return s;
+}
+
 // ── 골디의 상점 ─────────────────────────────────────────────────────────
 // 층마다 보스 앞에서 한 번. 골디(황금에서 태어난 용족 상인 · 교단 상점 담당)가 판다.
 // 인물 사전 그대로: '고객님' 하고 부르고, 정품만 팔고, **할인은 웃으며 거절한다.** 말하다 말고 와작.
@@ -1483,7 +1592,7 @@ const GOLDY = {
   },
 };
 
-export function shopScreen(run, onDone) {
+export function shopScreen(run, onDone, opts = {}) {
   const s = screen();
   s.classList.add("rewardscreen", "shopscreen");
   const shop = run.shop || R.rollShop(run);
@@ -1492,7 +1601,7 @@ export function shopScreen(run, onDone) {
   bar.appendChild(el("h1", "dtitle", "골디의 상점"));
   const gold = el("span", "sgold");
   bar.appendChild(gold);
-  const leave = el("button", "dexbtn", "보스에게 간다");
+  const leave = el("button", "dexbtn", opts.back || "보스에게 간다");
   leave.onclick = () => { say(GOLDY.bye); setTimeout(onDone, 0); };
   bar.appendChild(leave);
   s.appendChild(bar);

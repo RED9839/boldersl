@@ -411,6 +411,44 @@ console.log("\n골디의 상점");
   check(res && res.ok !== false, "중립 카드를 전투에서 낼 수 있다");
 }
 
+console.log("\n캠프");
+{
+  const CB = (await import("../js/cardbook.js")).CARDS;
+  const r = R.newRun(run.party.slice(), { ...run.rows }, 21);
+  r.node = 1; check(R.nextStop(r) === null, "전투 사이가 아니면 캠프가 없다");
+  r.node = 2; check(R.nextStop(r) === "camp", "두 번째 싸움 뒤 캠프");
+  R.enterCamp(r, "camp");
+  check(R.nextStop(r) === null, "캠프는 층마다 한 번");
+  const k0 = r.party[0]; r.hp[k0] = 10; const k1 = r.party[1]; r.hp[k1] = 0;
+  const cs = ui.campScreen(r, false, () => {}, () => {});
+  check(!/골디의 상점 들르기/.test(cs.textContent), "캠프만 있는 칸에는 상점이 없다");
+  check(/주말농장에서 쉬는 중/.test(cs.textContent), "쓰러진 사도는 주말농장에서 쉰다고 적는다");
+  const rest = clickAll(cs, (n) => n.classList.contains("cact"))[0];
+  rest.onclick();
+  check(r.hp[k0] === 10 + Math.round(r.maxHp[k0] * 0.3) && r.hp[k1] === 0, `쉬면 살아 있는 사도만 30% (${r.hp[k0]}/${r.maxHp[k0]})`);
+  check(R.campRest(r) !== null && R.campTrain(r, { cardId: "x", n: 1 }) !== null, "캠프에서는 하나만 고른다");
+  // 캠프 + 상점 — 보스 앞
+  r.node = 3;
+  check(R.nextStop(r) === "campshop", "보스 앞은 캠프 + 상점");
+  // 수련하려면 고유 카드가 있어야 한다
+  const uid = Object.keys(CB).find((id) => CB[id].hero === r.party[0] && CB[id].unique);
+  r.deck.push(uid);
+  R.enterCamp(r, "campshop");
+  let shopped = false;
+  const cs2 = ui.campScreen(r, true, () => {}, () => (shopped = true));
+  check(/골디의 상점 들르기/.test(cs2.textContent), "캠프 + 상점 칸에는 골디의 좌판이 있다");
+  clickAll(cs2, (n) => n.classList.contains("cshop"))[0].onclick();
+  check(shopped && !r.stops["0:campshop"].used, "상점에 들러도 캠프 선택은 남는다");
+  const train = clickAll(cs2, (n) => n.classList.contains("cact"))[1];
+  train.onclick();
+  const fl = clickAll(cs2, (n) => n.classList.contains("fcard"));
+  check(fl.length === 3, `수련은 번뜩임 다섯 중 셋 (${fl.length})`);
+  fl[0].onclick();
+  check(r.flash[r.camp.train.cardId] && r.stops["0:campshop"].used === "train", "수련하면 번뜩임이 붙는다");
+  const back = ui.shopScreen(r, () => {}, { back: "캠프로 돌아간다" });
+  check(/캠프로 돌아간다/.test(back.textContent), "캠프에서 연 상점은 캠프로 돌아간다");
+}
+
 const e1 = ui.endScreen("lose", run, () => {});
 check(e1.textContent.includes("여기까지"), "진 화면이 그려진다");
 const e2 = ui.endScreen("clear", run, () => {});

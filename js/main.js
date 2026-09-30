@@ -45,15 +45,19 @@ function reward() {
     const { swap } = R.advance(run);
     if (run.done === "clear") return ui.endScreen("clear", run, start);
     if (swap) return ui.swapScreen(run, fight);
-    if (R.needsShop(run)) return shop();     // 보스 앞 — 골디의 상점
+    const stop = R.nextStop(run);            // 층 가운데 캠프 · 보스 앞 캠프 + 상점
+    if (stop) return camp(stop);
     fight();
   });
 }
 
-function shop() {
+function camp(kind) {
   ui.hint("");
-  if (!run.shop || run.shop.floor !== run.floor) R.rollShop(run);
-  ui.shopScreen(run, fight);
+  R.enterCamp(run, kind);
+  ui.campScreen(run, kind === "campshop", fight, () => {
+    if (!run.shop || run.shop.floor !== run.floor) R.rollShop(run);
+    ui.shopScreen(run, () => camp(kind), { back: "캠프로 돌아간다" });
+  });
 }
 
 boot();
