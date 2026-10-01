@@ -10,6 +10,9 @@
 // 그 사도 키워드를 쓰는 카드는 키워드가 셋 이상일 때.
 import { pathToFileURL, fileURLToPath } from "node:url";
 import path from "node:path";
+import os from "node:os";
+// 측정은 오래 돌고 여러 개를 함께 띄우기 쉽다 — 낮은 우선순위로 돌아 컴퓨터를 막지 않게
+try { os.setPriority(19); } catch {}
 
 const argv = process.argv.slice(2);
 const opt = (name, d) => { const i = argv.indexOf(`--${name}`); return i >= 0 ? argv[i + 1] : d; };

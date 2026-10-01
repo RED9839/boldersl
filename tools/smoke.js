@@ -863,13 +863,14 @@ console.log("");
 console.log("아군 미리보기 · 버릴 카드 고르기");
 {
   const C = await import("../js/combat.js");
-  // 벨라 「존재의 보호막」 — 자신 방어력 550% 실드, 아군 전원 방어력 100% 실드. 아군 몫도 벨라(시전자)의 방어력으로 센다
+  // 벨라 「존재의 보호막」 — 자신 큰 실드, 아군 전원 작은 실드. 아군 몫도 벨라(시전자)의 방어력으로 센다(배율은 카드에서 읽는다)
   const s = C.newCombat({ partyKeys: ["에르핀", "네르", "벨라"], rows: {}, deck: ["네르_s2", "벨라_u1", "에르핀_u3", "벨라_u2", "네르_s3"], enemyIds: ["fairymobcloserange"], seed: 3 });
   s.party[0].hp = 20;
   const bella = s.party.find((u) => u.key === "벨라");
   const pv = C.previewAllies(s, s.hand.indexOf("벨라_u1"), 0);
-  check(pv && pv[0].shield === Math.round(bella.def * 1) && pv[1].shield === pv[0].shield, `아군 실드는 시전자(벨라 방어력 ${bella.def}) 기준 — 에르핀 · 네르 모두 +${pv && pv[0].shield}`);
-  check(pv[2].shield > pv[0].shield, `벨라 자신은 550% — +${pv[2].shield}`);
+  const allyShield = (C.cardOf(s, "벨라_u1").fx || []).find((f) => f.k === "shield" && f.target === "allAllies");
+  check(pv && allyShield && pv[0].shield === Math.round(bella.def * allyShield.ratio) && pv[1].shield === pv[0].shield, `아군 실드는 시전자(벨라 방어력 ${bella.def}) 기준 — 에르핀 · 네르 모두 +${pv && pv[0].shield}`);
+  check(pv[2].shield > pv[0].shield, `벨라 자신은 아군 몫보다 크다 — +${pv[2].shield}`);
   const hi = s.hand.indexOf("네르_s2");
   const ph = C.previewAllies(s, hi, 0);
   check(ph && ph[0].heal > 0 && !ph[1] && !ph[2], `달콤한 간식을 에르핀에게 — 회복 +${ph && ph[0].heal}, 다른 사도는 없음`);
