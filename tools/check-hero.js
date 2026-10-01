@@ -234,7 +234,7 @@ function fxLabel(f) {
   }
 }
 function whenLabel(w) {
-  return { fightStart: "전투 시작", turnStart: "턴 시작", turnEnd: "턴 끝", play: `카드${w.type ? "(" + w.type + ")" : ""}${w.who === "any" ? "(아군)" : ""}${w.every ? ` ${w.every}장마다` : ""}${w.nth ? ` ${w.nth}장째` : ""}`, kill: w.mine ? "처치" : "적 쓰러짐", hurt: w.who === "any" ? "아군 피격" : "피격", lowHp: `HP ${Math.round(w.pct * 100)}% 이하`, allyDown: "아군 쓰러짐", ult: "고학년 스킬", combo: "연계", debuff: "디버프 걺", stackReach: `${w.id} ${w.n}개`, always: "항상" }[w.on] || w.on;
+  return { fightStart: "전투 시작", turnStart: "턴 시작", turnEnd: "턴 끝", play: `카드${w.type ? "(" + w.type + ")" : ""}${w.who === "any" ? "(아군)" : ""}${w.minCost ? ` ${w.minCost}코 이상` : ""}${w.every ? ` ${w.every}장마다` : ""}${w.nth ? ` ${w.nth}장째` : ""}`, kill: w.mine ? "처치" : "적 쓰러짐", hurt: w.who === "any" ? "아군 피격" : "피격", lowHp: `HP ${Math.round(w.pct * 100)}% 이하`, allyDown: "아군 쓰러짐", ult: "고학년 스킬", combo: "연계", debuff: "디버프 걺", stackReach: `${w.id} ${w.n}개`, always: "항상" }[w.on] || w.on;
 }
 function condLabel(c) { return c.c === "stack" ? `${c.id} ${c.n}+` : c.c === "hp" ? `HP ${Math.round(c.pct * 100)}% 이하` : c.c === "foes" ? `적 ${c.n}명+` : c.c; }
 function perLabel(p) { return p.stat === "dot" ? `턴 끝 피해 ${Math.round(p.ratio * 100)}%` : p.stat === "hot" ? `턴 끝 회복 ${Math.round(p.ratio * 100)}%` : `${{ dealt: "주는 피해", taken: "받는 피해", atk: "공격력", def: "방어력", crit: "치명" }[p.stat]} ${p.v > 0 ? "+" : ""}${Math.round(p.v * 100)}%${p.who === "allies" ? "(아군 전원)" : ""}`; }

@@ -29,7 +29,8 @@ const TRIGGERS = [
   [/턴\s*시작\s*시/, () => ({ on: "turnStart" })],
   [/턴\s*종료\s*시/, () => ({ on: "turnEnd" })],
   [/한\s*턴에\s*카드를\s*(\d+)\s*장째\s*낼\s*때/, (m) => ({ on: "play", nth: Number(m[1]), who: "any" })],
-  [/(공격|스킬|강화)?\s*카드를\s*(\d+)\s*장\s*낼\s*때마다/, (m) => ({ on: "play", every: Number(m[2]), type: m[1] || null })],
+  // 「1코 이상 카드를 3장 낼 때마다」 — 적힌 코스트가 N 이상인 카드만 센다(0코 순환 카드가 장수 패시브를 공짜로 돌리지 않게)
+  [/(?:(\d+)\s*코\s*이상\s*)?(공격|스킬|강화)?\s*카드를\s*(\d+)\s*장\s*낼\s*때마다/, (m) => ({ on: "play", every: Number(m[3]), type: m[2] || null, minCost: m[1] ? Number(m[1]) : 0 })],
   [/아군이\s*(공격|스킬|강화)?\s*카드를\s*낼\s*때마다/, (m) => ({ on: "play", who: "any", type: m[1] || null })],
   [/(공격|스킬|강화)\s*카드를\s*낼\s*때마다/, (m) => ({ on: "play", type: m[1] })],
   [/카드를\s*낼\s*때마다/, () => ({ on: "play" })],
@@ -262,6 +263,7 @@ function matches(s, owner, w, ev, info) {
       if (w.who !== "any" && info.hero !== owner.key) return false;
       if (w.type && info.type !== w.type) return false;
       if (w.nth && info.nth !== w.nth) return false;
+      if (w.minCost && (info.cost || 0) < w.minCost) return false;
       return true;
     case "kill": return !w.mine || info.by === owner.key;
     case "hurt": return w.who === "any" ? info.who.side === "party" : info.who === owner;

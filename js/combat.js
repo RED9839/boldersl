@@ -713,7 +713,7 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   // 패시브 — 「카드를 낼 때마다」「한 턴에 N장째」
   s.playedThisTurn = (s.playedThisTurn || 0) + 1;
   const tgt = s.enemies.find((e) => e.idx === targetIdx && !e.dead) || null;
-  emit(s, "play", { hero: c.hero, type: c.type, nth: s.playedThisTurn, target: tgt });
+  emit(s, "play", { hero: c.hero, type: c.type, nth: s.playedThisTurn, target: tgt, cost: c.xcost ? paid : c.cost });
   s.acting = null;
   if (c.ego && c.hero) speak(s, c.hero, "ego");
   if (c.hero === "ner") s.nerWorked = true;
