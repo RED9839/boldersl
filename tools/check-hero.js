@@ -130,7 +130,8 @@ for (const file of files) {
           if (r < 0.6 && u.cost < 3) notes.push(`참고 「${u.ko}」 ${u.cost}코 값어치 ${r.toFixed(1)}배 — 키워드 값이면 괜찮다`);
         }
         // 신탁
-        const light = u.flash[1];
+        // 옛 틀(① 강화 ② 경량 …)만 ② 가 코스트를 내린다. 자유 신탁(분류 없음)은 자리마다 정해진 일이 없다
+        const light = u.flash.some((f) => f.kind) ? u.flash[1] : null;
         if (light) {
           const lfx = pe(light.text);
           const lc = flashCost(u.cost, lfx);
@@ -144,15 +145,18 @@ for (const file of files) {
         u.flash.forEach((f) => {
           const ffx = pe(f.text);
           const c = flashCost(u.cost, ffx);
+          const nm = f.kind || `「${f.ko}」`;
+          // 코스트를 올려 크게 만든 신탁에 소멸까지 붙이지 않는다 — 비싸게 사서 한 번 쓰고 버리는 꼴(사용자 기준)
+          if (!f.kind && typeof u.cost === "number" && c > u.cost && ffx.some((x) => x.k === "tag" && x.id === "소멸")) errs.push(`「${u.ko}」 ${nm} — 코스트를 올린 신탁에 소멸을 같이 붙이지 않는다`);
           if (c === 0) {
-            if (ffx.some((x) => x.k === "ap" && x.v > 0)) errs.push(`「${u.ko}」 ${f.kind} — 0코 카드가 AP 를 주면 끝없이 이어진다`);
+            if (ffx.some((x) => x.k === "ap" && x.v > 0)) errs.push(`「${u.ko}」 ${nm} — 0코 카드가 AP 를 주면 끝없이 이어진다`);
             const dr = ffx.filter((x) => x.k === "draw").reduce((a, x) => a + x.v, 0);
-            if (dr >= 2 && !ffx.some((x) => x.k === "tag" && x.id === "소멸")) errs.push(`「${u.ko}」 ${f.kind} — 0코에 드로우 ${dr} 은 소멸을 붙인다`);
+            if (dr >= 2 && !ffx.some((x) => x.k === "tag" && x.id === "소멸")) errs.push(`「${u.ko}」 ${nm} — 0코에 드로우 ${dr} 은 소멸을 붙인다`);
             // 공짜 카드가 크면 한 번만 — 에슈르 「고대 마법서 필사본」 ⑤ 가 0코에 전투 내내 공격력 +20% 였다
             // ② 경량은 같은 카드를 공짜로 만드는 보상이다 — 기본 카드보다 세지만 않으면 된다
             if (f.kind === "경량") { if (valueOf(ffx) > valueOf(fx) * 1.05) errs.push(`「${u.ko}」 경량 — 0코판이 기본 카드보다 세다`); }
             else if (valueOf(ffx) > 1.0 && !ffx.some((x) => x.k === "tag" && x.id === "소멸"))
-              errs.push(`「${u.ko}」 ${f.kind} — 0코인데 효과가 크다(값어치 ${valueOf(ffx).toFixed(1)}) — 줄이거나 소멸을 붙인다`);
+              errs.push(`「${u.ko}」 ${nm} — 0코인데 효과가 크다(값어치 ${valueOf(ffx).toFixed(1)}) — 줄이거나 소멸을 붙인다`);
           }
           if (c === 3 && u.cost !== 3) three++;
         });
@@ -173,7 +177,9 @@ for (const file of files) {
     if (h.ult && !ULT_COST.includes(h.ult.cost)) errs.push(`고학년 스킬 비용 ${h.ult.cost}% — 150·200·250·300 가운데 하나`);
     for (const u of h.unique) {
       if (!TYPES.includes(u.type)) errs.push(`고유 「${u.ko}」 타입 「${u.type}」 — 공격·스킬·강화 가운데 하나`);
-      u.flash.forEach((f, i) => { if (f.kind !== FLASH[i]) errs.push(`「${u.ko}」 신탁 ${i + 1}번이 「${f.kind}」 — 「${FLASH[i]}」 여야 한다`); });
+      // 자유 신탁(분류 없음 — 카드마다 다른 다섯 갈래)이면 다섯 모두 자유여야 한다. 아니면 옛 틀의 차례대로
+      const free = u.flash.every((f) => !f.kind);
+      if (!free) u.flash.forEach((f, i) => { if (f.kind !== FLASH[i]) errs.push(`「${u.ko}」 신탁 ${i + 1}번이 「${f.kind || "(분류 없음)"}」 — 「${FLASH[i]}」 여야 한다(자유 신탁이면 다섯 모두 분류 없이)`); });
     }
     if (h.unique[0] && !h.unique[0].tags.includes("시그니처")) errs.push(`첫 고유 카드에 「시그니처」 표시가 없다`);
     if (!h.source) errs.push("**원작** 줄이 없다 — 나무위키에서 무엇을 가져왔는지 한 줄");

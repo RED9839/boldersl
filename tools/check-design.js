@@ -60,7 +60,7 @@ badUlt.length ? fail(`고학년 스킬 비용이 규칙 밖인 사도 ${badUlt.l
 const KIND = ["강화", "경량", "연계", "변형", "각성"];
 const badFlash = [];
 for (const h of H) for (const u of h.unique)
-  u.flash.forEach((f, i) => { if (f.n !== i + 1 || f.kind !== KIND[i]) badFlash.push(`${h.ko}/${u.ko} ${f.n}${f.kind}`); });
+  u.flash.forEach((f, i) => { if (f.n !== i + 1 || (u.flash.some((x) => x.kind) && f.kind !== KIND[i])) badFlash.push(`${h.ko}/${u.ko} ${f.n}${f.kind}`); });   // 자유 신탁(분류 없음)은 차례만 본다
 badFlash.length ? fail(`신탁 순서가 어긋난 곳 ${badFlash.length}: ${badFlash.slice(0, 3).join(", ")}`)
                 : ok("신탁이 모두 ①강화 ②경량 ③연계 ④변형 ⑤각성 순서");
 

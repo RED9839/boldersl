@@ -84,10 +84,11 @@ export function parseHeroBlock(raw, warn = () => {}) {
       h.unique.push(cur);
       continue;
     }
-    const f = line.match(/^\s+-\s*([①②③④⑤])\s*(\S+)\s*\*(.+?)\*:\s*(.+)$/);
+    // 「① 강화 *이름*: …」(옛 틀) 또는 「① *이름*: …」(자유 신탁 — 분류 없이 카드마다 다른 다섯 갈래)
+    const f = line.match(/^\s+-\s*([①②③④⑤])\s*(?:([^\s*]+)\s+)?\*(.+?)\*:\s*(.+)$/);
     if (f) {
       if (!cur) { warn(`${name} — 카드 없이 신탁이 나왔다`); continue; }
-      cur.flash.push({ n: "①②③④⑤".indexOf(f[1]) + 1, kind: f[2], ko: f[3].trim(), text: strip(f[4]) });
+      cur.flash.push({ n: "①②③④⑤".indexOf(f[1]) + 1, kind: f[2] || "", ko: f[3].trim(), text: strip(f[4]) });
       continue;
     }
     if (/^\s*-/.test(line)) warn(`${name} 고유 카드 — 못 읽은 줄: ${line.trim().slice(0, 40)}`);

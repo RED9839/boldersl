@@ -1157,7 +1157,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
       const g = el("div", "flashgrid");
       for (const f of c.flash || []) {
         const n = el("div", "flash f" + f.n);
-        n.appendChild(el("span", "fkind", `${"①②③④⑤"[f.n - 1] || ""} ${f.kind}`));
+        n.appendChild(el("span", "fkind", `${"①②③④⑤"[f.n - 1] || ""} ${f.kind || ""}`));
         n.appendChild(el("b", null, f.ko));
         n.appendChild(withKeywords(el("p"), shortText(f.text), c.hero));
         g.appendChild(n);
@@ -2340,7 +2340,7 @@ export function fightScreen(run, onDone, onQuit) {
       else {
         const f = (base.flash || [])[opt.n - 1] || {};
         card = bigCard(flashed(base, opt.n), CARDART.pic[cardId] || null);
-        cell.appendChild(el("span", "epikind", `${"①②③④⑤"[opt.n - 1]} ${f.kind || ""}`));
+        cell.appendChild(el("span", "epikind", `${"①②③④⑤"[opt.n - 1]} ${f.kind || f.ko || ""}`));   // 자유 신탁은 분류 대신 이름
         if (opt.shin) { cell.classList.add("shin"); cell.appendChild(el("span", "epishin", `기적 · ${RULES.DIVINE_KO[opt.shin]}`)); }
       }
       card.onclick = null; card.title = "";
@@ -2379,7 +2379,7 @@ export function fightScreen(run, onDone, onQuit) {
       openEpiphany(glowId, g, (choice) => {
         C.applyEpiphany(st, glowId, choice);
         const o = g.options[choice], f = (CARDS[glowId].flash || [])[o.n - 1] || {};
-        lootCard(glowId, `신탁 ${"①②③④⑤"[o.n - 1]} ${f.kind || ""}${o.shin ? ` · 기적(${RULES.DIVINE_KO[o.shin]})` : ""}`);
+        lootCard(glowId, `신탁 ${"①②③④⑤"[o.n - 1]} ${f.kind || f.ko || ""}${o.shin ? ` · 기적(${RULES.DIVINE_KO[o.shin]})` : ""}`);
         selCard = st.hand.indexOf(glowId);
         play(targetIdx);
       });
@@ -2860,8 +2860,8 @@ export function rewardScreen(run, onPick) {
       const b = el("button", "fcard f" + n);
       const head = el("div", "fhead2");
       head.appendChild(el("span", "fnum", "①②③④⑤"[n - 1]));
-      head.appendChild(el("b", null, f.kind));
-      head.appendChild(el("span", "fko", f.ko));
+      head.appendChild(el("b", null, f.kind || f.ko));
+      if (f.kind) head.appendChild(el("span", "fko", f.ko));   // 자유 신탁은 이름이 머리
       b.appendChild(head);
       b.appendChild(withKeywords(el("p", "ftext2"), shortText(f.text), c.hero));
       b.appendChild(el("p", "fbefore", `지금: ${shortText(c.text)}`));
@@ -2908,7 +2908,7 @@ export function rewardScreen(run, onPick) {
     big.classList.add("bmcard");
     box.appendChild(big);
     const body = el("div", "bmbody");
-    body.appendChild(el("span", "bmkind", `신탁 ${"①②③④⑤"[n - 1]} ${f.kind} · 「${c.name}」에 붙습니다`));
+    body.appendChild(el("span", "bmkind", `신탁 ${"①②③④⑤"[n - 1]}${f.kind ? " " + f.kind : ""} · 「${c.name}」에 붙습니다`));
     body.appendChild(el("h3", "bmname", f.ko || f.kind));
     body.appendChild(el("span", "bmsub", "바뀐 뒤"));
     body.appendChild(withKeywords(el("p", "bmtext"), shortText(f.text), c.hero));
@@ -3386,12 +3386,12 @@ export function campScreen(run, withShop, onDone, onShop) {
       const b = el("button", "fcard f" + n);
       const hd = el("div", "fhead2");
       hd.appendChild(el("span", "fnum", "①②③④⑤"[n - 1]));
-      hd.appendChild(el("b", null, f.kind));
-      hd.appendChild(el("span", "fko", f.ko));
+      hd.appendChild(el("b", null, f.kind || f.ko));
+      if (f.kind) hd.appendChild(el("span", "fko", f.ko));   // 자유 신탁은 이름이 머리
       b.appendChild(hd);
       b.appendChild(withKeywords(el("p", "ftext2"), shortText(f.text), c.hero));
       b.appendChild(el("p", "fbefore", `지금: ${shortText(c.text)}`));
-      b.onclick = () => ts.pick(b, n, `${"①②③④⑤"[n - 1]} ${f.kind}`);
+      b.onclick = () => ts.pick(b, n, `${"①②③④⑤"[n - 1]} ${f.kind || f.ko}`);
       fr.appendChild(b);
     }
     wrap.appendChild(fr);
@@ -4011,12 +4011,12 @@ export function eventScreen(run, onDone, onFight) {
         const b = el("button", "fcard f" + n);
         const hd = el("div", "fhead2");
         hd.appendChild(el("span", "fnum", "①②③④⑤"[n - 1]));
-        hd.appendChild(el("b", null, f.kind));
-        hd.appendChild(el("span", "fko", f.ko));
+        hd.appendChild(el("b", null, f.kind || f.ko));
+        if (f.kind) hd.appendChild(el("span", "fko", f.ko));   // 자유 신탁은 이름이 머리
         b.appendChild(hd);
         b.appendChild(withKeywords(el("p", "ftext2"), shortText(f.text), c.hero));
         b.appendChild(el("p", "fbefore", `지금: ${shortText(c.text)}`));
-        b.onclick = () => ts.pick(b, n, `${"①②③④⑤"[n - 1]} ${f.kind}`);
+        b.onclick = () => ts.pick(b, n, `${"①②③④⑤"[n - 1]} ${f.kind || f.ko}`);
         fr.appendChild(b);
       }
       box.appendChild(fr);

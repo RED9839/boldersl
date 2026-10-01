@@ -12,11 +12,13 @@
 const area = (t) => (t === "allEnemies" || t === "allAllies" ? 1.6 : t === "randomEnemy" ? 0.9 : 1);
 
 export function valueOf(fx) {
-  let v = 0;
+  let v = 0, per = 1;
   for (const f of fx || []) {
     const n = f.hits || 1;
     switch (f.k) {
-      case "dmg": v += f.ratio * n * 0.83 * area(f.target) * (f.xHits ? 3 : 1); break;
+      // 「「X」 1당 …」 은 바로 뒤 피해 한 줄을 쌓인 수만큼 친다 — 보통 쌓여 있는 셋으로 센다
+      case "perStack": per = 3; break;
+      case "dmg": v += f.ratio * n * 0.83 * area(f.target) * (f.xHits ? 3 : 1) * per; per = 1; break;
       case "block": case "shield": v += (f.ratio / 2) * 0.8 * (f.target === "allAllies" ? 2 : 1); break;
       case "heal": v += (f.ratio / 0.8) * 0.8 * (f.target === "allAllies" ? 2 : 1); break;
       case "draw": v += 0.4 * (f.v || 1); break;

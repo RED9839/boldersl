@@ -82,6 +82,15 @@ function pickTarget(text, fallback, m, kind) {
   return fallback;
 }
 
+// 체력 값을 치르는 쪽 — 바로 앞(같은 마디)에 「아군 1명」「아군 전원」 이 있으면 그쪽, 아니면 늘 자신.
+// 전에는 가까운 대상 말(「적 1명에게 … 최대 HP 10% 소모」)을 따라가 적이 체력을 잃고 시전자는 안 치렀다(57곳)
+function payer(text, m) {
+  const before = text.slice(Math.max(0, m.index - 10), m.index);
+  if (/아군\s*전원\s*$/.test(before)) return "allAllies";
+  if (/아군\s*1\s*명\s*$/.test(before)) return "oneAlly";
+  return "self";
+}
+
 // 그 효과가 놓인 마디 — 「회복」「실드」 같은 말을 카드 글 전체가 아니라 여기서 찾는다.
 function near(text, m) {
   const [[a, b]] = scopes(text, m.index);
@@ -193,9 +202,9 @@ const RULES = [
   { re: /추가\s*턴/g, make: () => ({ k: "extraTurn" }) },
 
   // ── HP ─────────────────────────────────────────────────────────────
-  // "최대 HP 10% 잃고" · "HP 5 소모" — 제 체력을 값으로 치르는 꼴
-  { re: /최대\s*HP\s*(\d+)\s*%\s*(?:를\s*)?(?:잃|소모|지불)/g, make: (m, t) => ({ k: "payHpPct", v: Number(m[1]) / 100, target: pickTarget(t, "self", m, "payHpPct") }) },
-  { re: /HP\s*(\d+)\s*(?:를\s*)?(?:잃|소모|지불)/g, make: (m, t) => ({ k: "payHp", v: Number(m[1]), target: pickTarget(t, "self", m, "payHp") }) },
+  // "최대 HP 10% 잃고" · "HP 5 소모" — 제 체력을 값으로 치르는 꼴. 치르는 쪽은 payer(늘 자신 · 바로 앞의 아군 말만)
+  { re: /최대\s*HP\s*(\d+)\s*%\s*(?:를\s*)?(?:잃|소모|지불)/g, make: (m, t) => ({ k: "payHpPct", v: Number(m[1]) / 100, target: payer(t, m) }) },
+  { re: /HP\s*(\d+)\s*(?:를\s*)?(?:잃|소모|지불)/g, make: (m, t) => ({ k: "payHp", v: Number(m[1]), target: payer(t, m) }) },
   // "HP 최저 아군" — 대상 고르기
   { re: /HP\s*최저/g, make: () => null },      // 대상 말(lowAlly)이 이미 가져간다
   // "최대 HP N%" 만 적힌 꼴 (회복·피해의 기준이 되는 자리)

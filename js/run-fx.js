@@ -78,9 +78,11 @@ export function runFx(s, fxList, ctx, api) {
       case "dmg": {
         if (!owner) break;
         // X 코스트 — 낸 AP 만큼, 키워드가 붙어 있으면 그 스택만큼 더
-        const hits = f.xHits
+        let hits = f.xHits
           ? (ctx.x || 0) + (f.xStack ? stackOf(s, owner.key, f.xStack) : 0)
           : (f.hits || 1);
+        // 「「마탄」 1당 …」 — 바로 뒤의 피해 한 줄을 쌓인 수만큼 친다(0 이면 안 친다). 한 번 쓰면 풀린다
+        if (ctx.perStack) { hits *= stackOf(s, owner.key, ctx.perStack); ctx.perStack = null; }
         for (let i = 0; i < hits; i++) {
           const targets = resolve(s, ctx, f.target);
           for (const t of targets) {
