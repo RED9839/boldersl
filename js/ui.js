@@ -1487,6 +1487,14 @@ export function fightScreen(run, onDone, onQuit) {
         : it.id && hit ? ` · ${it.id} ${it.n || 1}` : "";
       tag.appendChild(el("span", "isay", it.say + more));
       tag.title = INTENT_HELP[it.t] || "";
+      // 즉시 행동 — 이 수가 예고된 뒤로 카드를 N장 내면 당겨서 한다(수마다 N 이 다르다). 다음 한 장이면 붉게
+      const rn = C.rushOf(u);
+      if (rn && !u.sealed) {
+        const k = u.rushCnt || 0;
+        const rush = el("span", "rush" + (k === rn - 1 ? " hot" : ""), `⚡${k}/${rn}`);
+        rush.title = `카드를 ${rn - k}장 더 내면 이 수를 즉시 합니다`;
+        tag.appendChild(rush);
+      }
       n.appendChild(tag);
     }
 
@@ -2097,8 +2105,15 @@ export function fightScreen(run, onDone, onQuit) {
     return { attack: `앞줄을 칩니다 · 피해 ${v}`, back: `뒷줄을 칩니다 · 피해 ${v}`, attackAll: `파티 전체를 칩니다 · 피해 ${v}`,
       multi: `앞줄을 ${it.n}번 칩니다 · 피해 ${v}×${it.n}`, charge: "힘을 모읍니다 — 다음 턴에 큰 수",
       block: `방어 +${v}`, guard: `적 전체 방어 +${v}`, heal: `가장 다친 적 회복 ${v}`,
-      buff: "스스로 강해집니다", debuff: `아군 전체에 ${it.id || "상태"} ${v}`, jam: `다음 턴 AP -${v}` }[it.t] || it.t;
+      buff: it.id ? `${it.id} +${v}` : "스스로 강해집니다", debuff: `아군 전체에 ${it.id || "상태"} ${v}`, jam: `다음 턴 AP -${v}` }[it.t] || it.t;
   };
+  // 적 패시브의 「언제」 와 「몇 번」 — combat.js foePassives 와 같은 말
+  const FOE_ON = (p) => ({
+    fightStart: "전투 시작 시", turnStart: "턴 시작 시", turnEnd: "턴 끝에", hurt: "맞으면", rushed: "즉시 행동으로 당겨지면",
+    debuffed: "디버프가 걸리면", allyDown: "동료가 쓰러지면", lowHp: `체력이 ${Math.round((p.at || 0) * 100)}% 아래로 떨어지면`,
+    card: `파티가 ${p.type ? p.type + " " : ""}카드를 ${p.every ? `이번 턴 ${p.every}장째 낼 때마다` : "낼 때마다"}`,
+  }[p.on] || p.on);
+  const FOE_LIMIT = (p) => (p.on === "fightStart" || p.on === "lowHp") ? " (한 번)" : p.limit === 0 ? "" : ` (턴당 ${p.limit || 1}회)`;
   function openFoe(u) {
     const box = openModal("foemodal");
     const face = el("div", "bmface foe");
@@ -2122,6 +2137,10 @@ export function fightScreen(run, onDone, onQuit) {
       if (it.t === "charge" && it.next) now.appendChild(document.createTextNode(` (다음 턴: ${it.next.say} ${it.next.v})`));
       body.appendChild(now);
       if (INTENT_HELP[it.t]) body.appendChild(el("p", "bmhelp", INTENT_HELP[it.t]));
+      const rn = C.rushOf(u);
+      body.appendChild(el("p", "bmhelp", rn
+        ? `즉시 행동 — 이 수가 예고된 뒤로 카드를 ${rn}장 내면 당겨서 하고 새 수를 예고합니다(지금 ${u.rushCnt || 0}장). 새 수는 다시 0장부터, 턴이 바뀌어도 0장부터 셉니다.`
+        : "이 수는 당겨지지 않습니다."));
     }
     // 걸린 상태 — 낱말 풀이까지
     const sts = Object.entries(u.status || {}).filter(([, v]) => v);
@@ -2139,14 +2158,25 @@ export function fightScreen(run, onDone, onQuit) {
     for (const it of moves) {
       if (seenSay.has(it.say)) continue;
       seenSay.add(it.say);
+      const rn = C.intentRush(it, E);
       list.appendChild(el("dt", null, it.say));
-      list.appendChild(el("dd", null, INTENT_DO(it)));
+      list.appendChild(el("dd", null, `${INTENT_DO(it)}${rn ? ` · ⚡${rn}장` : " · 안 당겨짐"}`));
     }
     if (moves.length) {
       body.appendChild(el("span", "bmsub", E.pick === "shuffle" ? "할 수 있는 수 — 무작위(같은 수를 세 번 잇지 않습니다)" : "할 수 있는 수 — 적힌 순서대로"));
       body.appendChild(list);
     }
     if (E.phase) body.appendChild(el("p", "bmhelp", `체력이 ${Math.round(E.phase.at * 100)}% 아래로 떨어지면 수가 바뀐다${E.phase.say ? ` — 「${E.phase.say}」` : ""}`));
+    // 적 패시브 — 언제 · 무엇을
+    if (E.passives && E.passives.length) {
+      const pl = el("dl", "bmterms bmmoves");
+      for (const p of E.passives) {
+        pl.appendChild(el("dt", null, p.name));
+        pl.appendChild(el("dd", null, `${FOE_ON(p)} — ${p.do.t === "thorns" ? `때린 사도에게 ${p.do.v} 피해` : p.do.t === "selfHeal" ? `자기 체력 ${p.do.v} 회복` : INTENT_DO(p.do)}${FOE_LIMIT(p)}`));
+      }
+      body.appendChild(el("span", "bmsub", "패시브"));
+      body.appendChild(pl);
+    }
     const row = el("div", "bmbtns");
     const x = el("button", "bmclose", "닫기");
     x.onclick = closeModal;
@@ -2366,7 +2396,36 @@ export function fightScreen(run, onDone, onQuit) {
     document.body.appendChild(back);
   }
 
-  function play(targetIdx) {
+  // 아군 고르기 — 적과 아군을 둘 다 고르는 카드의 아군 쪽. 버릴 카드 고르기 창과 같은 모양
+  function pickAlly(handIdx, done) {
+    const played = C.cardOf(st, st.hand[handIdx]);
+    const back = el("div", "dcpick");
+    const box = el("div", "dcbox");
+    back.appendChild(box);
+    const head = el("div", "dchead");
+    head.appendChild(el("b", null, "아군을 고릅니다"));
+    head.appendChild(el("span", null, `「${played.name}」 — ${played.text}`));
+    box.appendChild(head);
+    const grid = el("div", "dcgrid allypick");
+    for (const u of st.party.filter((x) => !x.dead)) {
+      const b = el("button", "dccell");
+      b.type = "button";
+      b.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: 72, slot: "ally", still: true }));
+      b.appendChild(el("b", null, u.ko));
+      b.appendChild(el("span", null, `HP ${u.hp} / ${u.maxHp}`));
+      b.onclick = () => { back.remove(); done(u.idx); };
+      grid.appendChild(b);
+    }
+    box.appendChild(grid);
+    const foot = el("div", "dcfoot");
+    const cancel = el("button", "dccancel", "취소");
+    cancel.onclick = () => { back.remove(); done(null); };
+    foot.appendChild(cancel);
+    box.appendChild(foot);
+    document.body.appendChild(back);
+  }
+
+  function play(targetIdx, allyIdx) {
     if (selCard < 0) return;
     const glowId = st.hand[selCard], g = glowId && C.glowOf(st, glowId);
     // 은총 — 고르지 않는다. 무작위 고유 카드 하나가 곧장 손에(그 턴 비용 0), 가운데에 잠깐 띄운다
@@ -2385,20 +2444,33 @@ export function fightScreen(run, onDone, onQuit) {
       });
       return;
     }
+    // 적과 아군을 둘 다 고르는 카드(「적 1명 …, 아군 1명 …」) — 적에 놓은 뒤 아군을 한 번 더 묻는다.
+    // 전에는 아군 쪽이 늘 카드 주인에게 갔다
+    const pc = C.cardOf(st, st.hand[selCard]);
+    if (allyIdx == null && C.canPlay(st, st.hand[selCard]) == null && targetsNeeded(st.hand[selCard]) === "enemy"
+      && (pc.fx || []).some((f) => f.target === "oneAlly") && st.party.filter((u) => !u.dead).length > 1) {
+      const at = selCard;
+      pickAlly(at, (idx) => {
+        if (idx == null) { selCard = -1; draw(); return; }   // 물렀다
+        selCard = at; play(targetIdx, idx);
+      });
+      return;
+    }
+    const opts = allyIdx != null ? { ally: allyIdx } : {};
     // 「손패 N장 버리」 — 무작위가 아니면 낸 사람이 고른다. 고르고 나서 카드가 돈다(버린 뒤 드로우 따위가 이어진다)
     const need = C.discardChoice(st, selCard);
     if (need > 0) {
       const at = selCard;
       pickDiscard(at, need, (ids) => {
         if (!ids) { selCard = -1; draw(); return; }       // 물렀다 — 카드는 손에 남는다
-        const r = C.playCard(st, at, targetIdx, { discard: ids });
+        const r = C.playCard(st, at, targetIdx, { ...opts, discard: ids });
         selCard = -1;
         if (!r.ok) say(r.why);
         draw();
       });
       return;
     }
-    const r = C.playCard(st, selCard, targetIdx);
+    const r = C.playCard(st, selCard, targetIdx, opts);
     selCard = -1;
     if (!r.ok) say(r.why);
     draw();

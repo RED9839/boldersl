@@ -159,6 +159,8 @@ const RULES = [
     make: (m, text) => ({ k: "status", id: m[1], v: 1, turns: Number(m[2] || 1), target: pickTarget(text, "oneEnemy", m, "status") }),
   },
   { re: /기절\s*(\d+)?\s*회?턴?/g, make: (m, text) => ({ k: "status", id: "기절", v: 1, turns: Number(m[1] || 1), target: pickTarget(text, "oneEnemy", m, "status") }) },
+  // 즉시 행동 되돌리기 — 적이 예고한 수의 카운트를 N장 되돌린다(적 1명 · 적 전체). 새 적 규칙(docs/12)에 대한 답
+  { re: /즉시\s*행동\s*-\s*(\d+)/g, make: (m, text) => ({ k: "rushDown", v: Number(m[1]), target: pickTarget(text, "oneEnemy", m, "status") }) },
   { re: /도발\s*(\d+)?\s*턴?/g, make: (m, text) => ({ k: "status", id: "도발", v: 1, turns: Number(m[1] || 1), target: "self" }) },
   // 공용 키워드
   // 「소멸 제거」 — 신탁 글은 바뀐 뒤의 전문이라 떼는 말은 그냥 안 쓰면 된다. 읽은 것으로만 친다

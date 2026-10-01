@@ -103,10 +103,14 @@ export function flashed(card, n) {
     if (x.k === "costSet") cost = x.v;
     if (x.k === "costDelta") cost = Math.max(0, cost + x.v);
   }
+  const fx = (f.fx || []).filter((x) => x.k !== "costSet" && x.k !== "costDelta");
   return {
     ...card, cost,
     text: f.text,
-    fx: (f.fx || []).filter((x) => x.k !== "costSet" && x.k !== "costDelta"),
+    fx,
+    // 대상도 신탁의 글로 다시 정한다 — 전에는 기본 카드의 것을 그대로 써서, 신탁이 「적 1명 기절」 을 붙여도
+    // 화면이 적을 고르게 하지 않았다(맨 앞 적에게 갔다). 신탁 488개가 그랬다
+    target: card.built ? targetOf({ fx }) : card.target,
     flashOn: n, flashKo: f.ko, flashKind: f.kind, baseText: card.text,
   };
 }

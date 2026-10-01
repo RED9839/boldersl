@@ -24,6 +24,8 @@ function resolve(s, ctx, target) {
       if (ctx.lowest) return allies.slice().sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp).slice(0, 1);
       // 패시브에는 고르는 사람이 없다 — 일을 겪은 아군(맞은 사람), 없으면 자신
       if (ctx.ally) return [ctx.ally].filter((u) => !u.dead);
+      // 적과 아군을 둘 다 고르는 카드 — 아군 쪽은 따로 고른 사람(allyIdx)
+      if (ctx.allyIdx != null) return [allies.find((u) => u.idx === ctx.allyIdx) || owner || allies[0]].filter(Boolean);
       // targetIdx 는 파티 안의 자리(idx)다. 살아 있는 사람 목록의 순번이 아니다 —
       // 앞사람이 쓰러지면 순번이 밀려 엉뚱한 사람에게 갔다.
       return [allies.find((u) => u.idx === ctx.targetIdx) || owner || allies[0]].filter(Boolean);
@@ -123,6 +125,10 @@ export function runFx(s, fxList, ctx, api) {
       case "gauge": s.gauge = Math.max(0, Math.min(R.GAUGE_MAX, s.gauge + f.v)); break;
 
       // ── 상태 ──────────────────────────────────────────────────────
+      case "rushDown": {
+        for (const t of resolve(s, ctx, f.target)) if (t.side === "enemy") t.rushCnt = (t.rushCnt || 0) - f.v;   // 0 밑으로도 — 첫 장으로 내도 그만큼 여유가 쌓인다(새 수 · 새 턴에 0)
+        break;
+      }
       case "status": {
         // 도발은 자기가 적을 끄는 것이다 — 대상 말이 적을 가리켜도 자신에게 건다
         const tg = f.id === "도발" ? "self" : f.target;

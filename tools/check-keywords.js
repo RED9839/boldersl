@@ -76,10 +76,9 @@ if (silent.length) console.log(`       나오지 않는 사도 ${silent.length}:
 {
   const snow = cards.find((c) => c.ko === "스노우포그");
   const p2 = cardParts({ ...snow, name: snow.ko }, snow.hero);
-  check(p2.action === "2턴간 안개", `스노우포그 하는 일 \"${p2.action}\"`);
-  // 스킬 재구성 뒤 그윈의 키워드는 「깃발」 하나다(동상은 빠졌다)
-  check(p2.terms.map((t) => t.ko).join(",") === "안개,깃발",
-    `스노우포그 낱말 ${p2.terms.map((t) => t.ko).join(" · ")}`);
+  // 사도 리뉴얼(docs/11) 뒤 스노우포그는 「깃발」 을 꽂고 광역으로 친다 — 하는 일이 읽히고 「깃발」 풀이가 붙는가
+  check(/깃발/.test(p2.action) && /피해/.test(p2.action), `스노우포그 하는 일 \"${p2.action}\"`);
+  check(p2.terms.some((t) => t.ko === "깃발"), `스노우포그 낱말 ${p2.terms.map((t) => t.ko).join(" · ")}`);
 
   // 이 카드에서만 쓰는 낱말을 가진 카드 — 지금은 하나뿐이다. 기획서가 늘리면 여기 숫자가 오른다.
   const local = cards.filter((c) => cardParts({ ...c, name: c.ko }, c.hero).terms.some((t) => t.kind === "이 카드"));

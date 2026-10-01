@@ -200,9 +200,12 @@ check(started.party.join(",") === "에르핀,티그,네르", `자리를 바꾼 �
   const B = (await import("../js/data/built.js")).default;
   check(B.heroes["죠안"].anyRow && B.heroes["티그_영웅"].anyRow && !B.heroes["티그"].anyRow, "모든 열 사도는 둘(티그(영웅) · 죠안)");
   const lit = (row) => {
-    const t = C2.newCombat({ partyKeys: ["죠안", "에르핀", "네르"], rows: { 죠안: row }, deck: [], enemyIds: ["fairymobcloserange"], seed: 3 });
-    const log = t.log.join("\n");
-    C2.endTurn(t);                                   // 다음 턴 시작 — 턴 시작 줄이 돈다
+    // 열 줄은 죠안 카드를 4장 낼 때마다 돈다(원작 강화 평타 「네 번째 공격」) — 두 턴에 걸쳐 죠안 카드를 낸다
+    const t = C2.newCombat({ partyKeys: ["죠안", "에르핀", "네르"], rows: { 죠안: row }, deck: Array(12).fill("죠안_s0"), enemyIds: ["fairymobcloserange"], seed: 3 });
+    for (let turn = 0; turn < 3 && !t.over; turn++) {
+      for (let g = 0; g < 6; g++) { const i = t.hand.findIndex((id) => !C2.canPlay(t, id)); if (i < 0) break; C2.playCard(t, i, 0); }
+      if (!t.over) C2.endTurn(t);
+    }
     return { row: t.party[0].row, gauge: t.gauge, log: t.log.join("\n") };
   };
   const mid = lit("mid"), back = lit("back"), front = lit("front");

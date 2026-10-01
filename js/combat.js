@@ -128,6 +128,7 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
     if (next.hpCut) { for (const u of s.party) if (!u.dead) u.hp = Math.max(1, u.hp - Math.round(u.maxHp * next.hpCut)); say(s, `이벤트 — 시작하자마자 오작동, HP -${Math.round(next.hpCut * 100)}%`); }
   }
   emit(s, "fightStart", {});
+  foePassives(s, "fightStart");
   beginTurn(s);
   return s;
 }
@@ -192,7 +193,9 @@ function beginTurn(s) {
 
   // 원작의 중독은 지속 피해가 아니라 공격력을 깎는 것이다. 그래서 턴 시작에 아무 일도 안 한다.
   // 촉수는 턴이 끝날 때 때린다(프리클) — 아래 endTurn 에 있다.
-  for (const e of alive(s.enemies)) rollIntent(s, e);
+  for (const e of alive(s.enemies)) { rollIntent(s, e); e.rushCnt = 0; }
+  resetFoePassives(s);
+  foePassives(s, "turnStart");
 
   // 신탁 '성급한 손' — SP 를 더 받는 대신 손패가 한 장 적다
   draw(s, 5 + (s.turn === 1 ? (s.opening || 0) : 0) - tr(s, "handdown"));
@@ -268,6 +271,8 @@ export function endTurn(s) {
   s.hand.push(...keep);
   checkOver(s); if (s.over) return s;
 
+  foePassives(s, "turnEnd");
+  checkOver(s); if (s.over) return s;
   enemyPhase(s);
   checkOver(s); if (s.over) return s;
   for (const e of s.enemies) if (e.stunGuard) e.stunGuard--;
@@ -293,48 +298,132 @@ function enemyPhase(s) {
       if (e.intent && e.intent.next) e.intent = null;
       continue;
     }
-    const it = e.intent; if (!it) continue;
-    if (st(e, "침묵") > 0 && !["attack", "back", "attackAll", "multi"].includes(it.t)) {
-      say(s, `${e.ko}: 침묵 — ${it.say} 을(를) 못 했다`);
-      if (it.next) e.intent = null;          // 모으던 힘도 흩어진다
-      continue;
-    }
-    if (it.t === "attack" || it.t === "back") {
-      const t = pickTarget(s, it.t === "back");
-      if (t) {
-        const d = dealt(e, it.v); hurt(s, t, d, { from: e });
-        say(s, `${e.ko}: ${it.say} → ${t.ko} (${d})`);
-        // 맞은 사람에게 상태를 건다 — 「창끝으로 찌른다」 취약 따위
-        if (it.id && !t.dead) { addSt(t, it.id, it.n || 1); say(s, `${t.ko}: ${it.id} +${it.n || 1}`); }
-      }
-    } else if (it.t === "multi") {
-      // 한 번마다 새로 고른다 — 앞사람이 쓰러지면 다음 사람에게 간다
-      const d = dealt(e, it.v);
-      for (let k = 0; k < (it.n || 1); k++) { const t = pickTarget(s, false); if (!t) break; hurt(s, t, d, { from: e }); }
-      say(s, `${e.ko}: ${it.say} (${d}×${it.n})`);
-    } else if (it.t === "charge") {
-      say(s, `${e.ko}: ${it.say} — 다음 턴 ${it.next.say}`);
-    } else if (it.t === "guard") {
-      for (const x of alive(s.enemies)) x.block += it.v;
-      say(s, `${e.ko}: ${it.say} (적 전체 방어 +${it.v})`);
-    } else if (it.t === "heal") {
-      const x = alive(s.enemies).sort((p, q) => p.hp / p.maxHp - q.hp / q.maxHp)[0];
-      if (x) { const v = Math.min(it.v, x.maxHp - x.hp); x.hp += v; say(s, `${e.ko}: ${it.say} (${x.ko} +${v})`); }
-    } else if (it.t === "attackAll") {
-      for (const t of alive(s.party)) { const d = dealt(e, it.v); hurt(s, t, d, { from: e }); }
-      say(s, `${e.ko}: ${it.say} (${it.v})`);
-    } else if (it.t === "block") { e.block += it.v; say(s, `${e.ko}: ${it.say}`); }
-    else if (it.t === "buff") { addSt(e, it.id, it.v); say(s, `${e.ko}: ${it.say} (${it.id} +${it.v})`); }
-    else if (it.t === "jam") {
-      // 원작의 감전이 공격·이동속도를 늦추듯, 방해는 SP 수급을 늦춘다
-      s.apJam += it.v;
-      say(s, `${e.ko}: ${it.say} (다음 턴 AP -${it.v})`);
-    }
-    else if (it.t === "debuff") {
-      for (const t of alive(s.party)) addSt(t, it.id, it.v);
-      say(s, `${e.ko}: ${it.say} (${it.id} +${it.v})`);
-    }
+    actEnemy(s, e);
     if (s.over) return;
+  }
+}
+
+// 즉시 행동 장수 — **지금 예고한 수**마다 다르다. 수에 rush 가 적혀 있으면 그것, 없으면 그 적의 rush,
+// 그것도 없으면 수의 값어치로 정한다: 센 수일수록 많이 내야 당겨진다(큰 한 방이 한 턴에 두 번 오면 막을 길이 없다).
+// 0 이면 당겨지지 않는다 — 힘을 모으는 수(charge)와 모아서 쏟는 수는 기본이 0.
+// 최소 3장(ENEMY_RUSH_MIN) — 2장이면 한 턴 보통 3장 안에 늘 당겨져 그 적이 매 턴 두 번 움직였다.
+export function intentRush(it, d = {}) {
+  if (!it) return 0;
+  const floor = (n) => (n ? Math.max(R.ENEMY_RUSH_MIN || 3, n) : 0);
+  if (it.rush != null) return floor(it.rush);
+  if (d.rush != null) return floor(d.rush);
+  const moves = [...(d.intents || []), ...((d.phase && d.phase.intents) || []), ...(d.open ? [d.open] : [])];
+  if (it.t === "charge" || moves.some((x) => x.t === "charge" && x.next === it)) return 0;
+  const threat = it.t === "attack" || it.t === "back" ? it.v
+    : it.t === "multi" ? it.v * (it.n || 1)
+    : it.t === "attackAll" ? it.v * 2.5
+    : 0;                                   // 방어 · 회복 · 강화 · 방해 · 약화 — 작은 수
+  if (!threat) return R.ENEMY_RUSH_SMALL || 3;
+  return threat <= 6 ? 3 : threat <= 12 ? 4 : threat <= 20 ? 5 : 6;
+}
+export const rushOf = (e) => intentRush(e.intent, ENEMIES[e.key] || {});
+
+// 즉시 행동 — 지금 수가 예고된 뒤로 파티가 카드를 그 수의 장수만큼 내면, 수를 당겨서 하고 새 수를 예고한다.
+// 새 수는 다시 0장부터 센다. 턴이 바뀌어도 0부터(beginTurn).
+// 봉인된 적은 하지 않는다(봉인은 턴 끝의 행동을 막는 것이라 여기서 풀지 않는다). 방어도는 지우지 않는다.
+function rushEnemies(s) {
+  for (const e of alive(s.enemies)) {
+    const n = rushOf(e);
+    if (!n || e.sealed || !e.intent) continue;
+    e.rushCnt = (e.rushCnt || 0) + 1;
+    if (e.rushCnt < n) continue;
+    e.rushCnt = 0;
+    say(s, `${e.ko}: 카드 ${n}장 — 즉시 행동!`);
+    actEnemy(s, e);
+    emit(s, "rush", { enemy: e });
+    if (s.over) return;
+    if (!e.dead) { foePassives(s, "rushed", { target: e }); rollIntent(s, e); }
+    if (s.over) return;
+  }
+}
+
+// ── 적 패시브 ────────────────────────────────────────────────────────────
+// 적 데이터의 passives: [{ name, on, do, ...조건 }]. 규칙은 data/enemies.js 머리말.
+//   on   fightStart · turnStart · turnEnd · hurt(이 적이 맞음) · lowHp(at 비율 아래로 처음) · allyDown(동료가 쓰러짐)
+//        card(파티가 카드를 냄 — type 이 있으면 그 종류만, every 가 있으면 이번 턴 N장째마다) · rushed(즉시 행동으로 당겨짐)
+//        debuffed(이 적에게 디버프가 걸림)
+//   do   수와 같은 모양({t, v, …} — attack · back · attackAll · multi · block · guard · heal · buff · debuff · jam)
+//        + thorns v(때린 사도에게 그대로 v) · selfHeal v(자기 회복)
+//   limit  한 턴에 몇 번(기본 1). fightStart · lowHp 는 한 번뿐. 0 이면 제한 없음
+const FOE_ONCE = new Set(["fightStart", "lowHp"]);
+function foePassives(s, ev, info = {}) {
+  for (const e of alive(s.enemies)) {
+    const ps = (ENEMIES[e.key] || {}).passives; if (!ps) continue;
+    for (const p of ps) {
+      if (p.on !== ev) continue;
+      if ((ev === "hurt" || ev === "lowHp" || ev === "rushed" || ev === "debuffed") && info.target !== e) continue;
+      if (ev === "allyDown" && info.target === e) continue;
+      if (ev === "lowHp" && !(info.before > p.at && info.after <= p.at)) continue;
+      if (ev === "card" && ((p.type && info.type !== p.type) || (p.every && info.nth % p.every !== 0))) continue;
+      e.pUsed = e.pUsed || {};
+      const k = p.name, lim = FOE_ONCE.has(ev) ? 1 : (p.limit ?? 1);
+      if (lim && (e.pUsed[k] || 0) >= lim) continue;
+      e.pUsed[k] = (e.pUsed[k] || 0) + 1;
+      say(s, `${e.ko} · ${p.name}`);
+      // 가시는 방어 · 실드에 막힌다 — 「가시엔 실드」 가 답이 되게(전에는 pure 라 다 뚫었다)
+      if (p.do.t === "thorns") { if (info.from && !info.from.dead && info.from.side === "party") hurt(s, info.from, p.do.v); }
+      else if (p.do.t === "selfHeal") { const v = Math.min(p.do.v, e.maxHp - e.hp); e.hp += v; }
+      else actEnemy(s, e, { say: p.name, ...p.do }, true);
+      if (s.over) return;
+    }
+  }
+}
+// 턴이 바뀌면 「한 턴에 몇 번」 을 다시 센다. fightStart · lowHp 는 남긴다
+function resetFoePassives(s) {
+  for (const e of s.enemies) if (e.pUsed) for (const k of Object.keys(e.pUsed)) {
+    const p = ((ENEMIES[e.key] || {}).passives || []).find((x) => x.name === k);
+    if (!p || !FOE_ONCE.has(p.on)) delete e.pUsed[k];
+  }
+}
+
+// 적 하나가 수를 한다 — 턴 끝(enemyPhase) · 즉시 행동(rushEnemies) · 적 패시브(foePassives)가 같이 쓴다.
+// it 을 안 주면 예고해 둔 수. passive 면 침묵에 막히지 않는다(몸에 붙은 성질이라).
+function actEnemy(s, e, it = e.intent, passive = false) {
+  if (!it) return;
+  if (!passive && st(e, "침묵") > 0 && !["attack", "back", "attackAll", "multi"].includes(it.t)) {
+    say(s, `${e.ko}: 침묵 — ${it.say} 을(를) 못 했다`);
+    if (it.next) e.intent = null;          // 모으던 힘도 흩어진다
+    return;
+  }
+  if (it.t === "attack" || it.t === "back") {
+    const t = pickTarget(s, it.t === "back");
+    if (t) {
+      const d = dealt(e, it.v); hurt(s, t, d, { from: e });
+      say(s, `${e.ko}: ${it.say} → ${t.ko} (${d})`);
+      // 맞은 사람에게 상태를 건다 — 「창끝으로 찌른다」 취약 따위
+      if (it.id && !t.dead) { addSt(t, it.id, it.n || 1); say(s, `${t.ko}: ${it.id} +${it.n || 1}`); }
+    }
+  } else if (it.t === "multi") {
+    // 한 번마다 새로 고른다 — 앞사람이 쓰러지면 다음 사람에게 간다
+    const d = dealt(e, it.v);
+    for (let k = 0; k < (it.n || 1); k++) { const t = pickTarget(s, false); if (!t) break; hurt(s, t, d, { from: e }); }
+    say(s, `${e.ko}: ${it.say} (${d}×${it.n})`);
+  } else if (it.t === "charge") {
+    say(s, `${e.ko}: ${it.say} — 다음 턴 ${it.next.say}`);
+  } else if (it.t === "guard") {
+    for (const x of alive(s.enemies)) x.block += it.v;
+    say(s, `${e.ko}: ${it.say} (적 전체 방어 +${it.v})`);
+  } else if (it.t === "heal") {
+    const x = alive(s.enemies).sort((p, q) => p.hp / p.maxHp - q.hp / q.maxHp)[0];
+    if (x) { const v = Math.min(it.v, x.maxHp - x.hp); x.hp += v; say(s, `${e.ko}: ${it.say} (${x.ko} +${v})`); }
+  } else if (it.t === "attackAll") {
+    for (const t of alive(s.party)) { const d = dealt(e, it.v); hurt(s, t, d, { from: e }); }
+    say(s, `${e.ko}: ${it.say} (${it.v})`);
+  } else if (it.t === "block") { e.block += it.v; say(s, `${e.ko}: ${it.say}`); }
+  else if (it.t === "buff") { addSt(e, it.id, it.v); say(s, `${e.ko}: ${it.say} (${it.id} +${it.v})`); }
+  else if (it.t === "jam") {
+    // 원작의 감전이 공격·이동속도를 늦추듯, 방해는 SP 수급을 늦춘다
+    s.apJam += it.v;
+    say(s, `${e.ko}: ${it.say} (다음 턴 AP -${it.v})`);
+  }
+  else if (it.t === "debuff") {
+    for (const t of alive(s.party)) addSt(t, it.id, it.v);
+    say(s, `${e.ko}: ${it.say} (${it.id} +${it.v})`);
   }
 }
 
@@ -398,6 +487,10 @@ function hurt(s, u, v, { from, pure } = {}) {
     emit(s, "hurt", { who: u, from });
     emit(s, "lowHp", { who: u, before, after: u.hp / u.maxHp });
   }
+  if (u.side === "enemy" && d > 0 && !pure) {
+    foePassives(s, "hurt", { target: u, from });
+    if (!u.dead) foePassives(s, "lowHp", { target: u, before, after: u.hp / u.maxHp });
+  }
 }
 
 function kill(s, u, byPoison) {
@@ -407,7 +500,7 @@ function kill(s, u, byPoison) {
   if (u.side === "party") speak(s, u.key, "down");
   say(s, u.side === "party" ? `${u.ko} 주말농장으로` : `${u.ko} 쓰러짐`);
   if (u.side === "party") emit(s, "allyDown", { who: u });
-  else emit(s, "kill", { by: s.acting, target: u });
+  else { emit(s, "kill", { by: s.acting, target: u }); foePassives(s, "allyDown", { target: u }); }
   if (u.side === "enemy") {
     if (s.lastHero) speak(s, s.lastHero, "kill");
     if (st(u, "중독") > 0 && s.party.some((p) => p.key === "mayo" && !p.dead)) {
@@ -581,7 +674,8 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
 
   // 기적 — true(이벤트의 옛 값) · "power" 는 피해 ×1.3
   const sh = s.shin && s.shin[cardId];
-  const ctx = { owner, combo: null, targetIdx, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null, shin: sh === true || sh === "power" };
+  // opts.ally — 적과 아군을 둘 다 고르는 카드(「적 1명 …, 아군 1명 …」)의 아군 쪽. 화면이 한 번 더 묻는다
+  const ctx = { owner, combo: null, targetIdx, allyIdx: opts.ally, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null, shin: sh === true || sh === "power" };
   s.acting = c.hero || null;
   try {
     if (c.built) {
@@ -625,6 +719,9 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   if (c.hero === "ner") s.nerWorked = true;
   if (c.hero) s.lastHero = c.hero;
   checkOver(s);
+  // 적 패시브 「카드를 낼 때마다」, 그다음 즉시 행동 — 이 카드로 수의 장수를 채웠으면 적이 예고한 수를 당겨서 한다
+  if (!s.over) { foePassives(s, "card", { type: c.type, nth: s.playedThisTurn }); checkOver(s); }
+  if (!s.over) { rushEnemies(s); checkOver(s); }
   return { ok: true };
 }
 
@@ -851,12 +948,12 @@ function fxApi(s) {
       } else if (id === "도발") {
         if (t.side === "party") { s.taunt = t.key; s.tauntLeft = n; say(s, `${t.ko}: 도발 — 적이 이쪽을 본다`); }
       } else addSt(t, id, n);
-      if (t.side === "enemy" && v > 0) emit(s, "debuff", { by: s.acting, target: t, id });
+      if (t.side === "enemy" && v > 0) { emit(s, "debuff", { by: s.acting, target: t, id }); foePassives(s, "debuffed", { target: t }); }
     },
     statOf: (u, stat) => P.statMod(s, u, stat),
     addMod: (t, stat, v, turns) => {
       P.addMod(t, stat, v, turns);
-      if (t.side === "enemy" && ((stat === "taken" && v > 0) || (stat === "dealt" && v < 0))) emit(s, "debuff", { by: s.acting, target: t, id: stat });
+      if (t.side === "enemy" && ((stat === "taken" && v > 0) || (stat === "dealt" && v < 0))) { emit(s, "debuff", { by: s.acting, target: t, id: stat }); foePassives(s, "debuffed", { target: t }); }
     },
     stackChanged: (owner, id, before, after, holder) => emit(s, "stackReach", { id, before, after, owner, target: holder }),
     cleanse: (t, n) => { for (let i = 0; i < (n || 1); i++) { const bad = BAD.find((b) => st(t, b) > 0); if (bad) delete t.status[bad]; } },

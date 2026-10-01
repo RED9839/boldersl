@@ -3051,3 +3051,15 @@ body:has(#screen.teamscreen3) .top { display: none; }
 #screen.battle.victory .foe.dead, #screen.battle.victory .foe.dying { opacity: .15; transition: opacity .4s; }
 .stand.walking { z-index: 5; pointer-events: none; }
 .stand.walking .hpwrap, .stand.walking .chips, .stand.walking .bubble { opacity: 0; transition: opacity .25s; }
+
+/* 적의 즉시 행동 카운트 — 의도 옆 「⚡지금/N」. 다음 한 장이면 붉게 깜빡인다 */
+#screen.battle .foe .intent .rush { flex: none; font: 600 11px/1.5 ui-monospace, Consolas, monospace; padding: 0 6px; border-radius: 999px; background: rgba(20, 24, 30, .55); color: #ffe7a3; }
+#screen.battle .foe .intent .rush.hot { background: #c0392b; color: #fff; animation: rushPulse 1s ease-in-out infinite; }
+@keyframes rushPulse { 50% { transform: scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { #screen.battle .foe .intent .rush.hot { animation: none; } }
+
+/* 아군 고르기 — 적과 아군을 둘 다 고르는 카드의 아군 쪽 (버릴 카드 고르기 창을 빌려 쓴다) */
+.dcpick .allypick .dccell { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 14px; min-width: 120px; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .18); color: #fff; cursor: pointer; }
+.dcpick .allypick .dccell b { font-size: 15px; }
+.dcpick .allypick .dccell span { font-size: 12px; opacity: .8; font-variant-numeric: tabular-nums; }
+.dcpick .allypick .dccell:focus-visible { outline: 2px solid #ffe7a3; outline-offset: 2px; }

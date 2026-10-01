@@ -58,11 +58,13 @@ console.log("본보기 — 네르");
   const reveal = idOf("네르", "세계수의 계시");
   play(s, reveal);
   const tig = s.party.find((u) => u.key === "티그");
-  check((tig.status["계시"] || 0) === 1, `「세계수의 계시」 — 아군 전원에게 「계시」 (티그 ${tig.status["계시"] || 0})`);
-  check(Math.abs(statMod(s, tig, "dealt") - 0.06) < 1e-9, `「계시」 1개당 주는 피해 +6% (${statMod(s, tig, "dealt")})`);
-  // 계시는 턴이 끝나면 하나 준다
+  // 리뉴얼(docs/11) 뒤: 시그니처 「계시」 +2 에, 네르가 카드를 낸 턴 패시브 「세계수의 이름으로!」 가 +1 을 더한다
+  const rev = tig.status["계시"] || 0;
+  check(rev === 3, `「세계수의 계시」 + 패시브 — 아군 전원에게 「계시」 (티그 ${rev})`);
+  check(Math.abs(statMod(s, tig, "dealt") - 0.10 * rev) < 1e-9, `「계시」 1개당 주는 피해 +10% (${statMod(s, tig, "dealt")})`);
+  // 계시는 적의 차례가 끝나면 하나 준다
   endTurn(s);
-  check((tig.status["계시"] || 0) === 0, `「계시」 는 턴 종료 시 1 감소 (${tig.status["계시"] || 0})`);
+  check((tig.status["계시"] || 0) === rev - 1, `「계시」 는 적의 차례가 끝나면 1 감소 (${tig.status["계시"] || 0})`);
   // 맞으면 걱정한다
   check(s.log.some((l) => l.includes("네르 · 여왕님 걱정")), "아군이 맞으면 「여왕님 걱정」 이 방어를 준다");
   // 도발 — 적이 네르만 친다

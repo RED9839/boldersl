@@ -31,6 +31,7 @@ export function valueOf(fx) {
       case "strip": v += 0.3; break;
       case "invuln": v += f.target === "allAllies" ? 2.5 : 1.2; break;
       case "cleanse": v += 0.2; break;
+      case "rushDown": v += 0.15 * f.v * area(f.target); break;
     }
   }
   return v;
