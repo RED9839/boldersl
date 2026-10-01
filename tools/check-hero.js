@@ -25,6 +25,9 @@ const STATUS = ["취약", "약화", "기절", "도발", "침묵", "감전", "중
 const ULT_COST = [150, 200, 250, 300];
 const TYPES = ["공격", "스킬", "강화", "방어", "회복"];
 const FLASH = ["강화", "경량", "연계", "변형", "각성"];
+// 원작에 SP 회복기가 있는 사도(docs/11 §2-1 · §3-2) — 파티 SP 를 주던 사도와 자기 SP 를 채우던 사도. 이들만 0코 신탁을 둔다
+const SP_HEROES = new Set(["스피키", "바리에", "캬롯", "우이", "오르", "죠안", "키샤", "뮤트", "아멜리아", "포셔", "우이(기억)",
+  "오팔", "스패럿", "시저", "아라그니아", "에스피"]);
 
 let heroes = 0, bad = 0, pieces = 0, read = 0;
 
@@ -114,7 +117,7 @@ for (const file of files) {
     // 값어치가 코스트에 비해 너무 크면(1.5배 넘게) 싸다. 너무 작으면(0.6배 밑) 참고로만 알린다.
     {
       const pe = (t) => parseEffect(t, { keywords: kws }).fx;
-      let three = 0;
+      let three = 0, zero = 0;
       const ratios = [];
       h.unique.forEach((u, i) => {
         const fx = pe(u.text);
@@ -148,6 +151,16 @@ for (const file of files) {
           const nm = f.kind || `「${f.ko}」`;
           // 코스트를 올려 크게 만든 신탁에 소멸까지 붙이지 않는다 — 비싸게 사서 한 번 쓰고 버리는 꼴(사용자 기준)
           if (!f.kind && typeof u.cost === "number" && c > u.cost && ffx.some((x) => x.k === "tag" && x.id === "소멸")) errs.push(`「${u.ko}」 ${nm} — 코스트를 올린 신탁에 소멸을 같이 붙이지 않는다`);
+          // 새 틀 신탁(분류 없음)은 0코로 내리지 않는다 — 거의 모든 1코 카드에 0코 신탁이 있어 어디서나 독식했다(docs/11 §3-2).
+          // 템포는 AP 회복(원작 SP 사도)으로 굴린다. 기본 카드가 0코면 그대로 둔다
+          // 원작에 SP 회복기가 있는 사도만 0코 신탁을 둔다 — SP 는 AP 또는 패 순환. 0코는 드로우 · 버리기로 패를 굴린다(사도당 둘까지)
+          if (!f.kind && c === 0 && u.cost !== 0) {
+            if (!SP_HEROES.has(h.ko)) errs.push(`「${u.ko}」 ${nm} — 신탁을 0코로 내리지 않는다(원작 SP 회복기 사도만 · 1코까지만)`);
+            else {
+              zero++;
+              if (!ffx.some((x) => x.k === "draw" || x.k === "discard")) errs.push(`「${u.ko}」 ${nm} — 0코 신탁은 패를 굴린다(드로우 · 버리기)`);
+            }
+          }
           if (c === 0) {
             if (ffx.some((x) => x.k === "ap" && x.v > 0)) errs.push(`「${u.ko}」 ${nm} — 0코 카드가 AP 를 주면 끝없이 이어진다`);
             const dr = ffx.filter((x) => x.k === "draw").reduce((a, x) => a + x.v, 0);
@@ -170,6 +183,7 @@ for (const file of files) {
       }
       // 1코만으로 채운 사도 — 코스트를 고르는 맛이 없다. 2코 이상(또는 X) 한 장은 있어야 한다
       if (!h.unique.some((u) => u.cost === "X" || u.cost >= 2)) errs.push("고유 카드가 전부 1코다 — 2코 이상(큰 카드) 한 장은 둔다");
+      if (zero > 2) errs.push(`0코 신탁은 사도당 둘까지 (${zero}개)`);
       if (h.unique.filter((u) => u.cost === 3).length > 1) errs.push(`3코 고유 카드는 사도당 한 장까지 (${h.unique.filter((u) => u.cost === 3).length}장)`);
     }
 
