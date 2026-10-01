@@ -81,21 +81,23 @@ const FULL = FLOORS.reduce((a, f) => a + f.fights.length + 1, 0);
 function runOnce(party, seed, flash) {
   const r = rng(seed * 7919 + 13);
   const deck = [...C.buildDeck(party), ...party.flatMap((k) => ["u0", "u1", "u2", "u3"].map((u) => `${k}_${u}`).filter((id) => B.CARDS[id]))];
-  let hp = null, maxHp = null, gauge = 0, fights = 0;
+  let hp = null, maxHp = null, gauge = 0, fights = 0, turns = 0;
   for (const floor of FLOORS) {
     for (const ids of [...floor.fights, floor.boss]) {
       const s = C.newCombat({ partyKeys: party, rows: {}, deck, enemyIds: ids, hp, maxHp, seed: seed * 101 + fights, flash, gauge });
       let t = 0;
       while (!s.over && t++ < 40) { play(s, r); if (!s.over) C.endTurn(s); }
-      if (s.over !== "win") return fights;
+      turns += s.turn;
+      if (s.over !== "win") return { fights, turns };
       fights++; gauge = s.gauge; hp = {}; maxHp = {};
       for (const u of s.party) { maxHp[u.key] = u.maxHp; hp[u.key] = u.dead ? 0 : Math.min(u.maxHp, u.hp + Math.round(u.maxHp * 0.2)); }
     }
     for (const u of party) if (hp[u] > 0) hp[u] = maxHp[u];
   }
-  return fights;
+  return { fights, turns };
 }
-const avg = (party, flash, seeds) => { let c = 0, f = 0; for (const sd of seeds) { const x = runOnce(party, sd, flash); f += x; if (x === FULL) c++; } return { clear: c / seeds.length, fights: f / seeds.length }; };
+// fights — 몇 번째 싸움까지 갔나. turns — 들인 턴 수(같은 곳까지 갔으면 빨리 잡은 쪽이 낫다: 맞춤 고르기의 동점 가르기)
+const avg = (party, flash, seeds) => { let c = 0, f = 0, tn = 0; for (const sd of seeds) { const x = runOnce(party, sd, flash); f += x.fights; tn += x.turns; if (x.fights === FULL) c++; } return { clear: c / seeds.length, fights: f / seeds.length, turns: tn / seeds.length }; };
 
 const evalSeeds = Array.from({ length: N }, (_, i) => i + 1);
 const tuneSeeds = Array.from({ length: 24 }, (_, i) => 5000 + i);
@@ -110,8 +112,9 @@ for (const comp of COMPS) {
       if (mode === "fit") {
         flash = Object.fromEntries(U.map((id) => [id, 1]));
         for (let round = 0; round < 2; round++) for (const id of U) {
-          let best = flash[id], bv = -1;
-          for (let n = 1; n <= 5; n++) { const v = avg(party, { ...flash, [id]: n }, tuneSeeds).fights; if (v > bv) { bv = v; best = n; } }
+          let best = flash[id], bv = -Infinity;
+          // 더 멀리 간 쪽, 같으면 턴을 덜 들인 쪽 — 전에는 동점이면 처음(①)을 그대로 둬서 쉬운 편성에서 ① 이 독식했다
+          for (let n = 1; n <= 5; n++) { const a = avg(party, { ...flash, [id]: n }, tuneSeeds); const v = a.fights * 1000 - a.turns; if (v > bv) { bv = v; best = n; } }
           flash[id] = best;
         }
         U.forEach((id, i) => chosen[i][flash[id] - 1]++);
