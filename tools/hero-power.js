@@ -4,7 +4,7 @@
 //
 // 사도 한 명을 넣고, 나머지 둘은 돌아가며 바꾼다(한 사람 운에 휘둘리지 않게).
 // 덱은 여덟 장 전부(시작 4 + 고유 4) — 판 중반의 모습이다. 1층(전투 셋 + 보스)을 무작위 손으로 싸운다.
-// 결과: 완주율이 높은/낮은 사도 열 명씩, 그리고 전체 분포. --rows 는 전원 순위(ROW 줄)
+// 결과: 완주율이 높은/낮은 사도 열 명씩, 그리고 전체 분포. --rows 는 전원 순위(ROW 줄) · --only 이름,이름 은 그 사도만
 import { newCombat, endTurn, playCard, canPlay, useUlt, canUlt, cardOf } from "../js/combat.js";
 import { kitOf, HERO_DATA } from "../js/cardbook.js";
 import { FLOORS } from "../js/data/enemies.js";
@@ -63,8 +63,11 @@ function floor(party, seed) {
 
 const rows = [];
 const out = process.argv.includes('--all');
+// --only 이름,이름 — 그 사도만 잰다(짝은 그대로 135명에서 돌린다 · 숫자는 전체로 잴 때와 같다)
+const ONLY = process.argv.includes("--only") ? (process.argv[process.argv.indexOf("--only") + 1] || "").split(",").filter(Boolean) : null;
 for (let i = 0; i < keys.length; i++) {
   const k = keys[i];
+  if (ONLY && !ONLY.includes(HERO_DATA[k].ko) && !ONLY.includes(k)) continue;
   let win = 0;
   for (let n = 0; n < N; n++) {
     const a = keys[(i + 1 + n * 7) % keys.length], b = keys[(i + 50 + n * 13) % keys.length];

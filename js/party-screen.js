@@ -310,6 +310,12 @@ export function partyScreen(onStart, onBack, opts = {}) {
           n.appendChild(withKeywords(el("p"), f.text, null));
           box.appendChild(n);
         }
+        if (c.bless) {                       // 신탁 위에 얹히는 그 카드만의 축복
+          const n = el("div", "cbf cbbless");
+          n.appendChild(el("b", null, `✦ ${c.bless.ko}`));
+          n.appendChild(withKeywords(el("p"), `겨우살이의 축복 — ${c.bless.text}`, null));
+          box.appendChild(n);
+        }
       };
       btn.onclick = () => { if (book.open.has(c.id)) book.open.delete(c.id); else book.open.add(c.id); fill(); };
       fill();
@@ -859,6 +865,13 @@ export function partyScreen(onStart, onBack, opts = {}) {
         if (f.kind) n.appendChild(el("span", "fkind", f.kind));
         n.appendChild(el("b", null, f.ko));
         n.appendChild(withKeywords(el("p"), shortText(f.text), c.hero));
+        g.appendChild(n);
+      }
+      if (c.bless) {
+        const n = el("div", "flash fbless");
+        n.appendChild(el("span", "fkind", "축복"));
+        n.appendChild(el("b", null, `✦ ${c.bless.ko}`));
+        n.appendChild(withKeywords(el("p"), shortText(c.bless.text), c.hero));
         g.appendChild(n);
       }
       box.appendChild(g);

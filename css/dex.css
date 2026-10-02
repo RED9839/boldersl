@@ -771,3 +771,7 @@ main:has(.endscreen), main:has(.swapscreen) { max-width: 1100px; }
 .evfork:hover { border-color: var(--hot); }
 .evfork p { margin: 0; font-size: 13px; color: var(--dim); line-height: 1.6; }
 .evkind { font-size: 12px; color: #b07a12; }
+
+/* 겨우살이의 축복(사도 고유, docs/14 §5) */
+.cbbless b, .fbless b { color: #c9a227; }
+.fbless { border-color: #c9a22766; }

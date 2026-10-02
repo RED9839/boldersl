@@ -36,6 +36,7 @@ for (const [id, c] of Object.entries(BUILT.cards)) {
     unique: !!c.unique,
     signature: !!c.signature,
     flash: c.flash || null,
+    bless: c.bless || null,                 // 그 카드만의 겨우살이의 축복(✦) — docs/14 §5
     tags: c.tags || [],
     unparsed: c.unparsed || null,
   };
