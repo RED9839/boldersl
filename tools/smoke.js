@@ -750,8 +750,9 @@ console.log("AP · 고학년 게이지 · 상성 (기획서 규칙)");
   check(!!C.canUlt(uz, "erpin"), "게이지가 모자라면 못 쓴다");
   uz.gauge = 300;
   check(C.canUlt(uz, "erpin") === null, "게이지가 차면 쓸 수 있다");
+  const ultCost = C.ultOf("erpin").cost;   // 비용은 기획서에서(원작 고학년 쿨타임 — docs/11 §3-3)
   C.useUlt(uz, "erpin");
-  check(uz.gauge === 0, `쓰면 비용만큼 빠진다 (${uz.gauge}%)`);
+  check(uz.gauge === 300 - ultCost, `쓰면 비용만큼 빠진다 (300 − ${ultCost} → ${uz.gauge}%)`);
   check(!!C.canUlt(uz, "erpin"), "같은 사도는 연속으로 못 쓴다");
 
   // 성격 상성 — 광기 → 순수 → 냉정 → 광기

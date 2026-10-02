@@ -32,7 +32,9 @@ const SP_HEROES = new Set(["스피키", "바리에", "캬롯", "우이", "오르
   "이드", "리코타", "실비아", "레비(졸업)", "빅우드", "셀리네", "아사나", "코미",
   // 딜러 — 요미 · 아르코는 아군 SP 도, 나머지는 자기 SP(처치 · 피격 · N번째 공격 · 고학년 · 전투 시작)
   "에르핀(왕도)", "에르핀", "캐시", "아야", "제이드", "니콜", "리츠", "시스트", "앨리스", "롤렛", "스키아",
-  "티그", "아르코", "모모", "요미", "샤샤", "리스티"]);
+  "티그", "아르코", "모모", "요미", "샤샤", "리스티",
+  // 개성 점검(2026-10)에서 놓친 것 — 어사이드 「분노 정화 인형」(저학년 뒤 자기 SP 30%)
+  "셰이디(역전)"]);
 
 let heroes = 0, bad = 0, pieces = 0, read = 0;
 
@@ -128,7 +130,8 @@ for (const file of files) {
         const fx = pe(u.text);
         if (u.cost === 0) errs.push(`고유 「${u.ko}」 — 기본 0코는 없다. 1코로 올리고 효과를 1코 값어치로(0코는 ② 경량으로)`);
         if (u.cost === 3) three++;
-        if (i === 0 && !(u.cost === 1 || u.cost === 2 || u.cost === "X")) errs.push(`시그니처 「${u.ko}」 — 1~2코여야 한다 (${u.cost}코)`);
+        // 시그니처 코스트는 원작 저학년 주기(SP 총량 ÷ 초당 SP)에서 — 자주 쓰면 1코, 보통 2코, 드물고 큰 기술 3코(docs/11 §3-3)
+        if (i === 0 && !(u.cost === 1 || u.cost === 2 || u.cost === 3 || u.cost === "X")) errs.push(`시그니처 「${u.ko}」 — 1~3코 또는 X (${u.cost}코)`);
         if (typeof u.cost === "number" && u.cost >= 1) {
           const r = valueOf(fx) / baseValue(u.cost);
           ratios.push(r);
@@ -186,10 +189,11 @@ for (const file of files) {
         if (avg < 1.1) errs.push(`엘다인인데 고유 카드 체급이 보통 사도와 같다 (평균 ${avg.toFixed(2)}배 · 1.1배 이상)`);
         notes.push(`엘다인 체급 평균 ${avg.toFixed(2)}배`);
       }
-      // 1코만으로 채운 사도 — 코스트를 고르는 맛이 없다. 2코 이상(또는 X) 한 장은 있어야 한다
-      if (!h.unique.some((u) => u.cost === "X" || u.cost >= 2)) errs.push("고유 카드가 전부 1코다 — 2코 이상(큰 카드) 한 장은 둔다");
+      // 전부 1코는 이제 된다 — 원작 저학년이 잦은 가벼운 덱(합 4)
       if (zero > 2) errs.push(`0코 신탁은 사도당 둘까지 (${zero}개)`);
-      if (h.unique.filter((u) => u.cost === 3).length > 1) errs.push(`3코 고유 카드는 사도당 한 장까지 (${h.unique.filter((u) => u.cost === 3).length}장)`);
+      if (h.unique.filter((u) => u.cost === 3).length > 2) errs.push(`3코 고유 카드는 사도당 두 장까지 (${h.unique.filter((u) => u.cost === 3).length}장)`);
+      // 덱 무게 — 고유 카드 넷 코스트 합(X 는 2): 가벼움 4~5 · 보통 6~7 · 무거움 8~9
+      { const sum = h.unique.reduce((a, u) => a + (u.cost === "X" ? 2 : u.cost), 0); if (sum < 4 || sum > 9) errs.push(`고유 카드 넷 코스트 합 ${sum} — 4~9 안으로(가벼움 4~5 · 보통 6~7 · 무거움 8~9)`); }
     }
 
     // ── 모양 ──

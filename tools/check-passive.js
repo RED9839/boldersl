@@ -11,6 +11,8 @@
 import { newCombat, endTurn, playCard, canPlay, useUlt, canUlt, cardOf } from "../js/combat.js";
 import { CARDS, kitOf, HERO_DATA } from "../js/cardbook.js";
 import { parsePassive, statMod } from "../js/passive.js";
+import fs from "node:fs";
+import { DESIGN_DOC } from "./lib/paths.js";
 
 let fails = 0;
 const ok = (m) => console.log("  ok   " + m);
@@ -37,7 +39,9 @@ console.log("본보기 — 에르핀");
   check(stack() === 1, `공격 카드 세 장마다 「간식」 +1 (지금 ${stack()})`);
   check(s.log.some((l) => l.includes("에르핀 · 와구와구")), "발동하면 기록에 이름이 남는다");
   const me = s.party.find((u) => u.key === "에르핀");
-  check(Math.abs(statMod(s, me, "dealt") - 0.05) < 1e-9, `「간식」 1개당 주는 피해 +5% (${statMod(s, me, "dealt")})`);
+  // 1개당 수치는 기획서에서 읽는다(리뉴얼로 바뀐다)
+  const per = +((/「간식」[^\n]*?1개당[^\n]*?주는 피해 \+(\d+)%/.exec(fs.readFileSync(DESIGN_DOC, "utf8")) || [])[1] || 0) / 100;
+  check(per > 0 && Math.abs(statMod(s, me, "dealt") - per) < 1e-9, `「간식」 1개당 주는 피해 +${per * 100}% (${statMod(s, me, "dealt")})`);
   // 셋이 되면 먹는다
   const cake = idOf("에르핀", "친구 몰래 케이크");
   s.ap = 3; const ap0 = s.ap; const hand0 = s.hand.length;
