@@ -149,7 +149,8 @@ export const NATURE_DMG = 0.10;
 // 딜러는 몫이 없어 전과 같다. 공격력 장비 · 버프는 그대로 회복력에도 붙는다.
 // (전에는 공격력에 역할 배율 서포터 ×1.8 · 탱커 ×1.3 을 곱했다 — 공격력 6 서포터는 10.8, 공격력 7 탱커는 9.1 에 그쳤다)
 export const HEAL_BONUS = { 서포터: 12, 탱커: 7, 딜러: 0 };
-export const healStat = (atk, role) => atk + (HEAL_BONUS[role] || 0);
+// extra — 장비 스탯 줄의 「회복력 +N」(공격력과 따로 붙는 몫 · run.js gearStats → combat u.healPlus)
+export const healStat = (atk, role, extra = 0) => atk + (HEAL_BONUS[role] || 0) + (extra || 0);
 export const NATURE_DEF = 0.05;
 export function natureEdge(attacker, defender) {
   if (!attacker || !defender) return 0;

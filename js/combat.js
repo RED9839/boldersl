@@ -55,7 +55,7 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
     const base = d || HEROES[key] || {};
     const baseHp = d ? d.hp : (HEROES[key] || {}).hp || 50;
     // 장비 스탯 줄 — 공격·방어·치명은 여기서 더한다(HP 는 한 판의 최대 HP 에 이미 들어 있다)
-    const g = (gear && gear[key]) || { atk: 0, def: 0, crit: 0 };
+    const g = (gear && gear[key]) || { atk: 0, def: 0, crit: 0, heal: 0 };
     return {
       key, side: "party",
       ko: base.ko || key, role: base.role || null,
@@ -63,7 +63,8 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
       maxHp: (maxHp && maxHp[key]) || baseHp,
       hp: hp && hp[key] != null ? hp[key] : (maxHp && maxHp[key]) || baseHp,
       atk: (d ? d.atk : 10) + (g.atk || 0), def: (d ? d.def : 3) + (g.def || 0), crit: (d ? d.crit : 5) + (g.crit || 0),
-      gearAdd: { atk: g.atk || 0, def: g.def || 0, crit: g.crit || 0 },   // 장비가 더한 몫 — 정보 창의 「기본 + 장비」
+      healPlus: g.heal || 0,                                           // 장비 스탯 줄의 「회복력 +N」(rules.js healStat extra)
+      gearAdd: { atk: g.atk || 0, def: g.def || 0, crit: g.crit || 0, heal: g.heal || 0 },   // 장비가 더한 몫 — 정보 창의 「기본 + 장비」
       row: (rows && rows[key]) || base.row || "mid",
       block: 0, shield: 0, status: {}, idx: i, dead: false,
     };
@@ -148,10 +149,19 @@ export const statOf = (s, u, stat) => P.statMod(s, u, stat);
 function emit(s, ev, info) {
   P.emit(s, ev, info, (owner, fx, ctx, label) => {
     say(s, label);
-    const prev = s.acting, ap0 = s.ap, src0 = s.modSrc;
+    const prev = s.acting, ap0 = s.ap, src0 = s.modSrc, dr0 = s.drawn || 0;
+    const foe0 = s.enemies.reduce((a, e) => a + Math.max(0, e.hp), 0);
     s.acting = owner.key; s.modSrc = label;
-    runFx(s, fx, ctx, fxApi(s));
-    s.acting = prev; s.modSrc = src0;
+    const seq0 = s.actSeq; s.actSeq = s.seqN = (s.seqN || 0) + 1;   // 한 번의 일 — 「적에게 디버프를 걸면」 은 일 하나에 한 번(passive.js)
+    const top = !s.gainIn; s.gainIn = true;
+    try { runFx(s, fx, ctx, fxApi(s)); } finally { if (top) s.gainIn = false; }
+    s.acting = prev; s.modSrc = src0; s.actSeq = seq0;   // 카드가 하던 일로 돌아간다 — 그 카드의 남은 디버프는 같은 일이다
+    // 패시브가 준 것 — 사도 · 턴마다(폭주 검사 · tools/check-passive.js). 패시브가 부른 패시브는 맨 바깥 사도 몫으로 센다
+    if (top) {
+      const g = ((s.passiveGain = s.passiveGain || {})[`${owner.key}|${s.turn}`] = s.passiveGain[`${owner.key}|${s.turn}`] || { ap: 0, draw: 0, dmg: 0 });
+      g.ap += Math.max(0, s.ap - ap0); g.draw += (s.drawn || 0) - dr0;
+      g.dmg += Math.max(0, foe0 - s.enemies.reduce((a, e) => a + Math.max(0, e.hp), 0));
+    }
     // 패시브가 AP 를 주면 기록과 꼬리표로 알린다 — 말없이 늘면 AP 가 제멋대로 느는 것처럼 보였다
     if (s.ap > ap0) { say(s, `${owner.ko}: AP +${s.ap - ap0}`); cue(s, "status", owner, { id: `AP +${s.ap - ap0}`, up: true }); }
     checkOver(s);
@@ -174,7 +184,7 @@ const cue = (s, k, u, more) => { if (s.fx && u) s.fx.push({ k, side: u.side, idx
 const healCue = (s, u, h0) => { if (u && u.hp > h0) cue(s, "heal", u, { v: u.hp - h0, from: h0, to: u.hp }); };
 const gainCue = (s, u, k, v) => { if (v > 0) cue(s, k, u, { v }); };
 // 능력치 증감의 이름 — 꼬리표 「공격력 +10%」 (fight-screen 의 칩과 같은 말)
-const MOD_KO = { dealt: "주는 피해", taken: "받는 피해", atk: "공격력", def: "방어력", crit: "치명" };
+const MOD_KO = { dealt: "주는 피해", taken: "받는 피해", atk: "공격력", def: "방어력", crit: "치명", heal: "회복력" };
 
 // 사도가 말한다. 그 순간에 맞는 줄이 없으면 아무 말도 안 한다 — 틀린 대사보다 없는 편이 낫다.
 // 한 전투에서 같은 순간을 되풀이하지 않는다(같은 말을 두 번 들으면 대사가 아니라 소리가 된다).
@@ -203,6 +213,11 @@ function beginTurn(s) {
   s.ap = gain;
   s.lastHero = null; s.nextCheaper = 0; s.erpinSp = 0; s.nerWorked = false;
   s.playedThisTurn = 0;
+  s.playedBy = {};            // 사도마다 이번 턴 낸 장수 — 「이번 턴 에르핀의 카드를 내지 않았으면」(passive.js)
+  s.rushedThisTurn = false;   // 「적이 즉시 행동했으면」
+  // 「지난 턴에 피해를 받았으면」 · 「지난 턴 적을 처치했으면」 — 내 턴부터 적의 차례 끝까지를 한 턴으로 본다(passive.js condOk)
+  s.hurtPrev = s.hurtNow || {}; s.hurtNow = {};
+  s.killPrev = s.killNow || {}; s.killNow = {};
   // 무적은 적의 차례까지 간다 — 전에는 적이 치기 전에 풀려서 아무것도 막지 못했다
   for (const u of s.party) u.invuln = false;
   for (const u of alive(s.party)) u.block = 0;
@@ -363,6 +378,7 @@ function rushEnemies(s) {
     e.rushedTurn = true;
     say(s, `${e.ko}: 카드 ${n}장 — 즉시 행동!`);
     actEnemy(s, e);
+    s.rushedThisTurn = true;
     emit(s, "rush", { enemy: e });
     if (s.over) return;
     if (!e.dead) { foePassives(s, "rushed", { target: e }); rollIntent(s, e); }
@@ -516,6 +532,7 @@ function hurt(s, u, v, { from, pure, crit } = {}) {
   if (u.side === "party" && d > 0) speak(s, u.key, "hit");
   if (u.hp <= 0) { kill(s, u, pure); return; }
   if (u.side === "party" && d > 0 && !pure) {
+    (s.hurtNow = s.hurtNow || {})[u.key] = (s.hurtNow[u.key] || 0) + 1;
     emit(s, "hurt", { who: u, from });
     emit(s, "lowHp", { who: u, before, after: u.hp / u.maxHp });
   }
@@ -533,7 +550,10 @@ function kill(s, u, byPoison) {
   if (u.side === "party") speak(s, u.key, "down");
   say(s, u.side === "party" ? `${u.ko} 주말농장으로` : `${u.ko} 쓰러짐`);
   if (u.side === "party") emit(s, "allyDown", { who: u });
-  else { emit(s, "kill", { by: s.acting, target: u }); foePassives(s, "allyDown", { target: u }); }
+  else {
+    if (s.acting) (s.killNow = s.killNow || {})[s.acting] = (s.killNow[s.acting] || 0) + 1;
+    emit(s, "kill", { by: s.acting, target: u }); foePassives(s, "allyDown", { target: u });
+  }
   if (u.side === "enemy") {
     if (s.lastHero) speak(s, s.lastHero, "kill");
     if (st(u, "중독") > 0 && s.party.some((p) => p.key === "mayo" && !p.dead)) {
@@ -576,6 +596,7 @@ export function draw(s, n) {
     const id = s.draw.pop();
     // 손에는 열 장까지. 넘치면 그 카드는 사라진다 — 덱으로 돌려보내면
     // 손이 찬 채로 같은 카드를 무한히 다시 뽑게 된다.
+    s.drawn = (s.drawn || 0) + 1;            // 뽑은 장수 — 패시브가 준 드로우를 셀 때(passiveGain)
     if (s.hand.length >= R.HAND_MAX) { s.gone.push(id); burned++; continue; }
     s.hand.push(id);
   }
@@ -623,6 +644,7 @@ export function useUlt(s, heroKey, targetIdx = 0) {
   // 전에는 옛 효과 실행기(applyFx)로 돌려서 아무 일도 없었다 — 고학년 스킬은 게이지만 먹었다.
   if (ult.fx && ult.fx.length) {
     const prev = s.acting, src0 = s.modSrc; s.acting = heroKey; s.modSrc = `${owner.ko} 「${ult.ko}」`;
+    s.actSeq = s.seqN = (s.seqN || 0) + 1;
     runFx(s, ult.fx, { owner, combo: null, targetIdx }, fxApi(s));
     s.acting = prev; s.modSrc = src0;
   } else s.ultPending = (s.ultPending || 0) + 1;
@@ -676,13 +698,6 @@ export function canPlay(s, cardId) {
   return null;
 }
 
-// 살아 있는 아군 중 그 스탯이 가장 높은 사람 — 교주 카드의 기준
-function bestAlly(s, stat) {
-  const up = s.party.filter((u) => !u.dead);
-  const v = (u) => (stat === "heal" ? R.healStat(u.atk, u.role) : u[stat] || 0);   // 회복력은 공격력 + 역할 몫
-  return up.length ? up.reduce((a, b) => (v(b) > v(a) ? b : a)) : null;
-}
-
 // opts.discard — 이 카드의 「손패 N장 버리」에 버릴 카드 id(낸 사람이 고른 것 · fight-screen.js). 없으면 손 끝에서부터(모의전 · 미리보기)
 export function playCard(s, handIdx, targetIdx, opts = {}) {
   if (s.over) return { ok: false, why: "전투가 끝났습니다" };
@@ -692,8 +707,9 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   if (why) return { ok: false, why };
 
   const c = cardOf(s, cardId);
-  // 교주 카드는 주인이 없다 — 기획서: 따로 적지 않으면 **공격력·방어력이 가장 높은 아군 기준** (회복은 회복력)
-  const owner = c.hero ? s.party.find((u) => u.key === c.hero) : c.neutral ? bestAlly(s, "atk") : null;
+  s.actSeq = s.seqN = (s.seqN || 0) + 1;
+  // 교주 카드는 주인이 없다 — 교주님의 힘이라 사도 스탯을 빌리지 않는다(AP · 드로우 · 정해진 % 증감 …, docs/13 §2)
+  const owner = c.hero ? s.party.find((u) => u.key === c.hero) : null;
 
   // X 코스트는 남은 AP 를 전부 쓴다. 그 수가 곧 X 다.
   const paid = c.xcost ? s.ap : costOf(s, cardId);
@@ -710,7 +726,7 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   // 기적 — true(이벤트의 옛 값) · "power" 는 피해 ×1.3
   const sh = s.shin && s.shin[cardId];
   // opts.ally — 적과 아군을 둘 다 고르는 카드(「적 1명 …, 아군 1명 …」)의 아군 쪽. 화면이 한 번 더 묻는다
-  const ctx = { owner, combo: null, targetIdx, allyIdx: opts.ally, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null, healOwner: c.neutral ? bestAlly(s, "heal") : null, shin: sh === true ? "power" : (sh || null) };
+  const ctx = { owner, combo: null, targetIdx, allyIdx: opts.ally, x: c.xcost ? paid : 0, shin: sh === true ? "power" : (sh || null) };
   s.acting = c.hero || null;
   s.modSrc = `${owner ? owner.ko + " " : ""}「${c.name}」`;   // 버프 · 디버프의 출처(정보 창)
   cue(s, "act", owner, { anim: c.type === "공격" ? "attack" : "skill", card: c });   // card — 화면이 카드에 맞는 동작을 고른다(js/data/card-motion.js)
@@ -752,9 +768,10 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   if ((sh === "atkUp" || sh === "defUp") && owner) P.addMod(owner, sh === "atkUp" ? "atk" : "def", 0.10, 999, `「${c.name}」 겨우살이의 축복`);   // 한 땀 한 땀 · 꺾이지 않는 실
   // 패시브 — 「카드를 낼 때마다」「한 턴에 N장째」
   s.playedThisTurn = (s.playedThisTurn || 0) + 1;
+  if (c.hero && owner) { s.playedBy = s.playedBy || {}; s.playedBy[owner.key] = (s.playedBy[owner.key] || 0) + 1; }
   const tgt = s.enemies.find((e) => e.idx === targetIdx && !e.dead) || null;
-  // actor — 실제로 낸 사람(교주 카드면 기준이 된 아군). 아군 표식 규칙이 그 사람이 든 것을 센다(passive.js condOk)
-  emit(s, "play", { hero: c.hero, actor: owner ? owner.key : null, type: c.type, nth: s.playedThisTurn, target: tgt, cost: c.xcost ? paid : c.cost });
+  // actor — 실제로 낸 사람(교주 카드는 없다). 아군 표식 규칙이 그 사람이 든 것을 센다(passive.js condOk)
+  emit(s, "play", { hero: c.hero, actor: owner ? owner.key : null, type: c.type, nth: s.playedThisTurn, target: tgt, cost: c.xcost ? paid : c.cost, sig: !!c.signature });
   s.acting = null; s.modSrc = null;
   if (c.ego && c.hero) speak(s, c.hero, "ego");
   if (c.hero === "ner") s.nerWorked = true;
@@ -1007,7 +1024,8 @@ function fxApi(s) {
     draw: (n) => draw(s, n),
     // 연출 쪽지 — 회복 · 방어 · 실드(run-fx 가 직접 채우는 것)
     heal: (t, h0) => healCue(s, t, h0),
-    gain: (t, k, v) => gainCue(s, t, k, v),
+    // 아군에게 방어 · 실드가 붙으면 「방어나 실드를 얻으면」 패시브(passive.js matches "guard")
+    gain: (t, k, v) => { gainCue(s, t, k, v); if (v > 0 && t.side === "party" && !t.dead) emit(s, "guard", { who: t, k }); },
     // 상태 — 「취약 2턴」 은 2턴 간다(전에는 몇 턴이든 1턴이었다).
     // 기절은 적의 다음 수를 막고, 도발은 적이 그 사도만 치게 하고, 침묵은 적의 공격 아닌 수를 막는다.
     // 전에는 기획서 카드에서 건 기절·도발·침묵이 아무 일도 안 했다.
@@ -1022,7 +1040,7 @@ function fxApi(s) {
         if (t.side === "party") { s.taunt = t.key; s.tauntLeft = n; say(s, `${t.ko}: 도발 — 적이 이쪽을 본다`); }
       } else addSt(t, id, n);
       if (v > 0 && (id !== "기절" || t.sealed) && (id !== "도발" || t.side === "party")) cue(s, "status", t, { id });
-      if (t.side === "enemy" && v > 0) { emit(s, "debuff", { by: s.acting, target: t, id }); foePassives(s, "debuffed", { target: t }); }
+      if (t.side === "enemy" && v > 0) { emit(s, "debuff", { by: s.acting, target: t, id, seq: s.actSeq }); foePassives(s, "debuffed", { target: t }); }
     },
     statOf: (u, stat) => P.statMod(s, u, stat),
     addMod: (t, stat, v, turns) => {
@@ -1030,7 +1048,7 @@ function fxApi(s) {
       // 연출 쪽지 — 「공격력 +10%」 꼬리표와 강화 · 약화 소리. up 은 걸린 쪽에 좋은가(받는 피해는 줄어야 좋다)
       const pct = Math.round(v * 100);
       if (pct) cue(s, "status", t, { id: `${MOD_KO[stat] || stat} ${pct > 0 ? "+" : ""}${pct}%`, up: stat === "taken" ? pct < 0 : pct > 0, mod: stat });
-      if (t.side === "enemy" && ((stat === "taken" && v > 0) || (stat === "dealt" && v < 0))) { emit(s, "debuff", { by: s.acting, target: t, id: stat }); foePassives(s, "debuffed", { target: t }); }
+      if (t.side === "enemy" && ((stat === "taken" && v > 0) || (stat === "dealt" && v < 0))) { emit(s, "debuff", { by: s.acting, target: t, id: stat, seq: s.actSeq }); foePassives(s, "debuffed", { target: t }); }
     },
     stackChanged: (owner, id, before, after, holder) => {
       // 쌓이면 든 사람 위에 꼬리표 「초청객 +1」 — 칩 숫자만 바뀌면 언제 늘었는지 안 보였다

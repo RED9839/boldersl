@@ -356,7 +356,7 @@ export function takeFlash(run, pick) {
 // HP 는 한 판의 최대 HP 에 바로 넣고, 공격·방어·치명은 전투를 열 때 넣는다(gearStats).
 export function statsOf(equipId, heroKey) {
   const e = EQUIP[equipId];
-  const out = { hp: 0, atk: 0, def: 0, crit: 0 };
+  const out = { hp: 0, atk: 0, def: 0, crit: 0, heal: 0 };   // heal — 「회복력 +N」(회복 카드 · 패시브의 회복력에 더한다)
   if (!e) return out;
   for (const k in out) out[k] += e.stats[k] || 0;
   if (e.affinity && e.affinity === heroKey && e.affinityLv3) for (const k in out) out[k] += e.affinityLv3[k] || 0;
@@ -383,7 +383,7 @@ export function gearPassives(run) {
 export function gearStats(run) {
   const out = {};
   for (const k of run.party) {
-    const t = { hp: 0, atk: 0, def: 0, crit: 0 };
+    const t = { hp: 0, atk: 0, def: 0, crit: 0, heal: 0 };
     for (const id of Object.values(gearOf(run, k))) { const s = statsOf(id, k); for (const x in t) t[x] += s[x]; }
     out[k] = t;
   }

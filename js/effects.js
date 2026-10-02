@@ -15,6 +15,7 @@
 //   status {id, v, turns, target}       취약·약화·기절·도발
 //   stack  {id, v}                      사도 전용 키워드(간식·왕마력…)
 //   tag    {id}                         보존·종극·주도·개전·소멸
+//   nextCheaper {v}                     다음 카드 코스트 -v (이번 턴)
 
 // 대상 말. 긴 것·구체적인 것부터 적는다.
 const TARGETS = [
@@ -30,7 +31,7 @@ const TARGETS = [
 const ALLY = new Set(["self", "oneAlly", "allAllies", "lowAlly"]);
 const FOE = new Set(["allEnemies", "randomEnemy", "oneEnemy"]);
 // 방어·실드·회복은 적에게 가지 않는다 — 적 말을 만나도 건너뛴다.
-const ALLY_ONLY = new Set(["block", "shield", "heal", "atkMod", "defMod", "critMod", "invuln"]);
+const ALLY_ONLY = new Set(["block", "shield", "heal", "atkMod", "defMod", "critMod", "healMod", "invuln"]);
 
 // 효과가 놓인 마디(쉼표)와 문장(마침표).
 function scopes(text, at) {
@@ -118,11 +119,15 @@ function xOf(clause) {
 }
 
 const RULES = [
+  // 「다음 카드 코스트 -1」 — 이번 턴에 다음에 내는 카드 한 장이 싸진다(combat nextCheaper). 「코스트 -1」(신탁 코스트)보다 먼저 읽는다
+  { re: /다음\s*카드\s*(?:의\s*)?코스트\s*-\s*(\d+)/g, make: (m) => ({ k: "nextCheaper", v: Number(m[1]) }) },
   // 능력치 증감 — 「공격력 +10%」「방어력 +20%」「치명 확률 +10%」. 피해 규칙보다 먼저 읽는다
   // (「공격력 +10%」 는 피해가 아니다). 얼마나 가는지는 곁의 말(이번 턴 · N턴간 · 이번 전투)로 정한다.
   { re: /공격력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "atkMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), target: pickTarget(text, "self", m, "atkMod") }) },
   { re: /방어력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "defMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), target: pickTarget(text, "self", m, "defMod") }) },
   { re: /치명\s*(?:확률)?\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "critMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), target: pickTarget(text, "self", m, "critMod") }) },
+  // 「회복력 +20%」 — 회복을 주는 쪽의 회복력(run-fx healOf). 「HP 회복(회복력 40%)」 의 배율과는 + 로 갈린다
+  { re: /회복력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "healMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), target: pickTarget(text, "self", m, "healMod") }) },
   // 피해 — 공격력 N% 피해
   {
     re: /공격력\s*(\d+)\s*%\s*(?:의\s*)?피해/g,

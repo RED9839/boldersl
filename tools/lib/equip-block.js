@@ -13,11 +13,12 @@
 
 const GRADES = ["전설", "희귀", "고급", "일반"];
 const SLOTS = ["무기", "방어구", "장신구"];
-const STAT = { HP: "hp", 공격: "atk", 방어: "def", 치명: "crit" };
+const STAT = { HP: "hp", 공격: "atk", 방어: "def", 치명: "crit", 회복력: "heal" };
 
 export function parseStats(line) {
-  const out = { hp: 0, atk: 0, def: 0, crit: 0 };
-  for (const m of line.matchAll(/(HP|공격|방어|치명)\s*\+\s*(\d+)\s*%?/g)) out[STAT[m[1]]] += +m[2];
+  const out = { hp: 0, atk: 0, def: 0, crit: 0, heal: 0 };
+  // 「회복력 +N」 — 회복력(공격력 + 역할 몫)에 따로 더하는 몫. 공격력은 안 오른다
+  for (const m of line.matchAll(/(HP|공격|방어|치명|회복력)\s*\+\s*(\d+)\s*%?/g)) out[STAT[m[1]]] += +m[2];
   return out;
 }
 

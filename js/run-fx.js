@@ -44,7 +44,17 @@ function resolve(s, ctx, target) {
 const atkOf = (api, u) => Math.max(1, Math.round(u.atk * (1 + (api.statOf ? api.statOf(u, "atk") : 0))));
 const defOf = (api, u) => Math.max(0, Math.round(u.def * (1 + (api.statOf ? api.statOf(u, "def") : 0))));
 // 회복력 — 버프가 들어간 공격력 + 역할 몫(rules.js HEAL_BONUS)
-const healOf = (api, u) => R.healStat(atkOf(api, u), u.role);
+// 장비 스탯 줄의 회복력(u.healPlus)을 더하고, 「회복력 +N%」 증감(statOf heal)을 곱한다
+const healOf = (api, u) => Math.round(R.healStat(atkOf(api, u), u.role, u.healPlus) * (1 + (api.statOf ? api.statOf(u, "heal") : 0)));
+
+// 한 번에 얼마 — 피해 한 대 · 방어/실드 · 회복. 아래 runFx 가 쓰고, 화면(fight-screen cardCalc)이 카드 면 숫자로 같은 것을 부른다(셈이 갈라지지 않게).
+// api 는 { statOf(u, stat) } 만 있으면 된다. 맞는 쪽의 취약 · 상성 · 주는/받는 피해 증감은 hurt 가 따로 건다
+export const hitAmount = (api, u, ratio, { flash = 0, shin = false, global = 0, crit = false } = {}) =>
+  R.finalDamage({ stat: atkOf(api, u), ratio, flash, shin, global, crit });
+// 양보하는 마음(축복 guard) — 방어 · 실드 ×1.3
+export const guardAmount = (api, u, ratio, shin) => Math.max(1, Math.round(defOf(api, u) * ratio * (shin === "guard" ? R.SHIN : 1)));
+// 괜찮아(축복 heal) — 회복 ×1.3
+export const healAmount = (api, u, ratio, shin) => Math.max(1, Math.round(healOf(api, u) * ratio * (shin === "heal" ? R.SHIN : 1)));
 
 // 이 사도가 그 키워드를 몇 개 들고 있나
 const stackOf = (s, key, id) => ((s.stacks || {})[key] || {})[id] || 0;
@@ -95,10 +105,7 @@ export function runFx(s, fxList, ctx, api) {
             const crit = !s.preview && s.rng() * 100 < critPct;
             // 축복 — 불타는 웅변은 늘, 약점 공략은 취약인 적에게만 ×1.3
             const boost = ctx.shin === "power" || (ctx.shin === "weakSpot" && ((t.status || {})["취약"] || 0) > 0);
-            const v = R.finalDamage({
-              stat: atkOf(api, owner), ratio: f.ratio, flash: ctx.flash || 0,
-              shin: boost, global: ctx.global || 0, crit,
-            });
+            const v = hitAmount(api, owner, f.ratio, { flash: ctx.flash || 0, shin: boost, global: ctx.global || 0, crit });
             api.hurt(t, v, { from: owner, crit });
             if (ctx.shin === "frost" && !t.dead) api.addStatus(t, "취약", 1, 1);   // 눈보라 예보
             if (ctx.shin === "thorn" && !t.dead) api.addStatus(t, "중독", 2, 0);   // 가시 돋친 꿈
@@ -108,23 +115,24 @@ export function runFx(s, fxList, ctx, api) {
       }
 
       // ── 방어·실드·회복 ────────────────────────────────────────────
-      // 방어·실드는 방어력 기준 — 교주 카드는 방어력이 가장 높은 아군(defOwner)을 본다
+      // 방어·실드는 방어력 기준 — 낸 사도의 방어력. 주인 없는 카드(교주 카드)는 스탯 효과를 쓰지 않는다
       // 양보하는 마음(축복) — 방어 · 실드 ×1.3
       case "block": case "shield": {
-        const v = Math.max(1, Math.round(defOf(api, ctx.defOwner || owner) * f.ratio * (ctx.shin === "guard" ? R.SHIN : 1)));
+        if (!owner) break;
+        const v = guardAmount(api, owner, f.ratio, ctx.shin);
         for (const t of resolve(s, ctx, f.target)) { t[f.k] = (t[f.k] || 0) + v; if (api.gain) api.gain(t, f.k, v); }
         break;
       }
-      // 회복은 회복력 기준 — 교주 카드는 회복력이 가장 높은 아군(healOwner)을 본다
-      case "heal": for (const t of resolve(s, ctx, f.target)) {
+      // 회복은 회복력 기준 — 낸 사도의 회복력
+      case "heal": if (owner) for (const t of resolve(s, ctx, f.target)) {
         const h0 = t.hp;
-        t.hp = Math.min(t.maxHp, t.hp + Math.max(1, Math.round(healOf(api, ctx.healOwner || owner) * f.ratio * (ctx.shin === "heal" ? R.SHIN : 1))   /* 괜찮아(축복) — 회복 ×1.3 */));
+        t.hp = Math.min(t.maxHp, t.hp + healAmount(api, owner, f.ratio, ctx.shin));
         if (api.heal) api.heal(t, h0);
       } break;
 
       // ── 능력치 증감 — 주는/받는 피해 · 공격력 · 방어력 · 치명 (이번 턴 · N턴간 · 이번 전투) ──
-      case "dealtMod": case "takenMod": case "atkMod": case "defMod": case "critMod": {
-        const stat = { dealtMod: "dealt", takenMod: "taken", atkMod: "atk", defMod: "def", critMod: "crit" }[f.k];
+      case "dealtMod": case "takenMod": case "atkMod": case "defMod": case "critMod": case "healMod": {
+        const stat = { dealtMod: "dealt", takenMod: "taken", atkMod: "atk", defMod: "def", critMod: "crit", healMod: "heal" }[f.k];
         // 대상 말이 없으면(auto) 적을 약하게 하는 것(받는 피해 + · 주는 피해 -)은 고른 적에게, 나머지는 자신에게.
         // 「자신」 이라고 적었으면 그대로 자신이다 — 스스로 거는 벌칙(이번 턴 자신 주는 피해 -20%)이 있다.
         let tg = f.target || "auto";
@@ -136,6 +144,8 @@ export function runFx(s, fxList, ctx, api) {
       // ── 자원 ──────────────────────────────────────────────────────
       case "draw": api.draw(f.v); break;
       case "ap": s.ap = Math.max(0, s.ap + f.v); break;
+      // 다음 카드 코스트 -N — 이 카드를 낸 뒤 처음 내는 카드에 붙는다(combat costOf · playCard 가 쓰고 지운다)
+      case "nextCheaper": s.nextCheaper = (s.nextCheaper || 0) + f.v; break;
       case "gauge": s.gauge = Math.max(0, Math.min(R.GAUGE_MAX, s.gauge + f.v)); break;
 
       // ── 상태 ──────────────────────────────────────────────────────

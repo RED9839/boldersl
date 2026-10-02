@@ -7,11 +7,14 @@
 //
 //   **패시브** 이름: [언제], [조건] 효과 (턴당 1회) · 이름2: …
 //     언제  전투 시작 시 · 턴 시작 시 · 턴 종료 시 · 카드를 낼 때마다 · 공격|스킬|강화 카드를 낼 때마다 ·
-//           카드를 N장 낼 때마다 · 한 턴에 카드를 N장째 낼 때 · 아군이 카드를 낼 때마다 ·
-//           적을 처치하면 · 적이 쓰러지면 · 피해를 받으면 · 아군이 피해를 받으면 ·
-//           HP가 N% 이하가 되면 · 아군이 쓰러지면 · 고학년 스킬을 쓰면 · 연계가 터지면 ·
+//           에르핀의 (공격) 카드를 N장 낼 때마다(그 사도 것만) · 파티가 (공격) 카드를 N장 낼 때마다(누구 것이든) ·
+//           파티가 이번 턴 카드를 N장째 낼 때 · 아군이 카드를 낼 때마다 · 시그니처 카드를 내면 ·
+//           적을 처치하면 · 적이 쓰러지면 · 피해를 받으면 · 아군이 피해를 받으면 · 방어나 실드를 얻으면 ·
+//           HP가 N% 이하가 되면 · 아군이 쓰러지면 · 고학년 스킬을 쓰면 · 적이 즉시 행동하면 ·
 //           적에게 디버프를 걸면 · 「X」가 N개가 되면 · 항상
-//     조건  「X」가 있으면 · 「X」가 N개 이상이면 · HP가 N% 이하이면 · 적이 N명 이상이면
+//     조건  「X」가 있으면 · 「X」가 N개 이상이면 · HP가 N% 이하이면 · HP가 N% 이상이면 · 적이 N명 이상이면 ·
+//           적이 N명뿐이면 · 파티가 이번 턴 카드를 N장 이상(이하로) 냈으면 · 이번 턴 에르핀의 카드를 내지 않았으면 ·
+//           AP가 남았으면 · 고학년 게이지가 N% 이상이면 · 실드가 있으면 · 적이 즉시 행동했으면
 //     효과  카드와 같은 말(공격력 N% 피해 · 방어력 N% 방어 · AP +1 · 드로우 1 · 「X」 +1 …) +
 //           능력치 증감: 주는 피해 ±N% · 받는 피해 ±N% · 공격력 +N% · 방어력 +N% · 치명 확률 +N%
 //           (이번 턴 · N턴간 · 이번 전투 동안 — 안 적으면 이번 턴, 「항상」 이면 내내)
@@ -28,13 +31,28 @@ const TRIGGERS = [
   [/전투\s*시작\s*시/, () => ({ on: "fightStart" })],
   [/턴\s*시작\s*시/, () => ({ on: "turnStart" })],
   [/턴\s*종료\s*시/, () => ({ on: "turnEnd" })],
-  [/한\s*턴에\s*카드를\s*(\d+)\s*장째\s*낼\s*때/, (m) => ({ on: "play", nth: Number(m[1]), who: "any" })],
-  // 「1코 이상 카드를 3장 낼 때마다」 — 적힌 코스트가 N 이상인 카드만 센다(0코 순환 카드가 장수 패시브를 공짜로 돌리지 않게)
-  // 「한 턴에 … N장 낼 때마다」 — 센 장수가 턴마다 0 으로 돌아간다(perTurn). 안 적으면 전투 내내 이어 센다
+  // 장수를 누구 것으로 세나 — 글에 밝힌다(2026-10, 사용자: 「카드를 3장 낼 때마다」 가 파티 전체로 읽혔다).
+  //   「파티가 …」            파티 누구의 카드든 센다(who: "any")
+  //   「에르핀의 …」 「자신의 …」 그 사도(장비면 낀 사도)가 낸 카드만 센다. 이름 없는 옛 글도 이쪽으로 읽는다
+  // 「파티가 이번 턴 카드를 3장째 낼 때」 — 파티가 그 턴 세 번째 카드를 낼 때(옛 글 「한 턴에 카드를 3장째 낼 때」)
+  [/(?:파티가\s*)?(?:한\s*턴에|이번\s*턴)\s*카드를\s*(\d+)\s*장째\s*낼\s*때/, (m) => ({ on: "play", nth: Number(m[1]), who: "any" })],
+  // 「파티가 공격 카드를 4장 낼 때마다」 — 누가 냈든 센다
+  [/파티가\s*(한\s*턴에\s*)?(공격|스킬|강화)?\s*카드를\s*(\d+)\s*장\s*낼\s*때마다/, (m) => ({ on: "play", who: "any", every: Number(m[3]), type: m[2] || null, ...(m[1] ? { perTurn: true } : {}) })],
+  // 「에르핀의 공격 카드를 3장 낼 때마다」 — 이름은 규칙 첫머리에만 온다(그래야 앞의 조건 말을 이름으로 삼키지 않는다).
+  // 「1코 이상」 — 적힌 코스트가 N 이상인 카드만 센다(0코 순환 카드가 장수 패시브를 공짜로 돌리지 않게)
+  // 「한 턴에」 — 센 장수가 턴마다 0 으로 돌아간다(perTurn). 안 적으면 전투 내내 이어 센다
+  [/^\s*(?:([^\s「」:,.·][^「」:,.·]{0,11}?)의\s+)?(한\s*턴에\s*)?(?:(\d+)\s*코\s*이상\s*)?(공격|스킬|강화)?\s*카드를\s*(한\s*턴에\s*)?(\d+)\s*장\s*낼\s*때마다/,
+    (m) => ({ on: "play", every: Number(m[6]), type: m[4] || null, minCost: m[3] ? Number(m[3]) : 0, ...(m[2] || m[5] ? { perTurn: true } : {}), ...(m[1] ? { by: m[1].trim() } : {}) })],
   [/(한\s*턴에\s*)?(?:(\d+)\s*코\s*이상\s*)?(공격|스킬|강화)?\s*카드를\s*(\d+)\s*장\s*낼\s*때마다/, (m) => ({ on: "play", every: Number(m[4]), type: m[3] || null, minCost: m[2] ? Number(m[2]) : 0, ...(m[1] ? { perTurn: true } : {}) })],
   [/아군이\s*(공격|스킬|강화)?\s*카드를\s*낼\s*때마다/, (m) => ({ on: "play", who: "any", type: m[1] || null })],
+  // 「시그니처 카드를 내면」 — 그 사도의 시그니처(원작 저학년). 신탁으로 바뀐 것도 시그니처다
+  [/시그니처\s*카드를\s*(?:낼\s*때마다|내면)/, () => ({ on: "play", sig: true })],
+  [/^\s*(?:([^\s「」:,.·][^「」:,.·]{0,11}?)의\s+)?(?:(\d+)\s*코\s*이상\s*)?(공격|스킬|강화)\s*카드를\s*낼\s*때마다/, (m) => ({ on: "play", type: m[3], ...(m[2] ? { minCost: Number(m[2]) } : {}), ...(m[1] ? { by: m[1].trim() } : {}) })],
   [/(공격|스킬|강화)\s*카드를\s*낼\s*때마다/, (m) => ({ on: "play", type: m[1] })],
   [/카드를\s*낼\s*때마다/, () => ({ on: "play" })],
+  // 「방어나 실드를 얻으면」 「실드를 얻으면」 — 이 사도에게 방어 · 실드가 붙을 때(제 카드 · 아군이 준 것 · 패시브 모두).
+  // 「아군이 …」 면 누구에게 붙든
+  [/(아군이\s*)?(방어나\s*실드|방어|실드)를\s*얻으면/, (m) => ({ on: "guard", kind: m[2] === "방어" ? "block" : m[2] === "실드" ? "shield" : null, ...(m[1] ? { who: "any" } : {}) })],
   [/적을\s*처치하면/, () => ({ on: "kill", mine: true })],
   [/적이\s*쓰러지면/, () => ({ on: "kill" })],
   [/아군이\s*피해를\s*받으면/, () => ({ on: "hurt", who: "any" })],
@@ -55,10 +73,31 @@ const CONDS = [
   [/HP가\s*(\d+)\s*%\s*이하이면/, (m) => ({ c: "hp", pct: Number(m[1]) / 100 })],
   [/적이\s*(\d+)\s*명\s*이상이면/, (m) => ({ c: "foes", n: Number(m[1]) })],
   [/혼자\s*남으면/, () => ({ c: "alone" })],
-  // 덱 무게(docs/11 §3-3) — 이번 턴 파티가 낸 카드 장수. 장수로 세니 신탁으로 코스트가 내려간 카드도 같다.
-  // 「턴 종료 시 이번 턴 카드를 2장 이하로 냈으면」 은 무거운 덱, 「4장 이상 냈으면」 은 가벼운 덱 쪽
-  [/이번\s*턴\s*카드를\s*(\d+)\s*장\s*이하로?\s*냈으면/, (m) => ({ c: "playedMax", n: Number(m[1]) })],
-  [/이번\s*턴\s*카드를\s*(\d+)\s*장\s*이상\s*냈으면/, (m) => ({ c: "playedMin", n: Number(m[1]) })],
+  // 덱 무게(docs/11 §3-3) — 이번 턴 **파티가** 낸 카드 장수. 장수로 세니 신탁으로 코스트가 내려간 카드도 같다.
+  // 글은 「파티가 이번 턴 카드를 3장 이상 냈으면」(누구 것을 세는지 밝힌다). 「파티가」 없는 옛 글도 읽는다
+  [/(?:파티가\s*)?이번\s*턴\s*카드를\s*(\d+)\s*장\s*이하로?\s*냈으면/, (m) => ({ c: "playedMax", n: Number(m[1]) })],
+  [/(?:파티가\s*)?이번\s*턴\s*카드를\s*(\d+)\s*장\s*이상\s*냈으면/, (m) => ({ c: "playedMin", n: Number(m[1]) })],
+  // 「이번 턴 에르핀의 카드를 내지 않았으면」 「이번 턴 자신의 카드를 내지 않았으면」 — 그 사도가 이번 턴 한 장도 안 냈을 때(쉬어 가는 턴)
+  [/이번\s*턴\s*(?:[^\s「」:,.·][^「」:,.·]{0,11}?의\s+)?카드를\s*내지\s*않았으면/, () => ({ c: "ownNone" })],
+  // 「AP가 남았으면」 「AP가 2 이상 남았으면」 — 턴 종료 시 쓰지 않고 남긴 AP(남은 AP 는 사라진다 — 아껴 둔 값어치)
+  [/AP가\s*(?:(\d+)\s*이상\s*)?남았으면/, (m) => ({ c: "apLeft", n: m[1] ? Number(m[1]) : 1 })],
+  // 「고학년 게이지가 100% 이상이면」 — 파티 공용 게이지
+  [/(?:고학년\s*)?게이지가\s*(\d+)\s*%\s*이상이면/, (m) => ({ c: "gauge", n: Number(m[1]) })],
+  // 「실드가 있으면」 「방어나 실드가 있으면」 — 이 사도에게 지금 붙어 있는 것
+  [/(방어나\s*실드|방어|실드)가\s*있으면/, (m) => ({ c: "guarded", kind: m[1] === "방어" ? "block" : m[1] === "실드" ? "shield" : null })],
+  // 「HP가 70% 이상이면」 — 멀쩡할 때
+  [/HP가\s*(\d+)\s*%\s*이상이면/, (m) => ({ c: "hpMin", pct: Number(m[1]) / 100 })],
+  // 「적이 1명뿐이면」 — 마지막 하나 남았을 때
+  [/적이\s*(\d+)\s*명\s*(?:뿐이면|이하이면)/, (m) => ({ c: "foesMax", n: Number(m[1]) })],
+  // 「적이 즉시 행동했으면」 — 이번 턴 적이 한 번이라도 당겨서 움직였으면(턴 종료 시와 엮는다)
+  [/(?:이번\s*턴\s*)?적이\s*즉시\s*행동했으면/, () => ({ c: "rushed" })],
+  // 「지난 턴에 (아군이) 피해를 받았으면」 · 「지난 턴 적을 처치했으면」 — 턴 시작 시와 엮는다. 맞을 때마다 · 처치할 때마다 도는 대신
+  // 한 턴에 한 번만 돈다(턴당 N회 제한을 없앤 뒤 AP · 게이지 · 큰 반격을 여기로 옮겼다 — docs/07 §4)
+  [/지난\s*턴에?\s*아군이\s*피해를\s*받았으면/, () => ({ c: "hurtLastAny" })],
+  [/지난\s*턴에?\s*피해를\s*받았으면/, () => ({ c: "hurtLast" })],
+  [/지난\s*턴에?\s*적을\s*처치했으면/, () => ({ c: "killedLast" })],
+  // 「첫 턴이면」 — 전투를 여는 한 번(턴 시작 시 AP 는 전투 시작 시에 주면 첫 턴 AP 에 덮이므로 이렇게 쓴다)
+  [/첫\s*턴이면/, () => ({ c: "firstTurn" })],
   // 선 열 — 「모든 열」 사도가 편성에서 고른 열에 따라 다른 줄이 켜진다
   [/(전열|중열|후열)에\s*서\s*있으면/, (m) => ({ c: "row", row: { 전열: "front", 중열: "mid", 후열: "back" }[m[1]] })],
 ];
@@ -94,7 +133,7 @@ function readRule(sentence, keywords, prevTrigger) {
 
   const turns = rule.when.on === "always" ? 999 : durationOf(t);
   const { fx, left } = parseEffect(bare(t), { keywords });
-  for (const f of fx) if (["dealtMod", "takenMod", "atkMod", "defMod", "critMod"].includes(f.k)) f.turns = turns;
+  for (const f of fx) if (["dealtMod", "takenMod", "atkMod", "defMod", "critMod", "healMod"].includes(f.k)) f.turns = turns;
   rule.fx = fx.filter((f) => f.k !== "scope");
   rule.left = left;
   return rule;
@@ -242,7 +281,7 @@ export function collectAlways(s) {
     for (const r of rules) {
       if (r.when.on !== "always") continue;
       for (const f of r.fx) {
-        const stat = { dealtMod: "dealt", takenMod: "taken", atkMod: "atk", defMod: "def", critMod: "crit" }[f.k];
+        const stat = { dealtMod: "dealt", takenMod: "taken", atkMod: "atk", defMod: "def", critMod: "crit", healMod: "heal" }[f.k];
         if (!stat) continue;
         const who = f.target === "allAllies" ? s.party.map((u) => u.key) : [key];
         for (const k of who) (s.always[k] = s.always[k] || []).push({ stat, v: f.v, cond: r.conds, owner: key, name: r.name });
@@ -269,6 +308,17 @@ function condOk(s, owner, r, info) {
     if (c.c === "row" && owner.row !== c.row) return false;
     if (c.c === "playedMax" && (s.playedThisTurn || 0) > c.n) return false;
     if (c.c === "playedMin" && (s.playedThisTurn || 0) < c.n) return false;
+    if (c.c === "ownNone" && ((s.playedBy || {})[owner.key] || 0) > 0) return false;
+    if (c.c === "apLeft" && (s.ap || 0) < c.n) return false;
+    if (c.c === "gauge" && (s.gauge || 0) < c.n) return false;
+    if (c.c === "guarded" && !(c.kind === "block" ? owner.block > 0 : c.kind === "shield" ? owner.shield > 0 : owner.block > 0 || owner.shield > 0)) return false;
+    if (c.c === "hpMin" && owner.hp / owner.maxHp < c.pct) return false;
+    if (c.c === "foesMax" && s.enemies.filter((e) => !e.dead).length > c.n) return false;
+    if (c.c === "rushed" && !s.rushedThisTurn) return false;
+    if (c.c === "hurtLast" && !(s.hurtPrev || {})[owner.key]) return false;
+    if (c.c === "hurtLastAny" && !Object.keys(s.hurtPrev || {}).length) return false;
+    if (c.c === "killedLast" && !(s.killPrev || {})[owner.key]) return false;
+    if (c.c === "firstTurn" && s.turn !== 1) return false;
   }
   return true;
 }
@@ -282,7 +332,9 @@ function matches(s, owner, w, ev, info, kwOf) {
       if (w.type && info.type !== w.type) return false;
       if (w.nth && info.nth !== w.nth) return false;
       if (w.minCost && (info.cost || 0) < w.minCost) return false;
+      if (w.sig && !info.sig) return false;
       return true;
+    case "guard": return (w.who === "any" ? info.who.side === "party" : info.who === owner) && (!w.kind || info.k === w.kind);
     case "kill": return !w.mine || info.by === owner.key;
     case "hurt": return w.who === "any" ? info.who.side === "party" : info.who === owner;
     case "lowHp": return info.who === owner && info.before > w.pct && info.after <= w.pct;
@@ -293,6 +345,10 @@ function matches(s, owner, w, ev, info, kwOf) {
     default: return true;
   }
 }
+
+// 지금 돌고 있는 규칙 — 판(s)에 두지 않는다(저장 · save.js 가 다룰 수 없는 Set 이다). 판마다 따로
+const FIRING = new WeakMap();
+const NONE = new Set();
 
 // 일이 났다 — 맞는 규칙을 모두 돌린다. run(owner, fx, ctx, label)
 export function emit(s, ev, info, run) {
@@ -306,6 +362,9 @@ export function emit(s, ev, info, run) {
       rules.forEach((r, i) => {
         if (!matches(s, owner, r.when, ev, info, r.kwOf)) return;
         const id = `${owner.key}|${i}`;
+        if ((FIRING.get(s) || NONE).has(id)) return;
+        // 「적에게 디버프를 걸면」 — 한 번의 일(카드 한 장 · 패시브 한 번)에 한 번. 적 전체에 걸어도 적 수만큼 돌지 않는다
+        if (ev === "debuff" && info.seq != null) { const dk = `${id}|debuff`; if (s.counts[dk] === info.seq) return; s.counts[dk] = info.seq; }
         // 「N장 낼 때마다 「X」가 …이면」 — 장수는 조건과 상관없이 세고, N장째에 조건을 본다.
         // 전에는 조건이 맞을 때만 세서, 앞 턴에 하나 세 둔 것이 다음 턴 첫 장에 터졌다(실비아 AP 가 아무 때나 났다).
         // 「한 턴에」(perTurn)면 턴마다 0 에서 센다
@@ -324,7 +383,12 @@ export function emit(s, ev, info, run) {
         const target = info.target && info.target.side === "enemy" ? info.target : null;
         const holder = ev === "stackReach" && info.target && info.target !== owner ? info.target : null;
         const ally = info.who && info.who.side === "party" && !info.who.dead ? info.who : owner;
-        run(owner, r.fx, { owner, combo: null, targetIdx: target ? target.idx : 0, passive: r.name, holder, ally }, `${owner.ko} · ${r.name}`);
+        // 규칙이 스스로를 다시 부르지 않는다 — 「디버프를 걸면 … 적 1명 주는 피해 -10%」 · 「방어를 얻으면 … 방어」 가 제 효과로 또 돌던 고리
+        if (!FIRING.has(s)) FIRING.set(s, new Set());
+        const firing = FIRING.get(s);
+        firing.add(id);
+        try { run(owner, r.fx, { owner, combo: null, targetIdx: target ? target.idx : 0, passive: r.name, holder, ally }, `${owner.ko} · ${r.name}`); }
+        finally { firing.delete(id); }
       });
     }
   } finally { s.depth--; }
@@ -350,7 +414,7 @@ export function tickTurnEnd(s, hurt, say) {
         for (const u of holders) {
           const n = kw.carrier === "self" ? (((s.stacks || {})[kw.owner] || {})[kw.id] || 0) : (u.status || {})[kw.id] || 0;
           if (!n || u.dead) continue;
-          const v = Math.max(1, Math.round(healStat(owner.atk, owner.role) * p.ratio * n));   // 회복력(rules.js)
+          const v = Math.max(1, Math.round(healStat(owner.atk, owner.role, owner.healPlus) * (1 + statMod(s, owner, "heal")) * p.ratio * n));   // 회복력(rules.js) · 장비 회복력 · 회복력 증감
           u.hp = Math.min(u.maxHp, u.hp + v);
         }
       }

@@ -13,7 +13,7 @@ import { parseHeroBlock, slug } from "./lib/hero-block.js";
 import { parsePassive, parseKeyword } from "../js/passive.js";
 import { parseEffect } from "../js/effects.js";
 import D from "../js/data/design.js";
-import { valueOf, baseValue, flashCost } from "./lib/card-value.js";
+import { valueOf, baseValue, flashCost, oracleRules, tagsOf } from "./lib/card-value.js";
 
 const args = process.argv.slice(2);
 const DESIGN = DESIGN_DOC;
@@ -68,9 +68,10 @@ for (const file of files) {
       if (r.when.on === "stackReach" && r.when.id !== kwName) errs.push(`패시브 「${r.name}」 — 「${r.when.id}」 는 이 사도의 키워드가 아니다`);
       notes.push(`패시브 ${r.name}: [${whenLabel(r.when)}${r.conds.length ? " · " + r.conds.map(condLabel).join(" · ") : ""}${r.limit ? ` · ${r.limit.per === "turn" ? "턴당" : "전투당"} ${r.limit.n}회` : ""}] → ${what || "없음"}`);
       for (const f of r.fx) sane(f, `패시브 「${r.name}」`, errs, r.when.on === "always");
+      capRule(r, `패시브 「${r.name}」`, errs);
       // 늘 켜진 % 증감만 하는 패시브 — 원작 어사이드 「모든 아군 피해량 증가」 를 그대로 옮긴 꼴이다.
       // 전투에서 보이지도 않고 누구 것인지도 모른다. 조건(언제·「X」가 있으면)이나 키워드와 엮는다.
-      const MODS = ["dealtMod", "takenMod", "atkMod", "defMod", "critMod"];
+      const MODS = ["dealtMod", "takenMod", "atkMod", "defMod", "critMod", "healMod"];
       if (r.when.on === "always" && !r.conds.length && r.fx.length && r.fx.every((f) => MODS.includes(f.k)))
         errs.push(`패시브 「${r.name}」 — 늘 켜진 % 증감뿐이다. 언제 발동하는지(카드 N장마다·처치하면·맞으면…)나 키워드와 엮어 덱빌딩답게`);
       if (r.when.on === "fightStart" && r.fx.length && r.fx.every((f) => MODS.includes(f.k) && (f.turns || 1) >= 999))
@@ -82,6 +83,7 @@ for (const file of files) {
     if (h.keyword) {
       kw = parseKeyword(kwName, h.keyword.text, kws);
       for (const l of kw.left) errs.push(`키워드 「${kwName}」 — 못 읽은 문장: 「${l}」`);
+      for (const r of kw.rules) capRule(r, `키워드 「${kwName}」 규칙`, errs);
       notes.push(`키워드 ${kwName}: ${kw.carrier === "self" ? "자기 것" : kw.carrier === "enemy" ? "적에게 거는 표식" : "아군에게 씌우는 것"}`
         + `${kw.cap != null ? ` · 최대 ${kw.cap}` : ""}${kw.decay ? ` · 턴마다 ${kw.decay === "all" ? "전부" : "-" + kw.decay}` : ""}`
         + `${kw.per.length ? " · 1개당 " + kw.per.map(perLabel).join(", ") : ""}${kw.rules.length ? ` · 규칙 ${kw.rules.length}` : ""}`);
@@ -181,6 +183,9 @@ for (const file of files) {
           }
           if (c === 3 && u.cost !== 3) three++;
         });
+        // 신탁은 기본보다 나아야 한다 — 손해 · 하나 마나 · 소멸 남발 금지(tools/lib/card-value.js oracleRules · docs/12-신탁.md)
+        for (const e of oracleRules({ fx, cost: u.cost, tags: [...u.tags, ...tagsOf(fx)] }, u.flash.map((f) => ({ fx: pe(f.text), at: `「${u.ko}」 ${f.kind || `「${f.ko}」`}` }))))
+          errs.push(e.startsWith("「") ? e : `「${u.ko}」 ${e}`);
       });
       // 엘다인 — 세계수의 힘을 받은 사도. 원작에서도 기본 스펙이 높다. 고유 카드가 코스트 값어치의 평균 1.1배는 된다
       // (다른 사도는 평균 0.85배 안팎)
@@ -218,9 +223,24 @@ console.log(`\n사도 ${heroes}명 · 문제 있는 사도 ${bad}명 · 효과 �
 process.exit(bad ? 1 : 0);
 
 // ── 도우미 ──
+// 횟수 제한(docs/07 §4, 2026-10 사용자 「패시브에 턴당 최대 조건 없애라」) —
+//   「(턴당 N회)」 는 쓰지 않는다. 「(전투당 N회)」 는 위급할 때 한 번(HP가 N% 이하가 되면 · 처음 맞으면 · 아군이 쓰러지면)만.
+//   AP · 드로우는 언제 자체가 막는 것에만 — 턴 시작 · 턴 종료 · 전투 시작 · 파티가 이번 턴 N장째 · 「X」가 N개가 되면 ·
+//   이름의 1코 이상 카드를 N장(N ≥ 2 — 쓴 AP 보다 돌려받는 AP 가 늘 적다) · HP N% 이하 · 고학년 스킬. 드로우는 처치도(적 수만큼)
+function STRUCT(w) {
+  return ["turnStart", "turnEnd", "fightStart", "stackReach", "lowHp", "ult"].includes(w.on)
+    || (w.on === "play" && !!(w.nth || (w.every >= 2 && w.minCost >= 1)));
+}
+function capRule(r, where, errs) {
+  if (r.limit && r.limit.per === "turn") errs.push(`${where} — 「(턴당 ${r.limit.n}회)」 는 쓰지 않는다. 턴에 한 번 도는 언제(턴 시작 시 · 파티가 이번 턴 N장째 …)나 값으로 막는다`);
+  if (r.limit && r.limit.per === "fight" && !["lowHp", "hurt", "allyDown"].includes(r.when.on))
+    errs.push(`${where} — 「(전투당 N회)」 는 위급할 때 한 번(HP가 N% 이하가 되면 · 맞으면 · 아군이 쓰러지면)만. 여는 한 번은 「턴 시작 시 첫 턴이면」`);
+  if (r.fx.some((f) => f.k === "ap" && f.v > 0) && !STRUCT(r.when)) errs.push(`${where} — AP 는 턴에 한 번 도는 언제에만(${r.text})`);
+  if (r.fx.some((f) => f.k === "draw" && f.v > 0) && !STRUCT(r.when) && r.when.on !== "kill") errs.push(`${where} — 드로우는 턴에 한 번 도는 언제 · 처치에만(${r.text})`);
+}
 function sane(f, where, errs, always) {
   const pct = (v) => Math.round(v * 100);
-  if (["dealtMod", "takenMod", "atkMod", "defMod", "critMod"].includes(f.k)) {
+  if (["dealtMod", "takenMod", "atkMod", "defMod", "critMod", "healMod"].includes(f.k)) {
     const cap = always ? 0.15 : 0.5;
     if (Math.abs(f.v) > cap) errs.push(`${where} — ${fxLabel(f)} 는 너무 크다 (${always ? "항상 걸린 것은 15%" : "50%"} 까지)`);
   }
@@ -237,13 +257,17 @@ function fxLabel(f) {
     case "stack": return `${f.id} ${f.v > 0 ? "+" : ""}${f.v}${t}`;
     case "spend": return `${f.id} ${f.v === "all" ? "전부" : f.v} 소모`;
     case "status": return `${f.id} ${f.turns}턴${t}`;
-    case "dealtMod": case "takenMod": case "atkMod": case "defMod": case "critMod":
-      return `${{ dealtMod: "주는 피해", takenMod: "받는 피해", atkMod: "공격력", defMod: "방어력", critMod: "치명" }[f.k]} ${f.v > 0 ? "+" : ""}${Math.round(f.v * 100)}%${f.turns >= 999 ? " 전투 내내" : f.turns > 1 ? ` ${f.turns}턴` : ""}${t}`;
+    case "dealtMod": case "takenMod": case "atkMod": case "defMod": case "critMod": case "healMod":
+      return `${{ dealtMod: "주는 피해", takenMod: "받는 피해", atkMod: "공격력", defMod: "방어력", critMod: "치명", healMod: "회복력" }[f.k]} ${f.v > 0 ? "+" : ""}${Math.round(f.v * 100)}%${f.turns >= 999 ? " 전투 내내" : f.turns > 1 ? ` ${f.turns}턴` : ""}${t}`;
     default: return f.k + (f.v != null ? " " + f.v : "");
   }
 }
 function whenLabel(w) {
-  return { fightStart: "전투 시작", turnStart: "턴 시작", turnEnd: "턴 끝", play: `카드${w.type ? "(" + w.type + ")" : ""}${w.who === "any" ? "(아군)" : ""}${w.minCost ? ` ${w.minCost}코 이상` : ""}${w.every ? ` ${w.every}장마다` : ""}${w.nth ? ` ${w.nth}장째` : ""}`, kill: w.mine ? "처치" : "적 쓰러짐", hurt: w.who === "any" ? "아군 피격" : "피격", lowHp: `HP ${Math.round(w.pct * 100)}% 이하`, allyDown: "아군 쓰러짐", ult: "고학년 스킬", combo: "연계", debuff: "디버프 걺", stackReach: `${w.id} ${w.n}개`, always: "항상" }[w.on] || w.on;
+  return { fightStart: "전투 시작", turnStart: "턴 시작", turnEnd: "턴 끝", play: `${w.sig ? "시그니처 " : ""}카드${w.type ? "(" + w.type + ")" : ""}${w.who === "any" ? "(파티)" : w.every ? "(자기)" : ""}${w.minCost ? ` ${w.minCost}코 이상` : ""}${w.every ? ` ${w.every}장마다` : ""}${w.nth ? ` ${w.nth}장째` : ""}`, kill: w.mine ? "처치" : "적 쓰러짐", hurt: w.who === "any" ? "아군 피격" : "피격", lowHp: `HP ${Math.round(w.pct * 100)}% 이하`, allyDown: "아군 쓰러짐", ult: "고학년 스킬", combo: "연계", rush: "적 즉시 행동", guard: `${w.who === "any" ? "아군 " : ""}${w.kind === "block" ? "방어" : w.kind === "shield" ? "실드" : "방어·실드"} 얻음`, debuff: "디버프 걺", stackReach: `${w.id} ${w.n}개`, always: "항상" }[w.on] || w.on;
 }
-function condLabel(c) { return c.c === "stack" ? `${c.id} ${c.n}+` : c.c === "hp" ? `HP ${Math.round(c.pct * 100)}% 이하` : c.c === "foes" ? `적 ${c.n}명+` : c.c; }
+function condLabel(c) {
+  return c.c === "stack" ? `${c.id} ${c.n}+` : c.c === "hp" ? `HP ${Math.round(c.pct * 100)}% 이하` : c.c === "hpMin" ? `HP ${Math.round(c.pct * 100)}% 이상` : c.c === "foes" ? `적 ${c.n}명+`
+    : c.c === "foesMax" ? `적 ${c.n}명 이하` : c.c === "playedMax" ? `파티 ${c.n}장 이하` : c.c === "playedMin" ? `파티 ${c.n}장 이상` : c.c === "ownNone" ? "자기 카드 안 냄"
+    : c.c === "apLeft" ? `AP ${c.n} 남음` : c.c === "gauge" ? `게이지 ${c.n}%+` : c.c === "guarded" ? "방어·실드 있음" : c.c === "rushed" ? "적 즉시 행동했음" : c.c;
+}
 function perLabel(p) { return p.stat === "dot" ? `턴 끝 피해 ${Math.round(p.ratio * 100)}%` : p.stat === "hot" ? `턴 끝 회복 ${Math.round(p.ratio * 100)}%` : `${{ dealt: "주는 피해", taken: "받는 피해", atk: "공격력", def: "방어력", crit: "치명" }[p.stat]} ${p.v > 0 ? "+" : ""}${Math.round(p.v * 100)}%${p.who === "allies" ? "(아군 전원)" : ""}`; }

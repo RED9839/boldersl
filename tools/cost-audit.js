@@ -23,7 +23,7 @@ const V = (fx) => {
       case "ap": v += 0.9 * f.v; break;
       case "gauge": v += f.v / 100; break;
       case "status": v += f.id === "기절" ? 0.8 : f.id === "도발" ? 0.3 : 0.2 * (f.turns || 1) * area(f.target); break;
-      case "dealtMod": case "takenMod": case "atkMod": case "defMod": case "critMod":
+      case "dealtMod": case "takenMod": case "atkMod": case "defMod": case "critMod": case "healMod":
         v += Math.abs(f.v) * 2 * Math.min(f.turns || 1, 4) * area(f.target); break;
       case "stack": if (f.v > 0) v += 0.3 * f.v; break;
       case "strip": v += 0.3; break;
