@@ -8,6 +8,8 @@ import * as M from "./map.js";
 import { initStage, toggleFullscreen } from "./stage.js";
 import { applySettings } from "./settings.js";
 import * as S from "./save.js";
+import { DEV } from "./dev.js";
+import { HERO_DATA } from "./cardbook.js";
 
 let run = null;
 
@@ -27,7 +29,16 @@ async function boot() {
     const has = await hasSd();
     if (has) art.setMode("sd");
   }
+  if (DEV) return devFight();
   start();
+}
+
+// 시험 화면(js/dev.js) — 고른 셋으로 첫 싸움에 곧장
+function devFight() {
+  const rows = {};
+  for (const k of DEV.party) rows[k] = HERO_DATA[k].row;
+  run = R.newRun(DEV.party, rows);
+  fight();
 }
 
 async function hasSd() {

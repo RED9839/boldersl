@@ -9,6 +9,7 @@
 //   run     판 그대로(JSON) + rngState. run.where 가 어느 화면인지(map · event · camp · shop · fight · fightDone)
 //   combat  싸움 중일 때만(where 가 fight). 적의 수(intent)는 적 데이터 안의 길로, 신탁 장부(book)는 읽을 때 다시 만든다
 // 브라우저가 저장을 막아도 게임은 돈다 — 이어하기만 안 될 뿐이다.
+import { DEV } from "./dev.js";
 import { makeRng } from "./combat.js";
 import { CARDS, HERO_DATA, EQUIP, flashed } from "./cardbook.js";
 import { ENEMIES } from "./data/enemies.js";
@@ -116,7 +117,7 @@ let lastOk = false;
 export const saveOk = () => lastOk;
 
 export function writeSave(run, combat = null) {
-  if (!run || run.done || !run.where) return false;
+  if (!run || run.done || !run.where || DEV) return false;   // 시험 화면은 적지 않는다
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(pack(run, combat))); return (lastOk = true); }
   catch { return (lastOk = false); }       // 막힌 브라우저 · 가득 찬 저장소 — 이어하기만 안 된다
 }
