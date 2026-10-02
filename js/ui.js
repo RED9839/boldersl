@@ -1284,6 +1284,8 @@ const pctTxt = (p) => `${Math.round(p * 100)}%`;
 // 새 판(eventscreen2) — 상점 · 캠프와 같은 옷: 이 층의 이벤트 배경, 왼쪽에 나오는 사도의 스탠딩과 말풍선(장면), 오른쪽에 선택지.
 // 선택지 · 결과에서 고를 것(카드 · 신탁 · 사도)은 모두 두 단계(twoStep) — 눌러 고르고 단추로 정한다.
 export function eventScreen(run, onDone, onFight) {
+  // 「HP ±N%」 는 파티 전원 — draw() 가 먼저 불리므로 const 가 아니라 함수 선언으로(전에는 선언 전 접근으로 이벤트가 멈췄다)
+  function whoHp(t) { return String(t).replace(/(?<!최대 ?)HP ([+\-]\d+%)(?!\s*\()/g, "파티 전원 HP $1"); }
   const s = screen();
   s.className = "eventscreen2";
   sfx.play("event.open");
@@ -1463,7 +1465,6 @@ export function eventScreen(run, onDone, onFight) {
 
   // 선택지가 무엇을 하는지 — 결과 낱말 그대로, 확률·판정은 숫자로
   // 누구의 HP 인지 — 기획서 결과 글의 맨 「HP -15%」 는 살아 있는 파티 전원에 걸린다(events.js apply). 「(그 사도)」 따위가 붙은 것 · 최대 HP 는 그대로
-  const whoHp = (t) => String(t).replace(/(?<!최대 ?)HP ([+\-]\d+%)(?!\s*\()/g, "파티 전원 HP $1");
   function describe(opt) {
     if (opt.fight) return `전투 (${opt.fight.name}) → 이기면 ${opt.fight.win || opt.fight.winGamble.map((g) => `${pctTxt(g.p)} ${g.out}`).join(" / ")}`;
     if (opt.gamble && opt.choose) return `골라서 받는다: ${opt.gamble.map((g) => g.out).join(" / ")}`;
