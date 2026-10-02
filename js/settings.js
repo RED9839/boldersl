@@ -11,7 +11,9 @@ import * as art from "./art.js";
 import { setResolution } from "./stage.js";
 import { setRenderScale } from "./spine-view.js";
 
-const KEY = "boldersl.settings";
+const KEY = "bolzena.settings";
+// 옛 이름(볼더슬) 때 저장한 설정 — 새 열쇠가 비어 있으면 한 번 옮겨 온다
+try { if (!localStorage.getItem(KEY) && localStorage.getItem("boldersl.settings")) localStorage.setItem(KEY, localStorage.getItem("boldersl.settings")); } catch {}
 const DEF = { spine: true, calm: false, big: false, res: "auto", quality: "high", volMaster: 20, volVoice: 10, sv: 2 };
 export const RES_CHOICES = ["auto", "1280x720", "1600x900", "1920x1080", "2560x1440"];
 export const QUALITY = { high: 1, mid: 0.75, low: 0.5 };

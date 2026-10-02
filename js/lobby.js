@@ -98,7 +98,7 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
   // ① 머리 — 이름 · 전체화면 · 설정
   const top = node("header", "lb-top");
   const logo = node("div", "lb-logo");
-  logo.append(node("b", null, "볼더슬"), node("span", null, "세계수 아래의 카드 모험"));
+  logo.append(node("b", null, "볼제나"), node("span", null, "세계수 아래의 카드 모험"));
   top.appendChild(logo);
   const fs = node("button", "lb-icon", "⛶");
   fs.type = "button"; fs.title = "전체화면"; fs.setAttribute("aria-label", "전체화면");

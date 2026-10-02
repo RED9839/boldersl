@@ -3,8 +3,8 @@
 // 2026-09-22 에 이 USB 에서 파일 13개의 내용이 서로 뒤바뀐 적이 있다 — .git/config 안에 HTML 이
 // 들어 있었다. 크기와 개수만 봐서는 그런 사고를 못 잡는다. 그래서 해시를 견준다.
 //
-//   node tools/verify-copy.js "E:/볼더슬"
-//   node tools/verify-copy.js "E:/볼더슬" --full    큰 파일까지 전부 (느리다)
+//   node tools/verify-copy.js "E:/볼제나"
+//   node tools/verify-copy.js "E:/볼제나" --full    큰 파일까지 전부 (느리다)
 //
 // 기본은 소스·문서·도구를 전부 견주고, 무거운 assets 는 표본만 본다.
 import fs from "node:fs";
@@ -16,7 +16,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.join(HERE, "..");
 const DST = process.argv[2];
 const FULL = process.argv.includes("--full");
-if (!DST) { console.log('쓰는 법: node tools/verify-copy.js "E:/볼더슬"'); process.exit(1); }
+if (!DST) { console.log('쓰는 법: node tools/verify-copy.js "E:/볼제나"'); process.exit(1); }
 if (!fs.existsSync(DST)) { console.log(`${DST} 가 없습니다.`); process.exit(1); }
 
 const SKIP = new Set(["node_modules", ".git"]);

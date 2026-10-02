@@ -1,12 +1,12 @@
 {
-  "name": "bolderseul",
+  "name": "bolzena",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "serve": "python -m http.server 8765 --bind 127.0.0.1",
     "build:deploy": "node tools/build-deploy.js",
-    "deploy": "node tools/build-deploy.js && npx wrangler pages deploy dist --project-name boldersl --branch main --commit-dirty=true",
+    "deploy": "node tools/build-deploy.js && npx wrangler pages deploy dist --project-name bolzena --branch main --commit-dirty=true",
     "voice:select": "python tools/extract-select-voice.py",
     "currency": "python tools/extract-currency-icons.py",
     "sim": "node tools/sim.js 400",

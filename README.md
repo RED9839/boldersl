@@ -1,11 +1,13 @@
-# 볼더슬
+# 볼제나 — 볼 제로 나이트메어
+
+(옛 이름 「볼더슬」 · 2026-10 바꿨다 — 슬레이 더 스파이어보다 카오스 제로 나이트메어(카제나)에 가까운 게임이라)
 
 트릭컬 리바이브를 좋아해서 만드는 **로그라이크 덱빌더**. 브라우저에서 돕니다.
 
 > 비공식 개인 제작물입니다. EPID Games 및 트릭컬 리바이브 공식과 아무 관계가 없고,
 > 어떤 승인도 받지 않았습니다.
 
-**웹에서 해 보기 — https://boldersl.pages.dev** (비영리 공개판)
+**웹에서 해 보기 — https://bolzena.pages.dev** (비영리 공개판)
 
 > 공개판에는 원작에서 꺼낸 그림(스파인 · 아이콘 · 배경)과 편성 대사가 들어 있습니다.
 > 저작권은 EPID Games 에 있고, **권리자의 요청이 있으면 즉시 내립니다.** 후원 · 광고 등 수익은 받지 않습니다.
@@ -453,7 +455,7 @@ npm run minimi       # 미니미는 런타임 없이 잘라 쓸 수도 있습니
 
 ```
 npm run build:deploy   # dist/ 를 짓는다 — 코드 + 게임이 읽는 그림만(스파인 · 아이콘 · 배경) + 편성 대사
-npm run deploy         # 짓고 Cloudflare Pages(boldersl)에 올린다 — 먼저 npx wrangler login
+npm run deploy         # 짓고 Cloudflare Pages(bolzena)에 올린다 — 먼저 npx wrangler login
 ```
 
 `tools/build-deploy.js` 는 추출 원본(standing · ingame · monsterspine …)과 편성 대사 밖의 목소리를 빼고,
@@ -483,7 +485,7 @@ npm run survey    # 기기를 훑어 목록 문서 + assets/available.json
 npm run extract
 
 # 2. 스파인(부품 단위 SD·스탠딩)까지 — 1.8GB, 지금은 안 써도 됨
-python "…/사도 데스크/prototype/tools/extract-all.py" --out "…/볼더슬/assets" --steps minimi,sfx,standing,ingame,voice --adb <adb 경로> --serial <기기>
+python "…/사도 데스크/prototype/tools/extract-all.py" --out "…/볼제나/assets" --steps minimi,sfx,standing,ingame,voice --adb <adb 경로> --serial <기기>
 
 # 3. 무엇이 들어왔는지 적는다 → assets/catalog.json
 npm run catalog
