@@ -8,7 +8,7 @@
 import { EVENTS, CURSES } from "./data/events.js";
 import { CARDS, NEUTRAL_IDS, EQUIP, HERO_DATA } from "./cardbook.js";
 import * as R from "./rules.js";
-import { rewardCards, offerFlash, offerEquip, forgetCard } from "./run.js";
+import { rewardCards, offerFlash, offerEquip, offerEquipSlot, forgetCard } from "./run.js";
 
 export { EVENTS };
 const koOf = (k) => (HERO_DATA[k] || {}).ko || k;
@@ -27,7 +27,12 @@ const RULES_OUT = [
   [/^고유\s*카드\s*선택$/, () => ({ k: "unique" })],
   [new RegExp(`^(?:교주|중립)\\s*카드(?:\\s*\\((${GRADES})\\))?$`), (m) => ({ k: "neutral", grade: m[1] || null })],
   [new RegExp(`^장비\\s*\\((${GRADES})\\)$`), (m) => ({ k: "equip", grade: m[1] })],
+  // 칸을 정한 장비 — 무기 · 방어구 · 장신구
+  [new RegExp(`^(무기|방어구|장신구)\\s*\\((${GRADES})\\)$`), (m) => ({ k: "equip", slot: m[1], grade: m[2] })],
   [/^신탁\s*1$/, () => ({ k: "flash" })],
+  // 신탁 방향을 고르게 — 다섯을 다 보여 준다 / 이미 붙인 신탁을 다른 갈래로 바꾼다
+  [/^신탁\s*1\s*\(\s*다섯\s*\)$/, () => ({ k: "flash", all: true })],
+  [/^신탁\s*바꾸기\s*1$/, () => ({ k: "flash", swap: true })],
   [/^기적\s*(\d+)\s*%$/, (m) => ({ k: "shin", p: Number(m[1]) / 100 })],
   [/^기적\s*막힘$/, () => ({ k: "noShin" })],
   [/^골칫거리\s*「(.+)」$/, (m) => ({ k: "curse", name: m[1] })],
@@ -39,6 +44,10 @@ const RULES_OUT = [
   [/^다음\s*전투:\s*첫\s*손패\s*\+\s*(\d+)$/, (m) => ({ k: "next", hand: Number(m[1]) })],
   [/^다음\s*전투:\s*아군\s*전원\s*약화\s*(\d+)\s*턴$/, (m) => ({ k: "next", weak: Number(m[1]) })],
   [/^다음\s*전투:\s*HP\s*-\s*(\d+)\s*%$/, (m) => ({ k: "next", hpCut: Number(m[1]) / 100 })],
+  // 새 적 규칙과 엮인 것(docs/12) — 첫 턴 즉시 행동 카운트 되돌리기 · 적 취약 · 적 패시브 잠재우기
+  [/^다음\s*전투:\s*첫\s*턴\s*적\s*전체\s*즉시\s*행동\s*-\s*(\d+)$/, (m) => ({ k: "next", rush: Number(m[1]) })],
+  [/^다음\s*전투:\s*적\s*전체\s*취약\s*(\d+)\s*턴$/, (m) => ({ k: "next", foeVuln: Number(m[1]) })],
+  [/^다음\s*전투:\s*적\s*패시브\s*꺼짐\s*(\d+)\s*턴$/, (m) => ({ k: "next", quiet: Number(m[1]) })],
 ];
 function who(s) {
   if (!s) return { all: true };
@@ -256,13 +265,18 @@ export function apply(run, ops) {
         break;
       }
       case "equip": {
-        const [id] = offerEquip(run, { [o.grade]: 1 }, 1);
+        const [id] = o.slot ? offerEquipSlot(run, o.grade, o.slot) : offerEquip(run, { [o.grade]: 1 }, 1);
         if (id) { run.bag.push(id); E.log.push(`장비 「${EQUIP[id].ko}」(${o.grade}) — 가방에`); }
-        else E.log.push(`${o.grade} 장비는 이미 다 가졌습니다`);
+        else E.log.push(`${o.grade} ${o.slot || "장비"}는 이미 다 가졌습니다`);
         break;
       }
       case "flash": {
-        const offer = offerFlash(run);
+        let offer = offerFlash(run);
+        if (o.swap) {
+          // 이미 신탁을 붙인 카드 하나 — 지금 것을 뺀 넷에서 다시 고른다(없으면 보통 신탁)
+          const had = Object.keys(run.flash || {}).filter((id) => CARDS[id] && (CARDS[id].flash || []).length === 5);
+          if (had.length) { const id = had[Math.floor(run.rng() * had.length)]; offer = { cardId: id, picks: [1, 2, 3, 4, 5].filter((n) => n !== run.flash[id]), swap: true }; }
+        } else if (o.all && offer) offer.picks = [1, 2, 3, 4, 5];
         if (offer) E.pending.push({ k: "flash", offer });
         else E.log.push("신탁을 붙일 고유 카드가 없습니다 — 고유 카드를 먼저 얻으세요");
         break;
@@ -279,7 +293,7 @@ export function apply(run, ops) {
       case "rewardFlash": run.rewardFlash = true; E.log.push("다음 보상에서 신탁이 꼭 뜹니다"); break;
       case "next": {
         const n = (run.nextFight = run.nextFight || {});
-        for (const f of ["ap", "gauge", "hand", "weak", "hpCut"]) if (o[f] != null) n[f] = (n[f] || 0) + o[f];
+        for (const f of ["ap", "gauge", "hand", "weak", "hpCut", "rush", "foeVuln", "quiet"]) if (o[f] != null) n[f] = (n[f] || 0) + o[f];
         E.log.push(nextLabel(o));
         break;
       }
@@ -300,6 +314,9 @@ const nextLabel = (o) => "다음 전투: " + [
   o.hand != null && `첫 손패 +${o.hand}`,
   o.weak != null && `아군 전원 약화 ${o.weak}턴`,
   o.hpCut != null && `HP -${Math.round(o.hpCut * 100)}%`,
+  o.rush != null && `첫 턴 적 전체 즉시 행동 -${o.rush}`,
+  o.foeVuln != null && `적 전체 취약 ${o.foeVuln}턴`,
+  o.quiet != null && `적 패시브 꺼짐 ${o.quiet}턴`,
 ].filter(Boolean).join(" · ");
 
 function neutralOffer(run, grade, n) {

@@ -4,7 +4,7 @@
 //
 //   - 결과 낱말이 모두 읽히는가 — 못 읽은 말은 조용히 무시된다
 //   - 나오는 사도 · 선택지를 여는 사도 · 전투의 적이 실제로 있는가
-//   - 29종의 선택지 **전부**를 실제 판 상태에서 끝까지 골라 본다(고를 것은 첫 번째로) — 터지지 않는가, 결과가 적용되는가
+//   - 52종의 선택지 **전부**를 실제 판 상태에서 끝까지 골라 본다(고를 것은 첫 번째로) — 터지지 않는가, 결과가 적용되는가
 //   - 이벤트 칸이 층마다 1~2개, 한 판에 같은 이벤트가 두 번 안 나오는가
 import { EVENTS, CURSES } from "../js/data/events.js";
 import * as EV from "../js/events.js";
@@ -33,10 +33,10 @@ console.log("결과 낱말");
 console.log("");
 console.log("나오는 것");
 {
-  check(EVENTS.length === 29, `이벤트 ${EVENTS.length}종 (문서: 29)`);
+  check(EVENTS.length === 52, `이벤트 ${EVENTS.length}종 (문서: 52)`);
   const pools = { 공용: 0, 0: 0, 1: 0, 2: 0 };
   for (const ev of EVENTS) pools[ev.pool]++;
-  check(pools.공용 === 8 && pools[0] === 7 && pools[1] === 7 && pools[2] === 7, `풀 — 공용 ${pools.공용} · 에르피엔 ${pools[0]} · 모나티엄 ${pools[1]} · 벨리티엔 ${pools[2]}`);
+  check(pools.공용 === 10 && pools[0] === 14 && pools[1] === 14 && pools[2] === 14, `풀 — 공용 ${pools.공용} · 에르피엔 ${pools[0]} · 모나티엄 ${pools[1]} · 벨리티엔 ${pools[2]}`);
   const names = new Set();
   for (const ev of EVENTS) {
     if (ev.npc) names.add(ev.npc);

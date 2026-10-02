@@ -4074,7 +4074,7 @@ export function eventScreen(run, onDone, onFight) {
       box.appendChild(ts.bar);
     } else if (p.k === "flash") {
       const c = CARDS[p.offer.cardId];
-      head("신탁", `「${c.name}」에 붙일 신탁 — 다섯 중 셋`);
+      head("신탁", p.offer.swap ? `「${c.name}」의 신탁을 바꿉니다 — 남은 ${p.offer.picks.length}갈래 중 하나` : `「${c.name}」에 붙일 신탁 — 다섯 중 ${p.offer.picks.length === 5 ? "고르기" : "셋"}`);
       ts = twoStep(commit, { verb: "신탁을 붙입니다" });
       const fr = el("div", "rrow flashrow");
       fr.appendChild(flashTarget(c, p.offer.cardId));

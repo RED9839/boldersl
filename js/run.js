@@ -419,6 +419,13 @@ export function offerEquip(run, weights, n, { dupes = true } = {}) {
   return out;
 }
 
+// 칸을 정해 하나 — 이벤트의 「무기 (희귀)」 따위. 이미 가진 것은 빼고, 없으면 같은 칸 다른 등급도 안 준다
+export function offerEquipSlot(run, grade, slot) {
+  const have = owned(run);
+  const pool = Object.keys(EQUIP).filter((id) => !have.has(id) && EQUIP[id].grade === grade && EQUIP[id].slot === slot);
+  return pool.length ? [pool[Math.floor(run.rng() * pool.length)]] : [];
+}
+
 // 보스 보상의 장비 — 셋 중 하나를 가방에 넣는다(보상 화면이 빈 칸에 바로 끼게 해 준다)
 export function takeEquip(run, equipId) {
   const rw = run.reward;

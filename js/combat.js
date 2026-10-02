@@ -125,6 +125,9 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
     if (next.gauge) { s.gauge = Math.min(R.GAUGE_MAX, s.gauge + next.gauge); say(s, `이벤트 — 고학년 게이지 +${next.gauge}%`); }
     if (next.hand) { s.opening = (s.opening || 0) + next.hand; say(s, `이벤트 — 첫 손패 +${next.hand}`); }
     if (next.weak) { for (const u of s.party) if (!u.dead) addSt(u, "약화", next.weak); say(s, `이벤트 — 아군 전원 약화 ${next.weak}턴`); }
+    if (next.rush) { s.firstRushDown = next.rush; say(s, `이벤트 — 첫 턴 적 전체 즉시 행동 -${next.rush}`); }
+    if (next.foeVuln) { for (const e of alive(s.enemies)) addSt(e, "취약", next.foeVuln); say(s, `이벤트 — 적 전체 취약 ${next.foeVuln}턴`); }
+    if (next.quiet) { s.foeQuiet = next.quiet; say(s, `이벤트 — 적 패시브가 ${next.quiet}턴 동안 잠잠하다`); }
     if (next.hpCut) { for (const u of s.party) if (!u.dead) u.hp = Math.max(1, u.hp - Math.round(u.maxHp * next.hpCut)); say(s, `이벤트 — 시작하자마자 오작동, HP -${Math.round(next.hpCut * 100)}%`); }
   }
   emit(s, "fightStart", {});
@@ -194,6 +197,8 @@ function beginTurn(s) {
   // 원작의 중독은 지속 피해가 아니라 공격력을 깎는 것이다. 그래서 턴 시작에 아무 일도 안 한다.
   // 촉수는 턴이 끝날 때 때린다(프리클) — 아래 endTurn 에 있다.
   for (const e of alive(s.enemies)) { rollIntent(s, e); e.rushCnt = 0; }
+  // 이벤트 「첫 턴 적 전체 즉시 행동 -N」 — 카운트는 턴마다 0 으로 돌아가니 첫 턴에 걸어야 산다
+  if (s.turn === 1 && s.firstRushDown) for (const e of alive(s.enemies)) e.rushCnt -= s.firstRushDown;
   resetFoePassives(s);
   foePassives(s, "turnStart");
 
@@ -352,6 +357,7 @@ function rushEnemies(s) {
 //   limit  한 턴에 몇 번(기본 1). fightStart · lowHp 는 한 번뿐. 0 이면 제한 없음
 const FOE_ONCE = new Set(["fightStart", "lowHp"]);
 function foePassives(s, ev, info = {}) {
+  if (s.foeQuiet && s.turn <= s.foeQuiet) return;   // 이벤트 「적 패시브 꺼짐 N턴」
   for (const e of alive(s.enemies)) {
     const ps = (ENEMIES[e.key] || {}).passives; if (!ps) continue;
     for (const p of ps) {
