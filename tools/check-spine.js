@@ -7,7 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ARTMAP from "../js/data/artmap.js";
 import D from "../js/data/design.js";
-import { ENEMIES } from "../js/data/enemies.js";
+import { ENEMIES, foeLook } from "../js/data/enemies.js";
 
 // 기획서 사도가 명단이다. 이름은 기획서 것을 쓴다.
 const ROSTER = Object.keys(ARTMAP.art);
@@ -94,18 +94,50 @@ console.log("적");
 {
   const enemy = man.enemy || {};
   const keys = Object.keys(ENEMIES);
+  // 다른 적의 그림을 빌려 쓰는 적(enemies.js art — 햇팽이 마녀 → hatsnail)은 그 그림으로 본다
+  const artOf = (k) => foeLook(k).art;
   let good = 0;
+  const noSkin = [];
   for (const k of keys) {
-    if (!enemy[k]) continue;
+    const a = artOf(k);
+    if (!enemy[a]) continue;
     const before = bad;
     const q = console.log; console.log = () => {};
-    checkSet("enemy", k, enemy[k], path.join(ROOT, "enemy", k));
+    checkSet("enemy", k, enemy[a], path.join(ROOT, "enemy", a));
     console.log = q;
     if (bad === before) good++;
+    // 싸움터에서 입는 스킨(적어 둔 것 · 성격 스킨)이 그 스파인에 정말 있나 — 없으면 기본 스킨으로 서서 아이콘 · 이름과 모습이 어긋난다
+    const skin = foeLook(k).skin, skel = path.join(ROOT, "enemy", a, enemy[a].skel);
+    if (skin && fs.existsSync(skel) && !fs.readFileSync(skel).includes(Buffer.from(skin))) noSkin.push(`${k}(${skin})`);
   }
-  const miss = keys.filter((k) => !enemy[k]);
+  const miss = keys.filter((k) => !enemy[artOf(k)]);
   ok(`${good}/${keys.length}종이 읽힌다`);
+  if (noSkin.length) fail(`스파인에 없는 스킨을 입는 적 ${noSkin.length}: ${noSkin.join(", ")}`);
+  else ok("적마다 입는 스킨(적어 둔 것 · 성격)이 그 스파인에 있다");
   if (miss.length) console.log(`  알림 스파인 없는 적 ${miss.length}종 — 그림 한 장으로 나온다: ${miss.join(", ")}`);
+}
+
+// 적 아이콘(지도 · 「나오는 적」 · 적 정보 · 도감의 그림 한 장)이 싸움터의 모습과 같은가 — tools/build-art.js 가 고른 것(foe-icons.json)을 본다.
+// 아이콘의 스킨 꼬리표(icon_<그림><스킨>) 또는 같은 스킨으로 찍은 것(still_<그림>_<스킨>)이어야 한다
+console.log("");
+console.log("적 아이콘");
+{
+  const sd = path.join(HERE, "..", "assets", "sd");
+  const file = path.join(sd, "foe-icons.json");
+  if (!fs.existsSync(file)) console.log("  알림 assets/sd/foe-icons.json 이 없다 — node tools/build-art.js 를 돌리면 생긴다");
+  else {
+    const got = JSON.parse(fs.readFileSync(file, "utf8"));
+    const wrong = [];
+    for (const k of Object.keys(ENEMIES)) {
+      const { art, skin } = foeLook(k), tail = (skin || "").replace(/^Skin_/, "").toLowerCase();
+      const g = got[k];
+      if (!g) { wrong.push(`${k}: 아이콘 없음`); continue; }
+      if (![`icon_${art}${tail}.png`, `still_${art}_${tail || "default"}.png`].includes(g.from)) wrong.push(`${k}: ${g.from} ≠ ${art} ${skin || "기본"}`);
+      else if (!fs.existsSync(path.join(sd, k + ".png"))) wrong.push(`${k}: assets/sd/${k}.png 없음`);
+    }
+    if (wrong.length) fail(`싸움터 모습과 다른 적 아이콘 ${wrong.length} — python tools/build-foe-stills.py 와 node tools/build-art.js 를 다시: ${wrong.slice(0, 6).join(" · ")}`);
+    else ok(`적 ${Object.keys(ENEMIES).length}종 아이콘이 모두 싸움터의 스파인 · 스킨과 같다 (아이콘 ${Object.values(got).filter((g) => g.from.startsWith("icon_")).length} · 찍은 것 ${Object.values(got).filter((g) => g.from.startsWith("still_")).length})`);
+  }
 }
 
 console.log("");

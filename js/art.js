@@ -12,6 +12,7 @@
 
 import { loadSpineManifest, hasSpine, spineView } from "./spine-view.js";
 import ARTMAP from "./data/artmap.js";
+import { ENEMIES, foeLook } from "./data/enemies.js";
 
 const MODES = ["placeholder", "sd", "custom"];
 
@@ -61,7 +62,7 @@ function srcFor(key, slot) {
 // 어느 자리 그림이 실제로 쓰였는지 — 문서와 검사가 이걸 본다
 export function slotOf(key, slot) {
   const kind = SPINE_KIND[slot];
-  if (useSpine && kind && hasSpine(kind, key)) return kind;
+  if (useSpine && kind && hasSpine(kind, spineKey(kind, key))) return kind;
   if (mode === "placeholder") return "placeholder";
   const book = manifest[mode] || {};
   for (const prefix of SLOT[slot] || SLOT.battle) {
@@ -69,6 +70,9 @@ export function slotOf(key, slot) {
   }
   return "placeholder";
 }
+
+// 적은 다른 적의 그림을 빌려 쓸 수 있다(enemies.js art — 햇팽이 마녀는 햇팽이 스파인)
+const spineKey = (kind, key) => (kind === "enemy" && ENEMIES[key] ? foeLook(key).art : key);
 
 // 초상. 그림이 있으면 <img>, 없으면 색과 이름으로 된 자리표시.
 // flip — 움직이는 그림을 좌우로 뒤집는다(왼편에 선 아군이 오른쪽의 적을 보게).
@@ -80,14 +84,19 @@ export function portrait(key, { ko, tint, size = 72, slot = "battle", still = fa
 
   // 스파인이 있으면 움직이는 그림으로. 없으면 아래로 떨어진다 — 한 줄도 안 바뀐다.
   const kind = SPINE_KIND[slot];
-  if (useSpine && !still && kind && hasSpine(kind, key)) {
+  if (useSpine && !still && kind && hasSpine(kind, spineKey(kind, key))) {
     el.classList.add("art-spine");
     // 싸움터에 서는 큰 칸(전투 SD·적)은 모두 같은 배율로 — 사도 키가 날개·무기 장식에 따라 들쭉날쭉하지 않게.
     // 초상처럼 작은 칸은 얼굴이 보이게 그대로 꽉 맞춘다
     const unit = (kind === "ingame" || kind === "enemy") && size >= 80 ? SPINE_UNIT : 0;
     // 미니미는 한 아틀라스에 모두가 들어 있다 — 스킨 이름이 Mini_<영문 이름>(에르핀 → Mini_Erpin, 대소문자는 안 가린다)
-    const wear = kind === "minimi" && !skin && ARTMAP.art && ARTMAP.art[key] ? `Mini_${ARTMAP.art[key]}` : skin;
-    spineView(el, kind, key, { flip, skin: wear, unit }).then((v) => {
+    // 적은 싸움터의 모습 그대로(foeLook) — 적어 둔 스킨(Skin_None · 누루링 Skin_Elf), 없으면 성격 스킨. 아이콘(tools/build-art.js)도 같은 것을 본다
+    const foe = kind === "enemy" && ENEMIES[key];
+    const own = foe && foeLook(key).skin;
+    const wear = own || (kind === "minimi" && !skin && ARTMAP.art && ARTMAP.art[key] ? `Mini_${ARTMAP.art[key]}` : skin);
+    // 원작 보스는 화면을 꽉 채우게 그려져 있다(우로스 · M.E.O.W) — 적이 제 배율을 적어 두었으면 그만큼 줄여 싸움터 안에 세운다
+    const scale = (foe && foe.scale) || 1;
+    spineView(el, kind, spineKey(kind, key), { flip, skin: wear, unit, scale }).then((v) => {
       if (!v) { el.classList.remove("art-spine"); drawStill(el, key, slot, ko, tint); return; }
       el.spine = v;                        // 동작을 바꿀 수 있게(지도에서 걸을 때 등)
     });

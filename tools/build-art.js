@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ROSTER, HEROES } from "../js/data/heroes.js";
-import { ENEMIES } from "../js/data/enemies.js";
+import { ENEMIES, foeLook } from "../js/data/enemies.js";
 import ARTMAP from "../js/data/artmap.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -31,7 +31,12 @@ const files = fs.readdirSync(SRC).filter((f) => f.endsWith(".png"));
 const have = new Set(files.map((f) => f.replace(/\.png$/i, "")));
 const SKIN_TAIL = /(skin\d+)$/i;
 
+// 미니미(minimi_*)는 tools/build-minimi.py 가 같은 목록에 적는다 — 새로 쓸 때 지우지 않게 이어받는다
 const manifest = {};
+try {
+  const old = JSON.parse(fs.readFileSync(path.join(OUT, "manifest.json"), "utf8"));
+  for (const [k, v] of Object.entries(old)) if (k.startsWith("minimi_")) manifest[k] = v;
+} catch { /* 처음이면 없다 */ }
 let copied = 0, skins = 0;
 const missing = [];
 
@@ -72,29 +77,33 @@ if (!copied) {
 
 fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 1));
 
-// 적 그림 — 몬스터 아이콘은 성격 꼬리표가 붙어 있다(icon_<이름><성격>.png).
-// 그 적의 성격에 맞는 것을 고른다. 없으면 아무거나, 그것도 없으면 자리표시로 떨어진다.
+// 적 그림 — 싸움터에 서는 모습(enemies.js foeLook: 어느 스파인 · 어느 스킨)과 **같은 것만** 쓴다.
+// 몬스터 아이콘은 스킨 꼬리표가 붙어 있다(icon_<이름><성격 · none>.png) — 꼬리표가 입는 스킨과 같은 것.
+// 없으면 그 스파인을 그 스킨으로 찍어 둔 것(still_<이름>_<스킨>.png — tools/build-foe-stills.py). 둘 다 없으면 자리표시.
+// 전에는 이름이 앞머리만 맞으면 아무 아이콘이나 집어서(성격 다른 것 · 종족 인형 아이콘) 싸움터의 모습과 색이 달랐다.
+// 무엇을 골랐는지 foe-icons.json 에 적는다 — tools/check-spine.js 가 모습과 맞는지 본다.
 const MSRC = path.join(AS, "monster");
-const NATURE_EN = { 순수: "naive", 광기: "mad", 냉정: "cool", 우울: "gloomy", 활발: "jolly" };
 let foes = 0;
+const foeIcons = {}, noIcon = [];
 if (fs.existsSync(MSRC)) {
-  const all = fs.readdirSync(MSRC).filter((f) => f.endsWith(".png"));
-  for (const [key, e] of Object.entries(ENEMIES)) {
-    const want = NATURE_EN[e.nature];
-    const hits = all.filter((f) => f.startsWith(`icon_${key}`));
-    if (!hits.length) continue;
-    const pick = hits.find((f) => f === `icon_${key}${want}.png`) || hits.find((f) => f.endsWith("none.png")) || hits[0];
+  const all = new Set(fs.readdirSync(MSRC).filter((f) => f.endsWith(".png")));
+  for (const key of Object.keys(ENEMIES)) {
+    const { art, skin } = foeLook(key);
+    const tail = (skin || "").replace(/^Skin_/, "").toLowerCase();
+    const pick = [`icon_${art}${tail}.png`, `still_${art}_${tail || "default"}.png`].find((f) => all.has(f));
+    if (!pick) { noIcon.push(key); continue; }
     fs.copyFileSync(path.join(MSRC, pick), path.join(OUT, key + ".png"));
     manifest[key] = key + ".png";
+    foeIcons[key] = { from: pick, art, skin };
     foes++;
   }
   fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 1));
+  fs.writeFileSync(path.join(OUT, "foe-icons.json"), JSON.stringify(foeIcons, null, 1));
 }
 
 const size = fs.readdirSync(OUT).reduce((n, f) => n + fs.statSync(path.join(OUT, f)).size, 0);
 console.log(`사도 ${copied}장${skins ? ` · 스킨 ${skins}장` : ""} · 적 ${foes}장 · ${(size / 1048576).toFixed(1)}MB → assets/sd/`);
-const noFoe = Object.keys(ENEMIES).filter((k) => !manifest[k]);
-if (noFoe.length) console.log(`못 찾은 적: ${noFoe.join(", ")}`);
+if (noIcon.length) console.log(`모습에 맞는 그림이 없는 적: ${noIcon.join(", ")} — python tools/build-foe-stills.py 로 찍어 두세요`);
 
 if (missing.length) {
   console.log(`  그림을 못 찾은 사도 ${missing.length}: ${missing.slice(0, 6).join(", ")}`);

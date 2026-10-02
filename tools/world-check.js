@@ -100,9 +100,11 @@ for (const [k, h] of Object.entries(HEROES)) {
 for (const e of Object.values(ENEMIES)) {
   LINES.push([`적 ${e.ko}`, null, e.ko]);
   // 첫 수 · 체력이 떨어진 뒤의 수 · 힘을 모은 뒤의 수까지
-  const all = [...e.intents, ...(e.open ? [e.open] : []), ...((e.phase || {}).intents || [])];
+  const all = [...e.intents, ...(e.open ? [e.open] : []), ...((e.phase || {}).intents || []), ...((e.phase2 || {}).intents || [])];
   for (const it of all) for (const x of [it, ...(it.next ? [it.next] : [])]) LINES.push([`적 ${e.ko}`, null, x.say]);
   if (e.phase) LINES.push([`적 ${e.ko}`, null, e.phase.say]);
+  if (e.phase2) LINES.push([`적 ${e.ko}`, null, e.phase2.say]);
+  for (const p of e.passives || []) LINES.push([`적 ${e.ko}`, null, p.name]);
 }
 for (const f of FLOORS) LINES.push([`${f.n}층`, null, `${f.name} ${f.sub}`]);
 // 이벤트 — 장면 · 선택지 · 연출 한 줄(docs/08-이벤트.md). 원작 사도가 나오니 세계 규칙에 가장 잘 걸리는 자리다

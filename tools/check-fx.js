@@ -236,7 +236,7 @@ console.log("적의 수");
   const KNOWN = new Set(["attack", "back", "attackAll", "multi", "charge", "block", "guard", "heal", "buff", "debuff", "jam"]);
   const bad = [];
   for (const [k, e] of Object.entries(ENEMIES))
-    for (const it of [...e.intents, ...(e.open ? [e.open] : []), ...((e.phase || {}).intents || [])])
+    for (const it of [...e.intents, ...(e.open ? [e.open] : []), ...((e.phase || {}).intents || []), ...((e.phase2 || {}).intents || [])])
       for (const x of [it, ...(it.next ? [it.next] : [])]) if (!KNOWN.has(x.t)) bad.push(`${k}:${x.t}`);
   bad.length === 0 ? ok("적의 수가 전부 엔진이 아는 종류다") : fail(`모르는 수 ${bad.join(", ")}`);
 }

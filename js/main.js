@@ -101,8 +101,10 @@ function reward() {
   run.elite = false;                       // 엘리트 보상은 한 번
   // 보스를 넘었을 때만 층이 바뀐다(run.js 의 advance). 그 밖의 싸움은 지도로 돌아간다
   if (!R.isBoss(run)) return mapStep();
-  R.advance(run);                          // 층이 바뀐다 — 사도 교체는 없다
+  const next = R.advance(run);             // 층이 바뀐다 — 사도 교체는 없다
   if (run.done === "clear") return end("clear");
+  // 마지막 층의 보스를 넘으면 뿌리 깊은 곳 — 상점 없이 캠프 한 번, 떠나면 곧장 마지막 싸움(우로스). 그것을 이겨야 판을 깬다
+  if (next.final) return camp("final");
   mapStep();
 }
 
@@ -146,13 +148,13 @@ function eventFightDone(result) {
   eventStop();
 }
 
-// 캠프 — 수련 선택지는 들어올 때 한 번 굴린다(run.js enterCamp)
+// 캠프 — 수련 선택지는 들어올 때 한 번 굴린다(run.js enterCamp). kind "final" 은 마지막 싸움 앞의 캠프 — 떠나면 지도가 아니라 싸움으로
 function camp(kind) {
   ui.hint("");
   R.enterCamp(run, kind);
   run.where = { k: "camp", kind };
   S.writeSave(run);
-  ui.campScreen(run, kind === "campshop", mapStep, () => shop(kind));
+  ui.campScreen(run, kind === "campshop", kind === "final" ? () => fight() : mapStep, () => shop(kind));
 }
 
 // 상점 — 휴식(상점) 칸마다 새 진열. 한 층에 여럿 들를 수 있다. 진열은 그 칸에서 한 번만 굴린다
