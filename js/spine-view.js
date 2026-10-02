@@ -76,9 +76,74 @@ function evict() {
 // skin — 입힐 스킨. 적은 성격마다 한 벌씩(Skin_Naive·Skin_Mad…) 들고 있고 기본 스킨이 비어 있기도 하다.
 // unit — 칸 높이가 게임 세계로 몇 단위인가. 주면 **모두 같은 배율**로 그린다(원작 전투처럼).
 //   안 주면 그림 전체(날개·무기·이펙트까지)를 칸에 꽉 맞추는데, 그러면 장식이 큰 사도일수록 몸이 작아졌다.
-//   같은 배율로 그리면 날개·지팡이는 칸 밖으로 나간다 — 그래서 캔버스를 칸보다 크게(가로 3배·세로 2배) 잡고
+//   같은 배율로 그리면 날개·지팡이는 칸 밖으로 나간다 — 그래서 캔버스를 칸보다 크게(가로 3배·세로 2배 이상) 잡고
 //   발(뼈대 원점)을 칸 바닥 가운데에 세운다. 칸 크기와 자리 잡기는 그대로라 배치가 흔들리지 않는다.
+//   얼마나 크게 잡을지는 그 사도의 **모든 동작이 닿는 곳**을 처음 한 번 재서 정한다(reachOf) — 3배 · 2배로 못 박았더니
+//   실비아의 양산 · 은분수(Skill1_1 은 발에서 칸 높이의 2배 옆까지)가 옆 사도 칸에서 칼로 자른 듯 잘렸다.
 export const OVER_W = 3, OVER_H = 2;
+// 너무 큰 캔버스는 막는다 — 칸 높이를 1 로 잰 몫. 옆으로는 발에서 양쪽 3, 위로 3, 발 아래로 0.6
+const REACH_CAP = { side: 3, up: 3, down: 0.6 };
+
+// 보이는 것만의 테두리 — 스켈레톤의 getBounds 는 투명하게 꺼 둔 부품(먼지 · 등장 이펙트)까지 세서
+// 커버러스의 쉬는 자세가 왼쪽으로 칸 높이 5배를 차지했다. 색 알파가 거의 0 인 칸은 뺀다. 없으면 null
+const VBUF = new Float32Array(4096);
+function visibleBox(sp, skeleton) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const slot of skeleton.drawOrder) {
+    const at = slot.getAttachment();
+    if (!at || slot.color.a * (at.color ? at.color.a : 1) < 0.05) continue;
+    let n = 0;
+    if (at instanceof sp.RegionAttachment) { at.computeWorldVertices(slot, VBUF, 0, 2); n = 8; }
+    else if (at instanceof sp.MeshAttachment && at.worldVerticesLength <= VBUF.length) { n = at.worldVerticesLength; at.computeWorldVertices(slot, 0, n, VBUF, 0, 2); }
+    for (let i = 0; i < n; i += 2) {
+      x0 = Math.min(x0, VBUF[i]); x1 = Math.max(x1, VBUF[i]);
+      y0 = Math.min(y0, VBUF[i + 1]); y1 = Math.max(y1, VBUF[i + 1]);
+    }
+  }
+  return isFinite(x0) ? { x0, y0, x1, y1 } : null;
+}
+
+// 그 뼈대의 모든 동작을 훑어(동작마다 13장면) 발(원점)에서 가장 멀리 닿는 곳을 잰다 — 칸 높이 1 기준.
+// 좌우는 큰 쪽으로 같게 잡는다(뒤집어 그려도 같고, 발이 캔버스 가운데에 남는다).
+// 등장(Spawn)은 넣지 않는다 — 보스는 화면 밖 멀리서 걸어 들어와서(커버러스 칸 높이 5배) 그것까지 담으면 캔버스가 터무니없이 커진다.
+// 대신 몸이 그 테두리 안에 처음 들어오는 때(spawnFrom, 동작 길이의 몫)를 재어 등장을 거기서부터 튼다 — 잘린 채 날아 들어오지 않게
+function reachOf(sp, skeleton, unit, scale) {
+  const out = { side: 0, up: 0, down: 0 }, spawn = [];
+  try {
+    const st = new sp.AnimationState(new sp.AnimationStateData(skeleton.data));
+    const [sx, sy, x, y] = [skeleton.scaleX, skeleton.scaleY, skeleton.x, skeleton.y];
+    skeleton.scaleX = skeleton.scaleY = 1; skeleton.x = skeleton.y = 0;
+    for (const a of skeleton.data.animations) {
+      const isSpawn = /^spawn/i.test(a.name);
+      const te = st.setAnimation(0, a.name, false);
+      for (let i = 0; i <= 12; i++) {
+        te.trackTime = (a.duration * i) / 12;
+        skeleton.setToSetupPose(); st.apply(skeleton); skeleton.updateWorldTransform();
+        const bx = visibleBox(sp, skeleton);
+        if (!bx) continue;
+        if (isSpawn) { if (/^spawn$/i.test(a.name)) spawn.push([i / 12, bx]); continue; }
+        out.side = Math.max(out.side, -bx.x0, bx.x1);
+        out.up = Math.max(out.up, bx.y1);
+        out.down = Math.max(out.down, -bx.y0);
+      }
+    }
+    skeleton.setToSetupPose();
+    [skeleton.scaleX, skeleton.scaleY, skeleton.x, skeleton.y] = [sx, sy, x, y];
+  } catch { return null; }
+  const k = scale / unit;
+  const r = {
+    side: Math.min(REACH_CAP.side, out.side * k + 0.06),
+    up: Math.min(REACH_CAP.up, out.up * k + 0.1),            // 발은 칸 바닥에서 5% 떠 있다(아래 loop) — 그 몫과 여유
+    down: Math.min(REACH_CAP.down, Math.max(0, out.down * k - 0.05)),
+    spawnFrom: 0,
+  };
+  // 등장 — 몸이 캔버스 안에 들어온 첫 장면부터(처음부터 안이면 0)
+  const inside = (bx) => -bx.x0 * k <= r.side + 0.02 && bx.x1 * k <= r.side + 0.02 && bx.y1 * k <= r.up + 0.02 && -bx.y0 * k <= r.down + 0.1;
+  const first = spawn.findIndex(([, bx]) => inside(bx));
+  if (first > 0) r.spawnFrom = Math.min(0.9, spawn[first][0]);
+  else if (first < 0 && spawn.length) r.spawnFrom = 0.9;
+  return r;
+}
 // mix — 동작이 바뀔 때 섞는 시간(초). 0 이면 바로 바뀐다(전투). 로비의 메인 사도는 부드럽게 섞는다
 // bust — 머리부터 몸의 이 몫(0~1)만 칸 높이에 맞춘다. 아래는 칸 밖으로 잘린다(고학년 컷인의 상반신)
 export async function spineView(el, kind, key, { scale = 1, anim, flip = false, skin, unit = 0, mix = 0, bust = 0 } = {}) {
@@ -95,7 +160,7 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
   if (spare) {
     // 새 칸에도 「넘쳐도 된다」 표시를 단다 — 빠뜨렸더니 옮겨 붙인 캔버스가 칸(둥근 네모)에 잘려 보였다
     if (unit) el.classList.add("art-over");
-    el.appendChild(spare.canvas); spare.wake(); return spare.api;
+    el.appendChild(spare.canvas); if (spare.place) spare.place(el); spare.wake(); return spare.api;
   }
 
   const set = kind === "minimi" ? manifest.minimi : manifest[kind][key];
@@ -105,12 +170,18 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
   canvas.width = w;
   canvas.height = h;
   canvas.style.width = canvas.style.height = "100%";
-  if (unit) {
-    // 칸보다 크게, 바닥 가운데에 맞춰 — 넘친 부분이 옆 사도의 클릭을 가로채지 않게 한다
-    Object.assign(canvas.style, { position: "absolute", left: `${-(OVER_W - 1) * 50}%`, bottom: "0",
-      width: `${OVER_W * 100}%`, height: `${OVER_H * 100}%`, pointerEvents: "none" });
-    el.classList.add("art-over");
-  }
+  // 칸에서 넘치는 몫 — w · h 는 칸 너비 · 높이의 배수, down 은 발 아래로 칸 높이의 몫(reachOf 가 잰 뒤 place 가 정한다)
+  const over = { w: OVER_W, h: OVER_H, down: 0, side: 0 };
+  // 칸보다 크게, 발을 칸 바닥 가운데에 맞춰 — 넘친 부분이 옆 사도의 클릭을 가로채지 않게 한다.
+  // 가로는 칸 너비의 배수라 칸의 가로세로 비를 보고 정한다(옆으로 닿는 거리는 칸 높이로 잰다)
+  const place = (host) => {
+    if (!unit) return;
+    const asp = (host.clientHeight || h) / (host.clientWidth || w);
+    over.w = Math.max(OVER_W, 2 * over.side * asp);
+    Object.assign(canvas.style, { position: "absolute", left: `${-(over.w - 1) * 50}%`, bottom: `${-over.down * 100}%`,
+      width: `${over.w * 100}%`, height: `${over.h * 100}%`, pointerEvents: "none" });
+  };
+  if (unit) { place(el); el.classList.add("art-over"); }
   el.appendChild(canvas);
 
   let ctx, renderer;
@@ -173,6 +244,19 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
   state.apply(skeleton); skeleton.updateWorldTransform();
   const off = new sp.Vector2(), size = new sp.Vector2();
   skeleton.getBounds(off, size, []);
+  // 같은 배율로 서는 칸 — 동작이 닿는 곳까지 캔버스를 넓힌다(옆 칸 · 위 · 발 아래)
+  let spawnFrom = 0;
+  if (unit) {
+    const r = reachOf(sp, skeleton, unit, scale);
+    if (r) {
+      spawnFrom = r.spawnFrom;
+      over.side = r.side;
+      over.h = Math.max(OVER_H, r.up + r.down);
+      over.down = r.down;
+      place(el);
+    }
+    state.apply(skeleton); skeleton.updateWorldTransform();
+  }
 
   let raf = 0, last = performance.now(), dead = false;
   let frozen = 0;                 // 이때(performance.now)까지 시간을 멈춘다 — 맞는 순간의 멈칫(히트스톱)
@@ -214,12 +298,12 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
     // 캔버스 가운데 아래에 세운다 — 미니미도 스탠딩도 발이 바닥에 닿아야 자연스럽다
     if (unit) {
       // 모두 같은 배율 — 칸 높이 = unit 단위. 발(원점)은 칸 바닥 가운데, 발밑 그림자 몫만 조금 띄운다
-      const boxH = canvas.height / OVER_H;
+      const boxH = canvas.height / over.h;
       const fit = (boxH / unit) * scale;
       skeleton.scaleY = fit;
       skeleton.scaleX = flip ? -fit : fit;
       skeleton.x = 0;
-      skeleton.y = -canvas.height / 2 + boxH * 0.05;
+      skeleton.y = -canvas.height / 2 + boxH * (over.down + 0.05);
     } else if (bust) {
       // 머리 꼭대기를 칸 위끝 조금 아래에 — 가로는 가운데
       const fit = (canvas.height / ((size.y || 1) * bust)) * scale;
@@ -281,6 +365,8 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
     has: (name) => !!findAnim(name),
     current: () => { const t = state.getCurrent(0); return t && t.animation ? t.animation.name : null; },
     duration: (name) => { const a = findAnim(name); return a ? a.duration : 0; },
+    // 등장(Spawn)을 어디서부터 틀까 — 동작 길이의 몫. 멀리서 날아 들어오는 앞부분은 캔버스 밖이라 잘려 보인다(reachOf)
+    spawnFrom: () => spawnFrom,
     // 동작에 찍힌 이벤트 [{ name, time(초), s(문자 값), i(정수 값) }] — 원작은 Event · SFX · Voice · NextAni 따위에
     // 게임 표의 번호(1001409 …)를 문자 값으로 단다. 이름만으로 뜻은 모르니 쓰는 쪽(fight-screen 의 strikeOf)이 짐작한다
     events(name) {
@@ -329,7 +415,7 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
       if (was) v.play(was.n, was.loop);
     });
   }, { once: true });
-  pool.push({ id, canvas, api, wake });
+  pool.push({ id, canvas, api, wake, place });
   evict();
   return api;
 }

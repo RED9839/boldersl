@@ -18,7 +18,7 @@ import { spineView } from "./spine-view.js";
 import { loadFx, preloadUltFx, playUltFx, ultImpactMs, ultLagMs, playFx, preloadFx } from "./fx-burst.js";
 import { speak } from "./voice.js";
 import { cardMotion } from "./data/card-motion.js";
-import { HERO, TINT, NTINT, el, kwNote, hint, screen, TMARK, TKIND, goldIcon, openHelp, img, withKeywords, showCard, showPiles, natureClass, bigCard, setStageBg, statText, equipIcon, emptySlotIcon } from "./ui-common.js";
+import { HERO, TINT, NTINT, el, kwNote, hint, screen, TMARK, TKIND, goldIcon, openHelp, img, withKeywords, showCard, showPiles, natureClass, bigCard, effectBox, setStageBg, statText, equipIcon, emptySlotIcon, showEquip } from "./ui-common.js";
 
 // 효과음 자리 — 전투 화면이 맞는 순간 · 고학년 · 카드 동작에 부른다. 효과음 모듈이 메서드를 갈아 끼운다(안 끼우면 조용하다).
 //   hit(kind, heavy, crit)  맞는 순간마다 — kind 는 타격 갈래(slash 베기 · shot 쏘기 · magic 마법 · blunt 둔기), 받는 쪽은 kind 앞에 "ally:"
@@ -65,10 +65,12 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
 
   // ① 머리 — 어디서 싸우는가
   const head = el("div", "bhead");
-  head.appendChild(el("span", "bwhere", `${floor.n}층 · ${floor.name}`));
+  // 판의 마지막 싸움(마지막 층 너머 — run.js finalOf)은 층 이름 대신 그곳 이름
+  const fin = !run.eventFight && R.finalOf(run);
+  head.appendChild(el("span", "bwhere", fin ? fin.name : `${floor.n}층 · ${floor.name}`));
   const mapNode = M.currentNode(run);
   const stageTag = mapNode ? `${M.stageName(run, mapNode)} ${M.KIND_KO[mapNode.type]}` : `${run.node + 1}번째 싸움`;
-  head.appendChild(el("span", "bsub", `${floor.sub} · ${run.eventFight ? `이벤트 — ${run.eventFight.name}` : R.isBoss(run) ? `${mapNode ? M.stageName(run, mapNode) + " " : ""}층의 끝` : stageTag}`));
+  head.appendChild(el("span", "bsub", fin ? fin.sub : `${floor.sub} · ${run.eventFight ? `이벤트 — ${run.eventFight.name}` : R.isBoss(run) ? `${mapNode ? M.stageName(run, mapNode) + " " : ""}층의 끝` : stageTag}`));
   const flashBox = el("span", "bflash");
   for (const id of run.traits) { const t = TRAITS[id]; const c = el("span", "flash", t.ko); c.title = t.text; flashBox.appendChild(c); }
   head.appendChild(flashBox);
@@ -281,6 +283,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     t.appendChild(el("b", null, e.ko));
     t.appendChild(el("span", null, `${e.slot} · ${e.grade} — 가방으로`));
     row.appendChild(t);
+    row.onclick = () => showEquip(id, { note: "가방에 들어갑니다 — 전투가 끝나면 지도 · 캠프 · 상점에서 낍니다" });
     addLoot(row);
   }
   // 적 칸 — 미리보기를 그 위에 얹으려고 idx 로 들고 있는다
@@ -387,7 +390,10 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   const animIn = (v, n) => (v.has(n) ? n : v.has(n + "_Full") ? n + "_Full" : null);
   function actName(v, side, idx, anim, card) {
     if (side === "enemy") {
-      const e = st.enemies.find((x) => x.idx === idx), mood = e && FOE_MOOD[ENEMY_NATURE[e.key]];
+      // 끝말 — 성격(Attack1_1_Mad), 성격이 없으면 입은 스킨(누루링 Skin_Elf → Attack1_1_Elf · 보스 Skin_None → _None).
+      // 안 찾으면 첫 Attack1_1_* 로 떨어져 엘프 누루링이 용족(Dragon) 동작을 했다
+      const e = st.enemies.find((x) => x.idx === idx), E = e && ENEMIES[e.key];
+      const mood = e && (FOE_MOOD[ENEMY_NATURE[e.key]] || (E && E.skin ? E.skin.replace(/^Skin_/, "") : null));
       const all = v.animations();
       const find = (base) => (mood && v.has(`${base}_${mood}`) ? `${base}_${mood}` : all.find((n) => n.toLowerCase().startsWith(base.toLowerCase())));
       return [anim === "skill" ? find("Skill1_1") || find("Attack1_1") : find("Attack1_1") || find("Skill1_1")];
@@ -427,6 +433,14 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     v.play(name, false, chain, { from: p.from ? p.from * v.duration(name) : 0 });
     // 긴 동작(승리 춤)은 앞만 — 그 동작이 아직이면 쉬는 동작으로
     if (p.cut) later(p.cut, () => { if (v.current() === name) v.toRest(); });
+    // 움직이는 동안은 옆 칸 위에 그린다 — 양산 · 분수처럼 옆 사도 칸으로 넘어간 그림이 그 사도 밑에 깔리지 않게
+    const n = unitNode(e.side, e.idx);
+    if (n) {
+      const ms = p.cut || Math.min(4000, 1000 * [name, ...[].concat(chain || [])].reduce((t, a) => t + (v.duration(a) || 0), 0));
+      n.classList.add("acting");
+      clearTimeout(n.actingT);
+      n.actingT = later(ms, () => n.classList.remove("acting"));
+    }
     return p;
   }
   // 때리는 순간(ms, 동작 시작에서) — 원작 스파인 이벤트로 짐작한다. 이벤트 이름은 Event · SFX · Voice · NextAni 뿐이고
@@ -1033,7 +1047,8 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       if (u.dead) continue;
       viewOf(u.side, u.idx, 4000).then((v) => {
         if (!v) return;
-        if (spawn && v.play("Spawn")) return;
+        // 등장은 몸이 칸 둘레(캔버스) 안에 들어온 때부터 — 보스는 멀리서 날아 들어와 앞부분이 잘려 보였다(spine-view reachOf)
+        if (spawn && v.play("Spawn", false, null, { from: (v.spawnFrom ? v.spawnFrom() : 0) * v.duration("Spawn") })) return;
         if (!/^(idle|groggy)/i.test(v.current() || "")) v.toRest();
       });
     }
@@ -1082,7 +1097,11 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       tag.title = INTENT_HELP[it.t] || "";
       // 즉시 행동 — 이 수가 예고된 뒤로 카드를 N장 내면 당겨서 한다(수마다 N 이 다르다). 다음 한 장이면 붉게
       const rn = C.rushOf(u);
-      if (rn && !u.sealed) {
+      if (rn && !u.sealed && u.rushedTurn) {
+        const rush = el("span", "rush done", "⚡끝");
+        rush.title = "이번 턴에는 이미 즉시 행동했습니다 — 다음 턴까지 당겨지지 않습니다";
+        tag.appendChild(rush);
+      } else if (rn && !u.sealed) {
         const k = u.rushCnt || 0;
         const rush = el("span", "rush" + (k === rn - 1 ? " hot" : ""), `⚡${k}/${rn}`);
         rush.title = `카드를 ${rn - k}장 더 내면 이 수를 즉시 합니다`;
@@ -1215,27 +1234,85 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     return wrap;
   }
 
-  function chips(u) {
-    const box = el("div", "chips");
+  // ── 걸린 것 — 버프 · 디버프 · 키워드 ────────────────────────────────
+  // 칩과 정보 창이 같은 목록을 쓴다(effectsOf). 버프는 청록, 디버프는 빨강, 키워드는 금빛 — 값과 남은 턴을 함께.
+  // 전에는 상태 · 증감 · 키워드가 한 줄에 같은 모양으로 섞여 무엇이 좋은 것인지 한눈에 안 보였다(2026-10 사용자)
+  const STAT_KO = { dealt: "주는 피해", taken: "받는 피해", atk: "공격력", def: "방어력", crit: "치명" };
+  const STAT_SHORT = { dealt: "피해", taken: "받피", atk: "공", def: "방", crit: "치명" };
+  const BAD_ST = ["취약", "약화", "감전", "중독", "기절", "침묵"];
+  const pctTxt = (v) => `${v > 0 ? "+" : ""}${Math.round(v * 100)}%`;
+  const turnTxt = (n) => (n == null || n >= 999 ? "이번 전투" : `${n}턴`);
+  // 키워드 1개당이 이 사람에게 주는 증감 — [{ id, stat, v, n }]
+  function kwShares(u) {
+    const out = [];
+    for (const kw of Object.values(st.kw || {})) {
+      for (const p of kw.per || []) {
+        if (!STAT_KO[p.stat]) continue;
+        let n = 0;
+        if (kw.carrier === "self") {
+          const mine = ((st.stacks || {})[kw.owner] || {})[kw.id] || 0;
+          if (mine && (p.who === "allies" ? u.side === "party" : u.key === kw.owner && u.side === "party")) n = mine;
+        } else n = (u.status || {})[kw.id] || 0;
+        if (n) out.push({ id: kw.id, stat: p.stat, v: n * p.v, n });
+      }
+    }
+    return out;
+  }
+  // 이 사람에게 걸린 것 전부 — buffs · debuffs: [{ stat?, id?, v, left, src }] · keys: [{ id, n, owner, share }]
+  function effectsOf(u) {
+    const buffs = [], debuffs = [], keys = [];
+    const goodMod = (stat, v) => (stat === "taken" ? v < 0 : v > 0);
+    for (const m of u.mods || []) (goodMod(m.stat, m.v) ? buffs : debuffs).push({ stat: m.stat, v: m.v, left: m.left, src: m.src || null });
+    if (u.side === "party" && st.always) for (const m of st.always[u.key] || []) {
+      const owner = st.party.find((x) => x.key === m.owner);
+      (goodMod(m.stat, m.v) ? buffs : debuffs).push({ stat: m.stat, v: m.v, left: 999, src: `${owner ? owner.ko : m.owner} · ${m.name || "패시브"}${m.cond && m.cond.length ? " (조건부)" : ""}`, always: true });
+    }
     for (const [k, v] of Object.entries(u.status || {})) {
       if (!v) continue;
-      // 적에게 거는 표식·아군에게 씌우는 키워드(늑대 표식·계시)는 키워드 빛으로
-      const isKw = !!(st.kw || {})[k];
-      box.appendChild(el("span", "chip" + (isKw ? " key" : ["취약", "약화", "감전", "중독", "기절", "침묵"].includes(k) ? " bad" : ""), `${k} ${v}`));
+      const kw = (st.kw || {})[k];
+      if (kw) { keys.push({ id: k, n: v, owner: kw.owner }); continue; }
+      (BAD_ST.includes(k) ? debuffs : buffs).push({ id: k, v, left: v });
     }
-    // 걸려 있는 증감 — 같은 종류는 합쳐서 한 칸. 패시브의 「항상」 과 키워드 1개당도 들어간 값이다
-    const MODS = [["dealt", "주는 피해"], ["taken", "받는 피해"], ["atk", "공격력"], ["def", "방어력"], ["crit", "치명"]];
-    for (const [stat, ko] of MODS) {
-      const v = Math.round(C.statOf(st, u, stat) * 100);
-      // ±1% 는 칸을 따로 세우지 않는다 — 대개 「1개당 아군 전원 받는 피해 -1%」 키워드가 하나 쌓인 것이라
-      // 주인의 키워드 칸(광물 1 따위)이 이미 말하고, 작은 칸만 늘어 읽기를 방해했다. 2개 이상 쌓이면 보인다
-      if (Math.abs(v) < 2) continue;
-      const good = stat === "taken" ? v < 0 : v > 0;
-      box.appendChild(el("span", "chip mod " + (good ? "up" : "down"), `${ko} ${v > 0 ? "+" : ""}${v}%`));
-    }
-    // 사도 전용 키워드(간식·수은막…)도 여기 보인다
+    if (u.side === "party" && st.taunt === u.key) buffs.push({ id: "도발", v: st.tauntLeft || 1, left: st.tauntLeft || 1 });
     const stk = (st.stacks || {})[u.key];
-    if (stk) for (const [k, v] of Object.entries(stk)) if (v) box.appendChild(el("span", "chip key", `${k} ${v}`));
+    if (stk && u.side === "party") for (const [k, v] of Object.entries(stk)) if (v) keys.push({ id: k, n: v, owner: u.key, self: true });
+    const shares = kwShares(u);
+    for (const k of keys) k.share = shares.filter((x) => x.id === k.id);
+    return { buffs, debuffs, keys };
+  }
+  function chips(u) {
+    const box = el("div", "chips");
+    const { buffs, debuffs, keys } = effectsOf(u);
+    // 증감은 종류마다 한 칸 — 값은 합, 턴은 가장 먼저 끝나는 것. 누르거나 올리면 출처
+    const group = (list, cls) => {
+      const by = new Map();
+      for (const x of list) {
+        const k = x.stat || "#" + x.id;
+        const g = by.get(k) || { ...x, v: 0, left: 999, src: [] };
+        g.v += x.v; g.left = Math.min(g.left, x.left == null ? 999 : x.left);
+        g.src.push(x.stat ? `${STAT_KO[x.stat]} ${pctTxt(x.v)} · ${turnTxt(x.left)}${x.src ? " · " + x.src : ""}` : `${x.id} ${turnTxt(x.left)}`);
+        by.set(k, g);
+      }
+      for (const g of by.values()) {
+        if (g.stat && Math.abs(Math.round(g.v * 100)) < 1) continue;
+        const c = el("span", "chip " + cls);
+        if (g.stat) {
+          const up = g.v > 0;
+          c.appendChild(document.createTextNode(`${STAT_SHORT[g.stat]}${up ? "↑" : "↓"}${Math.abs(Math.round(g.v * 100))}%`));
+        } else c.appendChild(document.createTextNode(g.id));
+        if (g.left < 999) c.appendChild(el("i", "cturn", String(g.left)));
+        c.title = g.src.join("\n");
+        box.appendChild(c);
+      }
+    };
+    group(buffs, "buff");
+    group(debuffs, "debuff");
+    for (const k of keys) {
+      const c = el("span", "chip key", k.id);
+      c.appendChild(el("b", "cnum", String(k.n)));
+      c.title = `${k.id} ${k.n}` + k.share.map((x) => `\n${STAT_KO[x.stat]} ${pctTxt(x.v)}`).join("");
+      box.appendChild(c);
+    }
     return box;
   }
 
@@ -1243,7 +1320,8 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   // 카드를 고르거나 손패에서 카드에 올리면, 적마다 얼마나 깎이는지 적 위에 띄운다.
   // 한 명을 고르는 카드는 적마다 "이 적을 치면" 의 값을, 적에 올리면 그 적을 쳤을 때의 전부를 보여 준다.
   // 계산은 엔진이 한다(C.previewCard) — 판을 복사해 실제로 내 보는 것이라 실제와 어긋나지 않는다.
-  function paintPreview(handIdx, hoverIdx) {
+  // 고학년 스킬도 같은 자리에 — 끌어 올린 동안 적마다 얼마나 깎이는지(C.previewUlt). 전에는 카드만 보였다
+  function paintPreview(handIdx, hoverIdx, ultKey) {
     for (const [, { n, pv, ghost }] of foeEls) {
       n.classList.remove("pvon"); n.classList.remove("pvkill");
       pv.innerHTML = "";
@@ -1254,21 +1332,26 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       pv.innerHTML = "";
       if (gain) gain.style.width = "0";
     }
-    if (handIdx == null || handIdx < 0 || st.over) return;
-    const id = st.hand[handIdx]; if (!id) return;
-    const need = targetsNeeded(id);
+    if (st.over) return;
+    let need, run;
+    if (ultKey) { need = ultNeed(ultKey); run = (t) => C.previewUlt(st, ultKey, t); }
+    else {
+      if (handIdx == null || handIdx < 0) return;
+      const id = st.hand[handIdx]; if (!id) return;
+      need = targetsNeeded(id); run = (t) => C.previewCard(st, handIdx, t);
+    }
     const res = {};
     if (need === "enemy" && hoverIdx == null) {
       for (const e of st.enemies) {
         if (e.dead) continue;
-        const p = C.previewCard(st, handIdx, e.idx);
+        const p = run(e.idx);
         if (p && p[e.idx]) res[e.idx] = p[e.idx];
       }
     } else {
-      const p = C.previewCard(st, handIdx, hoverIdx == null ? 0 : hoverIdx);
+      const p = run(hoverIdx == null ? 0 : hoverIdx);
       if (p) p.forEach((x, i) => { if (x) res[i] = x; });
     }
-    paintAllies(handIdx, need, hoverIdx);
+    if (!ultKey) paintAllies(handIdx, need, hoverIdx);
     for (const [i, x] of Object.entries(res)) {
       const slot = foeEls.get(Number(i)); const u = st.enemies[i];
       if (!slot || !u) continue;
@@ -1518,13 +1601,21 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       });
     }
 
-    // 패시브가 발동했으면 그 사도 위에 이름을 띄운다 — 기록에 「에르핀 · 와구와구」 로 남는다
+    // 패시브가 발동했으면 그 사도 위에 이름을 띄운다 — 기록에 「에르핀 · 와구와구」 로 남는다.
+    // 한 수에 여럿이 터지면(실비아 「어머니의 특별 강의」 + 「초청객」) 같은 자리에 겹쳐 글자가 뭉개졌다 — 사람마다 한 줄로 모은다
+    const fired = new Map();
     for (const line of st.log.slice(logShown)) {
       const m = line.match(/^(.+?) · (.+)$/);
       if (!m) continue;
       const who = st.party.find((u) => u.ko === m[1]);
-      const node = who && standEls.get(who.key);
-      if (node) { const f = el("div", "pfire", m[2]); node.appendChild(f); setTimeout(() => f.remove(), 1600); }
+      if (!who || !standEls.get(who.key)) continue;
+      const names = fired.get(who.key) || [];
+      if (!names.includes(m[2])) names.push(m[2]);
+      fired.set(who.key, names);
+    }
+    for (const [key, names] of fired) {
+      const f = el("div", "pfire", names.join(" · "));
+      standEls.get(key).appendChild(f); setTimeout(() => f.remove(), 1600);
     }
     for (; logShown < st.log.length; logShown++) {
       const line = st.log[logShown];
@@ -1635,6 +1726,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (lit === "enemy") for (const [, { n }] of foeEls) { if (!n.classList.contains("dead")) n.classList.add("tgt", "dtgt"); }
     if (lit === "party") for (const [, n] of standEls) { if (!n.classList.contains("dead")) n.classList.add("tgt", "dtgt"); }
     if (!drag.ult) paintPreview(drag.i, null);  // 끌기 시작 — 대상마다 「여기 놓으면」 을 미리 띄운다
+    else if (!drag.locked) paintPreview(null, null, drag.ult.key);
   }
   function moveDrag(e) {
     if (!drag) return;
@@ -1676,6 +1768,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       // 싸움터에 놓는 고학년 — 올라오면 맞을 쪽이 모두 금빛으로
       if (drag.ult && !drag.need) for (const n of document.querySelectorAll(".dtgt")) n.classList.toggle("dover", !!t);
       if (drag.need && !drag.ult) paintPreview(drag.i, t ? Number(t.dataset.idx) : null);
+      if (drag.need && drag.ult) paintPreview(null, t ? Number(t.dataset.idx) : null, drag.ult.key);
     }
   }
   // 끌어 놓을 대상 — 이름표 · 체력 칸만이 아니라 서 있는 그림 전체(칸 밖으로 넘친 캔버스까지)를 잡고,
@@ -1685,11 +1778,12 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     let best = null, bestD = Infinity;
     for (const n of document.querySelectorAll(sel)) {
       const rs = [n.getBoundingClientRect()];
-      const cv = n.querySelector(".art canvas");
-      if (cv) {
-        // 캔버스는 칸의 3배 폭 · 2배 높이다 — 가운데 1/3 폭, 위 1/4 을 뺀 만큼을 몸으로 친다
-        const r = cv.getBoundingClientRect();
-        rs.push({ left: r.left + r.width / 3, right: r.right - r.width / 3, top: r.top + r.height * 0.25, bottom: r.bottom });
+      const art = n.querySelector(".art canvas") && n.querySelector(".art");
+      if (art) {
+        // 몸 — 칸 폭 그대로, 위로 칸 높이의 반만큼 더(머리 · 날개). 캔버스는 동작이 닿는 곳까지 넓혀 그리니(spine-view reachOf)
+        // 캔버스 크기로 재면 옆 사람 자리까지 잡힌다
+        const r = art.getBoundingClientRect();
+        rs.push({ left: r.left, right: r.right, top: r.top - r.height * 0.5, bottom: r.bottom });
       }
       const L = Math.min(...rs.map((r) => r.left)), R = Math.max(...rs.map((r) => r.right));
       const T = Math.min(...rs.map((r) => r.top)), B = Math.max(...rs.map((r) => r.bottom));
@@ -1755,6 +1849,72 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (typeof addEventListener === "function") addEventListener("keydown", escClose);
     modal = back;
     return box;
+  }
+  // 능력치 — 기본(+장비) → 지금. 바뀐 몫은 초록(오름) · 빨강(내림), 아래에 무엇 때문인지
+  function statBlock(u) {
+    const box = el("div", "bmstats");
+    const { buffs, debuffs, keys } = effectsOf(u);
+    const all = [...buffs, ...debuffs].filter((x) => x.stat);
+    const row = (ko, base, gear, now, stat, unit = "") => {
+      const r = el("div", "bmstat");
+      r.appendChild(el("span", "bslab", ko));
+      const v = el("span", "bsval");
+      v.appendChild(el("span", "bsbase", `${base}${gear ? ` +${gear}` : ""}${unit}`));
+      const d = now - (base + gear);
+      if (d) { v.appendChild(el("span", "bsarrow", "→")); v.appendChild(el("b", "bsnow " + (d > 0 ? "up" : "down"), `${now}${unit}`)); }
+      r.appendChild(v);
+      const why = [];
+      if (gear) why.push(`장비 +${gear}${unit}`);
+      for (const x of all) if (x.stat === stat) why.push(`${pctTxt(x.v)} ${x.src || ""}${x.always ? "" : ` (${turnTxt(x.left)})`}`.trim());
+      for (const k of keys) for (const sh of k.share) if (sh.stat === stat) why.push(`${pctTxt(sh.v)} 「${k.id}」 ${k.n}개`);
+      if (why.length) r.appendChild(el("span", "bswhy", why.join(" · ")));
+      box.appendChild(r);
+    };
+    if (u.side === "party") {
+      const g = u.gearAdd || { atk: 0, def: 0, crit: 0 };
+      row("공격력", u.atk - g.atk, g.atk, Math.max(1, Math.round(u.atk * (1 + C.statOf(st, u, "atk")))), "atk");
+      row("방어력", u.def - g.def, g.def, Math.max(0, Math.round(u.def * (1 + C.statOf(st, u, "def")))), "def");
+      row("치명", u.crit - g.crit, g.crit, Math.round(u.crit + C.statOf(st, u, "crit") * 100), "crit", "%");
+      // 회복력 = 공격력 + 역할 몫(rules.js) — 공격력 장비 · 버프가 그대로 붙는다
+      row("회복력", RULES.healStat(u.atk - g.atk, u.role), g.atk, RULES.healStat(Math.max(1, Math.round(u.atk * (1 + C.statOf(st, u, "atk")))), u.role), "atk");
+    }
+    // 주는 · 받는 피해 — 0 이 아닐 때만(적은 공격력이 수마다 달라 이것만 보인다)
+    for (const stat of ["dealt", "taken"]) {
+      const v = Math.round(C.statOf(st, u, stat) * 100);
+      if (!v) continue;
+      const r = el("div", "bmstat");
+      r.appendChild(el("span", "bslab", STAT_KO[stat]));
+      const good = stat === "taken" ? v < 0 : v > 0;
+      r.appendChild(el("span", "bsval")).appendChild(el("b", "bsnow " + (good ? "up" : "down"), `${v > 0 ? "+" : ""}${v}%`));
+      const why = [];
+      for (const x of all) if (x.stat === stat) why.push(`${pctTxt(x.v)} ${x.src || ""}${x.always ? "" : ` (${turnTxt(x.left)})`}`.trim());
+      for (const k of keys) for (const sh of k.share) if (sh.stat === stat) why.push(`${pctTxt(sh.v)} 「${k.id}」 ${k.n}개`);
+      if (why.length) r.appendChild(el("span", "bswhy", why.join(" · ")));
+      box.appendChild(r);
+    }
+    return box.children.length ? box : null;
+  }
+  // 버프 · 디버프 — 하나씩, 남은 턴과 출처. 상태(취약 · 약화 …)는 낱말 풀이까지
+  function effectSections(body, u) {
+    const { buffs, debuffs } = effectsOf(u);
+    const terms = new Map();
+    for (const t of cardParts({ text: [...buffs, ...debuffs].filter((x) => x.id).map((x) => x.id).join(", ") }, null).terms) terms.set(t.ko, t.text);
+    const sec = (title, list, cls) => {
+      if (!list.length) return;
+      body.appendChild(el("span", "bmsub", `${title} ${list.length}`));
+      const ul = el("div", "bmfx " + cls);
+      for (const x of list) {
+        const r = el("div", "bmfxrow");
+        r.appendChild(el("b", null, x.stat ? `${STAT_KO[x.stat]} ${pctTxt(x.v)}` : x.id));
+        r.appendChild(el("span", "bmturn", x.always ? "늘" : turnTxt(x.left)));
+        const why = x.stat ? x.src : terms.get(x.id) || null;
+        if (why) r.appendChild(el("span", "bmsrc", why));
+        ul.appendChild(r);
+      }
+      body.appendChild(ul);
+    };
+    sec("버프", buffs, "good");
+    sec("디버프", debuffs, "bad");
   }
   function termList(terms) {
     const dl = el("dl", "bmterms");
@@ -1835,34 +1995,50 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       if (INTENT_HELP[it.t]) body.appendChild(el("p", "bmhelp", INTENT_HELP[it.t]));
       const rn = C.rushOf(u);
       body.appendChild(el("p", "bmhelp", rn
-        ? `즉시 행동 — 이 수가 예고된 뒤로 카드를 ${rn}장 내면 당겨서 하고 새 수를 예고합니다(지금 ${u.rushCnt || 0}장). 새 수는 다시 0장부터, 턴이 바뀌어도 0장부터 셉니다.`
+        ? `즉시 행동 — 이 수가 예고된 뒤로 카드를 ${rn}장 내면 당겨서 하고 새 수를 예고합니다(지금 ${u.rushCnt || 0}장). 새 수는 다시 0장부터, 턴이 바뀌어도 0장부터 셉니다. 한 적은 내 턴에 한 번만 당겨집니다.`
         : "이 수는 당겨지지 않습니다."));
     }
-    // 걸린 상태 — 낱말 풀이까지
-    const sts = Object.entries(u.status || {}).filter(([, v]) => v);
-    if (sts.length) {
-      const chipsRow = el("div", "bmchips");
-      for (const [k, v] of sts) chipsRow.appendChild(el("span", "chip", `${k} ${v}`));
-      body.appendChild(chipsRow);
-      const { terms } = cardParts({ text: sts.map(([k]) => k).join(", ") }, null);
-      if (terms.length) body.appendChild(termList(terms));
+    // 걸린 것 — 주는 · 받는 피해 합계와 출처, 버프 · 디버프 하나씩, 적에게 건 표식(늑대 표식 …)은 풀이까지
+    const sb = statBlock(u);
+    if (sb) body.appendChild(sb);
+    effectSections(body, u);
+    const marks = effectsOf(u).keys;
+    if (marks.length) {
+      body.appendChild(el("span", "bmsub", `표식 ${marks.length}`));
+      const ml = el("dl", "bmterms");
+      for (const k of marks) {
+        const oh = HERO(k.owner);
+        ml.appendChild(el("dt", null, `${k.id} ${k.n} · ${oh.ko}`));
+        ml.appendChild(el("dd", null, (oh.keyword || {}).text || ""));
+      }
+      body.appendChild(ml);
     }
     // 할 수 있는 수 — 무엇이 올지 가늠할 수 있게
+    // 판마다 한 벌 — 처음 판, 체력이 떨어져 바뀐 판(phase), 더 떨어져 또 바뀐 판(phase2). 지금 판에 「지금」 을 단다
+    const moveList = (moves) => {
+      const seenSay = new Set();
+      const list = el("dl", "bmterms bmmoves");
+      for (const it of moves) {
+        if (seenSay.has(it.say)) continue;
+        seenSay.add(it.say);
+        const rn = C.intentRush(it, E);
+        list.appendChild(el("dt", null, it.say));
+        list.appendChild(el("dd", null, `${INTENT_DO(it)}${rn ? ` · ⚡${rn}장` : " · 안 당겨짐"}${it.t === "charge" && it.next ? ` → 다음 턴 ${it.next.say} ${it.next.v}` : ""}`));
+      }
+      return list;
+    };
     const moves = [...(E.open ? [E.open] : []), ...(E.intents || [])];
-    const seenSay = new Set();
-    const list = el("dl", "bmterms bmmoves");
-    for (const it of moves) {
-      if (seenSay.has(it.say)) continue;
-      seenSay.add(it.say);
-      const rn = C.intentRush(it, E);
-      list.appendChild(el("dt", null, it.say));
-      list.appendChild(el("dd", null, `${INTENT_DO(it)}${rn ? ` · ⚡${rn}장` : " · 안 당겨짐"}`));
-    }
+    const nowTag = (on) => (on && !u.dead ? " · 지금" : "");
     if (moves.length) {
-      body.appendChild(el("span", "bmsub", E.pick === "shuffle" ? "할 수 있는 수 — 무작위(같은 수를 세 번 잇지 않습니다)" : "할 수 있는 수 — 적힌 순서대로"));
-      body.appendChild(list);
+      const order = E.pick === "shuffle" ? "무작위(같은 수를 세 번 잇지 않습니다)" : "적힌 순서대로";
+      body.appendChild(el("span", "bmsub", `할 수 있는 수 — ${order}${E.phase ? nowTag(!u.phased) : ""}`));
+      body.appendChild(moveList(moves));
     }
-    if (E.phase) body.appendChild(el("p", "bmhelp", `체력이 ${Math.round(E.phase.at * 100)}% 아래로 떨어지면 수가 바뀐다${E.phase.say ? ` — 「${E.phase.say}」` : ""}`));
+    for (const [ph, on] of [[E.phase, u.phased && !u.phased2], [E.phase && E.phase2, u.phased2]]) {
+      if (!ph || !ph.intents) continue;
+      body.appendChild(el("span", "bmsub", `체력 ${Math.round(ph.at * 100)}% 아래${ph.say ? ` — 「${ph.say}」` : ""}${nowTag(on)}`));
+      body.appendChild(moveList(ph.intents));
+    }
     // 적 패시브 — 언제 · 무엇을
     if (E.passives && E.passives.length) {
       const pl = el("dl", "bmterms bmmoves");
@@ -1950,25 +2126,62 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (u.block > 0) meter.appendChild(el("b", "blk", `방어 ${u.block}`));
     if (u.shield > 0) meter.appendChild(el("b", "blk", `실드 ${u.shield}`));
     body.appendChild(meter);
-    // 걸린 것 — 상태 · 증감 · 전용 키워드 개수(싸움터의 칩과 같은 것)
-    const c0 = chips(u);
-    if (c0.children.length) { c0.className = "bmchips"; body.appendChild(c0); }
-    // 패시브 — 「이름: 하는 일 · 이름: 하는 일」
-    if (h.passive) {
+    // 능력치 — 기본(+장비) → 지금, 무엇 때문인지
+    const sb = statBlock(u);
+    if (sb) body.appendChild(sb);
+    // 패시브 — 규칙 한 줄마다 지금 형편(N장째 · 이번 턴 발동했나)
+    const rules = (st.passives || {})[u.key] || [];
+    if (rules.length) {
       body.appendChild(el("span", "bmsub", "패시브"));
-      const pl = el("dl", "bmterms");
-      for (const part of String(h.passive).split(/\s·\s(?=[^:·]{1,24}:)/)) {
-        const m = part.match(/^([^:]{1,24}):\s*(.+)$/);
-        pl.appendChild(el("dt", null, m ? m[1] : "패시브"));
-        pl.appendChild(withKeywords(el("dd"), m ? m[2] : part, u.key));
-      }
+      const pl = el("dl", "bmterms bmpass");
+      rules.forEach((r, i) => {
+        const id = `${u.key}|${i}`;
+        const tags = [];
+        if (r.when.every) {
+          const cnt = (st.counts || {})[r.when.perTurn ? `${id}|${st.turn}` : id] || 0;
+          tags.push(`${r.when.type ? r.when.type + " " : "카드 "}${cnt % r.when.every}/${r.when.every}${r.when.perTurn ? " · 이번 턴" : ""}`);
+        }
+        if (r.limit) {
+          const used = (st.fired || {})[`${id}|${r.limit.per === "turn" ? st.turn : "f"}`] || 0;
+          tags.push(used >= r.limit.n ? (r.limit.per === "turn" ? "이번 턴 끝" : "이번 전투 끝") : `${r.limit.per === "turn" ? "이번 턴" : "이번 전투"} ${used}/${r.limit.n}`);
+        }
+        if (r.when.on === "fightStart") tags.push("전투 시작에 했음");
+        const dt = el("dt", null, r.gear ? `${r.name} · 장비` : r.name);
+        pl.appendChild(dt);
+        const dd = withKeywords(el("dd"), r.text, u.key);
+        for (const t of tags) dd.appendChild(el("span", "bmtag" + (/끝|했음/.test(t) ? " spent" : ""), t));
+        pl.appendChild(dd);
+      });
       body.appendChild(pl);
     }
-    if (h.keyword && h.keyword.ko) {
-      body.appendChild(el("span", "bmsub", "전용 키워드"));
+    // 버프 · 디버프 — 하나씩, 남은 턴과 출처
+    effectSections(body, u);
+    // 키워드 — 내 것(지금 몇 개 · 누구에게) · 받은 표식(누가 걸었나)
+    const keysNow = effectsOf(u).keys;
+    if ((h.keyword && h.keyword.ko) || keysNow.length) {
+      body.appendChild(el("span", "bmsub", "키워드"));
       const kl = el("dl", "bmterms");
-      kl.appendChild(el("dt", null, h.keyword.ko));
-      kl.appendChild(el("dd", null, h.keyword.text || ""));
+      const mine = h.keyword && h.keyword.ko;
+      if (mine) {
+        const kw = (st.kw || {})[h.keyword.ko];
+        const held = kw && kw.carrier !== "self"
+          ? [...st.party, ...st.enemies].filter((x) => !x.dead && (x.status || {})[kw.id]).map((x) => `${x.ko} ${x.status[kw.id]}`)
+          : [];
+        const self = ((st.stacks || {})[u.key] || {})[h.keyword.ko] || 0;
+        const now = kw && kw.carrier !== "self" ? (held.length ? held.join(" · ") : "아무도 없음") : `${self}개`;
+        kl.appendChild(el("dt", null, `${h.keyword.ko} · 내 것`));
+        const dd = el("dd", null, h.keyword.text || "");
+        dd.appendChild(el("span", "bmtag", `지금 ${now}`));
+        kl.appendChild(dd);
+      }
+      for (const k of keysNow) {
+        if (mine && k.id === h.keyword.ko && k.owner === u.key) continue;
+        const oh = HERO(k.owner);
+        kl.appendChild(el("dt", null, `${k.id} ${k.n} · ${oh.ko}에게서`));
+        const dd = el("dd", null, (oh.keyword || {}).text || "");
+        for (const sh of k.share) dd.appendChild(el("span", "bmtag", `${STAT_KO[sh.stat]} ${pctTxt(sh.v)}`));
+        kl.appendChild(dd);
+      }
       body.appendChild(kl);
     }
     // 장비 — 무기 · 방어구 · 장신구
@@ -1983,6 +2196,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       t.appendChild(el("b", null, e ? e.ko : `${sl} — 비어 있음`));
       if (e) t.appendChild(el("span", null, statText(R.statsOf(e.id, u.key)) + (e.affinity === u.key ? " · 애착" : "")));
       cell.appendChild(t);
+      if (e) { cell.classList.add("eqtap"); cell.onclick = () => showEquip(e.id, { heroKey: u.key }); }
       gl.appendChild(cell);
     }
     body.appendChild(gl);
@@ -2058,6 +2272,11 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     box.appendChild(el("p", "episub", g.kind === "hero"
       ? `${HERO(g.hero).ko}에게 신탁 — 고유 카드 하나를 얻습니다. 이번 턴에는 비용 0`
       : `「${base.name}」에 신탁 — 하나를 고르면 카드가 바뀌고, 이번에는 비용 0`));
+    // 고르기 전에 원래 효과를 견준다 — 이미 신탁이 붙은 카드면 지금 모습(「지금」)
+    if (g.kind !== "hero") {
+      const now = C.cardOf(st, cardId), lit = !!(st.flash && st.flash[cardId]);
+      box.appendChild(effectBox(now, lit ? "지금" : "원래 효과", `「${base.name}」 · 비용 ${now.xcost ? "X" : now.cost}${lit && now.flashKo ? ` · 신탁 「${now.flashKo}」` : ""}`));
+    }
     const row = el("div", "epirow");
     g.options.forEach((opt, i) => {
       const cell = el("button", "epiopt");
@@ -2066,7 +2285,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       else {
         const f = (base.flash || [])[opt.n - 1] || {};
         card = bigCard(flashed(base, opt.n), CARDART.pic[cardId] || null);
-        cell.appendChild(el("span", "epikind", `${"①②③④⑤"[opt.n - 1]} ${f.kind || f.ko || ""}`));   // 자유 신탁은 분류 대신 이름
+        cell.appendChild(el("span", "epikind", f.kind || f.ko || ""));   // 자유 신탁은 분류 대신 이름
         if (opt.shin) { cell.classList.add("shin"); cell.appendChild(el("span", "epishin", `겨우살이의 축복 · ${RULES.DIVINE_KO[opt.shin]}`)); }
       }
       card.onclick = null; card.title = "";
@@ -2172,7 +2391,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         C.applyEpiphany(st, glowId, choice);
         writeSave(run, st);              // 고른 신탁을 곧장 적는다 — 이어서 묻는 창(아군 · 버릴 카드)에서 새로고침해도 다시 고를 수 없게
         const o = g.options[choice], f = (CARDS[glowId].flash || [])[o.n - 1] || {};
-        lootCard(glowId, `신탁 ${"①②③④⑤"[o.n - 1]} ${f.kind || f.ko || ""}${o.shin ? ` · 축복(${RULES.DIVINE_KO[o.shin]})` : ""}`);
+        lootCard(glowId, `신탁 「${f.kind || f.ko || ""}」${o.shin ? ` · 축복(${RULES.DIVINE_KO[o.shin]})` : ""}`);
         selCard = st.hand.indexOf(glowId);
         play(targetIdx);
       });
@@ -2304,7 +2523,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       if (goldShare[u.idx]) addGold(goldShare[u.idx]);
     }
     for (const id of (st.gained && st.gained.cards) || []) if (CARDS[id]) lootCard(id, `은총 · ${HERO(CARDS[id].hero).ko}`);
-    for (const f of (st.gained && st.gained.flash) || []) if (CARDS[f.cardId]) lootCard(f.cardId, `신탁 ${"①②③④⑤"[f.n - 1] || ""}`);
+    for (const f of (st.gained && st.gained.flash) || []) if (CARDS[f.cardId]) lootCard(f.cardId, `신탁 「${((CARDS[f.cardId].flash || [])[f.n - 1] || {}).ko || ""}」`);
   }
   draw();
   openFx(!resumed);

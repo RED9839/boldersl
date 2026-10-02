@@ -421,6 +421,8 @@ body:has(#screen.battle) .bottom,
 .bmhint.no { color: #b9b2d6; font-weight: 600; background: #ffffff0d; box-shadow: inset 0 0 0 1px #ffffff1f; }
 /* 달려가는 사도(에르핀 고학년) — 적보다 앞에 그린다 */
 #screen.battle .stand.dashing { z-index: 6; }
+/* 동작 중인 사도 · 적 — 옆 칸으로 넘친 그림(실비아 양산 · 은분수)이 옆 사람 밑에 깔리지 않게 */
+#screen.battle :is(.stand, .foe).acting { z-index: 5; }
 
 /* ══ 실드 · 방어 — 체력 막대에 테 ═══════════════════════════════════════════
    방어(카드 종류로는 「쉴드」)가 생기면 파란 테, 실드(패시브 등)까지 있으면 파란 테가 빛난다. */
@@ -661,6 +663,9 @@ body:has(#screen.battle) .top { display: none; }
 /* 좁아진 칸에서도 이름 · 체력이 칸을 넘지 않게 — 이름은 두 줄까지, 성격 표시는 이름 밑으로 내려도 된다 */
 #screen.battle .foe .fname { max-width: calc(var(--bw) + 24px); flex-wrap: wrap; justify-content: center; row-gap: 2px; white-space: normal; text-align: center; }
 #screen.battle .foe .hpwrap { width: min(124px, calc(var(--bw) - 4px)); }
+/* 보스는 체력이 세 자리라 폰의 좁은 칸에서 「방어 30」 이 둘째 줄로 내려가 칸 전체를 밀어 올렸다(의도가 화면 위로 나갔다) — 한 줄로 */
+#screen.battle .foe.boss .hpwrap { width: min(150px, calc(var(--bw) + 40px)); }
+#screen.battle .foe.boss .hpwrap .nums { flex-wrap: nowrap; white-space: nowrap; gap: 6px; }
 #screen.battle .foe .intent { max-width: calc(var(--bw) + 40px); }
 #screen.battle .foe .intent .isay { overflow: hidden; text-overflow: ellipsis; }
 
@@ -1067,6 +1072,19 @@ body:has(#screen.mapscreen) .top { display: none; }
 .ftarget .gcard { width: 170px; cursor: zoom-in; box-shadow: 0 0 0 2px #f6d58e, 0 0 22px #f6d58e66, 0 10px 22px #000a; }
 .ftlab { font-size: 12.5px; font-weight: 800; color: #f6d58e; text-shadow: 0 1px 3px #000; }
 .phone .ftarget .gcard { width: 130px; }
+/* 원래 효과 — 신탁을 고를 때 견줄 글(ui-common effectBox). 카드 그림 위 글은 작아서 한 번 더 */
+.fbase { box-sizing: border-box; width: 190px; padding: 7px 10px 8px; border-radius: 10px; background: #0b0816d9; border: 1px solid #f6d58e66; text-align: left; }
+.fbaselab { display: block; font-size: 11.5px; font-weight: 900; color: #f6d58e; letter-spacing: .02em; }
+.fbaselab em { display: block; font-style: normal; font-weight: 700; color: #cfc7ef; }
+.epibox > .fbase .fbaselab em { display: inline; margin-left: 6px; }
+.fbasetext { margin: 3px 0 0; font-size: 12.5px; line-height: 1.6; color: #f1edff; word-break: keep-all; }
+/* 휴대폰은 창 높이가 모자라 카드 그림을 빼고 글 상자만 — 그림 위 글은 어차피 잘려 읽히지 않았다 */
+.phone .ftarget .gcard { display: none; }
+.phone .fbase { width: 170px; padding: 6px 9px 7px; }
+.phone .fbasetext { font-size: 12px; line-height: 1.5; }
+.epibox > .fbase { width: auto; max-width: min(640px, 92vw); margin-top: -4px; text-align: center; }
+.epibox > .fbase .fbasetext { font-size: 14px; }
+.phone .epibox > .fbase .fbasetext { font-size: 12.5px; }
 
 /* ══ 신탁 — 빛나는 카드 · 신탁 창 ════════════════════════════════════════
    손패의 빛나는 카드는 금빛 테가 숨 쉬듯 번지고 위로 빛가루가 오른다. 내는 순간 가운데에 「신탁!」. */
@@ -3299,6 +3317,8 @@ body:has(#screen.teamscreen3) .top { display: none; }
 /* 적의 즉시 행동 카운트 — 의도 옆 「⚡지금/N」. 다음 한 장이면 붉게 깜빡인다 */
 #screen.battle .foe .intent .rush { flex: none; font: 600 11px/1.5 ui-monospace, Consolas, monospace; padding: 0 6px; border-radius: 999px; background: rgba(20, 24, 30, .55); color: #ffe7a3; }
 #screen.battle .foe .intent .rush.hot { background: #c0392b; color: #fff; animation: rushPulse 1s ease-in-out infinite; }
+/* 이번 턴 즉시 행동을 이미 했다 — 더는 당겨지지 않으니 흐리게 */
+#screen.battle .foe .intent .rush.done { background: rgba(20, 24, 30, .4); color: #9a96ad; opacity: .75; }
 @keyframes rushPulse { 50% { transform: scale(1.12); } }
 @media (prefers-reduced-motion: reduce) { #screen.battle .foe .intent .rush.hot { animation: none; } }
 
@@ -3395,3 +3415,64 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 .phone .mdeck, .phone .mgold { padding: 8px 10px; }
 /* 전투 왼쪽 아래 사도 이름 — 「다야(퓨어샤인)」 이 괄호 앞에서 접혀 줄이 두 칸이 되었다. 한 줄로, 넘치면 … */
 .battle .ally .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+/* ══ 걸린 것 — 버프(청록) · 디버프(빨강) · 키워드(금빛), 값과 남은 턴 (fight-screen effectsOf · chips) ══ */
+#screen.battle .chips .chip.buff { background: #0f2f2bd9; color: #8ff0d6; border: 1px solid #2f8f7a99; }
+#screen.battle .chips .chip.debuff { background: #3a1422d9; color: #ffb0c0; border: 1px solid #a8405899; }
+#screen.battle .chips .chip.key { background: #2e2410d9; color: #ffe08a; border: 1px solid #f6d58e88; }
+#screen.battle .chips .chip .cturn { font-style: normal; font-weight: 800; margin-left: 4px; padding: 0 4px; border-radius: 99px; background: #ffffff1f; font-size: .9em; }
+#screen.battle .chips .chip .cnum { margin-left: 4px; font-weight: 900; color: #fff4c8; }
+/* 정보 창 — 능력치 표 · 버프 · 디버프 줄 · 패시브 형편 */
+.bmstats { display: grid; gap: 4px; margin: 6px 0 2px; padding: 8px 10px; border-radius: 10px; background: #ffffff0a; border: 1px solid #ffffff1a; }
+.bmstat { display: grid; grid-template-columns: 5.5em 1fr; align-items: baseline; column-gap: 8px; font-size: 13.5px; }
+.bslab { color: #b9b2d6; font-weight: 700; }
+.bsval { color: #f4f1ff; font-weight: 700; }
+.bsbase { color: #f4f1ff; }
+.bsarrow { margin: 0 6px; color: #8d86a8; }
+.bsnow.up { color: #7ff0b0; }
+.bsnow.down { color: #ff9aa8; }
+.bswhy { grid-column: 2; font-size: 11.5px; line-height: 1.5; color: #a59fc0; }
+.bmfx { display: grid; gap: 3px; margin: 2px 0 4px; }
+.bmfxrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 4px 10px; border-radius: 8px; font-size: 13px; background: #ffffff08; border-left: 3px solid #2f8f7a; }
+.bmfx.bad .bmfxrow { border-left-color: #c0485f; }
+.bmfx.good .bmfxrow b { color: #8ff0d6; }
+.bmfx.bad .bmfxrow b { color: #ffb0c0; }
+.bmturn { font-size: 11.5px; font-weight: 800; color: #f4f1ff; padding: 0 6px; border-radius: 99px; background: #ffffff1a; }
+.bmsrc { flex-basis: 100%; font-size: 11.5px; color: #a59fc0; line-height: 1.5; }
+.bmtag { display: inline-block; margin: 3px 6px 0 0; padding: 0 8px; border-radius: 99px; font-size: 11.5px; font-weight: 800; color: #ffe08a; background: #f6d58e1f; border: 1px solid #f6d58e55; }
+.bmtag.spent { color: #a59fc0; background: #ffffff0d; border-color: #ffffff22; }
+.phone .bmstat { font-size: 12px; grid-template-columns: 4.8em 1fr; }
+.phone .bmfxrow { font-size: 12px; padding: 3px 8px; }
+.phone :is(.bswhy, .bmsrc, .bmtag, .bmturn) { font-size: 10.5px; }
+
+/* ══ 장비 자세히 · 바꿔 끼기 묻기 (ui-common showEquip · confirmPop) ══════════════
+   가운데 창(80) 위 · 낱말 쪽지(95) 아래. 장비는 어디서든 누르면 이 창 — 휴대폰은 마우스 올리기가 없다 */
+.eqtap { cursor: pointer; }
+.gslot.eqtap:hover, .ecard.eqtap:hover, .bmgslot.eqtap:hover { border-color: #f6d58e99; }
+.bmodal.eqpop { z-index: 90; }
+.eqpop .bmbox { width: min(640px, 100%); gap: 22px; }
+.eqpop.eqconfirm .bmbox { width: min(520px, 100%); }
+.eqface { flex: none; display: grid; place-items: center; padding: 10px; border-radius: 14px; background: #ffffff0a; border: 1px solid #ffffff1f; }
+.eqpop .bmname { font-size: 24px; }
+.eqpop .eqstats { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; font-size: 15px; }
+.eqpop .eqstats dd { margin-right: 12px; color: #9fe3b4; font-weight: 800; }
+.eqpop :is(.eqwho, .eqnote) { margin: 0; font-size: 13px; color: #b9b2d6; }
+.eqpop .eqnote { color: #f6d58e; }
+.eqpop .eeff { margin: 0; font-size: 14px; line-height: 1.6; color: #b9b2d6; }
+.eqpop .eeff.on { color: #f4f1ff; }
+.eqpop .eoff { font-size: 12px; padding: 1px 6px; border-radius: 4px; background: #ffffff14; color: #b9b2d6; }
+.eqpop .eaff { margin: 0; font-size: 13.5px; color: #ff9ec0; }
+.eqpop .eaff.on { color: #ffd0e2; font-weight: 800; }
+.eqpop .eblurb { margin: 0; font-size: 13px; color: #a59fc0; font-style: italic; }
+.eqpop .eqsell { margin: 0; display: inline-flex; align-items: center; gap: 4px; font-size: 13.5px; font-weight: 800; color: #f6d58e; }
+.eqpop .bmbtns { flex-wrap: wrap; }
+.eqpop .bmbtns button { min-height: 40px; padding: 0 16px; font-size: 14px; }
+.eqpop .bmuse.aff { background: linear-gradient(180deg, #ffb3c8, #d9577f); color: #2a0614; }
+.bmsell { color: #f6d58e; background: #f6d58e1a; border: 1px solid #f6d58e66; }
+.eqconfirm .bmtext { font-size: 16px; }
+.phone .eqpop .bmbox { gap: 14px; padding: 14px 16px; }
+.phone .eqface { padding: 6px; }
+.phone .eqface .eicon { width: 64px !important; height: 64px !important; }
+.phone .eqpop .bmname { font-size: 19px; }
+.phone .eqpop :is(.eeff, .bmterms) { font-size: 12.5px; }
+.phone .eqpop .bmbtns button { min-height: 36px; padding: 0 12px; font-size: 13px; }

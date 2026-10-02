@@ -408,7 +408,7 @@ export function resolve(run, value) {
       if (!p.offer.picks.includes(value)) return "고를 수 없는 신탁입니다";
       run.flash[p.offer.cardId] = value;
       const f = CARDS[p.offer.cardId].flash[value - 1];
-      E.log.push(`「${CARDS[p.offer.cardId].name}」 — ${"①②③④⑤"[value - 1]} ${f.kind} 「${f.ko}」`);
+      E.log.push(`「${CARDS[p.offer.cardId].name}」 — 신탁 「${f.ko}」`);
       // 기적 — 신탁 위에 드물게 한 줄 더(배율 ×1.3). 「꽃을 꺾으면」 이번 판은 안 뜬다
       if (E.shinChance && !run.noShin && run.rng() < E.shinChance) {
         run.shin = run.shin || {};

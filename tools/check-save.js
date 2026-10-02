@@ -129,7 +129,12 @@ function step(g) {
     if (w.result !== "win") { run.eventFight = null; g.end = "lose"; return "짐"; }
     if (run.eventFight) { EV.afterEventFight(run, true); EV.enterEvent(run); run.where = { k: "event" }; return "이벤트 싸움 이김"; }
     run.elite = false;
-    if (R.isBoss(run)) { R.advance(run); if (run.done === "clear") { g.end = "clear"; return "완주"; } }
+    if (R.isBoss(run)) {
+      const next = R.advance(run);
+      if (run.done === "clear") { g.end = "clear"; return "완주"; }
+      // 마지막 층의 보스 뒤 — 캠프 한 번 뒤 마지막 싸움(main.js camp("final"))
+      if (next.final) { R.enterCamp(run, "final"); run.where = { k: "camp", kind: "final" }; return "마지막 캠프"; }
+    }
     run.where = { k: "map" };
     return "싸움 이김";
   }
@@ -158,6 +163,7 @@ function step(g) {
     // 가방의 장비를 빈 칸에 낀다
     for (const id of run.bag) for (const k of run.party) if (!R.equip(run, k, id)) return "장비 낌";
     if (w.kind === "campshop" && !shopHere(run)) { R.rollShop(run); run.shop.at = run.map.at; run.where = { k: "shop", kind: w.kind }; return "캠프→상점"; }
+    if (w.kind === "final") { openFight(g); return "마지막 싸움"; }
     run.where = { k: "map" };
     return "캠프 떠남";
   }

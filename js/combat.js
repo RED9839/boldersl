@@ -63,6 +63,7 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
       maxHp: (maxHp && maxHp[key]) || baseHp,
       hp: hp && hp[key] != null ? hp[key] : (maxHp && maxHp[key]) || baseHp,
       atk: (d ? d.atk : 10) + (g.atk || 0), def: (d ? d.def : 3) + (g.def || 0), crit: (d ? d.crit : 5) + (g.crit || 0),
+      gearAdd: { atk: g.atk || 0, def: g.def || 0, crit: g.crit || 0 },   // 장비가 더한 몫 — 정보 창의 「기본 + 장비」
       row: (rows && rows[key]) || base.row || "mid",
       block: 0, shield: 0, status: {}, idx: i, dead: false,
     };
@@ -147,10 +148,12 @@ export const statOf = (s, u, stat) => P.statMod(s, u, stat);
 function emit(s, ev, info) {
   P.emit(s, ev, info, (owner, fx, ctx, label) => {
     say(s, label);
-    const prev = s.acting;
-    s.acting = owner.key;
+    const prev = s.acting, ap0 = s.ap, src0 = s.modSrc;
+    s.acting = owner.key; s.modSrc = label;
     runFx(s, fx, ctx, fxApi(s));
-    s.acting = prev;
+    s.acting = prev; s.modSrc = src0;
+    // 패시브가 AP 를 주면 기록과 꼬리표로 알린다 — 말없이 늘면 AP 가 제멋대로 느는 것처럼 보였다
+    if (s.ap > ap0) { say(s, `${owner.ko}: AP +${s.ap - ap0}`); cue(s, "status", owner, { id: `AP +${s.ap - ap0}`, up: true }); }
     checkOver(s);
   });
 }
@@ -209,7 +212,7 @@ function beginTurn(s) {
 
   // 원작의 중독은 지속 피해가 아니라 공격력을 깎는 것이다. 그래서 턴 시작에 아무 일도 안 한다.
   // 촉수는 턴이 끝날 때 때린다(프리클) — 아래 endTurn 에 있다.
-  for (const e of alive(s.enemies)) { rollIntent(s, e); e.rushCnt = 0; }
+  for (const e of alive(s.enemies)) { rollIntent(s, e); e.rushCnt = 0; e.rushedTurn = false; }
   // 이벤트 「첫 턴 적 전체 즉시 행동 -N」 — 카운트는 턴마다 0 으로 돌아가니 첫 턴에 걸어야 산다
   if (s.turn === 1 && s.firstRushDown) for (const e of alive(s.enemies)) e.rushCnt -= s.firstRushDown;
   resetFoePassives(s);
@@ -233,7 +236,12 @@ function rollIntent(s, e, fresh) {
     e.phased = true; e.step = 0;
     say(s, `${e.ko}: ${d.phase.say}`);
   }
-  const list = e.phased ? d.phase.intents : d.intents;
+  // 둘째 판(phase2) — 앞판이 바뀐 뒤 더 떨어지면 한 번 더 바뀐다(마지막 보스의 셋째 판)
+  if (d.phase2 && e.phased && !e.phased2 && e.hp <= e.maxHp * d.phase2.at) {
+    e.phased2 = true; e.step = 0;
+    say(s, `${e.ko}: ${d.phase2.say}`);
+  }
+  const list = e.phased2 ? d.phase2.intents : e.phased ? d.phase.intents : d.intents;
   let it;
   if (!e.phased && e.step === 0 && d.open) it = d.open;
   else if (d.pick === "shuffle") {
@@ -330,7 +338,7 @@ export function intentRush(it, d = {}) {
   const floor = (n) => (n ? Math.max(R.ENEMY_RUSH_MIN || 3, n) : 0);
   if (it.rush != null) return floor(it.rush);
   if (d.rush != null) return floor(d.rush);
-  const moves = [...(d.intents || []), ...((d.phase && d.phase.intents) || []), ...(d.open ? [d.open] : [])];
+  const moves = [...(d.intents || []), ...((d.phase && d.phase.intents) || []), ...((d.phase2 && d.phase2.intents) || []), ...(d.open ? [d.open] : [])];
   if (it.t === "charge" || moves.some((x) => x.t === "charge" && x.next === it)) return 0;
   const threat = it.t === "attack" || it.t === "back" ? it.v
     : it.t === "multi" ? it.v * (it.n || 1)
@@ -343,14 +351,16 @@ export const rushOf = (e) => intentRush(e.intent, ENEMIES[e.key] || {});
 
 // 즉시 행동 — 지금 수가 예고된 뒤로 파티가 카드를 그 수의 장수만큼 내면, 수를 당겨서 하고 새 수를 예고한다.
 // 새 수는 다시 0장부터 센다. 턴이 바뀌어도 0부터(beginTurn).
+// 한 적은 내 턴에 한 번만 당겨진다(2026-10 사용자) — 당겨진 뒤로는 다음 내 턴까지 세지 않는다.
 // 봉인된 적은 하지 않는다(봉인은 턴 끝의 행동을 막는 것이라 여기서 풀지 않는다). 방어도는 지우지 않는다.
 function rushEnemies(s) {
   for (const e of alive(s.enemies)) {
     const n = rushOf(e);
-    if (!n || e.sealed || !e.intent) continue;
+    if (!n || e.sealed || !e.intent || e.rushedTurn) continue;
     e.rushCnt = (e.rushCnt || 0) + 1;
     if (e.rushCnt < n) continue;
     e.rushCnt = 0;
+    e.rushedTurn = true;
     say(s, `${e.ko}: 카드 ${n}장 — 즉시 행동!`);
     actEnemy(s, e);
     emit(s, "rush", { enemy: e });
@@ -612,9 +622,9 @@ export function useUlt(s, heroKey, targetIdx = 0) {
   // 효과는 아직 산문이다(기획서 그대로). 효과 파서가 붙기 전까지는 게이지만 돈다.
   // 전에는 옛 효과 실행기(applyFx)로 돌려서 아무 일도 없었다 — 고학년 스킬은 게이지만 먹었다.
   if (ult.fx && ult.fx.length) {
-    const prev = s.acting; s.acting = heroKey;
+    const prev = s.acting, src0 = s.modSrc; s.acting = heroKey; s.modSrc = `${owner.ko} 「${ult.ko}」`;
     runFx(s, ult.fx, { owner, combo: null, targetIdx }, fxApi(s));
-    s.acting = prev;
+    s.acting = prev; s.modSrc = src0;
   } else s.ultPending = (s.ultPending || 0) + 1;
   emit(s, "ult", { hero: heroKey });
   checkOver(s);
@@ -669,7 +679,8 @@ export function canPlay(s, cardId) {
 // 살아 있는 아군 중 그 스탯이 가장 높은 사람 — 교주 카드의 기준
 function bestAlly(s, stat) {
   const up = s.party.filter((u) => !u.dead);
-  return up.length ? up.reduce((a, b) => ((b[stat] || 0) > (a[stat] || 0) ? b : a)) : null;
+  const v = (u) => (stat === "heal" ? R.healStat(u.atk, u.role) : u[stat] || 0);   // 회복력은 공격력 + 역할 몫
+  return up.length ? up.reduce((a, b) => (v(b) > v(a) ? b : a)) : null;
 }
 
 // opts.discard — 이 카드의 「손패 N장 버리」에 버릴 카드 id(낸 사람이 고른 것 · fight-screen.js). 없으면 손 끝에서부터(모의전 · 미리보기)
@@ -681,7 +692,7 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   if (why) return { ok: false, why };
 
   const c = cardOf(s, cardId);
-  // 교주 카드는 주인이 없다 — 기획서: 따로 적지 않으면 **공격력·방어력이 가장 높은 아군 기준**
+  // 교주 카드는 주인이 없다 — 기획서: 따로 적지 않으면 **공격력·방어력이 가장 높은 아군 기준** (회복은 회복력)
   const owner = c.hero ? s.party.find((u) => u.key === c.hero) : c.neutral ? bestAlly(s, "atk") : null;
 
   // X 코스트는 남은 AP 를 전부 쓴다. 그 수가 곧 X 다.
@@ -699,8 +710,9 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   // 기적 — true(이벤트의 옛 값) · "power" 는 피해 ×1.3
   const sh = s.shin && s.shin[cardId];
   // opts.ally — 적과 아군을 둘 다 고르는 카드(「적 1명 …, 아군 1명 …」)의 아군 쪽. 화면이 한 번 더 묻는다
-  const ctx = { owner, combo: null, targetIdx, allyIdx: opts.ally, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null, shin: sh === true ? "power" : (sh || null) };
+  const ctx = { owner, combo: null, targetIdx, allyIdx: opts.ally, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null, healOwner: c.neutral ? bestAlly(s, "heal") : null, shin: sh === true ? "power" : (sh || null) };
   s.acting = c.hero || null;
+  s.modSrc = `${owner ? owner.ko + " " : ""}「${c.name}」`;   // 버프 · 디버프의 출처(정보 창)
   cue(s, "act", owner, { anim: c.type === "공격" ? "attack" : "skill", card: c });   // card — 화면이 카드에 맞는 동작을 고른다(js/data/card-motion.js)
   try {
     if (c.built) {
@@ -737,12 +749,13 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   // 겨우살이의 축복 — 낼 때 붙는 것(피해 · 회복 · 방어 · 맞은 적 상태는 run-fx 가 본다)
   if (sh === "draw") draw(s, 1);                 // 끝없는 이야기 — 내면 드로우 1
   if (sh === "ap") s.ap += 1;                     // 발맞추기 — 내면 AP +1(비용 1 이상 카드만 뜬다)
-  if ((sh === "atkUp" || sh === "defUp") && owner) P.addMod(owner, sh === "atkUp" ? "atk" : "def", 0.10, 999);   // 한 땀 한 땀 · 꺾이지 않는 실
+  if ((sh === "atkUp" || sh === "defUp") && owner) P.addMod(owner, sh === "atkUp" ? "atk" : "def", 0.10, 999, `「${c.name}」 겨우살이의 축복`);   // 한 땀 한 땀 · 꺾이지 않는 실
   // 패시브 — 「카드를 낼 때마다」「한 턴에 N장째」
   s.playedThisTurn = (s.playedThisTurn || 0) + 1;
   const tgt = s.enemies.find((e) => e.idx === targetIdx && !e.dead) || null;
-  emit(s, "play", { hero: c.hero, type: c.type, nth: s.playedThisTurn, target: tgt, cost: c.xcost ? paid : c.cost });
-  s.acting = null;
+  // actor — 실제로 낸 사람(교주 카드면 기준이 된 아군). 아군 표식 규칙이 그 사람이 든 것을 센다(passive.js condOk)
+  emit(s, "play", { hero: c.hero, actor: owner ? owner.key : null, type: c.type, nth: s.playedThisTurn, target: tgt, cost: c.xcost ? paid : c.cost });
+  s.acting = null; s.modSrc = null;
   if (c.ego && c.hero) speak(s, c.hero, "ego");
   if (c.hero === "ner") s.nerWorked = true;
   if (c.hero) s.lastHero = c.hero;
@@ -799,8 +812,37 @@ export function previewCard(s, handIdx, targetIdx) {
 }
 
 
+// 고학년 스킬 미리보기 — 카드와 같은 모양(적 idx 마다 { hp, guard, kill, max }). 판을 복사해 실제로 써 본다.
+// 쓸 수 없으면(게이지 · 같은 사도 연속) null
+export function previewUlt(s, heroKey, targetIdx) {
+  if (s.over || canUlt(s, heroKey)) return null;
+  const ult = ultOf(heroKey);
+  const random = ((ult && ult.fx) || []).some((f) => f.k === "dmg" && f.target === "randomEnemy");
+  const once = (pickIdx) => {
+    const { rng, ...rest } = s;
+    const sh = structuredClone(rest);
+    sh.rng = makeRng(1);
+    sh.preview = true;
+    sh.previewPick = pickIdx;
+    useUlt(sh, heroKey, targetIdx);
+    return sh.enemies;
+  };
+  let runs;
+  try {
+    runs = random ? alive(s.enemies).map((e) => [e.idx, once(e.idx)]) : [[null, once(null)]];
+  } catch (err) { return null; }
+  return s.enemies.map((e) => {
+    if (e.dead) return null;
+    const after = (random ? runs.find(([i]) => i === e.idx) : runs[0])[1][e.idx];
+    const hp = e.hp - Math.max(0, after.hp);
+    const guard = Math.max(0, (e.block || 0) - (after.block || 0) + (e.shield || 0) - (after.shield || 0));
+    if (hp <= 0 && guard <= 0 && !after.dead) return null;
+    return { hp, guard, kill: !!after.dead, max: random };
+  });
+}
+
 // 아군 미리보기 — 이 카드를 내면 아군마다 회복 · 방어 · 실드가 얼마나 붙고 체력이 얼마나 빠지나(자해 · 대가).
-// 적 미리보기와 같이 판을 복사해 실제로 내 본다 — 시전자 능력치 · 역할 보정 · 패시브가 전부 그대로 들어간다.
+// 적 미리보기와 같이 판을 복사해 실제로 내 본다 — 시전자 능력치 · 회복력 · 패시브가 전부 그대로 들어간다.
 // 돌려주는 것: 아군 idx 마다 { heal, block, shield, lose } 또는 null
 export function previewAllies(s, handIdx, targetIdx) {
   const id = s.hand[handIdx];
@@ -984,13 +1026,17 @@ function fxApi(s) {
     },
     statOf: (u, stat) => P.statMod(s, u, stat),
     addMod: (t, stat, v, turns) => {
-      P.addMod(t, stat, v, turns);
+      P.addMod(t, stat, v, turns, s.modSrc || null);
       // 연출 쪽지 — 「공격력 +10%」 꼬리표와 강화 · 약화 소리. up 은 걸린 쪽에 좋은가(받는 피해는 줄어야 좋다)
       const pct = Math.round(v * 100);
       if (pct) cue(s, "status", t, { id: `${MOD_KO[stat] || stat} ${pct > 0 ? "+" : ""}${pct}%`, up: stat === "taken" ? pct < 0 : pct > 0, mod: stat });
       if (t.side === "enemy" && ((stat === "taken" && v > 0) || (stat === "dealt" && v < 0))) { emit(s, "debuff", { by: s.acting, target: t, id: stat }); foePassives(s, "debuffed", { target: t }); }
     },
-    stackChanged: (owner, id, before, after, holder) => emit(s, "stackReach", { id, before, after, owner, target: holder }),
+    stackChanged: (owner, id, before, after, holder) => {
+      // 쌓이면 든 사람 위에 꼬리표 「초청객 +1」 — 칩 숫자만 바뀌면 언제 늘었는지 안 보였다
+      if (after > before) cue(s, "status", holder, { id: `${id} +${after - before}`, up: true });
+      emit(s, "stackReach", { id, before, after, owner, target: holder });
+    },
     cleanse: (t, n) => { for (let i = 0; i < (n || 1); i++) { const bad = BAD.find((b) => st(t, b) > 0); if (bad) delete t.status[bad]; } },
     trigger: () => {},          // 사도 전용 발동(재채기 등) — 아직 몸이 없다
     // 버리기 — 낸 사람이 고른 카드(s.discardPick)부터. 「무작위」면 무작위로, 고른 것이 없으면(모의전 · 미리보기) 손 끝에서부터

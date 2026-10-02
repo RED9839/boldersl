@@ -306,7 +306,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
         if (!open) return;
         for (const f of c.flash) {
           const n = el("div", "cbf");
-          n.appendChild(el("b", null, `${"①②③④⑤"[f.n - 1] || ""} ${f.ko}`));
+          n.appendChild(el("b", null, f.ko));
           n.appendChild(withKeywords(el("p"), f.text, null));
           box.appendChild(n);
         }
@@ -466,7 +466,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
       plate.appendChild(el("b", null, h.ko));
       plate.appendChild(el("span", "tf-sub", `${ROWS_KO[rowOf(key)]} ${h.role} · ${h.race}${h.anyRow ? " · 모든 열" : ""}`));
       const st = el("div", "tf-stats");
-      for (const [k, v] of [["HP", h.hp], ["공격", h.atk], ["방어", h.def]]) { const d = el("span"); d.appendChild(el("small", null, k)); d.appendChild(el("b", null, String(v))); st.appendChild(d); }
+      for (const [k, v] of [["HP", h.hp], ["공격", h.atk], ["방어", h.def], ["회복", RULES.healStat(h.atk, h.role)]]) { const d = el("span"); d.appendChild(el("small", null, k)); d.appendChild(el("b", null, String(v))); st.appendChild(d); }
       plate.appendChild(st);
       n.appendChild(plate);
       n.title = `${h.ko} — 눌러서 다른 사도로 바꾸기`;
@@ -776,7 +776,8 @@ export function partyScreen(onStart, onBack, opts = {}) {
     info.appendChild(meta);
     info.appendChild(el("p", "stblurb", h.blurb));
     const g = el("div", "statgrid");
-    for (const [ko, v] of [["체력", h.hp], ["공격", h.atk], ["방어", h.def], ["치명", h.crit + "%"]]) {
+    // 회복력 = 공격력 + 역할 몫(rules.js) — 회복 카드는 이 값을 본다
+    for (const [ko, v] of [["체력", h.hp], ["공격", h.atk], ["방어", h.def], ["치명", h.crit + "%"], ["회복력", RULES.healStat(h.atk, h.role)]]) {
       const c = el("div", "statc");
       c.appendChild(el("small", null, ko));
       c.appendChild(el("strong", null, String(v)));
@@ -842,7 +843,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
 
   function flashPane(kit, CA, picFor) {
     const w = el("div", "pane");
-    w.appendChild(el("p", "note", "고유 카드는 신탁 다섯 가운데 하나를 골라 바뀝니다 — ①경량 ②강화 ③연계 ④변형 ⑤각성."));
+    w.appendChild(el("p", "note", "고유 카드마다 신탁이 다섯 — 싸우다 카드가 빛나면 그 가운데 셋이 뜨고, 하나를 고르면 카드가 그 글로 바뀝니다."));
     kit.unique.forEach((c) => {
       const box = el("section", "flashbox");
       const head = el("div", "fhead");
@@ -855,7 +856,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
       const g = el("div", "flashgrid");
       for (const f of c.flash || []) {
         const n = el("div", "flash f" + f.n);
-        n.appendChild(el("span", "fkind", `${"①②③④⑤"[f.n - 1] || ""} ${f.kind || ""}`));
+        if (f.kind) n.appendChild(el("span", "fkind", f.kind));
         n.appendChild(el("b", null, f.ko));
         n.appendChild(withKeywords(el("p"), shortText(f.text), c.hero));
         g.appendChild(n);

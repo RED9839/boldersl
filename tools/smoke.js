@@ -643,16 +643,19 @@ console.log("\n장비");
   const same = ids.find((id) => id !== hpItem && EQUIP[id].slot === e.slot && EQUIP[id].affinity !== k);
   r.bag.push(same);
   check(!!R.equip(r, k, same), "차 있는 칸은 그냥 끼면 막히고 「바꾸기」 로 한다");
-  check(R.equip(r, k, same, { swap: true }) === null && r.bag.includes(hpItem), "바꿔 끼면 뺀 것은 가방으로(전투 밖 어디서든)");
-  check(r.maxHp[k] === mh + EQUIP[same].stats.hp, "바꾸면 최대 HP 도 따라 바뀐다");
-  // 빼기 · 팔기
-  check(R.unequip(r, k, e.slot) === null && !R.gearOf(r, k)[e.slot] && r.bag.includes(same), "빼면 가방으로");
-  check(R.equip(r, k, same) === null, "뺀 것을 다시 낀다");
   const RULES = await import("../js/rules.js");
-  const g0 = r.gold, price = R.sellPrice(hpItem);
+  const price = R.sellPrice(hpItem);
   check(price === Math.round(RULES.EQUIP_PRICE[e.grade] * RULES.EQUIP_SELL), `파는 값은 사는 값의 ${RULES.EQUIP_SELL * 100}% (${e.grade} ${price})`);
+  const gw = r.gold;
+  check(R.equip(r, k, same, { replace: true }) === null && R.gearOf(r, k)[e.slot] === same && !r.bag.includes(hpItem) && r.gold === gw + price,
+    `바꿔 끼면 낀 것은 팔린다 — 가방으로 안 가고 +${price} 골드`);
+  check(r.maxHp[k] === mh + EQUIP[same].stats.hp, "바꾸면 최대 HP 도 따라 바뀐다");
+  // 빼기는 없다 · 팔기는 가방의 것만
+  check(typeof R.unequip === "undefined", "빼기는 없다 — 한 번 낀 장비는 바꿔 낄 때 팔릴 뿐");
+  r.bag.push(hpItem);
+  const g0 = r.gold;
   check(R.sellEquip(r, hpItem) === null && r.gold === g0 + price && !r.bag.includes(hpItem), "가방의 장비를 팔면 골드가 들어오고 가방에서 빠진다");
-  check(!!R.sellEquip(r, same), "끼고 있는 장비는 바로 못 판다 — 먼저 뺀다");
+  check(!!R.sellEquip(r, same) && R.gearOf(r, k)[e.slot] === same, "끼고 있는 장비는 팔기로 못 판다");
   // 전투에 스탯이 들어간다
   const atkItem = ids.find((id) => EQUIP[id].stats.atk > 0 && EQUIP[id].slot !== e.slot && EQUIP[id].affinity !== k);
   r.bag.push(atkItem); R.equip(r, k, atkItem);
@@ -670,8 +673,8 @@ console.log("\n장비");
   check(r.reward.equip && r.reward.equip.length === 1, "보스는 장비 하나를 떨군다");
   const pick = r.reward.equip[0];
   check(R.takeEquip(r, pick) === null && r.bag.includes(pick) && R.takeEquip(r, r.reward.equip[1]) !== null, "하나만 가방에 넣는다");
-  r.floor = 2; R.rollReward(r);
-  check(!r.reward.equip, "마지막 보스는 장비를 안 준다(판이 끝난다)");
+  r.floor = 2; r.node = 4; R.rollReward(r);
+  check(!r.reward.equip, "마지막 싸움(뿌리 깊은 곳의 우로스)은 장비를 안 준다(판이 끝난다)");
   // 보상 화면 · 캠프 화면 · 상점
   r.floor = 0; r.node = 3; R.rollReward(r);
   const rw = ui.rewardScreen(r, () => {});
@@ -718,6 +721,27 @@ console.log("\n장비");
   const cs = ui.campScreen(r, true, () => {}, () => {});
   clickAll(cs, (n) => n.classList.contains("cp-gear"))[0].onclick();
   check(count(cs, "cp-gearmodal") === 1 && count(cs, "grow") === 3 && count(cs, "gslot") === 9, "캠프의 장비 창에서 사도 셋 × 세 칸을 본다");
+  check(count(cs, "gout") === 0 && !clickAll(cs, (n) => n.tagName === "BUTTON" && /빼기/.test(n.textContent)).length, "장비 창에 「빼기」 단추가 없다");
+  {
+    // 낀 장비를 누르면 자세히 — 스탯 · 파는 값이 보인다
+    const full = clickAll(cs, (n) => n.classList.contains("gslot") && n.classList.contains("full"));
+    full[0].onclick();
+    const pop = document.body.children.find((n) => n.classList.contains("eqpop"));
+    check(!!pop && /팔면 \+\d+ 골드/.test(pop.textContent) && /공격력|방어력|체력|치명/.test(pop.textContent) && !/빼기/.test(pop.textContent), "낀 장비를 누르면 자세히(스탯 · 파는 값) — 빼기 단추는 없다");
+    // 가방의 장비를 찬 칸에 끼면 — 판다고 묻고, 「팔고 낍니다」 로 바꿔 낀다
+    const ck = k, cslot = e.slot, oldId = R.gearOf(r, ck)[cslot];
+    const hko = (await import("../js/cardbook.js")).HERO_DATA[ck].ko;
+    const nu = ids.find((id) => EQUIP[id].slot === cslot && id !== oldId);
+    r.bag.push(nu); clickAll(cs, (n) => n.classList.contains("cp-gear"))[0].onclick();
+    const tob = clickAll(cs, (n) => n.classList.contains("gtobtn") && n.textContent.startsWith(hko) && /바꾸기/.test(n.textContent));
+    tob[tob.length - 1].onclick();
+    const ask = document.body.children.find((n) => n.classList.contains("eqconfirm"));
+    check(!!ask && ask.textContent.includes(`「${EQUIP[oldId].ko}」`) && /팔고\(\+\d+골드\)/.test(ask.textContent) && ask.textContent.includes(`「${EQUIP[nu].ko}」`), "찬 칸에 끼면 「옛 장비 를 팔고(+N골드) 새 장비 를 낍니다」 를 묻는다");
+    check(R.gearOf(r, ck)[cslot] === oldId && r.bag.includes(nu), "묻는 동안은 아무것도 안 바뀐다");
+    const gb = r.gold;
+    clickAll(ask, (n) => n.classList.contains("bmuse"))[0].onclick();
+    check(R.gearOf(r, ck)[cslot] === nu && !r.bag.includes(oldId) && r.gold === gb + R.sellPrice(oldId), "「팔고 낍니다」 — 새 장비를 끼고 옛 장비 값이 들어온다");
+  }
   check(!/아직 안 돕니다/.test(cs.textContent), "장비 효과는 다 돈다 — 「아직 안 돕니다」 가 없다");
   // 장비 효과 — 낀 사도의 패시브로 붙고, 전투에서 터진다
   check(Object.values(EQUIP).every((x) => x.grade === "일반" || x.effectRead), "일반 말고는 효과 줄이 다 읽힌다");
