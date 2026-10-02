@@ -408,6 +408,19 @@ body:has(#screen.battle) .bottom,
 .battle .foe.dover .art, .battle .stand.dover .art { filter: drop-shadow(0 0 3px #fff4cf) drop-shadow(0 0 14px #f6d58e); }
 .battle .foe.dover .fname, .battle .stand.dover .sname { color: #f6d58e; }
 .phone .dghost { width: 118px; }
+/* 고학년 스킬도 끌어서 쓴다 — 둥근 얼굴이 손을 따라오고, 놓을 곳(적 · 싸움터)에 올라가면 커진다 */
+.battle .ally .ultbtn { touch-action: none; }
+.battle .ally .ultbtn.dragging { opacity: .45; }
+.dghost.ughost { width: 74px; height: 74px; border-radius: 50%; transform: translate(-50%, -50%) scale(.95); opacity: 1 !important; }
+.dghost.ughost img { filter: none; }
+.dragfx.armed .dghost.ughost { transform: translate(10px, 6px) scale(.8); }
+.dragfx.armed:not(:has(svg)) .dghost.ughost { transform: translate(-50%, -50%) scale(1.15); box-shadow: 0 0 0 3px #f6d58e, 0 0 30px #f6d58ecc, 0 14px 30px #000c !important; }
+.phone .dghost.ughost { width: 60px; height: 60px; }
+/* 고학년 창 — 쓰는 단추 대신 한 줄 */
+.bmhint { margin: 8px 0 0; padding: 8px 12px; border-radius: 10px; font-size: 14px; font-weight: 800; color: var(--ui-gold, #f6d58e); background: #f6d58e14; box-shadow: inset 0 0 0 1px #f6d58e44; }
+.bmhint.no { color: #b9b2d6; font-weight: 600; background: #ffffff0d; box-shadow: inset 0 0 0 1px #ffffff1f; }
+/* 달려가는 사도(에르핀 고학년) — 적보다 앞에 그린다 */
+#screen.battle .stand.dashing { z-index: 6; }
 
 /* ══ 실드 · 방어 — 체력 막대에 테 ═══════════════════════════════════════════
    방어(카드 종류로는 「쉴드」)가 생기면 파란 테, 실드(패시브 등)까지 있으면 파란 테가 빛난다. */
@@ -999,6 +1012,11 @@ body:has(#screen.mapscreen) .top { display: none; }
 #screen.battle :is(.stand, .foe) > .chips .chip { font-size: 11px; padding: 0 6px; line-height: 17px; }
 .phone #screen.battle :is(.stand, .foe) > .chips .chip { font-size: 9.5px; padding: 0 4px; line-height: 14px; }
 .phone #screen.battle .stand > .chips, .phone #screen.battle .foe > .chips { gap: 2px; margin-top: 2px; }
+/* 두 줄까지 — 넘친 것은 js(fitChips)가 「+N」 으로 접는다. 재기 전 한 순간에도 셋째 줄이 안 보이게 높이를 막는다.
+   「+N」 은 눌린다(칩 줄은 누름을 흘려보낸다) — 누르면 그 칸의 정보창 */
+#screen.battle :is(.stand, .foe) > .chips { max-height: 42px; overflow: hidden; }
+.phone #screen.battle :is(.stand, .foe) > .chips { max-height: 34px; max-width: 140px; }   /* 휴대폰은 칸이 붙어 있어 옆 칸 칩과 맞닿았다 */
+#screen.battle :is(.stand, .foe) > .chips .chip.more { pointer-events: auto; cursor: pointer; color: #f6d58e; border-color: #f6d58e66; font-weight: 800; }
 
 /* ══ 장비 아이콘 · 칸 ═══════════════════════════════════════════════════════
    둥근 네모 판에 종류 그림 — 테두리 · 그림 색은 등급(전설 금 · 희귀 보라 · 고급 초록 · 일반 회색).
@@ -3059,10 +3077,16 @@ body:has(#screen.teamscreen3) .top { display: none; }
 .stand.walking { z-index: 5; pointer-events: none; }
 
 /* 전투 모션(ui.js runFx) — 맞으면 붉게 번쩍이고(피격 동작이 없으면 흔들림까지), 쓰러지는 몸짓이 끝날 때까지는 자리에 남는다 */
+/* 맞는 순간 두 프레임(40ms 쯤)은 흰 실루엣(impact frame) — 그 뒤 붉게. 필터 목록이 달라 그 사이는 끊어 바뀐다 */
 #screen.battle .art.fxhit { animation: fxhit .42s ease-out; }
 #screen.battle .art.fxflash { animation: fxflash .36s ease-out; }
+#screen.battle .art.fxhit.fxquiet { animation-name: fxhitq; }
+#screen.battle .art.fxflash.fxquiet { animation-name: fxflashq; }
+@keyframes fxhitq { 0% { filter: brightness(1.8) sepia(1) saturate(6) hue-rotate(-35deg); } 30% { transform: translateX(-4px); } 60% { transform: translateX(3px); } 100% { transform: none; filter: none; } }
+@keyframes fxflashq { 0% { filter: brightness(1.8) sepia(1) saturate(6) hue-rotate(-35deg); } 100% { filter: none; } }
 @keyframes fxhit {
-  0% { transform: translateX(0); filter: brightness(1.8) sepia(1) saturate(6) hue-rotate(-35deg); }
+  0%, 9% { transform: translateX(0); filter: brightness(0) invert(1); }
+  10% { transform: translateX(-4px); filter: brightness(1.8) sepia(1) saturate(6) hue-rotate(-35deg); }
   20% { transform: translateX(-7px); }
   40% { transform: translateX(6px); filter: brightness(1.3) sepia(.6) saturate(3) hue-rotate(-35deg); }
   60% { transform: translateX(-4px); }
@@ -3070,8 +3094,9 @@ body:has(#screen.teamscreen3) .top { display: none; }
   100% { transform: none; filter: none; }
 }
 @keyframes fxflash {
-  0% { filter: brightness(1.8) sepia(1) saturate(6) hue-rotate(-35deg); }
-  100% { filter: none; }
+  0%, 11% { filter: brightness(0) invert(1); }
+  12% { filter: brightness(1.8) sepia(1) saturate(6) hue-rotate(-35deg); }
+  100% { filter: brightness(1) sepia(0) saturate(1) hue-rotate(0deg); }
 }
 #screen.battle .foe.falling, #screen.battle .stand.falling { pointer-events: none; }
 #screen.battle .foe.falling .intent { display: none; }
@@ -3112,19 +3137,31 @@ body:has(#screen.teamscreen3) .top { display: none; }
 .fxnum.n-stt.n-up b { color: #ffe9a8; background: #3a2a10e6; border-color: #f6d58e; }
 .fxnum.n-blk, .fxnum.n-shd, .fxnum.n-guard, .fxnum.n-stt { animation-name: fxtag; }
 @keyframes fxnum {
-  0% { opacity: 0; transform: translate(-50%, -20%) scale(.5); }
-  12% { opacity: 1; transform: translate(-50%, -55%) scale(1.3); }
-  26% { transform: translate(-50%, -60%) scale(1); }
+  0% { opacity: 0; transform: translate(-50%, -25%) scale(.4) rotate(calc(var(--rot, 0deg) * -1)); }
+  9% { opacity: 1; transform: translate(-50%, -55%) scale(1.5) rotate(var(--rot, 0deg)); }
+  20% { transform: translate(-50%, -60%) scale(.92) rotate(calc(var(--rot, 0deg) * .35)); }
+  30% { transform: translate(-50%, -60%) scale(1) rotate(calc(var(--rot, 0deg) * .25)); }
   75% { opacity: 1; }
-  100% { opacity: 0; transform: translate(-50%, -150%) scale(.95); }
+  100% { opacity: 0; transform: translate(-50%, -140%) scale(.95) rotate(0deg); }
 }
 @keyframes fxcrit {
-  0% { opacity: 0; transform: translate(-50%, -30%) scale(.4) rotate(-6deg); }
-  14% { opacity: 1; transform: translate(-50%, -55%) scale(1.5) rotate(3deg); }
-  30% { transform: translate(-50%, -62%) scale(1.05) rotate(0); }
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(.3) rotate(calc(var(--rot, 0deg) * -1.5)); }
+  10% { opacity: 1; transform: translate(-50%, -55%) scale(1.8) rotate(var(--rot, 0deg)); }
+  22% { transform: translate(-50%, -62%) scale(.95) rotate(calc(var(--rot, 0deg) * .3)); }
+  32% { transform: translate(-50%, -62%) scale(1.05) rotate(0deg); }
   78% { opacity: 1; }
-  100% { opacity: 0; transform: translate(-50%, -150%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -145%) scale(1) rotate(0deg); }
 }
+/* 치명타 별 — 숫자 뒤에서 터지며 돌다 걷힌다. b 안의 i(뒤쪽 z) */
+.fxnum.n-crit b { position: relative; }
+.fxnum .nburst {
+  position: absolute; left: 50%; top: 50%; width: 118px; height: 118px; margin: -59px 0 0 -59px; z-index: -1; pointer-events: none;
+  background: radial-gradient(circle, #fffbe6 0 16%, #ffd23f 32%, #ff8a1c 52%, #ff8a1c00 64%);
+  clip-path: polygon(50% 0%, 58% 34%, 86% 12%, 67% 41%, 100% 50%, 67% 59%, 86% 88%, 58% 66%, 50% 100%, 42% 66%, 14% 88%, 33% 59%, 0% 50%, 33% 41%, 14% 12%, 42% 34%);
+  animation: fxburst .5s cubic-bezier(.2, .8, .3, 1) forwards;
+}
+@keyframes fxburst { 0% { transform: scale(.2) rotate(-25deg); opacity: 1; } 35% { transform: scale(1.05) rotate(4deg); opacity: .95; } 100% { transform: scale(1.3) rotate(14deg); opacity: 0; } }
+.phone .fxnum .nburst { width: 90px; height: 90px; margin: -45px 0 0 -45px; }
 @keyframes fxtag {
   0% { opacity: 0; transform: translate(-50%, -30%); }
   15% { opacity: 1; transform: translate(-50%, -60%); }
@@ -3145,31 +3182,111 @@ body:has(#screen.teamscreen3) .top { display: none; }
 @keyframes shk0 { 25% { transform: translate(-2px, 1px); } 50% { transform: translate(2px, -1px); } 75% { transform: translate(-1px, 0); } }
 @keyframes shk1 { 20% { transform: translate(-4px, 2px); } 40% { transform: translate(4px, -2px); } 60% { transform: translate(-3px, 1px); } 80% { transform: translate(2px, -1px); } }
 @keyframes shk2 { 15% { transform: translate(-6px, 3px); } 30% { transform: translate(6px, -3px); } 45% { transform: translate(-5px, 2px); } 60% { transform: translate(4px, -2px); } 80% { transform: translate(-2px, 1px); } }
-/* 고학년 — 싸움터 배경이 잠깐 어두워지고 이름 띠가 지나간다(서 있는 사도 · 적은 그대로 밝다) */
+/* 화면 번쩍(fight-screen.js bang) — 세게 · 치명타 · 고학년 타격에 한두 프레임. 맞은 자리(--x --y)가 가장 밝다. 숫자(9)보다 아래 */
+.fxbang {
+  position: absolute; inset: 0; z-index: 8; pointer-events: none; opacity: 0; mix-blend-mode: screen;
+  background: radial-gradient(circle at var(--x, 50%) var(--y, 50%), var(--c, #fff) 0, color-mix(in srgb, var(--c, #fff) 45%, transparent) 22%, color-mix(in srgb, var(--c, #fff) 12%, transparent) 60%);
+  animation: fxbang var(--ms, 80ms) linear forwards;
+}
+@keyframes fxbang { 0%, 45% { opacity: var(--a, .2); } 100% { opacity: 0; } }
+/* 집중선 — 고학년 첫 타격. 맞은 자리로 모이는 가는 빛줄기(주기가 다른 두 겹), 가운데는 비운다 */
+.fxlines {
+  position: absolute; inset: 0; z-index: 8; pointer-events: none; opacity: 0;
+  background:
+    repeating-conic-gradient(from 0deg at var(--x, 50%) var(--y, 50%), #fff0 0deg 4.1deg, #ffffffc0 4.3deg 4.7deg, #fff0 4.9deg 9deg),
+    repeating-conic-gradient(from 2deg at var(--x, 50%) var(--y, 50%), #fff0 0deg 6.3deg, #fff6d880 6.5deg 6.8deg, #fff0 7deg 13deg);
+  -webkit-mask-image: radial-gradient(circle at var(--x, 50%) var(--y, 50%), transparent 0 140px, #000 360px);
+  mask-image: radial-gradient(circle at var(--x, 50%) var(--y, 50%), transparent 0 140px, #000 360px);
+  transform-origin: var(--x, 50%) var(--y, 50%);
+  animation: fxlines .26s ease-out forwards;
+}
+@keyframes fxlines { 0% { opacity: 0; transform: scale(1.12); } 18% { opacity: .9; } 100% { opacity: 0; transform: scale(1); } }
+.calm .fxbang, .calm .fxlines { display: none; }
+/* 고학년 — 컷인 뒤 SD 가 움직이는 동안 싸움터 배경이 잠깐 어두워진다(서 있는 사도 · 적은 그대로 밝다) */
 .ultshade {
   position: absolute; inset: 0; z-index: -1; pointer-events: none;
   background: radial-gradient(ellipse at 50% 55%, #0008, #000d 75%);
   animation: ultshade .9s ease forwards;
 }
 @keyframes ultshade { 0% { opacity: 0; } 15% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
-.ultban {
-  position: absolute; left: 50%; top: 30%; z-index: 8; pointer-events: none;
-  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 70px;
-  background: linear-gradient(90deg, transparent, #0c0a16e6 18%, #0c0a16e6 82%, transparent);
-  border-top: 2px solid var(--tint, #f6d58e); border-bottom: 2px solid var(--tint, #f6d58e);
-  animation: ultban .9s cubic-bezier(.2, .8, .3, 1) forwards;
+/* 고학년 컷인 — 화면이 어두워지고 비스듬한 띠가 지나가며 스탠딩 상반신 · 스킬 이름이 들어온다. 길이는 js 의 CUT(--cut).
+   누르면 넘긴다(cursor). 창(.bmodal 80)보다는 아래 */
+.cutin {
+  position: absolute; inset: 0; z-index: 78; overflow: hidden; cursor: pointer;
+  background: radial-gradient(ellipse at 55% 50%, #0009, #000e 80%);
+  animation: cutshade var(--cut, 1.3s) ease forwards;
 }
-.ultban small { font-size: 13px; font-weight: 800; letter-spacing: .2em; color: #f6d58e; }
-.ultban b { font-size: 32px; font-weight: 900; color: #fff; text-shadow: 0 0 14px var(--tint, #f6d58e), 0 2px 4px #000; white-space: nowrap; }
-@keyframes ultban {
-  0% { opacity: 0; transform: translate(-30%, -50%) skewX(-12deg); }
-  16% { opacity: 1; transform: translate(-50%, -50%) skewX(-6deg); }
-  78% { opacity: 1; transform: translate(-52%, -50%) skewX(-6deg); }
-  100% { opacity: 0; transform: translate(-75%, -50%) skewX(-12deg); }
+.cutin::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: #fff; opacity: 0; animation: cutflash .3s ease-out; }
+@keyframes cutshade { 0% { opacity: 0; } 10% { opacity: 1; } 84% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes cutflash { 0% { opacity: .35; } 100% { opacity: 0; } }
+.cutin .cband {
+  position: absolute; left: -15%; right: -15%; top: 50%; height: 300px; margin-top: -170px;
+  background: linear-gradient(90deg, #0b0914f2, #15112af0 50%, #0b0914f2);
+  border-top: 4px solid var(--ntint, #f6d58e); border-bottom: 4px solid var(--ntint, #f6d58e);
+  box-shadow: 0 0 46px #000c, inset 0 0 60px #000a;
+  animation: cutband var(--cut, 1.3s) cubic-bezier(.2, .8, .3, 1) forwards;
 }
-.phone .ultban { padding: 6px 44px; }
-.phone .ultban b { font-size: 24px; }
-.phone .ultban small { font-size: 11px; }
+/* 사도 빛깔 — 가운데가 짙다 */
+.cutin .cband::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 8%, var(--tint, #f6d58e) 58%, transparent 96%); opacity: .5; }
+/* 집중선 — 가늘고 끊긴 가로줄이 흐른다(끊김은 배경, 가는 줄은 mask). 주기가 다른 두 겹이라 세로로 줄지어 보이지 않는다 */
+.cutin .cband::after {
+  content: ""; position: absolute; inset: 0;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 90px, #ffffff40 90px 210px, transparent 210px 300px),
+    repeating-linear-gradient(90deg, transparent 0 40px, #ffffff26 40px 110px, transparent 110px 170px);
+  background-size: 300px 100%, 170px 100%;
+  -webkit-mask-image: repeating-linear-gradient(180deg, #000 0 2px, transparent 2px 11px, #000 11px 12px, transparent 12px 23px);
+  mask-image: repeating-linear-gradient(180deg, #000 0 2px, transparent 2px 11px, #000 11px 12px, transparent 12px 23px);
+  animation: cutlines .3s linear infinite;
+}
+@keyframes cutband {
+  0% { transform: skewY(-7deg) translateX(-105%); }
+  13% { transform: skewY(-7deg) translateX(0); }
+  84% { transform: skewY(-7deg) translateX(0); opacity: 1; }
+  100% { transform: skewY(-7deg) translateX(60%); opacity: 0; }
+}
+@keyframes cutlines { from { background-position: 0 0, 0 0; } to { background-position: -300px 0, -340px 0; } }
+/* 스탠딩 — 상반신 창. 머리는 띠 위로 나간다. 아래 끝은 흐리게 */
+.cutin .cfig {
+  position: absolute; right: 4%; top: 50%; width: 700px; height: 560px; margin-top: -420px; overflow: hidden; pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 80%, transparent), linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(180deg, #000 80%, transparent), linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
+  mask-composite: intersect;
+  animation: cutfig var(--cut, 1.3s) cubic-bezier(.2, .8, .3, 1) forwards;
+}
+.cutin .cpic { position: relative; width: 100%; height: 100%; }
+.cutin .cpic canvas { animation: cutpop .18s ease-out; }
+.cutin .cpic .art, .cutin .cpic .art img { width: 100% !important; height: 100% !important; background: transparent; object-fit: contain; object-position: bottom center; }
+@keyframes cutpop { from { opacity: 0; } }
+@keyframes cutfig {
+  0%, 6% { opacity: 0; transform: translateX(180px) scale(1); }
+  20% { opacity: 1; transform: translateX(0) scale(1.02); }
+  84% { opacity: 1; transform: translateX(-16px) scale(1.08); }
+  100% { opacity: 0; transform: translateX(-140px) scale(1.08); }
+}
+/* 이름 — 띠 왼쪽에 크게 찍힌다 */
+.cutin .ctext {
+  position: absolute; left: 9%; top: 50%; max-width: 52%; pointer-events: none;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  animation: cuttext var(--cut, 1.3s) cubic-bezier(.2, .8, .3, 1) forwards;
+}
+.cutin .ctext small { font-size: 15px; font-weight: 800; letter-spacing: .3em; color: var(--ntint, #f6d58e); padding: 2px 12px; background: #000a; transform: skewX(-12deg); }
+.cutin .ctext b { font-size: 60px; line-height: 1.05; font-weight: 900; font-style: italic; color: #fff; letter-spacing: -.01em;
+  text-shadow: 0 0 18px var(--tint, #f6d58e), 0 0 4px var(--tint, #f6d58e), 4px 4px 0 #000c; }
+.cutin .ctext span { font-size: 20px; font-weight: 800; color: #f1ecff; text-shadow: 0 2px 4px #000; }
+@keyframes cuttext {
+  0%, 8% { opacity: 0; transform: translate(-90px, -50%) skewX(-12deg); }
+  22% { opacity: 1; transform: translate(0, -50%) skewX(-6deg); }
+  84% { opacity: 1; transform: translate(14px, -50%) skewX(-6deg); }
+  100% { opacity: 0; transform: translate(110px, -50%) skewX(-12deg); }
+}
+.phone .cutin .cband { height: 190px; margin-top: -105px; }
+.phone .cutin .cfig { width: 420px; height: 340px; margin-top: -255px; right: 2%; }
+.phone .cutin .ctext { left: 6%; max-width: 56%; }
+.phone .cutin .ctext b { font-size: 38px; }
+.phone .cutin .ctext small { font-size: 12px; }
+.phone .cutin .ctext span { font-size: 15px; }
 /* 낸 카드 — 손에서 대상에게 날아가며 작아진다(js 의 Element.animate) */
 .flycard {
   position: fixed !important; margin: 0 !important; z-index: 75; pointer-events: none; flex: none;
@@ -3254,3 +3371,7 @@ body:has(#screen.teamscreen3) .top { display: none; }
 .phone #screen.dexscreen .eqgrid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
 .phone .cbcell { padding: 7px; gap: 5px; }
 .phone #screen.dexscreen .ecard { padding: 9px 10px; gap: 4px; }.phone #screen.dexscreen .kw { min-height: 0; }   /* 폰의 단추 최소 높이가 낱말 단추에 걸려 줄 사이가 벌어졌다 */
+
+/* 고학년 — 줄 어디를 잡아도 끈다. 그림은 브라우저 그림 끌기를 막는다 */
+.battle .ally.ultgrab { cursor: grab; touch-action: none; }
+.battle .ally.ultgrab img { -webkit-user-drag: none; user-select: none; }

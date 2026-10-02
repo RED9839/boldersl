@@ -170,6 +170,8 @@ const cue = (s, k, u, more) => { if (s.fx && u) s.fx.push({ k, side: u.side, idx
 // 체력이 찼으면(h0 → 지금) 연출 쪽지를 남긴다 · 방어 · 실드가 붙었으면 그만큼
 const healCue = (s, u, h0) => { if (u && u.hp > h0) cue(s, "heal", u, { v: u.hp - h0, from: h0, to: u.hp }); };
 const gainCue = (s, u, k, v) => { if (v > 0) cue(s, k, u, { v }); };
+// 능력치 증감의 이름 — 꼬리표 「공격력 +10%」 (fight-screen 의 칩과 같은 말)
+const MOD_KO = { dealt: "주는 피해", taken: "받는 피해", atk: "공격력", def: "방어력", crit: "치명" };
 
 // 사도가 말한다. 그 순간에 맞는 줄이 없으면 아무 말도 안 한다 — 틀린 대사보다 없는 편이 낫다.
 // 한 전투에서 같은 순간을 되풀이하지 않는다(같은 말을 두 번 들으면 대사가 아니라 소리가 된다).
@@ -699,7 +701,7 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   // opts.ally — 적과 아군을 둘 다 고르는 카드(「적 1명 …, 아군 1명 …」)의 아군 쪽. 화면이 한 번 더 묻는다
   const ctx = { owner, combo: null, targetIdx, allyIdx: opts.ally, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null, shin: sh === true ? "power" : (sh || null) };
   s.acting = c.hero || null;
-  cue(s, "act", owner, { anim: c.type === "공격" ? "attack" : "skill" });
+  cue(s, "act", owner, { anim: c.type === "공격" ? "attack" : "skill", card: c });   // card — 화면이 카드에 맞는 동작을 고른다(js/data/card-motion.js)
   try {
     if (c.built) {
       // 기획서에서 읽은 카드 — 효과 조각을 run-fx 가 실행한다(스탯 기반 %)
@@ -983,6 +985,9 @@ function fxApi(s) {
     statOf: (u, stat) => P.statMod(s, u, stat),
     addMod: (t, stat, v, turns) => {
       P.addMod(t, stat, v, turns);
+      // 연출 쪽지 — 「공격력 +10%」 꼬리표와 강화 · 약화 소리. up 은 걸린 쪽에 좋은가(받는 피해는 줄어야 좋다)
+      const pct = Math.round(v * 100);
+      if (pct) cue(s, "status", t, { id: `${MOD_KO[stat] || stat} ${pct > 0 ? "+" : ""}${pct}%`, up: stat === "taken" ? pct < 0 : pct > 0, mod: stat });
       if (t.side === "enemy" && ((stat === "taken" && v > 0) || (stat === "dealt" && v < 0))) { emit(s, "debuff", { by: s.acting, target: t, id: stat }); foePassives(s, "debuffed", { target: t }); }
     },
     stackChanged: (owner, id, before, after, holder) => emit(s, "stackReach", { id, before, after, owner, target: holder }),

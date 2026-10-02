@@ -80,7 +80,8 @@ function evict() {
 //   발(뼈대 원점)을 칸 바닥 가운데에 세운다. 칸 크기와 자리 잡기는 그대로라 배치가 흔들리지 않는다.
 export const OVER_W = 3, OVER_H = 2;
 // mix — 동작이 바뀔 때 섞는 시간(초). 0 이면 바로 바뀐다(전투). 로비의 메인 사도는 부드럽게 섞는다
-export async function spineView(el, kind, key, { scale = 1, anim, flip = false, skin, unit = 0, mix = 0 } = {}) {
+// bust — 머리부터 몸의 이 몫(0~1)만 칸 높이에 맞춘다. 아래는 칸 밖으로 잘린다(고학년 컷인의 상반신)
+export async function spineView(el, kind, key, { scale = 1, anim, flip = false, skin, unit = 0, mix = 0, bust = 0 } = {}) {
   const sp = spine();
   if (!sp) return null;
   await loadSpineManifest();
@@ -89,7 +90,7 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
   const w = el.clientWidth || 200, h = el.clientHeight || 200;
   // 크기는 열쇠에 넣지 않는다 — 캔버스 크기는 그리는 고리가 매 프레임 화면에 맞춰 다시 잡는다.
   // 넣어 두었더니 싸움터 높이에 따라 크기가 바뀌는 전투 화면에서 다시 쓰질 못하고 카드 한 장마다 컨텍스트가 늘어 하얗게 버려졌다.
-  const id = `${kind}|${key}|${scale}|${anim || ""}|${flip ? "f" : ""}|${skin || ""}|${unit}|${mix}`;
+  const id = `${kind}|${key}|${scale}|${anim || ""}|${flip ? "f" : ""}|${skin || ""}|${unit}|${mix}|${bust || ""}`;
   const spare = pool.find((v) => v.id === id && !v.canvas.isConnected);
   if (spare) {
     // 새 칸에도 「넘쳐도 된다」 표시를 단다 — 빠뜨렸더니 옮겨 붙인 캔버스가 칸(둥근 네모)에 잘려 보였다
@@ -200,8 +201,10 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
     if (grab.bone) grabApply(dt);
     // 캔버스는 화면에 실제로 찍히는 픽셀만큼 잡는다. renderer.resize() 는 CSS 크기 × devicePixelRatio 로 잡아서
     // 화면 배율(js/stage.js 의 zoom — QHD 1.6배)을 모르고, 그러면 사도가 뿌옇게 늘어난다.
-    const r = canvas.getBoundingClientRect(), dpr = (window.devicePixelRatio || 1) * renderScale;
-    const cw = Math.max(1, Math.round(r.width * dpr)), ch = Math.max(1, Math.round(r.height * dpr));
+    // 크기는 배치 크기(clientWidth — 배율 zoom 은 안 먹은 값) × 배율로 잰다. getBoundingClientRect 는 transform 까지 먹어서
+    // 컷인처럼 커지며 들어오는 그림(scale 1 → 1.08)은 캔버스를 매 프레임 새로 잡았다(그때마다 버퍼를 비우고 다시 만든다)
+    const z = parseFloat(document.documentElement.style.zoom) || 1, dpr = (window.devicePixelRatio || 1) * renderScale * z;
+    const cw = Math.max(1, Math.round(canvas.clientWidth * dpr)), ch = Math.max(1, Math.round(canvas.clientHeight * dpr));
     if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
     ctx.gl.viewport(0, 0, cw, ch);
     renderer.camera.setViewport(cw, ch);
@@ -217,6 +220,13 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
       skeleton.scaleX = flip ? -fit : fit;
       skeleton.x = 0;
       skeleton.y = -canvas.height / 2 + boxH * 0.05;
+    } else if (bust) {
+      // 머리 꼭대기를 칸 위끝 조금 아래에 — 가로는 가운데
+      const fit = (canvas.height / ((size.y || 1) * bust)) * scale;
+      skeleton.scaleY = fit;
+      skeleton.scaleX = flip ? -fit : fit;
+      skeleton.x = (flip ? 1 : -1) * (off.x + size.x / 2) * fit;
+      skeleton.y = canvas.height * 0.47 - (off.y + size.y) * fit;
     } else {
       const fit = Math.min(canvas.width / (size.x || 1), canvas.height / (size.y || 1)) * 0.9 * scale;
       skeleton.scaleY = fit;
@@ -236,10 +246,12 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
     // then — 끝나면 이어서 할 동작 하나(골디의 Touch_Idle → Touch_End 처럼 짝을 이룬 것). 그것까지 하고 쉰다.
     //   여럿이면 배열로 — 고학년 스킬처럼 Ultimate1_1 → 1_2 → … 로 이어지는 것
     // hold — 끝나도 쉬는 동작으로 가지 않고 마지막 자세로 멈춰 있는다(대사가 끝날 때까지 붙들기). 돌아갈 때는 toRest()
-    play(name, loopIt = false, then, { hold = false } = {}) {
+    // from — 그 동작의 이 초부터(등장 동작의 화면 밖에서 뛰어드는 앞부분을 건너뛸 때)
+    play(name, loopIt = false, then, { hold = false, from = 0 } = {}) {
       const a = findAnim(name);
       if (!a) return false;
-      state.setAnimation(0, a.name, loopIt);
+      const te = state.setAnimation(0, a.name, loopIt);
+      if (from > 0 && te) te.trackTime = Math.min(from, a.duration);
       for (const n of loopIt ? [] : [].concat(then || [])) {
         const b = findAnim(n);
         if (b) state.addAnimation(0, b.name, false, 0);
@@ -269,6 +281,14 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
     has: (name) => !!findAnim(name),
     current: () => { const t = state.getCurrent(0); return t && t.animation ? t.animation.name : null; },
     duration: (name) => { const a = findAnim(name); return a ? a.duration : 0; },
+    // 동작에 찍힌 이벤트 [{ name, time(초), s(문자 값), i(정수 값) }] — 원작은 Event · SFX · Voice · NextAni 따위에
+    // 게임 표의 번호(1001409 …)를 문자 값으로 단다. 이름만으로 뜻은 모르니 쓰는 쪽(fight-screen 의 strikeOf)이 짐작한다
+    events(name) {
+      const a = findAnim(name), out = [];
+      if (!a) return out;
+      for (const tl of a.timelines) if (tl.events) for (const e of tl.events) out.push({ name: e.data.name, time: e.time, s: e.stringValue || "", i: e.intValue });
+      return out.sort((x, y) => x.time - y.time);
+    },
     // 교감(로비의 메인 사도) — 본을 찾고, 누른 자리를 스켈레톤 좌표로 바꾼다.
     // 카메라는 캔버스 가운데가 원점(y 위로)이고 스켈레톤 좌표는 캔버스 픽셀이다
     get skeleton() { return skeleton; },
@@ -276,6 +296,16 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
       const r = canvas.getBoundingClientRect();
       if (!r.width || !r.height) return null;
       return { x: (clientX - r.left) / r.width * canvas.width - canvas.width / 2, y: canvas.height / 2 - (clientY - r.top) / r.height * canvas.height };
+    },
+    // 본 하나의 화면(뷰포트) 자리 — 마지막으로 그린 프레임의 것. toWorld 의 거꾸로(뒤집기 · 배율은 본 좌표에 이미 들어 있다).
+    // name 은 이름 그대로, 또는 정규식(처음 맞는 본). tip 이면 뿌리가 아니라 본 끝(길이만큼 앞 — 총 몸통 본이면 총구).
+    // 없거나 캔버스가 화면에 없으면 null
+    boneScreen(name, tip = false) {
+      const b = typeof name === "string" ? skeleton.findBone(name) : skeleton.bones.find((x) => name.test(x.data.name));
+      const r = canvas.getBoundingClientRect();
+      if (!b || !r.width || !r.height || !canvas.width || !canvas.height) return null;
+      const L = tip ? b.data.length : 0, wx = b.worldX + b.a * L, wy = b.worldY + b.c * L;
+      return { x: r.left + (wx + canvas.width / 2) * (r.width / canvas.width), y: r.top + (canvas.height / 2 - wy) * (r.height / canvas.height) };
     },
     dispose() {
       dead = true; cancelAnimationFrame(raf); drop();
@@ -286,11 +316,18 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
   // 멈춰 있던 동안의 시간은 건너뛴다 — 한꺼번에 몰아 돌리면 동작이 튄다
   const wake = () => { if (!dead && !raf) { last = performance.now(); raf = requestAnimationFrame(loop); } };
   // 컨텍스트를 브라우저가 거둬 가면(창을 오갈 때 · 너무 많을 때) 그 자리에 새로 그린다
+  // 칸이 들고 있던 손잡이(el.spine)도 새것으로 바꾸고 하던 동작을 잇는다 — 안 바꾸면 버려진 것을 붙들어 고학년 · 공격 동작이 안 보였다
   canvas.addEventListener("webglcontextlost", (e) => {
     e.preventDefault();
-    const host = canvas.parentElement;
+    const host = canvas.parentElement, cur = state.getCurrent(0);
+    const was = cur && cur.animation && cur.animation !== rest ? { n: cur.animation.name, loop: cur.loop } : null;
     api.dispose();
-    if (host && host.isConnected) spineView(host, kind, key, { scale, anim, flip, skin, unit });
+    if (!host || !host.isConnected) return;
+    spineView(host, kind, key, { scale, anim, flip, skin, unit, mix, bust }).then((v) => {
+      if (!v) return;
+      if (host.spine === api) host.spine = v;
+      if (was) v.play(was.n, was.loop);
+    });
   }, { once: true });
   pool.push({ id, canvas, api, wake });
   evict();

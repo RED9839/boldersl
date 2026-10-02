@@ -340,6 +340,21 @@ console.log("전투 화면 얼개 (카제나 구성)");
   check(has(f2, "intent") >= 1, "적의 의도가 보인다");
   check(has(f2, "ultbtn") === 3, `고학년 스킬 단추가 셋 (${has(f2, "ultbtn")})`);
   check(has(f2, "card") > 0, `손패가 그려진다 (${has(f2, "card")}장)`);
+
+  // 고학년 스킬 — 누르면 자세히(쓰는 단추 없이 「끌어다 놓으면」 한 줄), 쓰는 것은 끌어 놓을 때 부르는 dropUlt 로
+  const ub = clickAll(f2, (n) => n.classList.contains("ultbtn"))[0];
+  ub.onclick();
+  const um = docBody.children.find((n) => n.classList.contains("ultmodal"));
+  check(!!um && has(um, "bmuse") === 0 && has(um, "bmhint") === 1, "고학년 창에 쓰는 단추가 없고 끌어 쓰라는 한 줄이 있다");
+  if (um) clickAll(um, (n) => n.classList.contains("bmclose"))[0].onclick();
+  const C = await import("../js/combat.js");
+  const s2 = f2.state, uk = s2.party[0].key;
+  s2.gauge = 300;
+  const g0 = s2.gauge;
+  f2.dropUlt(uk, s2.enemies.find((e) => !e.dead).idx);
+  check(s2.gauge === g0 - C.ultOf(uk).cost && s2.lastUlt === uk, `끌어 놓으면 쓴다 (게이지 ${g0} → ${s2.gauge}%)`);
+  f2.dropUlt(uk, 0);
+  check(s2.lastUlt === uk && s2.gauge === g0 - C.ultOf(uk).cost, "같은 사도를 연속으로 놓으면 안 쓴다");
 }
 
 console.log("\n이후 화면");
@@ -845,7 +860,8 @@ console.log("로비와 프로필");
   const opts = all(sm, "sp-opt");
   check(opts.length === 8 && opts.map((o) => o.textContent).join(" ").includes("1280×720") && opts.some((o) => o.textContent === "낮음"),
     `설정 — 해상도 다섯 · 그래픽 품질 셋 (${opts.map((o) => o.textContent).join(" ")})`);
-  check(all(sm, "sp-tog").length >= 3 && all(sm, "sp-range").length === 2, "켜고 끄기 셋 이상 · 음량 둘(전체 · 목소리)");
+  check(all(sm, "sp-tog").length >= 3 && all(sm, "sp-range").length === 3, "켜고 끄기 셋 이상 · 음량 셋(전체 · 목소리 · 효과음)");
+  check(SET.getSettings().volSfx === 60 && SET.sfxVolume() > 0, `효과음 음량 기본 60 (${SET.getSettings().volSfx})`);
   opts.find((o) => o.textContent === "1280×720").onclick();
   check(SET.getSettings().res === "1280x720", "해상도를 고르면 설정에 남는다");
   sm = docBody.children.find((n) => n.classList.contains("lb-modal"));
