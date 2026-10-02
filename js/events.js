@@ -347,10 +347,10 @@ export function resolve(run, value) {
       if (i < 0) return "덱에 없는 카드입니다";
       const extra = deckWorkExtra(run);
       if (extra) {
-        if ((run.gold || 0) < extra) return `이 판에서 덱을 ${run.removals}번 손봤습니다 — 이번엔 골드 ${extra} 가 더 듭니다 (지금 ${run.gold || 0})`;
+        if ((run.gold || 0) < extra) return `이 판의 이벤트에서 덱을 ${run.eventWork}번 손봤습니다 — 이번엔 골드 ${extra} 가 더 듭니다 (지금 ${run.gold || 0})`;
         run.gold -= extra; E.log.push(`덱 손질 웃돈 골드 -${extra}`);
       }
-      run.removals = (run.removals || 0) + 1;
+      run.eventWork = (run.eventWork || 0) + 1;
       run.deck.splice(i, 1);
       forgetCard(run, value);              // 뺀 고유 카드는 은총 · 상점에 다시 안 나온다
       E.log.push(`「${CARDS[value].name}」 — 덱에서 뺐습니다`);
@@ -364,7 +364,7 @@ export function resolve(run, value) {
         if ((run.gold || 0) < extra) return `이번 복제엔 골드 ${extra} 가 더 듭니다 — 신탁 · 기적 웃돈 · 이 판의 덱 손질 웃돈 (지금 ${run.gold || 0})`;
         run.gold -= extra; E.log.push(`복제 웃돈 골드 -${extra}`);
       }
-      run.removals = (run.removals || 0) + 1;
+      run.eventWork = (run.eventWork || 0) + 1;
       run.deck.push(value);
       E.log.push(`「${CARDS[value].name}」 — 한 장 더`);
       break;
@@ -440,8 +440,8 @@ export function afterEventFight(run, won) {
 
 // 카드 복제 — 고를 수 있는가 · 웃돈. 신탁 · 기적은 카드 종류(id)에 붙어 있어 복제본도 그대로 가진다
 export function dupeOk(id) { const c = CARDS[id]; return !!c && !c.oneOnly; }
-// 덱 손질 웃돈 — 이 판에서 앞서 제거 · 복제를 한 횟수 × DECKWORK_STEP(상점 제거 포함)
-export function deckWorkExtra(run) { return R.DECKWORK_STEP * (run.removals || 0); }
+// 덱 손질 웃돈 — 이 판의 **이벤트**에서 앞서 제거 · 복제를 한 횟수 × DECKWORK_STEP. 상점 제거는 따로 센다(run.removals — 사용자: 상점과 이벤트는 다른 값)
+export function deckWorkExtra(run) { return R.DECKWORK_STEP * (run.eventWork || 0); }
 export function dupeExtra(run, id) { return (run.flash || {})[id] || (run.shin || {})[id] ? R.DUPE_FLASH_EXTRA : 0; }
 
 // 이벤트를 닫는다 — 다음 칸으로
