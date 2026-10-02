@@ -159,6 +159,9 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   s.appendChild(lootBox);
   let lootGold = 0, goldRow = null;
   const ground = [];                        // 바닥에 떨어진 금화 { node, x, y, gold, taken }
+  // 금화는 몸통(body)에 붙어서 화면을 갈아도 남는다 — 지거나 메인화면으로 나가거나 이어하기로 다시 열 때 걷는다
+  const clearGround = () => { for (const c of ground) c.node.remove(); ground.length = 0; };
+  if (typeof document === "object" && document.querySelectorAll) document.querySelectorAll(".groundcoin").forEach((n) => n.remove());
   s._st = st;                              // 시험 도구가 판을 읽는다(적 체력을 낮춰 승리 연출 보기 등)
   const groundOk = typeof document === "object" && !!document.body && typeof innerWidth === "number";
   const zNow = () => (typeof getZoom === "function" && getZoom()) || 1;
@@ -1224,7 +1227,9 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const MODS = [["dealt", "주는 피해"], ["taken", "받는 피해"], ["atk", "공격력"], ["def", "방어력"], ["crit", "치명"]];
     for (const [stat, ko] of MODS) {
       const v = Math.round(C.statOf(st, u, stat) * 100);
-      if (!v) continue;
+      // ±1% 는 칸을 따로 세우지 않는다 — 대개 「1개당 아군 전원 받는 피해 -1%」 키워드가 하나 쌓인 것이라
+      // 주인의 키워드 칸(광물 1 따위)이 이미 말하고, 작은 칸만 늘어 읽기를 방해했다. 2개 이상 쌓이면 보인다
+      if (Math.abs(v) < 2) continue;
       const good = stat === "taken" ? v < 0 : v > 0;
       box.appendChild(el("span", "chip mod " + (good ? "up" : "down"), `${ko} ${v > 0 ? "+" : ""}${v}%`));
     }
@@ -1389,8 +1394,15 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       const ban = el("div", "turnban");
       ban.appendChild(el("small", null, "TURN"));
       ban.appendChild(el("b", null, String(st.turn)));
-      field.appendChild(ban);
-      setTimeout(() => ban.remove(), 1300);
+      // 적의 차례에 뜬 피해 숫자가 아직 떠 있으면 그것이 걷힐 때까지(길어야 1.2초) 기다렸다 띄운다 — 숫자 위에 겹쳐 읽히지 않았다
+      const t0 = Date.now(), turn = st.turn;
+      const show = () => {
+        if (shownTurn !== turn || !field.isConnected) return;
+        if (field.querySelector && field.querySelector(".fxnum") && Date.now() - t0 < 1200) return setTimeout(show, 120);
+        field.appendChild(ban);
+        setTimeout(() => ban.remove(), 1300);
+      };
+      show();
     }
 
     // 코스트 창 — 카제나는 여기가 손패의 핵심이다
@@ -1878,8 +1890,8 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       body.appendChild(el("h3", "bmname", "메인화면으로 갈까요?"));
       body.appendChild(el("p", "bmhelp", "이 판은 지금 자리 그대로 저장되어 있습니다 — 로비의 「이어하기」로 돌아옵니다."));
       const row = el("div", "bmbtns");
-      const yes = el("button", "bmuse danger", "나갑니다");
-      yes.onclick = () => { closeModal(); if (onQuit) onQuit(); };
+      const yes = el("button", "bmuse" + (saveOk() ? "" : " danger"), "나갑니다");   // 저장되면 그냥 나가는 것 — 빨간 경고는 판이 사라질 때만
+      yes.onclick = () => { closeModal(); clearGround(); if (onQuit) onQuit(); };
       const no = el("button", "bmclose", "돌아가기");
       no.onclick = () => openMenu();
       row.appendChild(yes); row.appendChild(no);
@@ -1913,7 +1925,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     body.appendChild(list);
     if (onQuit) {
       const q = el("div", "mlist");
-      const b = el("button", "mitem quit");
+      const b = el("button", "mitem quit" + (saveOk() ? "" : " danger"));
       b.appendChild(el("b", null, "메인화면으로"));
       b.appendChild(el("span", null, saveOk() ? "판은 저장됩니다 — 로비에서 이어하기" : "저장할 수 없는 브라우저입니다 — 나가면 이 판은 사라집니다"));
       b.onclick = () => openMenu("quit");
@@ -2261,7 +2273,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     endBtn.disabled = true;
     hand.querySelectorAll("button").forEach((b) => (b.disabled = true));
     R.afterFight(run, st);
-    if (st.over !== "win") { run.where = { k: "fightDone", result: st.over }; writeSave(run); setTimeout(() => onDone(st.over), 700); return; }
+    if (st.over !== "win") { run.where = { k: "fightDone", result: st.over }; writeSave(run); setTimeout(() => { clearGround(); onDone(st.over); }, 700); return; }
     if (loot) {
       // 떨어진 것을 챙긴다 — 장비는 가방으로. 아직 못 떨궜으면(마지막 한 방에 여럿) 여기서
       dropItems({ x: (innerWidth || 1600) * 0.7, y: (innerHeight || 900) * 0.4 });
@@ -2279,7 +2291,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         lootBox.querySelector(".lthead").textContent = "승리 — 얻은 것";
         if (!lootList.children.length) lootList.appendChild(el("p", "ltnone", "이번에는 떨어진 것이 없습니다"));
       }
-      setTimeout(() => { for (const c of ground) c.node.remove(); onDone(st.over); }, loot ? 1300 : 500);
+      setTimeout(() => { clearGround(); onDone(st.over); }, loot ? 1300 : 500);
     }));
   }
 

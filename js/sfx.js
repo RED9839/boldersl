@@ -29,6 +29,9 @@ const BUSY_MS = 70, BUSY_K = 0.12, BUSY_MIN = 0.6;           // 같은 순간(±
 const now = () => (W && W.performance ? W.performance.now() : Date.now());
 
 let ctx = null, out = null, keys = null, gains = null, idxP = null, dead = !AC;
+// 첫 누름 · 키 전에는 AudioContext 를 만들지도 깨우지도 않는다 — 막힌 채 소리마다 깨우려다 브라우저가
+// 「AudioContext was not allowed to start」 를 수천 번 찍었다. 그 전의 소리는 조용히 버린다
+let woken = false;
 const bufs = new Map();          // 경로 → AudioBuffer | Promise | null(못 읽음). 넣은 순서 = 오래된 순서
 const lastAt = new Map();        // 갈래 · 경로 → 마지막으로 튼 때
 const lastPath = new Map();      // 갈래 → 마지막으로 튼 경로
@@ -44,7 +47,7 @@ const trace = [];                // 시험 도구용 — 최근에 건 소리 [{
 let lastSpecific = -1e9;         // 단추 소리(ui.click)를 덮는 다른 소리가 막 났는가
 
 function audio() {
-  if (dead) return null;
+  if (dead || !woken) return null;
   if (!ctx) {
     try {
       ctx = new AC();
@@ -59,7 +62,6 @@ function audio() {
       } else out.connect(ctx.destination);
     } catch { dead = true; return null; }
   }
-  if (ctx.state === "suspended") ctx.resume().catch(() => {});
   return ctx;
 }
 // 색인 — 무엇이 있는지. 없으면(공개판에 안 실었거나 꺼내지 않았다) 효과음은 통째로 쉰다
@@ -201,7 +203,7 @@ async function fire(cat, list, { v = 1, pan = 0, delay = 0, pitch = false, gap =
 
 // ── 공용 갈래 ──
 export function play(kind, opts = {}) {
-  if (dead) return;
+  if (dead || !woken) return;
   if (kind !== "ui.click") lastSpecific = now();
   const k = ALIAS[kind] || kind;
   const e = SFX[k];
@@ -223,7 +225,7 @@ function enemyDir(key) {
   return monsterDir(key, monsterDirs);
 }
 function own(top, dir, kind, kinds, opts) {
-  if (dead) return;
+  if (dead || !woken) return;
   lastSpecific = now();
   loadIndex().then((ks) => {
     if (!ks) return;
@@ -370,7 +372,13 @@ onSettings(() => { if (out) out.gain.value = sfxVolume(); });
 // 누른 단추가 제 소리(상점 사기 · 지도 걷기 …)를 이미 냈으면 딸깍은 건너뛴다. data-nosfx 가 붙은 곳은 조용히
 const D = typeof document === "object" && document && typeof document.addEventListener === "function" ? document : null;
 if (D && AC) {
-  const wake = () => { audio(); loadIndex(); };
+  // 깨우기(resume)는 누름 안에서만 — 탭을 갔다 와 다시 잠들었으면 다음 누름에 깬다
+  const wake = () => {
+    woken = true;
+    const ac = audio();
+    if (ac && ac.state === "suspended") ac.resume().catch(() => {});
+    loadIndex();
+  };
   for (const ev of ["pointerdown", "keydown", "touchstart"]) D.addEventListener(ev, wake, { capture: true, passive: true });
   D.addEventListener("click", (e) => {
     const b = e.target && e.target.closest && e.target.closest("button, [role=button]");

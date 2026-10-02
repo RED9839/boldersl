@@ -93,7 +93,7 @@ export function kitOf(heroKey) {
 export const hasBuilt = (heroKey) => !!BUILT.heroes[heroKey];
 
 // 신탁을 얹은 카드. 기획서: 고유 카드마다 신탁 다섯이 붙고, 하나를 골라 그 카드가 바뀐다.
-// 글과 효과를 통째로 갈아 끼운다 — ①강화는 수치가 오르고 ②경량은 코스트가 내린다.
+// 글과 효과를 통째로 갈아 끼운다 — ①경량은 코스트가 내리고 ②강화는 코스트를 올려 수치가 오른다.
 export function flashed(card, n) {
   const f = (card.flash || [])[n - 1];
   if (!f) return card;

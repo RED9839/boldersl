@@ -132,7 +132,7 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
     if (next.rush) { s.firstRushDown = next.rush; say(s, `이벤트 — 첫 턴 적 전체 즉시 행동 -${next.rush}`); }
     if (next.foeVuln) { for (const e of alive(s.enemies)) addSt(e, "취약", next.foeVuln); say(s, `이벤트 — 적 전체 취약 ${next.foeVuln}턴`); }
     if (next.quiet) { s.foeQuiet = next.quiet; say(s, `이벤트 — 적 패시브가 ${next.quiet}턴 동안 잠잠하다`); }
-    if (next.hpCut) { for (const u of s.party) if (!u.dead) u.hp = Math.max(1, u.hp - Math.round(u.maxHp * next.hpCut)); say(s, `이벤트 — 시작하자마자 오작동, HP -${Math.round(next.hpCut * 100)}%`); }
+    if (next.hpCut) { for (const u of s.party) if (!u.dead) u.hp = Math.max(1, u.hp - Math.round(u.maxHp * next.hpCut)); say(s, `이벤트 — 시작하자마자 오작동, 파티 전원 HP -${Math.round(next.hpCut * 100)}%`); }
   }
   emit(s, "fightStart", {});
   foePassives(s, "fightStart");
@@ -405,7 +405,7 @@ function resetFoePassives(s) {
 function actEnemy(s, e, it = e.intent, passive = false) {
   if (!it) return;
   if (!passive && st(e, "침묵") > 0 && !["attack", "back", "attackAll", "multi"].includes(it.t)) {
-    say(s, `${e.ko}: 침묵 — ${it.say} 을(를) 못 했다`);
+    say(s, `${e.ko}: 침묵 — ${을를(it.say)} 못 했다`);
     if (it.next) e.intent = null;          // 모으던 힘도 흩어진다
     return;
   }
@@ -902,7 +902,7 @@ function applyFx(s, c, f, ctx) {
     case "shockStun": {
       let n = 0;
       for (const t of reachable) if (st(t, "감전") > 0) { t.sealed = true; n++; }
-      say(s, n ? `감전된 적 ${n}이(가) 기절했다` : "감전된 적이 없다");
+      say(s, n ? `감전된 적 ${n}명이 기절했다` : "감전된 적이 없다");
       break;
     }
     // 에슈르 — 광역 기절
@@ -935,12 +935,12 @@ function applyFx(s, c, f, ctx) {
     // 티그 — 눈앞의 것도 다 거짓이 아니냐
     case "purge": {
       const t = one();
-      if (t) { for (const k of ["힘", "가시"]) if (st(t, k) > 0) delete t.status[k]; t.block = 0; say(s, `${t.ko}이(가) 쌓아 둔 것이 지워졌다`); }
+      if (t) { for (const k of ["힘", "가시"]) if (st(t, k) > 0) delete t.status[k]; t.block = 0; say(s, `${이가(t.ko)} 쌓아 둔 것이 지워졌다`); }
       break;
     }
 
     // 프리클 — 계획을 짜 함정으로 몰아 봉인시킨다
-    case "seal": { const t = one(); if (t) { t.sealed = true; say(s, `${t.ko}을(를) 봉인했다`); } break; }
+    case "seal": { const t = one(); if (t) { t.sealed = true; say(s, `${을를(t.ko)} 봉인했다`); } break; }
 
 
     case "healAll": for (const u of alive(s.party)) { const h0 = u.hp; u.hp = Math.min(u.maxHp, u.hp + f.v); healCue(s, u, h0); } break;

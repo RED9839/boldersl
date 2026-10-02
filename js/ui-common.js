@@ -146,7 +146,7 @@ const HELP = [
   ["신탁", "은총 · 신탁 · 겨우살이의 축복", () => helpList([
     "싸우다 보면 카드가 빛납니다. 빛나는 카드를 내면 세계수의 뜻이 내립니다.",
     "은총 — 사도의 기본 카드가 빛납니다. 내면 그 사도의 고유 카드 하나가 손패로 옵니다(그 턴 0코). 고르지 않습니다. 한 번 뺀 고유 카드는 다시 오지 않습니다.",
-    "신탁 — 고유 카드 · 교주 카드가 빛납니다. 내면 신탁 다섯(① 강화 ② 경량 ③ 연계 ④ 변형 ⑤ 각성) 가운데 셋이 뜨고 하나를 고릅니다. 카드가 바로 바뀌고 이번에 내는 것은 0코입니다.",
+    "신탁 — 고유 카드 · 교주 카드가 빛납니다. 내면 신탁 다섯(① 경량 ② 강화 ③ 연계 ④ 변형 ⑤ 각성) 가운데 셋이 뜨고 하나를 고릅니다. 카드가 바로 바뀌고 이번에 내는 것은 0코입니다.",
     `겨우살이의 축복 — 신탁 선택지 하나에 드물게(${Math.round(RULES.DIVINE * 100)}%) 붙는 덤입니다. 카드 종류마다 다른 열세 가지(피해 ×1.3 · 비용 -1 · 드로우 · AP · 회복 · 방어 · 취약 · 중독 …).`,
     "사도마다 따로 굴립니다 — 한 전투에 여러 사도, 운이 좋으면 셋 모두 은총이 빛납니다. 교주 카드 신탁은 사도와 별개로 한 번 더 굴립니다.",
     `사도 한 명당 — 은총: 일반 ${Math.round(RULES.EPI_HERO.fight * 100)}% · 엘리트 ${Math.round(RULES.EPI_HERO.elite * 100)}% · 보스 ${Math.round(RULES.EPI_HERO.boss * 100)}% / 신탁: 일반 ${Math.round(RULES.EPI_CARD.fight * 100)}% · 엘리트 ${Math.round(RULES.EPI_CARD.elite * 100)}% · 보스 ${Math.round(RULES.EPI_CARD.boss * 100)}%. 엘리트 · 보스는 은총이, 엘리트는 신탁도 적어도 하나는 빛납니다.`,
@@ -345,7 +345,7 @@ export function showPiles(piles, pick, cardFor, onDetail) {
       card.onclick = onDetail ? () => onDetail(id) : null;   // 누르면 자세히 — 더미 창 위에 뜬다
       card.title = onDetail ? "눌러서 자세히 보기" : "";
       if (onDetail) card.classList.add("canzoom");
-      if (c.flashOn) card.appendChild(el("span", "pflash", `${"①②③④⑤"[c.flashOn - 1]} ${c.flashKind}`));
+      if (c.flashOn) card.appendChild(el("span", "pflash", `${"①②③④⑤"[c.flashOn - 1]} ${c.flashKind || c.flashKo || ""}`));
       cell.appendChild(card);
       // 카드에는 줄여서 앉혔으니, 아래에 전문을 붙인다
       cell.appendChild(withKeywords(el("p", "pfull"), c.text, c.hero));

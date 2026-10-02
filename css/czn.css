@@ -624,8 +624,9 @@ body:has(#screen.battle) .top { display: none; }
 }
 .mitem.tog.on .sw { background: #f0b94a; border-color: #f6d58e; }
 .mitem.tog.on .sw:after { transform: translateX(18px); background: #fff; }
-.mitem.quit b { color: #ffb3a8; }
-.mitem.quit:hover:not(:disabled) { border-color: #ff9f8f; background: #ff9f8f14; }
+/* 메인화면으로 — 판이 저장되면 다른 줄과 같은 모양. 저장할 수 없어 판이 사라질 때만 붉게(.danger) */
+.mitem.quit.danger b { color: #ffb3a8; }
+.mitem.quit.danger:hover:not(:disabled) { border-color: #ff9f8f; background: #ff9f8f14; }
 .bmuse.danger { color: #fff; background: linear-gradient(180deg, #e0707f, #b04055); box-shadow: 0 0 16px #e0707f55; }
 
 /* ── 설정: 움직임 줄이기 · 글자 크게 ───────────────────────────────────────── */
@@ -2427,17 +2428,18 @@ body:has(#screen.campscreen2) .top { display: none; }
 /* 신탁 — 붙을 카드 + 셋 */
 .cp-flash { display: flex; align-items: stretch; justify-content: center; gap: 18px; }
 .cp-flash .ftarget { justify-content: center; padding-right: 8px; }
-#screen.campscreen2 .cp-flash .fcard {
+/* 신탁 카드 — 캠프 수련 · 이벤트 결과 창이 같은 어두운 판 (dex.css 의 흰 .fcard 를 덮는다) */
+:is(#screen.campscreen2 .cp-flash, #screen.eventscreen2 .ev2-sheet) .fcard {
   width: 300px; flex: none; min-height: 0; text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; border-radius: 14px;
   background: linear-gradient(180deg, #1c1830f0, #0d0b16f0); border: 1px solid #ffffff2e; color: var(--ink); box-shadow: 0 10px 24px #0009;
   transition: transform .14s, border-color .14s, box-shadow .14s;
 }
-#screen.campscreen2 .cp-flash .fcard:hover:not(:disabled) { transform: translateY(-4px); border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 0 24px #f6d58e33, 0 14px 28px #000b; }
-#screen.campscreen2 .cp-flash .fnum { font-size: 18px; color: var(--gold); }
-#screen.campscreen2 .cp-flash .fhead2 b { font-size: 15px; color: #fff; }
-#screen.campscreen2 .cp-flash .fko { color: var(--dim); font-size: 12.5px; }
-#screen.campscreen2 .cp-flash .ftext2 { font-size: 14px; line-height: 1.7; color: #ece8ff; }
-#screen.campscreen2 .cp-flash .fbefore { color: var(--dim); border-top-color: #ffffff26; font-size: 12px; }
+:is(#screen.campscreen2 .cp-flash, #screen.eventscreen2 .ev2-sheet) .fcard:hover:not(:disabled) { transform: translateY(-4px); border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 0 24px #f6d58e33, 0 14px 28px #000b; }
+:is(#screen.campscreen2 .cp-flash, #screen.eventscreen2 .ev2-sheet) .fnum { font-size: 18px; color: var(--gold); }
+:is(#screen.campscreen2 .cp-flash, #screen.eventscreen2 .ev2-sheet) .fhead2 b { font-size: 15px; color: #fff; }
+:is(#screen.campscreen2 .cp-flash, #screen.eventscreen2 .ev2-sheet) .fko { color: var(--dim); font-size: 12.5px; }
+:is(#screen.campscreen2 .cp-flash, #screen.eventscreen2 .ev2-sheet) .ftext2 { font-size: 14px; line-height: 1.7; color: #ece8ff; }
+:is(#screen.campscreen2 .cp-flash, #screen.eventscreen2 .ev2-sheet) .fbefore { color: var(--dim); border-top-color: #ffffff26; font-size: 12px; }
 /* 장비 — gearPanel 을 어두운 유리로 */
 .cp-gearbody .gearpanel { margin: 0; }
 .cp-gearbody .grow { background: #ffffff08; border-color: #ffffff1f; color: var(--ink); }
@@ -2513,9 +2515,9 @@ body:has(#screen.campscreen2) .top { display: none; }
 .phone .cp-close { min-height: 40px; }
 .phone .cp-sheetbody { padding: 10px 12px 14px; }
 .phone .cp-flash { gap: 10px; justify-content: flex-start; }
-.phone #screen.campscreen2 .cp-flash .fcard { width: 208px; padding: 10px 12px; gap: 4px; }
-.phone #screen.campscreen2 .cp-flash .ftext2 { font-size: 12.5px; line-height: 1.55; }
-.phone #screen.campscreen2 .cp-flash .fbefore { font-size: 11px; }
+.phone :is(#screen.campscreen2 .cp-flash, #screen.eventscreen2 .ev2-sheet) .fcard { width: 208px; padding: 10px 12px; gap: 4px; }
+.phone :is(#screen.campscreen2 .cp-flash, #screen.eventscreen2 .ev2-sheet) .ftext2 { font-size: 12.5px; line-height: 1.55; }
+.phone :is(#screen.campscreen2 .cp-flash, #screen.eventscreen2 .ev2-sheet) .fbefore { font-size: 11px; }
 .phone #screen.campscreen2 .cp-gearbody .ecard { width: 220px; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3375,3 +3377,21 @@ body:has(#screen.teamscreen3) .top { display: none; }
 /* 고학년 — 줄 어디를 잡아도 끈다. 그림은 브라우저 그림 끌기를 막는다 */
 .battle .ally.ultgrab { cursor: grab; touch-action: none; }
 .battle .ally.ultgrab img { -webkit-user-drag: none; user-select: none; }
+
+/* 한글 줄바꿈 — 낱말 가운데(「모나\n티엄」 · 「19\n장」)에서 끊지 않고 띄어쓰기에서만 바꾼다.
+   긴 글도 띄어쓰기에서 그대로 흐른다. 한 낱말이 칸보다 길 때만 그 안에서 자른다 */
+body { word-break: keep-all; overflow-wrap: break-word; }
+/* 지도 머리 — 한 줄로. 이름이 길면(다야(퓨어샤인)) … 로 줄인다 */
+.mwhere { min-width: min-content; }
+.mwhere b, .minfo b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mgold, .mdeck { white-space: nowrap; flex: none; }
+/* 폰은 머리 줄이 빠듯하다 — 층 이름은 띄어쓰기에서 두 줄로 접고(「2층 ·」「모나티엄」), 사도 이름은 … */
+.phone .mwhere b { white-space: normal; line-height: 1.15; }
+.phone .minfo b { max-width: 78px; }
+.phone .helpwrap { grid-template-columns: 136px minmax(0, 1fr); }
+.phone .mhead { gap: 8px; }
+.phone .mparty-hp { gap: 6px; min-width: 0; }
+.phone .mhero { padding: 4px 8px 4px 4px; gap: 6px; }
+.phone .mdeck, .phone .mgold { padding: 8px 10px; }
+/* 전투 왼쪽 아래 사도 이름 — 「다야(퓨어샤인)」 이 괄호 앞에서 접혀 줄이 두 칸이 되었다. 한 줄로, 넘치면 … */
+.battle .ally .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }

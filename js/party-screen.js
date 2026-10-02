@@ -842,7 +842,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
 
   function flashPane(kit, CA, picFor) {
     const w = el("div", "pane");
-    w.appendChild(el("p", "note", "고유 카드는 신탁 다섯 가운데 하나를 골라 바뀝니다 — ①강화 ②경량 ③연계 ④변형 ⑤각성."));
+    w.appendChild(el("p", "note", "고유 카드는 신탁 다섯 가운데 하나를 골라 바뀝니다 — ①경량 ②강화 ③연계 ④변형 ⑤각성."));
     kit.unique.forEach((c) => {
       const box = el("section", "flashbox");
       const head = el("div", "fhead");

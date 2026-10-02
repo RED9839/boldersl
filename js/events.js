@@ -6,6 +6,7 @@
 //   고르는 것    카드 제거 · 카드 복제 · 고유 카드 · 교주 카드 · 신탁 · 사도 1명 — 화면이 하나씩 묻는다
 
 import { EVENTS, CURSES } from "./data/events.js";
+import { 은는, 을를, josa } from "./ko.js";
 import { CARDS, NEUTRAL_IDS, EQUIP, HERO_DATA } from "./cardbook.js";
 import * as R from "./rules.js";
 import { rewardCards, offerFlash, offerEquip, offerEquipSlot, forgetCard, divineKindsFor } from "./run.js";
@@ -248,7 +249,7 @@ export function apply(run, ops) {
         const who = o.who.fallen ? fallen(run) : o.who.hero ? run.party.filter((k) => koOf(k) === o.who.hero || koOf(k).startsWith(o.who.hero + "("))
           : o.who.judged ? [E.judged].filter(Boolean) : alive;
         for (const k of who) hpChange(run, k, o.v, o.who.fallen);
-        E.log.push(`${o.who.fallen ? "쓰러진 사도" : o.who.hero || (o.who.judged ? koOf(E.judged) : "파티")} HP ${o.v > 0 ? "+" : ""}${Math.round(o.v * 100)}%`);
+        E.log.push(`${o.who.fallen ? "쓰러진 사도" : o.who.hero || (o.who.judged ? koOf(E.judged) : "파티 전원")} HP ${o.v > 0 ? "+" : ""}${Math.round(o.v * 100)}%`);
         break;
       }
       case "maxHp": {
@@ -273,7 +274,7 @@ export function apply(run, ops) {
       case "equip": {
         const [id] = o.slot ? offerEquipSlot(run, o.grade, o.slot) : offerEquip(run, { [o.grade]: 1 }, 1);
         if (id) { run.bag.push(id); E.log.push(`장비 「${EQUIP[id].ko}」(${o.grade}) — 가방에`); }
-        else E.log.push(`${o.grade} ${o.slot || "장비"}는 이미 다 가졌습니다`);
+        else E.log.push(`${o.grade} ${은는(o.slot || "장비")} 이미 다 가졌습니다`);
         break;
       }
       case "flash": {
@@ -331,7 +332,7 @@ const nextLabel = (o) => "다음 전투: " + [
   o.gauge != null && `게이지 +${o.gauge}%`,
   o.hand != null && `첫 손패 +${o.hand}`,
   o.weak != null && `아군 전원 약화 ${o.weak}턴`,
-  o.hpCut != null && `HP -${Math.round(o.hpCut * 100)}%`,
+  o.hpCut != null && `파티 전원 HP -${Math.round(o.hpCut * 100)}%`,
   o.rush != null && `첫 턴 적 전체 즉시 행동 -${o.rush}`,
   o.foeVuln != null && `적 전체 취약 ${o.foeVuln}턴`,
   o.quiet != null && `적 패시브 꺼짐 ${o.quiet}턴`,
@@ -388,7 +389,7 @@ export function resolve(run, value) {
       if (!dupeOk(value)) return "덱에 1장만 넣는 카드는 복제할 수 없습니다";
       const extra = dupeExtra(run, value);
       if (extra) {
-        if ((run.gold || 0) < extra) return `신탁 · 기적이 붙은 카드는 복제에 골드 ${extra} 가 더 듭니다 (지금 ${run.gold || 0})`;
+        if ((run.gold || 0) < extra) return `신탁 · 기적이 붙은 카드는 복제에 골드 ${extra} ${josa(String(extra), "이가")} 더 듭니다 (지금 ${run.gold || 0})`;
         run.gold -= extra; E.log.push(`신탁 · 기적까지 옮겨 적느라 골드 -${extra}`);
       }
       run.deck.push(value);
@@ -454,7 +455,7 @@ export function afterEventFight(run, won) {
   if (!E) return;
   E.phase = "result";
   if (!won || !f) return;
-  E.log.push(`${f.name}을(를) 물리쳤습니다`);
+  E.log.push(`${을를(f.name)} 물리쳤습니다`);
   let out = f.win;
   if (f.winGamble) {
     let r = run.rng(), g = f.winGamble[f.winGamble.length - 1];

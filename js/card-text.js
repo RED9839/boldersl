@@ -103,8 +103,11 @@ export function polite(t) {
   });
 }
 
+// 신탁 글머리의 「코스트 N.」 — 카드 머리의 코스트 칸이 같은 값을 보이니 카드 면에서는 뺀다(데이터는 그대로)
+const COST_HEAD = /^코스트\s*\d+\s*\.\s*/;
+
 export function cardParts(card, heroKey) {
-  const full = shortText(card.text);
+  const full = shortText(card.text).replace(COST_HEAD, "");
   const m = full.match(LOCAL);
   const action = m ? `${m[1]} ${m[2]}` : full;
   const terms = [];

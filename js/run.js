@@ -122,7 +122,7 @@ export function rollEpiphany(run) {
     const options = draw3([1, 2, 3, 4, 5].filter((n) => (c.flash || [])[n - 1])).sort((a, b) => a - b).map((n) => ({ n, shin: null }));
     // 기적 — 셋 가운데 하나에 드물게
     if (options.length && run.rng() < R.DIVINE) {
-      // 「비용 -1」은 신탁을 얹은 뒤에도 비용이 1 이상인 선택지에만(②경량은 이미 0 일 수 있다)
+      // 「비용 -1」은 신탁을 얹은 뒤에도 비용이 1 이상인 선택지에만(①경량은 이미 0 일 수 있다)
       const o = pick(options);
       const kinds = divineKindsFor(flashed(c, o.n));
       o.shin = pick(kinds.length ? kinds : ["draw"]);
