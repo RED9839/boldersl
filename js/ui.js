@@ -4038,7 +4038,8 @@ export function eventScreen(run, onDone, onFight) {
     let ts;
 
     if (p.k === "remove" || p.k === "dupe") {
-      head(p.k === "remove" ? "덱에서 뺄 카드" : "한 장 더 넣을 카드", "카드를 눌러 고르고, 아래 단추로 정합니다");
+      { const w = EV.deckWorkExtra(run);
+        head(p.k === "remove" ? "덱에서 뺄 카드" : "한 장 더 넣을 카드", "카드를 눌러 고르고, 아래 단추로 정합니다" + (w ? ` · 이 판에서 덱을 ${run.removals}번 손봐서 골드 ${w} 가 더 듭니다` : "")); }
       ts = twoStep(commit, { verb: p.k === "remove" ? "덱에서 뺍니다" : "한 장 더 넣습니다", danger: p.k === "remove" });
       const grid = el("div", "ev2-cards");
       const seen = new Set();

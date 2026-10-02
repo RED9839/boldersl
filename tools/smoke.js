@@ -512,11 +512,12 @@ console.log("\n골디의 상점");
   const g2 = r.gold, deckN2 = r.deck.length; toRemove[0].onclick();
   check(r.deck.length === deckN2 && r.gold === g2, "한 번 누르면 고르기만 한다 — 아직 안 빠지고 골드도 그대로(두 단계)");
   const okRm = clickAll(sp, (n) => n.classList.contains("tsok"))[0];
-  check(!!okRm && !okRm.disabled && /75 골드로 뺍니다/.test(okRm.textContent), "고르면 「75 골드로 뺍니다」 단추가 살아난다");
+  const { PRICE_REMOVE: PR, PRICE_REMOVE_STEP: PRS } = await import("../js/rules.js");   // 값은 규칙에서(2026-10 올렸다)
+  check(!!okRm && !okRm.disabled && new RegExp(`${PR} 골드로 뺍니다`).test(okRm.textContent), `고르면 「${PR} 골드로 뺍니다」 단추가 살아난다`);
   okRm.onclick();
-  check(r.deck.length === deckN2 - 1 && r.gold === g2 - 75 && r.shop.removeUsed, "카드 제거 75골드, 한 번만");
+  check(r.deck.length === deckN2 - 1 && r.gold === g2 - PR && r.shop.removeUsed, `카드 제거 ${PR}골드, 한 번만`);
   check(!clickAll(sp, (n) => n.classList.contains("sh-deckcard")).length, "빼고 나면 고르는 창이 닫힌다");
-  check(R.removePrice(r) === 100, "다음 제거는 100골드");
+  check(R.removePrice(r) === PR + PRS, `다음 제거는 ${PR + PRS}골드`);
   const r2 = R.newRun(run.party.slice(), { ...run.rows }, 12); r2.gold = 10; r2.node = 3;
   const sp2 = ui.shopScreen(r2, () => {});
   clickAll(sp2, (n) => n.classList.contains("sh-buy"))[0].onclick();

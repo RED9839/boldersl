@@ -66,8 +66,11 @@ export const SHOP_EQUIP_N = 3;           // 진열하는 장비
 // 새로고침 — 진열을 다시 굴린다. 한 번 들를 때마다 값이 오른다(25 → 50 → 75 …)
 export const SHOP_REROLL = 25;
 export const SHOP_REROLL_STEP = 25;
-export const PRICE_REMOVE = 75;          // 카드 제거 — 쓸 때마다 +25 (한 번 들를 때 한 번)
-export const PRICE_REMOVE_STEP = 25;
+// 카드 제거 · 복제는 덱을 원하는 모양으로 깎는 가장 센 수단이라 비싸다(2026-10 사용자: 대가를 크게).
+// 한 판에서 제거 · 복제를 한 횟수(run.removals — 상점과 이벤트를 함께 센다)만큼 값이 오른다.
+export const PRICE_REMOVE = 100;         // 상점 카드 제거 — 쓸 때마다(어디서든) +50 (한 번 들를 때 한 번)
+export const PRICE_REMOVE_STEP = 50;
+export const DECKWORK_STEP = 25;         // 이벤트의 카드 제거 · 복제 — 이 판에서 앞서 한 횟수 × 25 골드를 웃돈으로
 // 이벤트 「카드 복제」 — 신탁 · 기적은 카드 종류에 붙어 있어 복제본도 그대로 가진다. 그래서 그런 카드를 고르면 골드를 더 받는다
 export const DUPE_FLASH_EXTRA = 40;
 // 진열 가중치 — 흔한 것이 자주 나온다
