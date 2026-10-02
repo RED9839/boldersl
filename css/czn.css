@@ -3077,6 +3077,104 @@ body:has(#screen.teamscreen3) .top { display: none; }
 #screen.battle .foe.falling .intent { display: none; }
 /* 적이 차례로 움직이는 동안 — 잠깐 손패 · 턴 넘기기를 잠근다 */
 #screen.battle.fxbusy .hand, #screen.battle.fxbusy .endturn { pointer-events: none; }
+
+/* ══ 타격감 (fight-screen.js land) ═════════════════════════════════════════
+   체력 막대는 맞는 순간에 줄고, 뒤처지는 막대(.lag)가 잠깐 남았다가 따라 줄어든다 */
+.battle .hpwrap .bar > i { position: relative; z-index: 1; }
+.battle .hpwrap .bar > .ghost, .battle .hpwrap .bar > .gain { z-index: 2; }
+.battle .hpwrap .bar > .lag {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+  background: linear-gradient(90deg, #fff4cf, #ffd36b); transition: width .38s ease-out .3s;
+}
+/* 떠오르는 숫자 — 적이 맞으면 흰 글자, 아군이 맞으면 붉은 글자. 세게 맞으면(체력의 25% 이상) 크게, 치명타는 금빛 */
+.fxnum {
+  position: absolute; z-index: 9; pointer-events: none; white-space: nowrap; line-height: 1;
+  display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%);
+  animation: fxnum .95s cubic-bezier(.2, .8, .3, 1) forwards;
+}
+.fxnum b {
+  font-size: 30px; font-weight: 900; color: #fff; letter-spacing: -.02em;
+  -webkit-text-stroke: 1px #3a0d12; text-shadow: 0 2px 0 #3a0d12, 0 0 10px #000c;
+}
+.fxnum small { font-size: 12px; font-weight: 900; letter-spacing: .1em; color: #ffe08a; text-shadow: 0 1px 2px #000, 0 0 8px #ff8a1c; margin-bottom: 1px; }
+.fxnum.n-big b { font-size: 40px; }
+.fxnum.n-ally b { color: #ff7a7a; -webkit-text-stroke-color: #2a0507; text-shadow: 0 2px 0 #2a0507, 0 0 12px #ff2d2dcc; }
+.fxnum.n-crit b { font-size: 44px; color: #ffd23f; -webkit-text-stroke-color: #5a2a00; text-shadow: 0 2px 0 #5a2a00, 0 0 16px #ff9c1c; }
+.fxnum.n-crit { animation-name: fxcrit; }
+.fxnum.n-heal b { font-size: 26px; color: #8dffaa; -webkit-text-stroke-color: #0c3a1c; text-shadow: 0 2px 0 #0c3a1c, 0 0 10px #3cff7a99; }
+.fxnum.n-blk b, .fxnum.n-shd b, .fxnum.n-guard b { font-size: 17px; -webkit-text-stroke: 0; text-shadow: 0 1px 2px #000, 0 0 8px #000c; }
+.fxnum.n-blk b, .fxnum.n-guard b { color: #9fd4ff; }
+.fxnum.n-shd b { color: #6ff0ff; }
+.fxnum.n-stt b {
+  font-size: 13px; -webkit-text-stroke: 0; color: #ffd0e0; text-shadow: none;
+  background: #3a1426e6; border: 1px solid #ff8fb0; border-radius: 99px; padding: 3px 9px;
+}
+.fxnum.n-stt.n-up b { color: #ffe9a8; background: #3a2a10e6; border-color: #f6d58e; }
+.fxnum.n-blk, .fxnum.n-shd, .fxnum.n-guard, .fxnum.n-stt { animation-name: fxtag; }
+@keyframes fxnum {
+  0% { opacity: 0; transform: translate(-50%, -20%) scale(.5); }
+  12% { opacity: 1; transform: translate(-50%, -55%) scale(1.3); }
+  26% { transform: translate(-50%, -60%) scale(1); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -150%) scale(.95); }
+}
+@keyframes fxcrit {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(.4) rotate(-6deg); }
+  14% { opacity: 1; transform: translate(-50%, -55%) scale(1.5) rotate(3deg); }
+  30% { transform: translate(-50%, -62%) scale(1.05) rotate(0); }
+  78% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -150%) scale(1); }
+}
+@keyframes fxtag {
+  0% { opacity: 0; transform: translate(-50%, -30%); }
+  15% { opacity: 1; transform: translate(-50%, -60%); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -120%); }
+}
+.phone .fxnum b { font-size: 24px; }
+.phone .fxnum.n-big b { font-size: 31px; }
+.phone .fxnum.n-crit b { font-size: 34px; }
+.phone .fxnum.n-heal b { font-size: 21px; }
+.phone .fxnum.n-blk b, .phone .fxnum.n-shd b, .phone .fxnum.n-guard b { font-size: 14px; }
+.phone .fxnum.n-stt b { font-size: 11.5px; padding: 2px 7px; }
+.phone .fxnum small { font-size: 10px; }
+/* 싸움터 흔들림 — 손패 · 버튼은 그대로. 약(아군이 맞음) · 중(세게 · 치명타) · 강(고학년) */
+#screen.battle .field.shk0 { animation: shk0 .16s linear; }
+#screen.battle .field.shk1 { animation: shk1 .2s linear; }
+#screen.battle .field.shk2 { animation: shk2 .25s linear; }
+@keyframes shk0 { 25% { transform: translate(-2px, 1px); } 50% { transform: translate(2px, -1px); } 75% { transform: translate(-1px, 0); } }
+@keyframes shk1 { 20% { transform: translate(-4px, 2px); } 40% { transform: translate(4px, -2px); } 60% { transform: translate(-3px, 1px); } 80% { transform: translate(2px, -1px); } }
+@keyframes shk2 { 15% { transform: translate(-6px, 3px); } 30% { transform: translate(6px, -3px); } 45% { transform: translate(-5px, 2px); } 60% { transform: translate(4px, -2px); } 80% { transform: translate(-2px, 1px); } }
+/* 고학년 — 싸움터 배경이 잠깐 어두워지고 이름 띠가 지나간다(서 있는 사도 · 적은 그대로 밝다) */
+.ultshade {
+  position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 55%, #0008, #000d 75%);
+  animation: ultshade .9s ease forwards;
+}
+@keyframes ultshade { 0% { opacity: 0; } 15% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+.ultban {
+  position: absolute; left: 50%; top: 30%; z-index: 8; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 70px;
+  background: linear-gradient(90deg, transparent, #0c0a16e6 18%, #0c0a16e6 82%, transparent);
+  border-top: 2px solid var(--tint, #f6d58e); border-bottom: 2px solid var(--tint, #f6d58e);
+  animation: ultban .9s cubic-bezier(.2, .8, .3, 1) forwards;
+}
+.ultban small { font-size: 13px; font-weight: 800; letter-spacing: .2em; color: #f6d58e; }
+.ultban b { font-size: 32px; font-weight: 900; color: #fff; text-shadow: 0 0 14px var(--tint, #f6d58e), 0 2px 4px #000; white-space: nowrap; }
+@keyframes ultban {
+  0% { opacity: 0; transform: translate(-30%, -50%) skewX(-12deg); }
+  16% { opacity: 1; transform: translate(-50%, -50%) skewX(-6deg); }
+  78% { opacity: 1; transform: translate(-52%, -50%) skewX(-6deg); }
+  100% { opacity: 0; transform: translate(-75%, -50%) skewX(-12deg); }
+}
+.phone .ultban { padding: 6px 44px; }
+.phone .ultban b { font-size: 24px; }
+.phone .ultban small { font-size: 11px; }
+/* 낸 카드 — 손에서 대상에게 날아가며 작아진다(js 의 Element.animate) */
+.flycard {
+  position: fixed !important; margin: 0 !important; z-index: 75; pointer-events: none; flex: none;
+  transform-origin: 50% 50%; box-shadow: 0 0 0 2px #f6d58e, 0 0 24px #f6d58eaa, 0 14px 30px #000c !important;
+}
 .stand.walking .hpwrap, .stand.walking .chips, .stand.walking .bubble { opacity: 0; transition: opacity .25s; }
 
 /* 적의 즉시 행동 카운트 — 의도 옆 「⚡지금/N」. 다음 한 장이면 붉게 깜빡인다 */

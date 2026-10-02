@@ -163,9 +163,13 @@ function shuffle(rng, a) {
   return a;
 }
 const say = (s, t) => s.log.push(t);
-// 연출 쪽지 — 화면(fight-screen.js)이 s.fx = [] 를 달아 두었을 때만 적는다. 누가 움직이고(act) 맞고(hurt) 쓰러졌는지(die).
+// 연출 쪽지 — 화면(fight-screen.js)이 s.fx = [] 를 달아 두었을 때만 적는다. 누가 움직이고(act) 맞고(hurt) 쓰러졌는지(die),
+// 얼마나 찼는지(heal · block · shield) · 무엇이 걸렸는지(status). hurt · heal 은 그때의 체력(from → to)도 적는다 — 화면이 맞는 순간에 막대를 깎는다.
 // 판에는 아무 영향이 없다 — 저장(save.js)도 빼고 적는다. 화면 없는 도구(sim · check-*)에서는 s.fx 가 없어 아무것도 안 쌓인다
 const cue = (s, k, u, more) => { if (s.fx && u) s.fx.push({ k, side: u.side, idx: u.idx, ...more }); };
+// 체력이 찼으면(h0 → 지금) 연출 쪽지를 남긴다 · 방어 · 실드가 붙었으면 그만큼
+const healCue = (s, u, h0) => { if (u && u.hp > h0) cue(s, "heal", u, { v: u.hp - h0, from: h0, to: u.hp }); };
+const gainCue = (s, u, k, v) => { if (v > 0) cue(s, k, u, { v }); };
 
 // 사도가 말한다. 그 순간에 맞는 줄이 없으면 아무 말도 안 한다 — 틀린 대사보다 없는 편이 낫다.
 // 한 전투에서 같은 순간을 되풀이하지 않는다(같은 말을 두 번 들으면 대사가 아니라 소리가 된다).
@@ -380,7 +384,7 @@ function foePassives(s, ev, info = {}) {
       say(s, `${e.ko} · ${p.name}`);
       // 가시는 방어 · 실드에 막힌다 — 「가시엔 실드」 가 답이 되게(전에는 pure 라 다 뚫었다)
       if (p.do.t === "thorns") { if (info.from && !info.from.dead && info.from.side === "party") hurt(s, info.from, p.do.v); }
-      else if (p.do.t === "selfHeal") { const v = Math.min(p.do.v, e.maxHp - e.hp); e.hp += v; }
+      else if (p.do.t === "selfHeal") { const v = Math.min(p.do.v, e.maxHp - e.hp), h0 = e.hp; e.hp += v; healCue(s, e, h0); }
       else actEnemy(s, e, { say: p.name, ...p.do }, true);
       if (s.over) return;
     }
@@ -410,7 +414,7 @@ function actEnemy(s, e, it = e.intent, passive = false) {
       const d = dealt(e, it.v); hurt(s, t, d, { from: e });
       say(s, `${e.ko}: ${it.say} → ${t.ko} (${d})`);
       // 맞은 사람에게 상태를 건다 — 「창끝으로 찌른다」 취약 따위
-      if (it.id && !t.dead) { addSt(t, it.id, it.n || 1); say(s, `${t.ko}: ${it.id} +${it.n || 1}`); }
+      if (it.id && !t.dead) { addSt(t, it.id, it.n || 1); cue(s, "status", t, { id: it.id }); say(s, `${t.ko}: ${it.id} +${it.n || 1}`); }
     }
   } else if (it.t === "multi") {
     // 한 번마다 새로 고른다 — 앞사람이 쓰러지면 다음 사람에게 간다
@@ -420,23 +424,23 @@ function actEnemy(s, e, it = e.intent, passive = false) {
   } else if (it.t === "charge") {
     say(s, `${e.ko}: ${it.say} — 다음 턴 ${it.next.say}`);
   } else if (it.t === "guard") {
-    for (const x of alive(s.enemies)) x.block += it.v;
+    for (const x of alive(s.enemies)) { x.block += it.v; gainCue(s, x, "block", it.v); }
     say(s, `${e.ko}: ${it.say} (적 전체 방어 +${it.v})`);
   } else if (it.t === "heal") {
     const x = alive(s.enemies).sort((p, q) => p.hp / p.maxHp - q.hp / q.maxHp)[0];
-    if (x) { const v = Math.min(it.v, x.maxHp - x.hp); x.hp += v; say(s, `${e.ko}: ${it.say} (${x.ko} +${v})`); }
+    if (x) { const v = Math.min(it.v, x.maxHp - x.hp), h0 = x.hp; x.hp += v; healCue(s, x, h0); say(s, `${e.ko}: ${it.say} (${x.ko} +${v})`); }
   } else if (it.t === "attackAll") {
     for (const t of alive(s.party)) { const d = dealt(e, it.v); hurt(s, t, d, { from: e }); }
     say(s, `${e.ko}: ${it.say} (${it.v})`);
-  } else if (it.t === "block") { e.block += it.v; say(s, `${e.ko}: ${it.say}`); }
-  else if (it.t === "buff") { addSt(e, it.id, it.v); say(s, `${e.ko}: ${it.say} (${it.id} +${it.v})`); }
+  } else if (it.t === "block") { e.block += it.v; gainCue(s, e, "block", it.v); say(s, `${e.ko}: ${it.say}`); }
+  else if (it.t === "buff") { addSt(e, it.id, it.v); cue(s, "status", e, { id: it.id, up: true }); say(s, `${e.ko}: ${it.say} (${it.id} +${it.v})`); }
   else if (it.t === "jam") {
     // 원작의 감전이 공격·이동속도를 늦추듯, 방해는 SP 수급을 늦춘다
     s.apJam += it.v;
     say(s, `${e.ko}: ${it.say} (다음 턴 AP -${it.v})`);
   }
   else if (it.t === "debuff") {
-    for (const t of alive(s.party)) addSt(t, it.id, it.v);
+    for (const t of alive(s.party)) { addSt(t, it.id, it.v); cue(s, "status", t, { id: it.id }); }
     say(s, `${e.ko}: ${it.say} (${it.id} +${it.v})`);
   }
 }
@@ -480,7 +484,7 @@ function natureMod(s, from, to) {
 // 기획서: 취약 받는 피해 +10% · 약화 주는 피해 -10% (전에는 +50%/-25% 로 내가 정했었다)
 const taken = (to, v) => Math.max(0, Math.round(st(to, "취약") > 0 ? v * (1 + R.FRAIL) : v));
 
-function hurt(s, u, v, { from, pure } = {}) {
+function hurt(s, u, v, { from, pure, crit } = {}) {
   if (u.invuln && !pure) { say(s, `${u.ko}에게 닿지 않는다`); return; }
   let d = pure ? v : taken(u, v);
   // 성격 상성 — 때리는 쪽이 유리하면 +10%, 맞는 쪽이 유리하면 -5%
@@ -490,12 +494,13 @@ function hurt(s, u, v, { from, pure } = {}) {
     const m = (1 + (from ? P.statMod(s, from, "dealt") : 0)) * (1 + P.statMod(s, u, "taken"));
     d = Math.max(0, Math.round(d * Math.max(0.1, m)));
   }
-  if (!pure && u.block > 0) { const a = Math.min(u.block, d); u.block -= a; d -= a; }
+  let guard = 0;                             // 방어 · 실드가 받아 낸 몫 — 연출에만 쓴다
+  if (!pure && u.block > 0) { const a = Math.min(u.block, d); u.block -= a; d -= a; guard += a; }
   // 실드는 방어 다음에 깎인다. 전에는 쌓이기만 하고 한 번도 안 깎였다 — 있어도 없는 것이었다.
-  if (!pure && u.shield > 0) { const a = Math.min(u.shield, d); u.shield -= a; d -= a; }
-  const before = u.hp / u.maxHp;
+  if (!pure && u.shield > 0) { const a = Math.min(u.shield, d); u.shield -= a; d -= a; guard += a; }
+  const before = u.hp / u.maxHp, hp0 = u.hp;
   u.hp -= d;
-  if (d > 0) cue(s, "hurt", u, { v: d });
+  if (d > 0 || guard > 0) cue(s, "hurt", u, { v: d, guard, crit: !!crit, from: Math.max(0, hp0), to: Math.max(0, u.hp) });
   if (u.side === "party" && d > 0) speak(s, u.key, "hit");
   if (u.hp <= 0) { kill(s, u, pure); return; }
   if (u.side === "party" && d > 0 && !pure) {
@@ -601,7 +606,7 @@ export function useUlt(s, heroKey, targetIdx = 0) {
   const owner = s.party.find((x) => x.key === heroKey);
   say(s, `${owner.ko} 고학년 스킬 — ${ult.ko} (게이지 ${ult.cost}%)`);
   speak(s, heroKey, "ego");
-  cue(s, "act", owner, { anim: "ult" });
+  cue(s, "act", owner, { anim: "ult", name: ult.ko });
   // 효과는 아직 산문이다(기획서 그대로). 효과 파서가 붙기 전까지는 게이지만 돈다.
   // 전에는 옛 효과 실행기(applyFx)로 돌려서 아무 일도 없었다 — 고학년 스킬은 게이지만 먹었다.
   if (ult.fx && ult.fx.length) {
@@ -847,11 +852,11 @@ function applyFx(s, c, f, ctx) {
   switch (f.k) {
     case "damage": { const t = one(); if (t) hurt(s, t, boost(f.v, combo, owner, s), { from: owner }); break; }
     case "aoe": { const d = boost(f.v, combo, owner, s); for (const t of reachable.slice()) hurt(s, t, d, { from: owner }); break; }
-    case "block": if (owner) owner.block += Math.round(f.v) + tr(s, "block"); break;
-    case "blockAlly": { const t = ally(); if (t) { t.block += f.v; speak(s, t.key, "heal"); } break; }
-    case "blockAll": for (const u of alive(s.party)) u.block += f.v; break;
-    case "heal": if (owner) owner.hp = Math.min(owner.maxHp, owner.hp + f.v); break;
-    case "healAlly": { const t = ally(); if (t) { t.hp = Math.min(t.maxHp, t.hp + f.v); speak(s, t.key, "heal"); } break; }
+    case "block": if (owner) { const v = Math.round(f.v) + tr(s, "block"); owner.block += v; gainCue(s, owner, "block", v); } break;
+    case "blockAlly": { const t = ally(); if (t) { t.block += f.v; gainCue(s, t, "block", f.v); speak(s, t.key, "heal"); } break; }
+    case "blockAll": for (const u of alive(s.party)) { u.block += f.v; gainCue(s, u, "block", f.v); } break;
+    case "heal": if (owner) { const h0 = owner.hp; owner.hp = Math.min(owner.maxHp, owner.hp + f.v); healCue(s, owner, h0); } break;
+    case "healAlly": { const t = ally(); if (t) { const h0 = t.hp; t.hp = Math.min(t.maxHp, t.hp + f.v); healCue(s, t, h0); speak(s, t.key, "heal"); } break; }
     case "selfHurt": if (owner) { owner.hp -= f.v; if (owner.hp <= 0) kill(s, owner); } break;
     case "draw": draw(s, f.v); break;
     case "sp": s.ap += f.v; say(s, `AP +${f.v}`); break;
@@ -936,7 +941,7 @@ function applyFx(s, c, f, ctx) {
     case "seal": { const t = one(); if (t) { t.sealed = true; say(s, `${t.ko}을(를) 봉인했다`); } break; }
 
 
-    case "healAll": for (const u of alive(s.party)) u.hp = Math.min(u.maxHp, u.hp + f.v); break;
+    case "healAll": for (const u of alive(s.party)) { const h0 = u.hp; u.hp = Math.min(u.maxHp, u.hp + f.v); healCue(s, u, h0); } break;
     case "status": {
       let v = f.v
         + (f.id === "중독" ? s.poisonKills + tr(s, "poison") : 0);   // 신탁 '독한 마음'
@@ -956,6 +961,9 @@ function fxApi(s) {
   return {
     hurt: (t, v, o) => hurt(s, t, v, o),
     draw: (n) => draw(s, n),
+    // 연출 쪽지 — 회복 · 방어 · 실드(run-fx 가 직접 채우는 것)
+    heal: (t, h0) => healCue(s, t, h0),
+    gain: (t, k, v) => gainCue(s, t, k, v),
     // 상태 — 「취약 2턴」 은 2턴 간다(전에는 몇 턴이든 1턴이었다).
     // 기절은 적의 다음 수를 막고, 도발은 적이 그 사도만 치게 하고, 침묵은 적의 공격 아닌 수를 막는다.
     // 전에는 기획서 카드에서 건 기절·도발·침묵이 아무 일도 안 했다.
@@ -969,6 +977,7 @@ function fxApi(s) {
       } else if (id === "도발") {
         if (t.side === "party") { s.taunt = t.key; s.tauntLeft = n; say(s, `${t.ko}: 도발 — 적이 이쪽을 본다`); }
       } else addSt(t, id, n);
+      if (v > 0 && (id !== "기절" || t.sealed) && (id !== "도발" || t.side === "party")) cue(s, "status", t, { id });
       if (t.side === "enemy" && v > 0) { emit(s, "debuff", { by: s.acting, target: t, id }); foePassives(s, "debuffed", { target: t }); }
     },
     statOf: (u, stat) => P.statMod(s, u, stat),

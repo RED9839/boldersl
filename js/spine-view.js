@@ -174,6 +174,7 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
   skeleton.getBounds(off, size, []);
 
   let raf = 0, last = performance.now(), dead = false;
+  let frozen = 0;                 // 이때(performance.now)까지 시간을 멈춘다 — 맞는 순간의 멈칫(히트스톱)
   // 교감 본 — held 동안은 끌린 만큼, 놓으면 짧게 줄어 제자리로. max = 스켈레톤 단위, 고무줄처럼 부드럽게 제한
   const grab = { bone: null, max: 120, dx: 0, dy: 0, held: false };
   function grabApply(dt) {
@@ -193,7 +194,7 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
     raf = 0;
     // 화면에서 떨어지면 멈춘다. 다시 붙을 때 wake() 가 이어 돌린다.
     if (dead || !canvas.isConnected) return;
-    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    const dt = now < frozen ? 0 : Math.min(0.1, (now - last) / 1000); last = now;
     if (grab.bone) { grab.bone.x = grab.bone.data.x; grab.bone.y = grab.bone.data.y; }
     state.update(dt); state.apply(skeleton);
     if (grab.bone) grabApply(dt);
@@ -247,6 +248,8 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
       return true;
     },
     toRest() { if (rest) state.setAnimation(0, rest.name, true); },
+    // ms 동안 동작을 멈춘다(그리기는 계속). 겹치면 더 늦게 풀리는 쪽으로
+    pause(ms) { frozen = Math.max(frozen, performance.now() + ms); },
     // 교감 본을 잡는다 — re 에 맞는 본이 있으면 true. drag 는 누른 자리부터 움직인 양(화면 px), letGo 로 놓는다
     grab(re, max = 120) {
       const b = skeleton.bones.find((x) => re.test(x.data.name));

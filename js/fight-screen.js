@@ -284,6 +284,41 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   const calmNow = () => typeof document === "object" && !!document.documentElement && document.documentElement.classList.contains("calm");
   const later = (ms, fn) => setTimeout(fn, ms);
   let fxEnd = 0;                            // 지금 붙인 몸짓이 다 끝나는 때(performance.now 기준)
+  // 보이는 체력 — 엔진은 이미 다 깎았지만 막대 · 숫자는 맞는 순간까지 맞기 전 값을 보인다. 「side:idx」 → 체력.
+  // 몸짓이 다 끝나면(settle) 비운다 — 그때부터는 판의 값 그대로. 움직임 줄이기면 아예 안 쓴다
+  const shownHp = new Map();
+  const bars = new Map();                   // 「side:idx」 → 체력 막대 { u, fill, lag, num } — draw 마다 새로
+  const ukey = (u) => u.side + ":" + u.idx;
+  const hpOf = (u) => (shownHp.has(ukey(u)) ? shownHp.get(ukey(u)) : Math.max(0, u.hp));
+  let beatT = [];                           // 걸어 둔 몸짓 — 새 수가 오면 걷어 낸다(낡은 값이 늦게 덮지 않게)
+  const beat = (ms, fn) => { beatT.push(setTimeout(fn, ms)); };
+  function showHp(u, hp) {
+    const b = bars.get(ukey(u));
+    if (!b) return;
+    const w = Math.max(0, (hp / u.maxHp) * 100) + "%";
+    b.fill.style.width = w;
+    b.lag.style.width = w;                  // 뒤처지는 막대 — css 가 잠깐 있다가 줄인다
+    b.num.textContent = `${Math.max(0, hp)} / ${u.maxHp}`;
+  }
+  // 몸짓이 끝났다(또는 걷어 냈다) — 보이는 값을 판의 값으로
+  function settle() {
+    shownHp.clear();
+    for (const [, b] of bars) showHp(b.u, Math.max(0, b.u.hp));
+  }
+  // draw() 머리에서 — 쌓인 쪽지를 꺼낸다. 새 수면 남은 몸짓을 걷고, 맞을 사람의 막대를 맞기 전 값에 붙든다
+  function takeFx() {
+    const q = st.fx.splice(0);
+    const live = groundOk && !calmNow();
+    if (!live || q.length) {
+      for (const t of beatT) clearTimeout(t);
+      beatT = [];
+      shownHp.clear();
+      s.classList.remove("fxbusy");
+    }
+    if (!live) return [];
+    for (const e of q) if ((e.k === "hurt" || e.k === "heal") && e.from != null && !shownHp.has(e.side + ":" + e.idx)) shownHp.set(e.side + ":" + e.idx, e.from);
+    return q;
+  }
   const heroSwing = {};                     // 사도마다 공격 동작을 번갈아(Attack1_1 · Attack2_1)
   const unitNode = (side, idx) => {
     if (side === "enemy") return (foeEls.get(idx) || {}).n || null;
@@ -366,9 +401,75 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       });
     }
   }
-  // draw() 끝에서 — 쌓인 쪽지를 비우고 몸짓을 차례로 건다
-  function runFx() {
-    const q = st.fx.splice(0);
+  // 떠오르는 숫자 — 피해 · 회복 · 방어 · 실드 · 상태. 싸움터(.field)에 붙인다(칸은 draw 마다 새로 그려진다).
+  // 꾸밈 이름은 n- 을 붙인다 — .ally(아군 상태창) · .heal 따위와 겹치면 그쪽 자리 잡기가 묻어 왔다
+  const popK = {};                          // 한 사람에게 잇달아 뜨면 조금씩 비껴 띄운다
+  function popNum(u, text, cls, sub) {
+    const n = unitNode(u.side, u.idx);
+    if (!n || !field.getBoundingClientRect) return;
+    const a = artOf(n) || n, r = a.getBoundingClientRect(), fr = field.getBoundingClientRect(), z = zNow();
+    const k = ukey(u), now = performance.now();
+    const p0 = popK[k] && now - popK[k].t < 700 ? popK[k].n + 1 : 0;
+    popK[k] = { n: p0, t: now };
+    const p = el("div", "fxnum " + cls);
+    if (sub) p.appendChild(el("small", null, sub));
+    p.appendChild(el("b", null, text));
+    // 방어 · 실드 · 상태 글자는 조금 아래에 — 같은 순간의 피해 숫자를 덮지 않게
+    const at = /n-(blk|shd|guard|stt)/.test(cls) ? 0.58 : 0.32;
+    p.style.left = ((r.left + r.width / 2 - fr.left) / z + [0, 1, -1][p0 % 3] * 22) + "px";
+    p.style.top = ((r.top + r.height * at - fr.top) / z - (p0 % 4) * 16) + "px";
+    field.appendChild(p);
+    later(1100, () => p.remove());
+  }
+  // 멈칫(히트스톱) — 때린 쪽 · 맞은 쪽의 스파인을 잠깐 멈춘다
+  function stopFx(side, idx, ms) {
+    const a = artOf(unitNode(side, idx));
+    if (a && a.spine && a.spine.pause) a.spine.pause(ms);
+  }
+  // 싸움터 흔들림 — 0 약 · 1 중 · 2 강(고학년). 손패 · 버튼은 안 흔들린다
+  function shake(lv) {
+    field.classList.remove("shk0", "shk1", "shk2");
+    void field.offsetWidth;
+    field.classList.add("shk" + lv);
+    later(lv === 2 ? 260 : 200, () => field.classList.remove("shk" + lv));
+  }
+  // 고학년 — 배경을 잠깐 어둡게 하고 이름 띠를 띄운다.
+  // 스탠딩 컷인을 붙일 때는 여기서 — 띠 대신(또는 앞에) 그림을 세우고, runFx 의 고학년 타격 시각(ULT_HIT)을 그 길이만큼 늦춘다
+  const ULT_HIT = 500;
+  function ultFx(act) {
+    const u = st.party.find((x) => x.idx === act.idx);
+    if (!u) return;
+    const shade = el("div", "ultshade");
+    const ban = el("div", "ultban");
+    ban.appendChild(el("small", null, `${u.ko} · 고학년 스킬`));
+    ban.appendChild(el("b", null, act.name || ""));
+    ban.style.setProperty("--tint", u.tint || TINT(u.key));
+    field.appendChild(shade);
+    field.appendChild(ban);
+    later(900, () => { shade.remove(); ban.remove(); });
+  }
+  // 맞는 순간 — 막대를 깎고(뒤처지는 막대가 따라온다) 숫자를 띄우고, 세게 맞았으면 멈칫 · 흔들림
+  function land(h, act) {
+    if (h.k === "die") return dieFx(h);
+    const u = (h.side === "enemy" ? st.enemies : st.party).find((x) => x.idx === h.idx);
+    if (!u) return;
+    if (h.k === "hurt" || h.k === "heal") { shownHp.set(ukey(u), h.to); showHp(u, h.to); }
+    if (h.k === "hurt") {
+      hitFx(h);
+      const ult = !!act && act.anim === "ult", heavy = h.v >= u.maxHp * 0.25;
+      if (!h.v) { popNum(u, `막음 ${h.guard}`, "n-guard"); return; }
+      popNum(u, String(h.v), "n-dmg" + (h.side === "party" ? " n-ally" : "") + (h.crit ? " n-crit" : "") + (heavy ? " n-big" : ""), h.crit ? "치명타" : null);
+      const ms = Math.min(140, 70 + (heavy ? 25 : 0) + (h.crit ? 25 : 0) + (ult ? 30 : 0));
+      stopFx(h.side, h.idx, ms);
+      if (act) stopFx(act.side, act.idx, ms);
+      if (ult) shake(2); else if (heavy || h.crit) shake(1); else if (h.side === "party") shake(0);
+    } else if (h.k === "heal") popNum(u, `+${h.v}`, "n-heal");
+    else if (h.k === "block") popNum(u, `방어 +${h.v}`, "n-blk");
+    else if (h.k === "shield") popNum(u, `실드 +${h.v}`, "n-shd");
+    else if (h.k === "status") popNum(u, h.id, "n-stt" + (h.up ? " n-up" : ""));
+  }
+  // draw() 끝에서 — 꺼내 둔 쪽지(takeFx)로 몸짓을 차례로 건다. 한 사람이 여러 번 맞으면 100ms 씩 띄운다
+  function runFx(q) {
     if (!groundOk || calmNow()) return;
     if (!q.length) { syncGroggy(); return; }
     const beats = [];
@@ -383,17 +484,25 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     }
     let t = 0, foes = false;
     for (const b of beats) {
-      const foe = !!b.act && b.act.side === "enemy";
+      const foe = !!b.act && b.act.side === "enemy", ult = !!b.act && b.act.anim === "ult";
       foes = foes || foe;
-      if (b.act) later(t, () => actFx(b.act));
-      const hitAt = t + (!b.act ? 0 : b.act.anim === "ult" ? 500 : 220);
-      for (const h of b.hits) later(hitAt, () => (h.k === "die" ? dieFx(h) : hitFx(h)));
-      t = hitAt + (foe ? 380 : 120);
+      if (b.act) beat(t, () => { actFx(b.act); if (ult) ultFx(b.act); });
+      const hitAt = t + (!b.act ? 0 : ult ? ULT_HIT : 220);
+      const nth = {};
+      let last = hitAt;
+      for (const h of b.hits) {
+        const k = h.side + ":" + h.idx;
+        nth[k] = (nth[k] == null ? -1 : nth[k]) + 1;
+        const at = hitAt + nth[k] * 100;
+        last = Math.max(last, at);
+        beat(at, () => land(h, b.act));
+      }
+      t = last + (foe ? 380 : 120);
     }
     fxEnd = performance.now() + t;
-    later(t + 60, syncGroggy);
+    beat(t + 60, () => { settle(); syncGroggy(); });
     // 적이 차례로 움직이는 동안만 손패 · 턴 넘기기를 잠근다(끝나면 바로 푼다)
-    if (foes && t > 600) { s.classList.add("fxbusy"); later(t, () => s.classList.remove("fxbusy")); }
+    if (foes && t > 600) { s.classList.add("fxbusy"); beat(t, () => s.classList.remove("fxbusy")); }
   }
   // 싸움을 열 때 — 모두 등장 동작(이어하기로 다시 그릴 때는 안 한다).
   // 그림은 앞 싸움의 것을 다시 쓰기도 해서(spine-view 의 pool) 쓰러진 · 달리던 자세가 남아 있을 수 있다 — 쉬는 동작으로 돌려 둔다
@@ -552,8 +661,12 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     // 실드·방어가 있으면 막대에 테를 두른다 — 숫자를 안 읽어도 누가 막혀 있는지 보인다
     const wrap = el("div", "hpwrap" + (u.shield > 0 ? " shielded" : "") + (u.block > 0 ? " blocked" : ""));
     const bar = el("div", "bar");
+    const hp = hpOf(u);
+    // 뒤처지는 막대 — 맞으면 체력 막대는 바로 줄고, 이것은 잠깐 남았다가 따라 줄어든다(얼마나 깎였는지 보인다)
+    const lag = el("b", "lag");
     const fill = el("i");
-    fill.style.width = Math.max(0, (u.hp / u.maxHp) * 100) + "%";
+    lag.style.width = fill.style.width = Math.max(0, (hp / u.maxHp) * 100) + "%";
+    bar.appendChild(lag);
     bar.appendChild(fill);
     // 미리보기 — 깎일 만큼을 막대 끝에 그림자로
     wrap.ghost = el("s", "ghost");
@@ -562,7 +675,9 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     bar.appendChild(wrap.gain);
     wrap.appendChild(bar);
     const nums = el("div", "nums");
-    nums.appendChild(el("span", null, `${Math.max(0, u.hp)} / ${u.maxHp}`));
+    const num = el("span", "hpn", `${hp} / ${u.maxHp}`);
+    nums.appendChild(num);
+    bars.set(ukey(u), { u, fill, lag, num });
     if (u.block > 0) nums.appendChild(el("span", "b", `방어 ${u.block}`));
     if (u.shield > 0) nums.appendChild(el("span", "sh", `실드 ${u.shield}`));
     wrap.appendChild(nums);
@@ -692,6 +807,8 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     // 끝난 싸움은 finish 가 판에 남긴 뒤 적는다
     if (!st.over) writeSave(run, st);
     closeModal();
+    const fxq = takeFx();
+    bars.clear();
     const need = selCard >= 0 ? targetsNeeded(st.hand[selCard]) : null;
 
     field.style.setProperty("--nf", String(Math.max(1, st.enemies.length)));
@@ -874,7 +991,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     logLast.appendChild(el("span", "lgmore", `${st.log.length}줄 ▾`));
 
     paintPreview(selCard, null);
-    runFx();
+    runFx(fxq);
     if (st.over) finish();
   }
 
@@ -884,6 +1001,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   // 눌러서 고르는 방식은 그대로 된다 — 10px 넘게 움직여야 끌기로 본다.
   // 화면은 CSS zoom 이 걸려 있어 fixed 좌표를 배율로 나눈다(clientX 는 실제 화면 좌표).
   let drag = null, dragDone = false;
+  let dropAt = null;                        // 끌어 놓은 자리(끌던 그림의 화면 상자) — 낸 카드는 손이 아니라 거기서 날아간다
   const zoomNow = () => (typeof getZoom === "function" && getZoom()) || 1;
   function startDrag(e, i, id, card, locked) {
     if (st.over || (e.pointerType === "mouse" && e.button !== 0)) return;
@@ -994,6 +1112,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const d = drag;
     if (!d || !d.on) return stopDrag(false);
     const over = d.over;
+    if (over && d.ghost && d.ghost.getBoundingClientRect) dropAt = { r: d.ghost.getBoundingClientRect(), t: performance.now() };
     stopDrag(!over);
     if (!over) return;
     dropCard(d.i, d.need ? Number(over.dataset.idx) : 0);
@@ -1392,6 +1511,39 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     document.body.appendChild(back);
   }
 
+  // 낸 카드가 손(끌어 놓았으면 놓은 자리)에서 대상 — 대상이 없으면 주인 — 에게 날아가며 사라진다.
+  // 다시 그리면 손패가 바뀌니 내기 전에 떠 두고(이 함수), 다 그린 뒤 돌려준 것을 부른다. 움직임 줄이기면 아무것도 안 한다
+  function cardFly(handIdx, targetIdx) {
+    const at = dropAt; dropAt = null;
+    const none = () => {};
+    if (!groundOk || calmNow() || typeof Element !== "function" || !Element.prototype.animate) return none;
+    const src = hand.querySelector(`.card[data-i="${handIdx}"]`);
+    if (!src || !src.offsetWidth) return none;
+    const r = at && performance.now() - at.t < 500 ? at.r : src.getBoundingClientRect();
+    if (!r.width) return none;
+    const id = st.hand[handIdx], c = C.cardOf(st, id), need = targetsNeeded(id), z = zNow();
+    const w = src.offsetWidth, h = src.offsetHeight, s0 = r.width / z / w;
+    const cx = (r.left + r.width / 2) / z, cy = (r.top + r.height / 2) / z;
+    const ghost = src.cloneNode(true);
+    ghost.className = src.className.replace(/\b(dragging|sel|no)\b/g, "") + " flycard";
+    ghost.removeAttribute("style");
+    Object.assign(ghost.style, { left: cx - w / 2 + "px", top: cy - h / 2 + "px", width: w + "px", height: h + "px" });
+    return () => {
+      const owner = c && c.hero ? st.party.find((u) => u.key === c.hero) : null;
+      const tn = need === "enemy" ? unitNode("enemy", targetIdx) : need === "party" ? unitNode("party", targetIdx) : owner ? unitNode("party", owner.idx) : null;
+      const tr = (tn && (artOf(tn) || tn).getBoundingClientRect()) || field.getBoundingClientRect();
+      const dx = (tr.left + tr.width / 2) / z - cx, dy = (tr.top + tr.height * 0.45) / z - cy;
+      document.body.appendChild(ghost);
+      const an = ghost.animate([
+        { transform: `scale(${s0})`, opacity: 1 },
+        { transform: `translate(${dx * 0.55}px, ${dy * 0.55}px) scale(${s0 * 0.7}) rotate(4deg)`, opacity: 0.95, offset: 0.55 },
+        { transform: `translate(${dx}px, ${dy}px) scale(${s0 * 0.25}) rotate(10deg)`, opacity: 0 },
+      ], { duration: 220, easing: "cubic-bezier(.45, 0, .8, .6)", fill: "forwards" });
+      an.onfinish = () => ghost.remove();
+      later(500, () => ghost.remove());
+    };
+  }
+
   function play(targetIdx, allyIdx) {
     if (selCard < 0) return;
     const glowId = st.hand[selCard], g = glowId && C.glowOf(st, glowId);
@@ -1435,17 +1587,21 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       const at = selCard;
       pickDiscard(at, need, (ids) => {
         if (!ids) { selCard = -1; draw(); return; }       // 물렀다 — 카드는 손에 남는다
+        const fly = cardFly(at, targetIdx);
         const r = C.playCard(st, at, targetIdx, { ...opts, discard: ids });
         selCard = -1;
         if (!r.ok) say(r.why);
         draw();
+        if (r.ok) fly();
       });
       return;
     }
+    const fly = cardFly(selCard, targetIdx);
     const r = C.playCard(st, selCard, targetIdx, opts);
     selCard = -1;
     if (!r.ok) say(r.why);
     draw();
+    if (r.ok) fly();
   }
 
   // 버릴 카드 고르기 — 낸 카드를 뺀 손패에서 N장. 다 고르면 「버리기」, 「취소」 면 카드를 안 낸다
