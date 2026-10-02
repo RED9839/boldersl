@@ -66,17 +66,17 @@ console.log("본보기 — 네르");
   const reveal = idOf("네르", "세계수의 계시");
   play(s, reveal);
   const tig = s.party.find((u) => u.key === "티그");
-  // 리뉴얼(docs/11) 뒤: 시그니처 「계시」 에, 패시브 「세계수의 이름으로!」 가 턴 시작 시 +1 을 더한다(턴당 제한을 없애며 카드마다 → 턴 시작 시)
+  // v3(docs/14): 패시브 「세계수의 이름으로!」 는 파티가 이번 턴 카드를 3장째 낼 때 +1 — 첫 장(시그니처)만 낸 지금은 카드 몫뿐이다
   // 시그니처가 주는 「계시」 수와 그 턴 파티 버프는 카드 글에서 읽는다(수치를 손볼 때마다 시험이 깨지지 않게)
   const sig = CARDS[reveal];
   const give = (sig.fx || []).filter((f) => f.k === "stack" && f.id === "계시").reduce((a, f) => a + f.v, 0);
   const extra = (sig.fx || []).filter((f) => f.k === "dealtMod" && f.target === "allAllies").reduce((a, f) => a + f.v, 0);
   const rev = tig.status["계시"] || 0;
-  check(rev === Math.min(4, give + 1), `「세계수의 계시」 + 패시브 — 아군 전원에게 「계시」 (티그 ${rev}, 카드 +${give} · 패시브 +1)`);
+  check(rev === Math.min(4, give), `「세계수의 계시」 — 아군 전원에게 「계시」 (티그 ${rev}, 카드 +${give})`);
   check(Math.abs(statMod(s, tig, "dealt") - (0.10 * rev + extra)) < 1e-9, `「계시」 1개당 주는 피해 +10% (${statMod(s, tig, "dealt").toFixed(2)})`);
-  // 계시는 적의 차례가 끝나면 하나 준다 — 그리고 새 턴 시작에 패시브가 하나 더한다
+  // 계시는 적의 차례가 끝나면 하나 준다
   endTurn(s);
-  check((tig.status["계시"] || 0) === Math.min(4, rev - 1 + 1), `「계시」 는 적의 차례가 끝나면 1 감소, 턴 시작 시 +1 (${tig.status["계시"] || 0})`);
+  check((tig.status["계시"] || 0) === Math.max(0, rev - 1), `「계시」 는 적의 차례가 끝나면 1 감소 (${tig.status["계시"] || 0})`);
   // 맞으면 걱정한다
   check(s.log.some((l) => l.includes("네르 · 여왕님 걱정")), "아군이 맞으면 「여왕님 걱정」 이 방어를 준다");
   // 도발 — 적이 네르만 친다

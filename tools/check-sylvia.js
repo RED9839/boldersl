@@ -40,43 +40,26 @@ for (const [n, id] of Object.entries({ SIG, POUT, PRAY, SLAP })) if (!id) fail(`
 
 console.log("쌓이기 · 최대 · 줄기");
 {
+  // v3(docs/14): 전투 시작에 거는 것과 「스킬 카드마다 은방울」 규칙은 걷었다 — 초청객은 시그니처 · 디버프(패시브 「숙녀의 치장」)로 쌓는다
   const s = fight();
-  check(guests(s).every((n) => n === 1), `전투 시작 — 아군마다 「초청객」 1 (${guests(s)})`);
+  check(guests(s).every((n) => n === 0), `전투 시작 — 아직 손님이 없다 (${guests(s)})`);
+  const give = (CARDS[SIG].fx || []).filter((f) => f.k === "stack" && f.id === "초청객").reduce((a, f) => a + f.v, 0);
+  play(s, SIG);
+  check(guests(s).every((n) => n >= Math.min(3, give)), `시그니처 +${give}(디버프를 걸면 패시브가 +1 더) → 아군마다 ${Math.min(3, give)} 이상 (${guests(s)})`);
   check(!Object.values(s.stacks || {}).some((p) => p["초청객"]), "실비아 주머니(s.stacks)에는 쌓이지 않는다 — 아군 표식이다");
   check(s.enemies.every((e) => !(e.status || {})["초청객"]), "적에게는 붙지 않는다");
-  play(s, SIG);
-  check(guests(s).every((n) => n === 3), `시그니처 +2 → 아군마다 3 (${guests(s)})`);
-  play(s, SIG);
+  play(s, SIG); play(s, SIG);
   check(guests(s).every((n) => n === 3), `최대 3 — 더 줘도 3 (${guests(s)})`);
-  const ner = unit(s, "네르");
-  const d3 = statMod(s, ner, "dealt");
   endTurn(s);
   check(guests(s).every((n) => n === 2), `적의 차례가 끝나면 1 감소 → 2 (${guests(s)})`);
-  check(Math.abs((d3 - statMod(s, ner, "dealt")) - 0.05) < 1e-9, `1개당 주는 피해 +5% — 든 사람(네르)의 주는 피해가 한 개만큼 준다 (${d3.toFixed(2)} → ${statMod(s, ner, "dealt").toFixed(2)})`);
+  {
+    const t = fight(), ner = unit(t, "네르");
+    ner.status["초청객"] = 3; const d3 = statMod(t, ner, "dealt");
+    ner.status["초청객"] = 2; const d2 = statMod(t, ner, "dealt");
+    check(Math.abs((d3 - d2) - 0.05) < 1e-9, `1개당 주는 피해 +5% — 든 사람(네르)의 주는 피해가 한 개만큼 준다 (${d3.toFixed(2)} → ${d2.toFixed(2)})`);
+  }
   endTurn(s); endTurn(s);
   check(guests(s).every((n) => n === 0) && s.party.every((u) => !("초청객" in (u.status || {}))), `0 이 되면 떨어진다 (${guests(s)})`);
-}
-
-console.log("");
-console.log("초청객 — 스킬 카드 한 장에 한 번");
-{
-  const s = fight();
-  play(s, SIG);                                   // 셋 다 3개
-  let h0 = hits(s);
-  const foe = s.enemies[0], hp0 = foe.hp, other = s.enemies[1].hp;
-  play(s, POUT, 0);
-  check(hits(s) - h0 === 1, `실비아가 스킬 카드 한 장 — 한 번 (든 수 3 · 아군 셋이어도) (${hits(s) - h0})`);
-  check(foe.hp < hp0 && s.enemies[1].hp === other, `고른 적 하나만 맞는다 (${hp0} → ${foe.hp})`);
-  h0 = hits(s);
-  play(s, PRAY, 0);
-  check(hits(s) - h0 === 1, `초청객을 든 네르가 스킬 카드를 내도 한 번 (${hits(s) - h0})`);
-  h0 = hits(s);
-  play(s, SLAP, 0);
-  check(hits(s) - h0 === 0, "공격 카드는 부르지 않는다");
-  delete unit(s, "네르").status["초청객"];
-  h0 = hits(s);
-  play(s, PRAY, 0);
-  check(hits(s) - h0 === 0, "초청객이 없는 네르가 내면 안 부른다(실비아가 들고 있어도)");
 }
 
 console.log("");

@@ -106,7 +106,7 @@ console.log("대상");
   const pick = (ko) => Object.values(B.cards).find((c) => c.ko === ko);
   const want = [
     // 한 카드에 대상이 여럿 — 스킬 재구성 뒤의 마력 난타(docs/07-스킬구성.md)
-    ["마력 난타", "takenMod", "self"], ["마력 난타", "heal", "self"], ["마력 난타", "dmg", "randomEnemy"],
+    ["마력 난타", "takenMod", "self"], ["마력 난타", "dmg", "oneEnemy"],   // v3 — 한 놈에게 몰아친다(docs/14)
   ];
   for (const [ko, k, t] of want) {
     const c = pick(ko);
@@ -171,8 +171,11 @@ console.log("피해 미리보기");
   off.length === 0 ? ok(`보여 준 값과 실제가 같다 (${tried}번 내 봄)`) : fail(`미리보기가 어긋난다 ${off.length}건 — ${off.slice(0, 3).join(" / ")}`);
 
   // 무작위 대상은 '최대' 로 — 그 적에게 전부 몰렸을 때
-  const s = C.newCombat({ partyKeys: heroes, rows: {}, deck: [], enemyIds: ["fairymobcloserange", "fairymobcloserange"], seed: 5 });
-  s.ap = 3; s.hand = ["에르핀_왕도_u0"];
+  // 무작위 적을 치는 고유 카드 하나를 고른다(기획서가 바뀌어도 시험이 깨지지 않게)
+  const rid = Object.keys(CARDS).find((id) => CARDS[id].unique && typeof CARDS[id].cost === "number" && CARDS[id].cost <= 3
+    && (CARDS[id].fx || []).some((f) => f.k === "dmg" && f.target === "randomEnemy") && !(CARDS[id].fx || []).some((f) => /Ally|Allies/.test(f.target || "")));
+  const s = C.newCombat({ partyKeys: [CARDS[rid].hero, ...heroes.filter((k) => k !== CARDS[rid].hero)].slice(0, 3), rows: {}, deck: [], enemyIds: ["fairymobcloserange", "fairymobcloserange"], seed: 5 });
+  s.ap = 3; s.hand = [rid];
   const p = C.previewCard(s, 0, 0);
   p && p[0] && p[0].max && p[1] && p[1].max ? ok(`무작위 카드는 적마다 최대를 보인다 (${p[0].hp})`) : fail("무작위 카드의 미리보기가 없다");
 

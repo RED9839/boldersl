@@ -750,10 +750,9 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
 
   // 에르핀의 강화 평타 — 원작에서 '강화 평타 부가 효과로 SP를 수급하는 사도'다.
   // 카드마다 SP 를 붙였더니 자가 기준의 3~5배로 튀어서(실제로 그랬다) 사도 성질로 옮겼다.
-  // 한 턴에 두 번까지만 — 안 막으면 무한 기력이 된다.
   if (c.type === "공격" && c.hero === "erpin") {
     s.erpinChain = (s.lastHero === "erpin" ? (s.erpinChain || 0) + 1 : 0);
-    if ((s.erpinSp || 0) < 2) { s.erpinSp = (s.erpinSp || 0) + 1; s.ap += 1; say(s, "에르핀: 강화 평타 (AP +1)"); }
+    // 턴당 횟수 제한은 없앴다(2026-10 사용자) — 에르핀의 AP 는 이제 기획서 패시브가 맡는다. 옛 영문 키(erpin)는 쓰이지 않는다
   } else if (c.hero !== "erpin") s.erpinChain = 0;
 
   // 에르핀의 간식 — 먹으면 힘이 난다
