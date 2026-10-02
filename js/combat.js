@@ -681,7 +681,7 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   // 기적 — true(이벤트의 옛 값) · "power" 는 피해 ×1.3
   const sh = s.shin && s.shin[cardId];
   // opts.ally — 적과 아군을 둘 다 고르는 카드(「적 1명 …, 아군 1명 …」)의 아군 쪽. 화면이 한 번 더 묻는다
-  const ctx = { owner, combo: null, targetIdx, allyIdx: opts.ally, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null, shin: sh === true || sh === "power" };
+  const ctx = { owner, combo: null, targetIdx, allyIdx: opts.ally, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null, shin: sh === true ? "power" : (sh || null) };
   s.acting = c.hero || null;
   try {
     if (c.built) {
@@ -715,7 +715,10 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   }
 
   if (c.temp || hasTag(c, "소멸")) s.gone.push(cardId); else s.discard.push(cardId);
-  if (sh === "draw") draw(s, 1);                 // 기적 「내면 드로우 +1」
+  // 겨우살이의 축복 — 낼 때 붙는 것(피해 · 회복 · 방어 · 맞은 적 상태는 run-fx 가 본다)
+  if (sh === "draw") draw(s, 1);                 // 끝없는 이야기 — 내면 드로우 1
+  if (sh === "ap") s.ap += 1;                     // 발맞추기 — 내면 AP +1(비용 1 이상 카드만 뜬다)
+  if ((sh === "atkUp" || sh === "defUp") && owner) P.addMod(owner, sh === "atkUp" ? "atk" : "def", 0.10, 999);   // 한 땀 한 땀 · 꺾이지 않는 실
   // 패시브 — 「카드를 낼 때마다」「한 턴에 N장째」
   s.playedThisTurn = (s.playedThisTurn || 0) + 1;
   const tgt = s.enemies.find((e) => e.idx === targetIdx && !e.dead) || null;

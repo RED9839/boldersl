@@ -91,11 +91,15 @@ export function runFx(s, fxList, ctx, api) {
             // 미리보기에는 치명타를 넣지 않는다 — 기대보다 크게 보이면 믿고 냈다가 모자란다
             const critPct = (owner.crit || 0) + (api.statOf ? api.statOf(owner, "crit") * 100 : 0);
             const crit = !s.preview && s.rng() * 100 < critPct;
+            // 축복 — 불타는 웅변은 늘, 약점 공략은 취약인 적에게만 ×1.3
+            const boost = ctx.shin === "power" || (ctx.shin === "weakSpot" && ((t.status || {})["취약"] || 0) > 0);
             const v = R.finalDamage({
               stat: atkOf(api, owner), ratio: f.ratio, flash: ctx.flash || 0,
-              shin: !!ctx.shin, global: ctx.global || 0, crit,
+              shin: boost, global: ctx.global || 0, crit,
             });
             api.hurt(t, v, { from: owner, crit });
+            if (ctx.shin === "frost" && !t.dead) api.addStatus(t, "취약", 1, 1);   // 눈보라 예보
+            if (ctx.shin === "thorn" && !t.dead) api.addStatus(t, "중독", 2, 0);   // 가시 돋친 꿈
           }
         }
         break;
@@ -103,10 +107,11 @@ export function runFx(s, fxList, ctx, api) {
 
       // ── 방어·실드·회복 ────────────────────────────────────────────
       // 방어·실드는 방어력 기준 — 교주 카드는 방어력이 가장 높은 아군(defOwner)을 본다
-      case "block": for (const t of resolve(s, ctx, f.target)) t.block += Math.max(1, Math.round(defOf(api, ctx.defOwner || owner) * f.ratio)); break;
-      case "shield": for (const t of resolve(s, ctx, f.target)) t.shield = (t.shield || 0) + Math.max(1, Math.round(defOf(api, ctx.defOwner || owner) * f.ratio)); break;
+      // 양보하는 마음(축복) — 방어 · 실드 ×1.3
+      case "block": for (const t of resolve(s, ctx, f.target)) t.block += Math.max(1, Math.round(defOf(api, ctx.defOwner || owner) * f.ratio * (ctx.shin === "guard" ? R.SHIN : 1))); break;
+      case "shield": for (const t of resolve(s, ctx, f.target)) t.shield = (t.shield || 0) + Math.max(1, Math.round(defOf(api, ctx.defOwner || owner) * f.ratio * (ctx.shin === "guard" ? R.SHIN : 1))); break;
       // 회복은 역할 보정을 곱한다 — 서포터 ×1.8 · 탱커 ×1.3 (rules.js HEAL_ROLE)
-      case "heal": for (const t of resolve(s, ctx, f.target)) t.hp = Math.min(t.maxHp, t.hp + Math.max(1, Math.round(atkOf(api, owner) * (R.HEAL_ROLE[owner && owner.role] || 1) * f.ratio))); break;
+      case "heal": for (const t of resolve(s, ctx, f.target)) t.hp = Math.min(t.maxHp, t.hp + Math.max(1, Math.round(atkOf(api, owner) * (R.HEAL_ROLE[owner && owner.role] || 1) * f.ratio * (ctx.shin === "heal" ? R.SHIN : 1))   /* 괜찮아(축복) — 회복 ×1.3 */)); break;
 
       // ── 능력치 증감 — 주는/받는 피해 · 공격력 · 방어력 · 치명 (이번 턴 · N턴간 · 이번 전투) ──
       case "dealtMod": case "takenMod": case "atkMod": case "defMod": case "critMod": {

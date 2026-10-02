@@ -43,8 +43,19 @@ export const EPI_CARD = { fight: 0.15, elite: 0.4, boss: 0.3, event: 0.1 };
 export const EPI_SURE = { hero: ["elite", "boss"], card: ["elite"] };
 export const DIVINE = 0.1;
 // 기적의 덤 — power 피해 ×1.3 · cost 비용 -1(1 이상일 때) · draw 내면 1장 더 뽑는다
-export const DIVINE_KINDS = { 공격: ["power", "cost"], 스킬: ["draw", "cost"], 방어: ["draw", "cost"], 회복: ["draw", "cost"], 강화: ["cost", "draw"] };
-export const DIVINE_KO = { power: "피해 ×1.3", cost: "비용 -1", draw: "내면 드로우 +1" };
+// 겨우살이의 축복(옛 이름 「기적」) — 기획서 「겨우살이의 축복」 탭의 카드 종류별 풀. 카드에 쓸모 있는 것만 뜬다(divineKindsFor)
+export const DIVINE_KINDS = {
+  공격: ["power", "cost", "weakSpot", "frost", "thorn"],
+  스킬: ["ap", "draw", "cost", "heal", "guard"], 방어: ["ap", "draw", "cost", "heal", "guard"], 회복: ["ap", "draw", "cost", "heal", "guard"],
+  강화: ["atkUp", "defUp", "cost"],
+};
+export const DIVINE_KO = {
+  power: "불타는 웅변 — 피해 ×1.3", cost: "가벼운 발걸음 — 비용 -1", weakSpot: "약점 공략 — 취약인 적에게 피해 ×1.3",
+  frost: "눈보라 예보 — 맞은 적 취약 1턴", thorn: "가시 돋친 꿈 — 맞은 적 중독 +2",
+  ap: "발맞추기 — 내면 AP +1", draw: "끝없는 이야기 — 내면 드로우 1", heal: "괜찮아 — 회복 ×1.3", guard: "양보하는 마음 — 방어 · 실드 ×1.3",
+  atkUp: "한 땀 한 땀 — 내면 이번 전투 이 사도 공격력 +10%", defUp: "꺾이지 않는 실 — 내면 이번 전투 이 사도 방어력 +10%",
+};
+export const DIVINE_NAME = "겨우살이의 축복";
 
 // 기적은 기획서가 값을 적어 뒀다 — 「선택지 3개 중 1개가 낮은 확률(기본 5%)로」.
 // 아직 풀을 파서로 읽지 않아 쓰지는 않는다. 값만 여기 둔다.

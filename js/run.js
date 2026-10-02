@@ -106,7 +106,7 @@ export function rollEpiphany(run) {
     if (options.length && run.rng() < R.DIVINE) {
       // 「비용 -1」은 신탁을 얹은 뒤에도 비용이 1 이상인 선택지에만(②경량은 이미 0 일 수 있다)
       const o = pick(options);
-      const kinds = (R.DIVINE_KINDS[c.type] || ["draw"]).filter((x) => x !== "cost" || flashed(c, o.n).cost >= 1);
+      const kinds = divineKindsFor(flashed(c, o.n));
       o.shin = pick(kinds.length ? kinds : ["draw"]);
     }
     if (options.length) glow[cardId] = { kind: "card", options };
@@ -300,6 +300,16 @@ export function removeCard(run, cardId) {
 export function flashTargets(run) {
   return run.deck.filter((id, i) => run.deck.indexOf(id) === i)
     .filter((id) => CARDS[id] && (CARDS[id].unique || CARDS[id].neutral) && (CARDS[id].flash || []).length === 5 && !run.flash[id]);
+}
+
+// 이 카드에 쓸모 있는 축복 — 피해가 없으면 피해 쪽을, 회복이 없으면 회복 쪽을 빼고, 비용 -1 은 1코 이상만
+export function divineKindsFor(c) {
+  if (!c) return [];
+  const fx = c.fx || [];
+  const has = (k) => fx.some((f) => f.k === k || (k === "dmg" && f.k === "damage") || (k === "dmg" && f.k === "aoe"));
+  const ok = { power: has("dmg"), weakSpot: has("dmg"), frost: has("dmg"), thorn: has("dmg"), heal: has("heal"),
+    guard: has("block") || has("shield"), cost: typeof c.cost === "number" && c.cost >= 1, ap: typeof c.cost === "number" && c.cost >= 1 };
+  return (R.DIVINE_KINDS[c.type] || ["draw", "cost"]).filter((k) => ok[k] !== false);
 }
 
 export function offerFlash(run) {

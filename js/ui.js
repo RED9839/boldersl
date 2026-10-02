@@ -200,11 +200,11 @@ const HELP = [
     `고학년 스킬은 사도마다 게이지 ${RULES.ULT_COSTS.join(" · ")}% 가운데 하나를 씁니다. 사도의 둥근 얼굴 단추가 빛나면 쓸 수 있습니다.`,
     `손패는 ${RULES.HAND_MAX}장까지입니다.`,
   ])],
-  ["신탁", "은총 · 신탁 · 기적", () => helpList([
+  ["신탁", "은총 · 신탁 · 겨우살이의 축복", () => helpList([
     "싸우다 보면 카드가 빛납니다. 빛나는 카드를 내면 세계수의 뜻이 내립니다.",
     "은총 — 사도의 기본 카드가 빛납니다. 내면 그 사도의 고유 카드 하나가 손패로 옵니다(그 턴 0코). 고르지 않습니다. 한 번 뺀 고유 카드는 다시 오지 않습니다.",
     "신탁 — 고유 카드 · 교주 카드가 빛납니다. 내면 신탁 다섯(① 강화 ② 경량 ③ 연계 ④ 변형 ⑤ 각성) 가운데 셋이 뜨고 하나를 고릅니다. 카드가 바로 바뀌고 이번에 내는 것은 0코입니다.",
-    `기적 — 신탁 선택지 하나에 드물게(${Math.round(RULES.DIVINE * 100)}%) 붙는 덤입니다(비용 -1 · 드로우 · 피해 ×1.3 따위).`,
+    `겨우살이의 축복 — 신탁 선택지 하나에 드물게(${Math.round(RULES.DIVINE * 100)}%) 붙는 덤입니다. 카드 종류마다 다른 열세 가지(피해 ×1.3 · 비용 -1 · 드로우 · AP · 회복 · 방어 · 취약 · 중독 …).`,
     "사도마다 따로 굴립니다 — 한 전투에 여러 사도, 운이 좋으면 셋 모두 은총이 빛납니다. 교주 카드 신탁은 사도와 별개로 한 번 더 굴립니다.",
     `사도 한 명당 — 은총: 일반 ${Math.round(RULES.EPI_HERO.fight * 100)}% · 엘리트 ${Math.round(RULES.EPI_HERO.elite * 100)}% · 보스 ${Math.round(RULES.EPI_HERO.boss * 100)}% / 신탁: 일반 ${Math.round(RULES.EPI_CARD.fight * 100)}% · 엘리트 ${Math.round(RULES.EPI_CARD.elite * 100)}% · 보스 ${Math.round(RULES.EPI_CARD.boss * 100)}%. 엘리트 · 보스는 은총이, 엘리트는 신탁도 적어도 하나는 빛납니다.`,
   ])],
@@ -2371,7 +2371,7 @@ export function fightScreen(run, onDone, onQuit) {
         const f = (base.flash || [])[opt.n - 1] || {};
         card = bigCard(flashed(base, opt.n), CARDART.pic[cardId] || null);
         cell.appendChild(el("span", "epikind", `${"①②③④⑤"[opt.n - 1]} ${f.kind || f.ko || ""}`));   // 자유 신탁은 분류 대신 이름
-        if (opt.shin) { cell.classList.add("shin"); cell.appendChild(el("span", "epishin", `기적 · ${RULES.DIVINE_KO[opt.shin]}`)); }
+        if (opt.shin) { cell.classList.add("shin"); cell.appendChild(el("span", "epishin", `겨우살이의 축복 · ${RULES.DIVINE_KO[opt.shin]}`)); }
       }
       card.onclick = null; card.title = "";
       cell.appendChild(card);
@@ -2438,7 +2438,7 @@ export function fightScreen(run, onDone, onQuit) {
       openEpiphany(glowId, g, (choice) => {
         C.applyEpiphany(st, glowId, choice);
         const o = g.options[choice], f = (CARDS[glowId].flash || [])[o.n - 1] || {};
-        lootCard(glowId, `신탁 ${"①②③④⑤"[o.n - 1]} ${f.kind || f.ko || ""}${o.shin ? ` · 기적(${RULES.DIVINE_KO[o.shin]})` : ""}`);
+        lootCard(glowId, `신탁 ${"①②③④⑤"[o.n - 1]} ${f.kind || f.ko || ""}${o.shin ? ` · 축복(${RULES.DIVINE_KO[o.shin]})` : ""}`);
         selCard = st.hand.indexOf(glowId);
         play(targetIdx);
       });
@@ -2880,7 +2880,7 @@ export function rewardScreen(run, onPick) {
       const pick = el("div", "rpick rgot");
       const who = el("div", "rwho");
       const fl = (CARDS[f.cardId].flash || [])[f.n - 1] || {};
-      who.appendChild(el("b", null, `신탁 ${"①②③④⑤"[f.n - 1]} ${fl.kind || ""}${f.shin ? ` · 기적(${RULES.DIVINE_KO[f.shin]})` : ""}`));
+      who.appendChild(el("b", null, `신탁 ${"①②③④⑤"[f.n - 1]} ${fl.kind || ""}${f.shin ? ` · 축복(${RULES.DIVINE_KO[f.shin]})` : ""}`));
       pick.appendChild(who);
       pick.appendChild(bigCard(flashed(CARDS[f.cardId], f.n), CARDART.pic[f.cardId] || null));
       gr.appendChild(pick);
@@ -4061,8 +4061,8 @@ export function eventScreen(run, onDone, onFight) {
       box.appendChild(ts.bar);
     } else if (p.k === "shinPick") {
       // 기적 — 대가 없는 카드 강화. 덱에서 한 장을 골라 위력 ×1.3 이나 비용 -1 을 얹는다
-      head("기적", p.kind === "cost" ? "덱에서 한 장 — 이 카드의 비용이 1 줄어듭니다" : "덱에서 한 장 — 이 카드의 피해 · 회복 · 방어가 ×1.3 이 됩니다");
-      ts = twoStep(commit, { verb: "기적을 얹습니다" });
+      head("겨우살이의 축복", p.kind ? (p.kind === "cost" ? "덱에서 한 장 — 이 카드의 비용이 1 줄어듭니다" : "덱에서 한 장 — 이 카드의 피해가 ×1.3 이 됩니다") : "덱에서 한 장을 고르면, 그 카드에 맞는 축복 셋이 뜹니다");
+      ts = twoStep(commit, { verb: "이 카드에 축복을 얹습니다" });
       const grid = el("div", "ev2-cards");
       for (const id of EV.shinAble(run, p.kind)) {
         const c = CARDS[id];
@@ -4072,6 +4072,23 @@ export function eventScreen(run, onDone, onFight) {
         grid.appendChild(w);
       }
       box.appendChild(grid);
+      ts.bar.appendChild(skipBtn());
+      box.appendChild(ts.bar);
+    } else if (p.k === "shinKind") {
+      const c = CARDS[p.cardId];
+      head("겨우살이의 축복", `「${c.name}」 에 얹을 축복 — 셋 중 하나`);
+      ts = twoStep(commit, { verb: "축복을 얹습니다" });
+      const fr = el("div", "rrow flashrow");
+      fr.appendChild(flashTarget(c, p.cardId));
+      for (const k of p.options) {
+        const [nm, eff] = RULES.DIVINE_KO[k].split(" — ");
+        const b = el("button", "fcard shin");
+        const hd = el("div", "fhead2"); hd.appendChild(el("b", null, nm)); b.appendChild(hd);
+        b.appendChild(el("p", "ftext2", eff));
+        b.onclick = () => ts.pick(b, k, nm);
+        fr.appendChild(b);
+      }
+      box.appendChild(fr);
       ts.bar.appendChild(skipBtn());
       box.appendChild(ts.bar);
     } else if (p.k === "card") {
@@ -4112,7 +4129,7 @@ export function eventScreen(run, onDone, onFight) {
         fr.appendChild(b);
       }
       box.appendChild(fr);
-      if (run.event.shinChance && !run.noShin) box.appendChild(el("p", "ev2-note", `고르면 ${pctTxt(run.event.shinChance)} 확률로 기적(피해 ×1.3)이 얹힙니다`));
+      if (run.event.shinChance && !run.noShin) box.appendChild(el("p", "ev2-note", `고르면 ${pctTxt(run.event.shinChance)} 확률로 겨우살이의 축복(피해 ×1.3)이 얹힙니다`));
       ts.bar.appendChild(skipBtn());
       box.appendChild(ts.bar);
     } else if (p.k === "pickHero" || p.k === "judgePick") {

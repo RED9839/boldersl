@@ -8,7 +8,7 @@
 import { EVENTS, CURSES } from "./data/events.js";
 import { CARDS, NEUTRAL_IDS, EQUIP, HERO_DATA } from "./cardbook.js";
 import * as R from "./rules.js";
-import { rewardCards, offerFlash, offerEquip, offerEquipSlot, forgetCard } from "./run.js";
+import { rewardCards, offerFlash, offerEquip, offerEquipSlot, forgetCard, divineKindsFor } from "./run.js";
 
 export { EVENTS };
 const koOf = (k) => (HERO_DATA[k] || {}).ko || k;
@@ -38,6 +38,7 @@ const RULES_OUT = [
   // 이미 신탁을 붙인 카드 하나에 기적을 바로 얹는다(없으면 이번에 고르는 신탁에)
   [/^기적\s*1$/, () => ({ k: "shinNow" })],
   // 카드 강화로서의 기적 — 덱에서 카드 한 장을 골라 기적을 얹는다(위력 ×1.3 / 비용 -1). 신탁이 없어도 된다
+  [/^기적\s*카드\s*(\d+)$/, (m) => ({ k: "shinPick", n: Number(m[1]), kind: null })],
   [/^기적\s*카드\s*(\d+)\s*\(\s*(위력|비용)\s*\)$/, (m) => ({ k: "shinPick", n: Number(m[1]), kind: m[2] === "비용" ? "cost" : "power" })],
   [/^골칫거리\s*「(.+)」$/, (m) => ({ k: "curse", name: m[1] })],
   [/^지도\s*공개$/, () => ({ k: "scout" })],
@@ -290,14 +291,14 @@ export function apply(run, ops) {
       case "noShin": run.noShin = true; break;
       case "shinPick": {
         const able = shinAble(run, o.kind);
-        if (!able.length) { E.log.push("기적을 얹을 카드가 없습니다"); break; }
+        if (!able.length) { E.log.push("축복을 얹을 카드가 없습니다"); break; }
         for (let i = 0; i < o.n; i++) E.pending.push({ k: "shinPick", kind: o.kind });
         break;
       }
       case "shinNow": {
         const ids = Object.keys(run.flash || {}).filter((id) => CARDS[id] && !(run.shin || {})[id]);
-        if (ids.length) { const id = ids[Math.floor(run.rng() * ids.length)]; run.shin = run.shin || {}; run.shin[id] = true; E.log.push(`기적! 「${CARDS[id].name}」 의 신탁 위에 한 줄이 더 얹혔습니다 (피해 ×1.3)`); }
-        else { E.shinChance = 1; E.log.push("기적을 얹을 신탁이 아직 없습니다 — 이번에 고르는 신탁에 얹힙니다"); }
+        if (ids.length) { const id = ids[Math.floor(run.rng() * ids.length)]; run.shin = run.shin || {}; run.shin[id] = true; E.log.push(`겨우살이의 축복! 「${CARDS[id].name}」 — 신탁 위에 한 줄이 더 (피해 ×1.3)`); }
+        else { E.shinChance = 1; E.log.push("축복을 얹을 신탁이 아직 없습니다 — 이번에 고르는 신탁에 얹힙니다"); }
         break;
       }
       case "curse": {
@@ -360,11 +361,26 @@ export function resolve(run, value) {
       break;
     }
     case "shinPick": {
-      if (value == null) { E.log.push("기적 — 받지 않았습니다"); break; }
-      if (!shinAble(run, p.kind).includes(value)) return "기적을 얹을 수 없는 카드입니다";
+      if (value == null) { E.log.push("겨우살이의 축복 — 받지 않았습니다"); break; }
+      if (!shinAble(run, p.kind).includes(value)) return "축복을 얹을 수 없는 카드입니다";
+      if (!p.kind) {
+        const all = divineKindsFor(CARDS[value]);
+        const picks = [];
+        while (picks.length < 3 && all.length) picks.push(...all.splice(Math.floor(run.rng() * all.length), 1));
+        E.pending.splice(1, 0, { k: "shinKind", cardId: value, options: picks });
+        break;
+      }
       run.shin = run.shin || {};
       run.shin[value] = p.kind;
-      E.log.push(`기적! 「${CARDS[value].name}」 — ${p.kind === "cost" ? "비용 -1" : "위력 ×1.3"}`);
+      E.log.push(`겨우살이의 축복! 「${CARDS[value].name}」 — ${R.DIVINE_KO[p.kind]}`);
+      break;
+    }
+    case "shinKind": {
+      if (value == null) { E.log.push("겨우살이의 축복 — 받지 않았습니다"); break; }
+      if (!p.options.includes(value)) return "고를 수 없는 축복입니다";
+      run.shin = run.shin || {};
+      run.shin[p.cardId] = value;
+      E.log.push(`겨우살이의 축복! 「${CARDS[p.cardId].name}」 — ${R.DIVINE_KO[value]}`);
       break;
     }
     case "dupe": {
@@ -396,7 +412,7 @@ export function resolve(run, value) {
       if (E.shinChance && !run.noShin && run.rng() < E.shinChance) {
         run.shin = run.shin || {};
         run.shin[p.offer.cardId] = true;
-        E.log.push("기적! 신탁 위에 한 줄이 더 얹혔습니다 (피해 ×1.3)");
+        E.log.push("겨우살이의 축복! 신탁 위에 한 줄이 더 (피해 ×1.3)");
       }
       break;
     }
@@ -452,7 +468,8 @@ export function afterEventFight(run, won) {
 // 기적을 얹을 수 있는 카드 — 덱의 카드 종류 중 기적이 아직 없는 것. 「비용 -1」 은 1코 이상만. 골칫거리는 뺀다
 export function shinAble(run, kind) {
   const ids = [...new Set(run.deck)].filter((id) => CARDS[id] && !CARDS[id].curse && !(run.shin || {})[id]);
-  return kind === "cost" ? ids.filter((id) => typeof CARDS[id].cost === "number" && CARDS[id].cost >= 1) : ids;
+  if (kind === "cost") return ids.filter((id) => typeof CARDS[id].cost === "number" && CARDS[id].cost >= 1);
+  return kind ? ids : ids.filter((id) => divineKindsFor(CARDS[id]).length);
 }
 export function dupeOk(id) { const c = CARDS[id]; return !!c && !c.oneOnly; }
 export function dupeExtra(run, id) { return (run.flash || {})[id] || (run.shin || {})[id] ? R.DUPE_FLASH_EXTRA : 0; }
