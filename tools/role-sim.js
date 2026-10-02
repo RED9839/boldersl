@@ -2,6 +2,9 @@
 //   node tools/role-sim.js 시온더다크불릿                  그 사도 역할이 들어간 편성 여섯 가지 × 신탁 없음·무작위·맞춤
 //   node tools/role-sim.js 캬롯 --comps SSD,TSD --modes fit --parties 30 --runs 40
 //   node tools/role-sim.js 캬롯 --root <다른 사본>          옛 판과 견줄 때
+//   node tools/role-sim.js 캬롯 --quick                     방향만 빨리 볼 때(파티 6 × 판 12 · 맞춤 고르기 판 12)
+//   --jobs N   작업 스레드 수(기본: 코어의 1/4, 최대 8). 결과는 스레드 수와 상관없이 같다
+//   --tune N   맞춤 고르기에 쓰는 판 수(기본 24)
 //
 // 한 판 = 3층 12전 연속(체력 이어짐 · 전투 뒤 20% 회복 · 층 사이 완전 회복). 보상 · 장비 · 상점은 없다.
 // 그래서 클리어율의 절대값보다 **편성끼리 · 판끼리의 차이**를 본다.
@@ -11,6 +14,7 @@
 import { pathToFileURL, fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
+import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
 // 측정은 오래 돌고 여러 개를 함께 띄우기 쉽다 — 낮은 우선순위로 돌아 컴퓨터를 막지 않게
 try { os.setPriority(19); } catch {}
 
@@ -36,7 +40,8 @@ const U = ["u0", "u1", "u2", "u3"].map((u) => `${K}_${u}`).filter((id) => B.CARD
 const ALL = ["TTT", "TTS", "TTD", "TSS", "TSD", "TDD", "SSS", "SSD", "SDD", "DDD"];
 const COMPS = (opt("comps") || ALL.filter((c) => c.includes(me)).join(",")).split(",");
 const MODES = (opt("modes") || "base,rand,fit").split(",");
-const P = +opt("parties", 30), N = +opt("runs", 40);
+const QUICK = argv.includes("--quick");
+const P = +opt("parties", QUICK ? 6 : 30), N = +opt("runs", QUICK ? 12 : 40), T = +opt("tune", QUICK ? 12 : 24);
 
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const POOL = { T: [], S: [], D: [] };
@@ -103,31 +108,54 @@ function runOnce(party, seed, flash) {
 const avg = (party, flash, seeds) => { let c = 0, f = 0, tn = 0; for (const sd of seeds) { const x = runOnce(party, sd, flash); f += x.fights; tn += x.turns; if (x.fights === FULL) c++; } return { clear: c / seeds.length, fights: f / seeds.length, turns: tn / seeds.length }; };
 
 const evalSeeds = Array.from({ length: N }, (_, i) => i + 1);
-const tuneSeeds = Array.from({ length: 24 }, (_, i) => 5000 + i);
-const out = { hero: K, ko: D0.ko, role: D0.role, rows: [] };
-for (const comp of COMPS) {
-  const parties = partiesOf(comp);
-  for (const mode of MODES) {
-    let clear = 0; const chosen = U.map(() => [0, 0, 0, 0, 0]);
-    for (const [pi, party] of parties.entries()) {
-      let flash = {};
-      if (mode === "rand") { const r = rng(900 + pi); flash = Object.fromEntries(U.map((id) => [id, 1 + Math.floor(r() * 5)])); }
-      if (mode === "fit") {
-        flash = Object.fromEntries(U.map((id) => [id, 1]));
-        for (let round = 0; round < 2; round++) for (const id of U) {
-          let best = flash[id], bv = -Infinity;
-          // 더 멀리 간 쪽, 같으면 턴을 덜 들인 쪽 — 전에는 동점이면 처음(①)을 그대로 둬서 쉬운 편성에서 ① 이 독식했다
-          for (let n = 1; n <= 5; n++) { const a = avg(party, { ...flash, [id]: n }, tuneSeeds); const v = a.fights * 1000 - a.turns; if (v > bv) { bv = v; best = n; } }
-          flash[id] = best;
-        }
-        U.forEach((id, i) => chosen[i][flash[id] - 1]++);
-      }
-      clear += avg(party, flash, evalSeeds).clear;
+const tuneSeeds = Array.from({ length: T }, (_, i) => 5000 + i);
+
+// 한 일감 = (편성 · 방식 · 몇 번째 파티). 스레드마다 나눠 돌리고 순서대로 모은다 — 씨앗이 정해져 있어 결과는 늘 같다
+function job({ comp, mode, pi }) {
+  const party = partiesOf(comp)[pi];
+  let flash = {};
+  if (mode === "rand") { const r = rng(900 + pi); flash = Object.fromEntries(U.map((id) => [id, 1 + Math.floor(r() * 5)])); }
+  if (mode === "fit") {
+    flash = Object.fromEntries(U.map((id) => [id, 1]));
+    const seen = new Map();   // 같은 신탁 조합을 두 번 재지 않는다(두 바퀴째는 대부분 이미 잰 조합이다)
+    const score = (f) => { const key = U.map((id) => f[id]).join(""); if (!seen.has(key)) { const a = avg(party, f, tuneSeeds); seen.set(key, a.fights * 1000 - a.turns); } return seen.get(key); };
+    for (let round = 0; round < 2; round++) for (const id of U) {
+      let best = flash[id], bv = -Infinity;
+      // 더 멀리 간 쪽, 같으면 턴을 덜 들인 쪽 — 전에는 동점이면 처음(①)을 그대로 둬서 쉬운 편성에서 ① 이 독식했다
+      for (let n = 1; n <= 5; n++) { const v = score({ ...flash, [id]: n }); if (v > bv) { bv = v; best = n; } }
+      flash[id] = best;
     }
+  }
+  return { clear: avg(party, flash, evalSeeds).clear, pick: mode === "fit" ? U.map((id) => flash[id]) : null };
+}
+
+if (!isMainThread) {
+  parentPort.on("message", (j) => parentPort.postMessage({ i: j.i, ...job(j) }));
+} else {
+  const jobs = [];
+  for (const comp of COMPS) for (const mode of MODES) for (let pi = 0; pi < P; pi++) jobs.push({ i: jobs.length, comp, mode, pi });
+  const J = Math.max(1, Math.min(+opt("jobs", Math.min(8, Math.floor(os.cpus().length / 4))), jobs.length));
+  const res = new Array(jobs.length);
+  if (J === 1) jobs.forEach((j) => { res[j.i] = job(j); });
+  else await new Promise((done, fail) => {
+    let next = 0, left = jobs.length;
+    for (let w = 0; w < J; w++) {
+      const wk = new Worker(fileURLToPath(import.meta.url), { argv });
+      const feed = () => { if (next < jobs.length) wk.postMessage(jobs[next++]); else wk.terminate(); };
+      wk.on("message", (m) => { res[m.i] = m; if (--left === 0) done(); feed(); });
+      wk.on("error", fail);
+      feed();
+    }
+  });
+  const out = { hero: K, ko: D0.ko, role: D0.role, rows: [] };
+  let k = 0;
+  for (const comp of COMPS) for (const mode of MODES) {
+    let clear = 0; const chosen = U.map(() => [0, 0, 0, 0, 0]);
+    for (let pi = 0; pi < P; pi++, k++) { clear += res[k].clear; if (res[k].pick) res[k].pick.forEach((n, i) => chosen[i][n - 1]++); }
     const row = { comp, mode, clear: +(clear / P * 100).toFixed(1) };
     if (mode === "fit") row.chosen = chosen;
     out.rows.push(row);
     if (!argv.includes("--json")) console.log(`${comp} ${mode.padEnd(4)} ${row.clear.toFixed(1)}%${row.chosen ? "  고른 갈래 " + row.chosen.map((c) => c.join("·")).join(" | ") : ""}`);
   }
+  if (argv.includes("--json")) console.log(JSON.stringify(out));
 }
-if (argv.includes("--json")) console.log(JSON.stringify(out));
