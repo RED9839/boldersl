@@ -37,6 +37,8 @@ const RULES_OUT = [
   [/^기적\s*막힘$/, () => ({ k: "noShin" })],
   // 이미 신탁을 붙인 카드 하나에 기적을 바로 얹는다(없으면 이번에 고르는 신탁에)
   [/^기적\s*1$/, () => ({ k: "shinNow" })],
+  // 카드 강화로서의 기적 — 덱에서 카드 한 장을 골라 기적을 얹는다(위력 ×1.3 / 비용 -1). 신탁이 없어도 된다
+  [/^기적\s*카드\s*(\d+)\s*\(\s*(위력|비용)\s*\)$/, (m) => ({ k: "shinPick", n: Number(m[1]), kind: m[2] === "비용" ? "cost" : "power" })],
   [/^골칫거리\s*「(.+)」$/, (m) => ({ k: "curse", name: m[1] })],
   [/^지도\s*공개$/, () => ({ k: "scout" })],
   [new RegExp(`^다음\\s*상점:\\s*장비\\s*\\((${GRADES})\\)$`), (m) => ({ k: "shopGift", grade: m[1] })],
@@ -98,7 +100,8 @@ function eligible(run, ev) {
 export function rollEvents(run, n = 1) {
   const out = [];
   for (let i = 0; i < n; i++) {
-    const left = EVENTS.filter((e) => eligible(run, e) && !out.includes(e));
+    // 드문 이벤트(rare: 0~1) — 굴릴 때마다 그 확률로만 후보에 든다(겨우살이 따위)
+    const left = EVENTS.filter((e) => eligible(run, e) && !out.includes(e) && (!e.rare || run.rng() < e.rare));
     const floorPool = left.filter((e) => e.pool === run.floor);
     const common = left.filter((e) => e.pool === "공용");
     const from = !floorPool.length ? common : !common.length ? floorPool : run.rng() < R.EVENT_FLOOR_SHARE ? floorPool : common;
@@ -285,6 +288,12 @@ export function apply(run, ops) {
       }
       case "shin": E.shinChance = (E.shinChance || 0) + o.p; break;
       case "noShin": run.noShin = true; break;
+      case "shinPick": {
+        const able = shinAble(run, o.kind);
+        if (!able.length) { E.log.push("기적을 얹을 카드가 없습니다"); break; }
+        for (let i = 0; i < o.n; i++) E.pending.push({ k: "shinPick", kind: o.kind });
+        break;
+      }
       case "shinNow": {
         const ids = Object.keys(run.flash || {}).filter((id) => CARDS[id] && !(run.shin || {})[id]);
         if (ids.length) { const id = ids[Math.floor(run.rng() * ids.length)]; run.shin = run.shin || {}; run.shin[id] = true; E.log.push(`기적! 「${CARDS[id].name}」 의 신탁 위에 한 줄이 더 얹혔습니다 (피해 ×1.3)`); }
@@ -348,6 +357,14 @@ export function resolve(run, value) {
       run.deck.splice(i, 1);
       forgetCard(run, value);              // 뺀 고유 카드는 은총 · 상점에 다시 안 나온다
       E.log.push(`「${CARDS[value].name}」 — 덱에서 뺐습니다`);
+      break;
+    }
+    case "shinPick": {
+      if (value == null) { E.log.push("기적 — 받지 않았습니다"); break; }
+      if (!shinAble(run, p.kind).includes(value)) return "기적을 얹을 수 없는 카드입니다";
+      run.shin = run.shin || {};
+      run.shin[value] = p.kind;
+      E.log.push(`기적! 「${CARDS[value].name}」 — ${p.kind === "cost" ? "비용 -1" : "위력 ×1.3"}`);
       break;
     }
     case "dupe": {
@@ -432,6 +449,11 @@ export function afterEventFight(run, won) {
 }
 
 // 카드 복제 — 고를 수 있는가 · 웃돈. 신탁 · 기적은 카드 종류(id)에 붙어 있어 복제본도 그대로 가진다
+// 기적을 얹을 수 있는 카드 — 덱의 카드 종류 중 기적이 아직 없는 것. 「비용 -1」 은 1코 이상만. 골칫거리는 뺀다
+export function shinAble(run, kind) {
+  const ids = [...new Set(run.deck)].filter((id) => CARDS[id] && !CARDS[id].curse && !(run.shin || {})[id]);
+  return kind === "cost" ? ids.filter((id) => typeof CARDS[id].cost === "number" && CARDS[id].cost >= 1) : ids;
+}
 export function dupeOk(id) { const c = CARDS[id]; return !!c && !c.oneOnly; }
 export function dupeExtra(run, id) { return (run.flash || {})[id] || (run.shin || {})[id] ? R.DUPE_FLASH_EXTRA : 0; }
 

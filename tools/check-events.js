@@ -96,7 +96,7 @@ console.log("선택지 전부 골라 보기");
             const v = p.k === "remove" || p.k === "dupe" ? run.deck[0]
               : p.k === "card" ? p.cards[0] : p.k === "flash" ? p.offer.picks[0]
               : p.k === "pickHero" || p.k === "judgePick" ? run.party.find((k) => run.hp[k] > 0)
-              : p.k === "gambleChoice" ? p.options[0] : null;
+              : p.k === "gambleChoice" ? p.options[0] : p.k === "shinPick" ? EV.shinAble(run, p.kind)[0] : null;
             const w = EV.resolve(run, v);
             if (w) { stuck.push(`${ev.id} 「${probe.label}」 고르기(${p.k}): ${w}`); break; }
           }

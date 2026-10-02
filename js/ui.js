@@ -4059,6 +4059,21 @@ export function eventScreen(run, onDone, onFight) {
       }
       box.appendChild(grid);
       box.appendChild(ts.bar);
+    } else if (p.k === "shinPick") {
+      // 기적 — 대가 없는 카드 강화. 덱에서 한 장을 골라 위력 ×1.3 이나 비용 -1 을 얹는다
+      head("기적", p.kind === "cost" ? "덱에서 한 장 — 이 카드의 비용이 1 줄어듭니다" : "덱에서 한 장 — 이 카드의 피해 · 회복 · 방어가 ×1.3 이 됩니다");
+      ts = twoStep(commit, { verb: "기적을 얹습니다" });
+      const grid = el("div", "ev2-cards");
+      for (const id of EV.shinAble(run, p.kind)) {
+        const c = CARDS[id];
+        const w = el("button", "ev2-card");
+        w.appendChild(bigCard(c, CARDART.pic[id] || null));
+        w.onclick = () => ts.pick(w, id, c.name);
+        grid.appendChild(w);
+      }
+      box.appendChild(grid);
+      ts.bar.appendChild(skipBtn());
+      box.appendChild(ts.bar);
     } else if (p.k === "card") {
       head(p.label, "하나를 덱에 넣습니다 — 눌러 고르고, 아래 단추로 정합니다");
       ts = twoStep(commit, { verb: "덱에 넣습니다" });
