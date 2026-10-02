@@ -172,9 +172,10 @@ console.log("피해 미리보기");
 
   // 무작위 대상은 '최대' 로 — 그 적에게 전부 몰렸을 때
   // 무작위 적을 치는 고유 카드 하나를 고른다(기획서가 바뀌어도 시험이 깨지지 않게)
-  const rid = Object.keys(CARDS).find((id) => CARDS[id].unique && typeof CARDS[id].cost === "number" && CARDS[id].cost <= 3
-    && (CARDS[id].fx || []).some((f) => f.k === "dmg" && f.target === "randomEnemy") && !(CARDS[id].fx || []).some((f) => /Ally|Allies/.test(f.target || "")));
-  const s = C.newCombat({ partyKeys: [CARDS[rid].hero, ...heroes.filter((k) => k !== CARDS[rid].hero)].slice(0, 3), rows: {}, deck: [], enemyIds: ["fairymobcloserange", "fairymobcloserange"], seed: 5 });
+  const BC = B.cards;
+  const rid = Object.keys(BC).find((id) => BC[id].unique && typeof BC[id].cost === "number" && BC[id].cost <= 3
+    && (BC[id].fx || []).some((f) => f.k === "dmg" && f.target === "randomEnemy") && !(BC[id].fx || []).some((f) => /Ally|Allies/.test(f.target || "")));
+  const s = C.newCombat({ partyKeys: [BC[rid].hero, ...heroes.filter((k) => k !== BC[rid].hero)].slice(0, 3), rows: {}, deck: [], enemyIds: ["fairymobcloserange", "fairymobcloserange"], seed: 5 });
   s.ap = 3; s.hand = [rid];
   const p = C.previewCard(s, 0, 0);
   p && p[0] && p[0].max && p[1] && p[1].max ? ok(`무작위 카드는 적마다 최대를 보인다 (${p[0].hp})`) : fail("무작위 카드의 미리보기가 없다");

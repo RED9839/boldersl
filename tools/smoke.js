@@ -202,7 +202,8 @@ check(count(p, "gpic") + count(p, "gglyph") + count(p, "heroart") === 8,
 
 clickAll(p, (n) => n.classList.contains("sidebtn")).find((b) => b.textContent === "신탁").onclick();
 check(count(p, "flashbox") === 4, `신탁 갈피에 고유 넉 장 (${count(p, "flashbox")})`);
-check(count(p, "flash") === 20, `신탁 스무 개 (${count(p, "flash")})`);
+check(count(p, "flash") - count(p, "fbless") === 20, `신탁 스무 개 (${count(p, "flash") - count(p, "fbless")})`);
+check(count(p, "fbless") === 4, `고유 카드마다 축복 ✦ 하나 (${count(p, "fbless")})`);
 clickAll(p, (n) => n.classList.contains("sidebtn")).find((b) => b.textContent === "고학년 스킬").onclick();
 check(count(p, "ultbig") === 1, "고학년 스킬 갈피가 그려진다");
 check(/게이지 \d+% 를 씁니다/.test(p.textContent), "고학년 스킬에 게이지 값이 적힌다");
@@ -454,7 +455,7 @@ console.log("\n이후 화면");
       r5.rewardFlash = true;
       const g5 = Object.values(R.rollEpiphany(r5)).find((g) => g.kind === "card");
       const sh = g5 && g5.options.filter((o) => o.shin);
-      if (sh && sh.length) { hit++; if (sh.length > 1 || !RULES2.DIVINE_KO[sh[0].shin]) bad++;
+      if (sh && sh.length) { hit++; const c0 = Object.values(r5.deck).map((id) => CB.CARDS[id]).find((c) => c && c.unique); if (sh.length > 1 || !RULES2.shinLabel(c0, sh[0].shin)) bad++;
         const cc = Object.values(r5.deck).find((id) => CB.CARDS[id] && CB.CARDS[id].unique); if (sh[0].shin === "cost" && CB.flashed(CB.CARDS[cc], sh[0].n).cost < 1) bad++; }
     }
     check(Math.abs(hit / N - RULES2.DIVINE) < 0.025 && !bad, `기적이 ${(hit / N * 100).toFixed(1)}% 로 뜬다 (정한 값 ${RULES2.DIVINE * 100}%) · 선택지 하나에만 · 비용 0 에는 「비용 -1」 없음`);
