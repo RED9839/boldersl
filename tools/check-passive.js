@@ -8,8 +8,9 @@
 //   - 전투가 터지지 않는가(예외)
 //   - 패시브 규칙이 한 번이라도 발동하는가
 // 를 센다. 드문 조건(HP 50% 이하·아군이 쓰러지면)은 안 떠도 경고만 한다.
-import { newCombat, endTurn, playCard, canPlay, useUlt, canUlt, cardOf } from "../js/combat.js";
-import { CARDS, kitOf, HERO_DATA } from "../js/cardbook.js";
+import { newCombat, endTurn, playCard, canPlay, useUlt, canUlt, cardOf, previewUlt, previewAllies } from "../js/combat.js";
+import { CARDS, kitOf, HERO_DATA, NEUTRAL_IDS } from "../js/cardbook.js";
+import { healStat, HEAL_BONUS } from "../js/rules.js";
 import { parsePassive, statMod } from "../js/passive.js";
 import fs from "node:fs";
 import { DESIGN_DOC } from "./lib/paths.js";
@@ -104,7 +105,10 @@ console.log("고학년 스킬");
   const s = fight(["에르핀", "네르", "티그"]); tough(s);
   s.gauge = 300;
   const hp = s.enemies.map((e) => e.hp);
+  const pv = previewUlt(s, "에르핀", 0);
   const r = useUlt(s, "에르핀", 0);
+  // 끌어 올린 동안 보이는 피해 미리보기(fight-screen paintPreview) — 실제로 깎인 만큼과 같다
+  check(pv && s.enemies.every((e, i) => pv[i] && pv[i].hp === Math.min(hp[i], hp[i] - Math.max(0, e.hp))), `고학년 스킬 피해 미리보기가 실제와 같다 (${pv && pv.map((x) => x && x.hp)} / ${s.enemies.map((e, i) => hp[i] - Math.max(0, e.hp))})`);
   check(r.ok, `에르핀 고학년 스킬을 쓴다 (${r.why || "ok"})`);
   check(s.enemies.every((e, i) => e.hp < hp[i]), "고학년 스킬이 적 전체를 친다 — 전에는 게이지만 먹었다");
   check(s.party.find((u) => u.key === "에르핀").invuln === true, "고학년 스킬의 무적이 걸린다");
@@ -140,6 +144,51 @@ console.log("카드 태그");
   s2.book = { [id]: { ...CARDS[id], flashOn: 5, fx: [...CARDS[id].fx, { k: "tag", id: "소멸" }] } };
   play(s2, id);
   check(s2.gone.includes(id) && !s2.discard.includes(id), "소멸 — 내면 이 전투에서 사라진다");
+}
+
+console.log("");
+console.log("회복력 — 회복은 공격력이 아니라 회복력(공격력 + 역할 몫)으로 센다");
+{
+  check(healStat(8, "서포터") === 8 + HEAL_BONUS.서포터 && healStat(8, "탱커") === 8 + HEAL_BONUS.탱커 && healStat(13, "딜러") === 13,
+    `회복력 = 공격력 + 역할 몫 (서포터 +${HEAL_BONUS.서포터} · 탱커 +${HEAL_BONUS.탱커} · 딜러 0)`);
+  // 사도마다 「아군 1명 HP 회복」 한 줄짜리 카드를 내 본다 — 실제 회복 = 회복력 × 배율, 미리보기 = 실제
+  const keys = Object.keys(HERO_DATA);
+  const dealer = keys.find((x) => HERO_DATA[x].role === "딜러");
+  let n = 0;
+  const off = [], pvOff = [];
+  for (const k of keys) {
+    const c = [...kitOf(k).start, ...kitOf(k).unique].find((x) => x.fx.length === 1 && x.fx[0].k === "heal" && x.fx[0].target === "oneAlly");
+    if (!c || k === dealer) continue;
+    const s = newCombat({ partyKeys: [k, dealer], rows: {}, deck: [k, dealer].flatMap(kit), enemyIds: ["gluttonbear"], seed: 3 });
+    for (const u of s.party) u.hp = 1;
+    s.hand.unshift(c.id); s.ap = 5;
+    const o = s.party[0];
+    const want = Math.max(1, Math.round(healStat(Math.max(1, Math.round(o.atk * (1 + statMod(s, o, "atk")))), o.role) * c.fx[0].ratio));
+    const pv = previewAllies(s, 0, 1);
+    const h0 = s.party[1].hp;
+    playCard(s, 0, 1);
+    const real = s.party[1].hp - h0;
+    n++;
+    if (real !== want) off.push(`${HERO_DATA[k].ko} ${real}≠${want}`);
+    if (!pv || !pv[1] || pv[1].heal !== real) pvOff.push(`${HERO_DATA[k].ko} 미리보기 ${pv && pv[1] ? pv[1].heal : "-"} · 실제 ${real}`);
+  }
+  check(n >= 20 && !off.length, `회복 카드 ${n}장 — 실제 회복 = 회복력 × 배율${off.length ? " · 어긋남 " + off.slice(0, 4).join(", ") : ""}`);
+  check(n >= 20 && !pvOff.length, `회복 카드 ${n}장 — 미리보기 = 실제${pvOff.length ? " · 어긋남 " + pvOff.slice(0, 4).join(", ") : ""}`);
+  // 교주 카드의 회복은 회복력이 가장 높은 아군 기준 — 공격력이 높은 딜러가 아니다
+  const nid = NEUTRAL_IDS.find((id) => CARDS[id] && CARDS[id].fx.length === 1 && CARDS[id].fx[0].k === "heal");
+  const sup = keys.find((x) => HERO_DATA[x].role === "서포터" && healStat(HERO_DATA[x].atk, "서포터") > HERO_DATA[dealer].atk);
+  if (nid && sup) {
+    const s = newCombat({ partyKeys: [dealer, sup], rows: {}, deck: [dealer, sup].flatMap(kit), enemyIds: ["gluttonbear"], seed: 3 });
+    for (const u of s.party) u.hp = 1;
+    s.hand.unshift(nid); s.ap = 5;
+    const f = CARDS[nid].fx[0];
+    const pv = previewAllies(s, 0, 0);
+    const h0 = s.party[0].hp;
+    playCard(s, 0, 0);
+    const real = s.party[0].hp - h0;
+    const want = Math.max(1, Math.round(healStat(s.party[1].atk, "서포터") * f.ratio));
+    check(real === want && pv && pv[0] && pv[0].heal === real, `교주 「${CARDS[nid].name}」 — 회복력 높은 ${HERO_DATA[sup].ko} 기준 ${real} (기대 ${want})`);
+  } else fail("교주 회복 카드 · 서포터를 못 찾았다");
 }
 
 if (process.argv.includes("--quick")) done();

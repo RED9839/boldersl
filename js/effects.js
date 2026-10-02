@@ -10,7 +10,7 @@
 //   dmg    {ratio, target, hits}        공격력 × ratio 피해
 //   block  {ratio, target}              방어력 × ratio 방어
 //   shield {ratio, target}              방어력 × ratio 실드(유지)
-//   heal   {ratio, target}              공격력 × ratio 회복
+//   heal   {ratio, target}              회복력 × ratio 회복 (회복력 = 공격력 + 역할 몫, rules.js)
 //   draw   {v} · ap {v} · gauge {v}
 //   status {id, v, turns, target}       취약·약화·기절·도발
 //   stack  {id, v}                      사도 전용 키워드(간식·왕마력…)
@@ -142,9 +142,9 @@ const RULES = [
     re: /방어력\s*(\d+)\s*%\s*실드/g,
     make: (m, text) => ({ k: "shield", ratio: Number(m[1]) / 100, target: pickTarget(text, "self", m, "shield") }),
   },
-  // 회복 — HP 회복(공격력 N%)
+  // 회복 — HP 회복(회복력 N%). 옛 글의 「회복(공격력 N%)」 도 같은 회복으로 읽는다
   {
-    re: /회복\s*\(?\s*공격력\s*(\d+)\s*%\s*\)?/g,
+    re: /회복\s*\(?\s*(?:공격력|회복력)\s*(\d+)\s*%\s*\)?/g,
     make: (m, text) => ({ k: "heal", ratio: Number(m[1]) / 100, target: pickTarget(text, "oneAlly", m, "heal") }),
   },
   // 드로우
@@ -178,6 +178,8 @@ const RULES = [
     re: /공격력\s*(\d+)\s*%(?!\s*(피해|회복))/g,
     make: (m, text) => { const k = /회복/.test(near(text, m)) ? "heal" : "dmg"; return { k, ratio: Number(m[1]) / 100, target: pickTarget(text, k === "heal" ? "oneAlly" : "oneEnemy", m, k), hits: hitsOf(near(text, m)) }; },
   },
+  // "회복력 100%" 만 적힌 줄 — 늘 회복이다
+  { re: /회복력\s*(\d+)\s*%/g, make: (m, text) => ({ k: "heal", ratio: Number(m[1]) / 100, target: pickTarget(text, "oneAlly", m, "heal") }) },
   // 코스트 — "코스트 -1" · "코스트 0" · "코스트 1"
   { re: /코스트\s*([+\-])\s*(\d+)/g, make: (m) => ({ k: "costDelta", v: (m[1] === "-" ? -1 : 1) * Number(m[2]) }) },
   { re: /코스트\s*(\d+)(?!\s*[%p])/g, make: (m) => ({ k: "costSet", v: Number(m[1]) }) },

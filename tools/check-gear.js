@@ -78,19 +78,23 @@ for (const e of Object.values(equips)) {
 
 // ── 교주 카드 ───────────────────────────────────────────────────────────
 const neutral = {};
+// 0코 교주 카드 — 사용자가 정한 예외(2026-10): 「소다맛 캡슐」 은 0코에 AP +1 만 돌려주는 카드(원작: 모든 사도 SP 회복 1회용).
+// 값 · 0코 규칙은 보지 않고, 신탁도 0코 · 소멸 · AP +1 을 지키는지만 본다
+const ZERO_OK = new Set(["소다맛 캡슐"]);
 for (const t of texts) Object.assign(neutral, parseNeutral(wrap(t, "## 스펠 → 교주 카드"), () => {}));
 for (const c of Object.values(neutral)) {
   const errs = [], notes = [];
   const { fx, left } = parseEffect(c.text, {});
   if (!fx.length) errs.push(`효과를 하나도 못 읽었다: ${c.text}`);
   if (left) errs.push(`못 읽은 말: 「${left}」 (${c.text})`);
-  if (c.cost === 0) errs.push("기본 0코는 없다 — 1코 이상(0코는 신탁 ① 강화로)");
+  const zero = ZERO_OK.has(c.ko);
+  if (c.cost === 0 && !zero) errs.push("기본 0코는 없다 — 1코 이상(0코는 신탁 ① 강화로)");
   const tags = [...(c.tags || []), ...fx.filter((f) => f.k === "tag").map((f) => f.id)];
   if (fx.some((f) => MODS.includes(f.k) && (f.turns || 1) >= 999) && !c.oneOnly) errs.push("이번 전투 동안 증감을 주는 카드는 「덱에 1장만.」");
   if (fx.some((f) => MODS.includes(f.k) && (f.turns || 1) >= 999) && !tags.includes("소멸")) errs.push("이번 전투 동안 증감을 주는 카드는 소멸");
   const v = valueOf(fx), base = baseValue(c.cost);
   notes.push(`값 ${v.toFixed(2)} / 기준 ${base.toFixed(1)}`);
-  if (c.cost !== "X" && v > base * 1.6) errs.push(`값어치 ${v.toFixed(2)} 가 ${c.cost}코 기준(${base})의 1.6배를 넘는다 — 싸다`);
+  if (c.cost !== "X" && !zero && v > base * 1.6) errs.push(`값어치 ${v.toFixed(2)} 가 ${c.cost}코 기준(${base})의 1.6배를 넘는다 — 싸다`);
   if (c.cost !== "X" && v < base * 0.6 && !fx.some((f) => MODS.includes(f.k))) errs.push(`값어치 ${v.toFixed(2)} 가 ${c.cost}코 기준(${base})의 0.6배 아래 — 비싸다`);
   // 신탁 다섯 — 고유 카드와 같은 자리(docs/07-스킬구성.md §7 · docs/13-장비와 중립.md §2)
   const KINDS = ["강화", "경량", "연계", "변형", "각성"];
@@ -108,7 +112,8 @@ for (const c of Object.values(neutral)) {
       const fc = flashCost(c.cost, r.fx), ftags = r.fx.filter((x) => x.k === "tag").map((x) => x.id);
       const body = r.fx.filter((x) => x.k !== "costSet" && x.k !== "costDelta");
       const fv = valueOf(body), gone = ftags.includes("소멸");
-      if (c.cost !== "X" && fc === 0) errs.push(`${at} — 교주 카드 신탁은 0코로 내리지 않는다`);
+      if (c.cost !== "X" && fc === 0 && !zero) errs.push(`${at} — 교주 카드 신탁은 0코로 내리지 않는다`);
+      if (zero && (fc !== 0 || !gone)) errs.push(`${at} — 0코 예외 카드의 신탁은 0코 · 소멸 그대로`);
       if (typeof fc === "number" && fc > 3) errs.push(`${at} — 3코 위로 올리지 않는다`);
       if (c.cost !== "X" && fc > c.cost && gone) errs.push(`${at} — 코스트를 올린 신탁에 소멸을 같이 붙이지 않는다`);
       if (c.cost !== "X" && fc > c.cost && fv < valueOf(fx) * 1.6) errs.push(`${at} — 코스트를 올렸으면 기본의 1.6배 이상 (지금 ${(fv / Math.max(0.01, valueOf(fx))).toFixed(2)}배)`);
@@ -117,7 +122,7 @@ for (const c of Object.values(neutral)) {
       if (body.some((x) => x.k === "ap" && x.v > 1)) errs.push(`${at} — 교주 카드는 AP +1 까지`);
       if (body.some((x) => x.k === "gauge" && x.v > 100)) errs.push(`${at} — 게이지는 한 장에 +100% 까지`);
       const fb = baseValue(fc);
-      if (c.cost !== "X" && fv > fb * 1.9) errs.push(`${at} — 값어치 ${fv.toFixed(2)} 가 ${fc}코 기준(${fb})에 비해 너무 싸다`);
+      if (c.cost !== "X" && !zero && fv > fb * 1.9) errs.push(`${at} — 값어치 ${fv.toFixed(2)} 가 ${fc}코 기준(${fb})에 비해 너무 싸다`);
     }
   }
   if (!freeForm) {

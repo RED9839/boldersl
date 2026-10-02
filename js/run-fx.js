@@ -1,7 +1,7 @@
 // 기획서에서 읽은 효과 조각을 실제로 실행한다.
 //
 // 수치는 전부 **스탯 기반 %** 다(기획서) — 피해는 공격력 × 배율, 방어·실드는 방어력 × 배율,
-// 회복은 공격력 × 배율. 계산식은 rules.js 의 finalDamage 를 따른다.
+// 회복은 회복력(공격력 + 역할 몫) × 배율. 계산식은 rules.js 의 finalDamage 를 따른다.
 //
 // 모르는 조각은 조용히 넘기지 않고 s.unknownFx 에 쌓는다 — 안 도는 것을 도는 척하면 안 된다.
 
@@ -43,6 +43,8 @@ function resolve(s, ctx, target) {
 // 버프가 들어간 공격력·방어력 — 패시브·키워드·카드의 증감을 combat 이 셈해 준다
 const atkOf = (api, u) => Math.max(1, Math.round(u.atk * (1 + (api.statOf ? api.statOf(u, "atk") : 0))));
 const defOf = (api, u) => Math.max(0, Math.round(u.def * (1 + (api.statOf ? api.statOf(u, "def") : 0))));
+// 회복력 — 버프가 들어간 공격력 + 역할 몫(rules.js HEAL_BONUS)
+const healOf = (api, u) => R.healStat(atkOf(api, u), u.role);
 
 // 이 사도가 그 키워드를 몇 개 들고 있나
 const stackOf = (s, key, id) => ((s.stacks || {})[key] || {})[id] || 0;
@@ -113,10 +115,10 @@ export function runFx(s, fxList, ctx, api) {
         for (const t of resolve(s, ctx, f.target)) { t[f.k] = (t[f.k] || 0) + v; if (api.gain) api.gain(t, f.k, v); }
         break;
       }
-      // 회복은 역할 보정을 곱한다 — 서포터 ×1.8 · 탱커 ×1.3 (rules.js HEAL_ROLE)
+      // 회복은 회복력 기준 — 교주 카드는 회복력이 가장 높은 아군(healOwner)을 본다
       case "heal": for (const t of resolve(s, ctx, f.target)) {
         const h0 = t.hp;
-        t.hp = Math.min(t.maxHp, t.hp + Math.max(1, Math.round(atkOf(api, owner) * (R.HEAL_ROLE[owner && owner.role] || 1) * f.ratio * (ctx.shin === "heal" ? R.SHIN : 1))   /* 괜찮아(축복) — 회복 ×1.3 */));
+        t.hp = Math.min(t.maxHp, t.hp + Math.max(1, Math.round(healOf(api, ctx.healOwner || owner) * f.ratio * (ctx.shin === "heal" ? R.SHIN : 1))   /* 괜찮아(축복) — 회복 ×1.3 */));
         if (api.heal) api.heal(t, h0);
       } break;
 

@@ -20,7 +20,7 @@
 //                     1개당 자신 주는 피해 +N%. 1개당 턴 종료 시 공격력 N% 피해. 「X」가 N개가 되면: …
 
 import { parseEffect } from "./effects.js";
-import { HEAL_ROLE } from "./rules.js";
+import { healStat } from "./rules.js";
 
 // ── 읽기 ───────────────────────────────────────────────────────────────
 
@@ -30,7 +30,8 @@ const TRIGGERS = [
   [/턴\s*종료\s*시/, () => ({ on: "turnEnd" })],
   [/한\s*턴에\s*카드를\s*(\d+)\s*장째\s*낼\s*때/, (m) => ({ on: "play", nth: Number(m[1]), who: "any" })],
   // 「1코 이상 카드를 3장 낼 때마다」 — 적힌 코스트가 N 이상인 카드만 센다(0코 순환 카드가 장수 패시브를 공짜로 돌리지 않게)
-  [/(?:(\d+)\s*코\s*이상\s*)?(공격|스킬|강화)?\s*카드를\s*(\d+)\s*장\s*낼\s*때마다/, (m) => ({ on: "play", every: Number(m[3]), type: m[2] || null, minCost: m[1] ? Number(m[1]) : 0 })],
+  // 「한 턴에 … N장 낼 때마다」 — 센 장수가 턴마다 0 으로 돌아간다(perTurn). 안 적으면 전투 내내 이어 센다
+  [/(한\s*턴에\s*)?(?:(\d+)\s*코\s*이상\s*)?(공격|스킬|강화)?\s*카드를\s*(\d+)\s*장\s*낼\s*때마다/, (m) => ({ on: "play", every: Number(m[4]), type: m[3] || null, minCost: m[2] ? Number(m[2]) : 0, ...(m[1] ? { perTurn: true } : {}) })],
   [/아군이\s*(공격|스킬|강화)?\s*카드를\s*낼\s*때마다/, (m) => ({ on: "play", who: "any", type: m[1] || null })],
   [/(공격|스킬|강화)\s*카드를\s*낼\s*때마다/, (m) => ({ on: "play", type: m[1] })],
   [/카드를\s*낼\s*때마다/, () => ({ on: "play" })],
@@ -155,7 +156,7 @@ export function parseKeyword(id, text, keywords = []) {
       }
       const dot = body.match(/턴\s*종료\s*시\s*공격력\s*(\d+)\s*%\s*피해/);
       if (dot) kw.per.push({ stat: "dot", ratio: Number(dot[1]) / 100 });
-      const heal = body.match(/턴\s*종료\s*시\s*(?:HP\s*)?회복\s*\(?\s*공격력\s*(\d+)\s*%/);
+      const heal = body.match(/턴\s*종료\s*시\s*(?:HP\s*)?회복\s*\(?\s*(?:공격력|회복력)\s*(\d+)\s*%/);
       if (heal) kw.per.push({ stat: "hot", ratio: Number(heal[1]) / 100 });
       const n = kw.per.length;
       if (!PER_STATS.some(([re]) => re.test(body)) && !dot && !heal) kw.left.push(s);
@@ -187,7 +188,9 @@ export function setupPassives(s, heroOf, gearFx = {}) {
     const kws = h.keyword ? [h.keyword.ko] : [];
     const kw = h.keyword ? (h.keywordRules || parseKeyword(h.keyword.ko, h.keyword.text, kws)) : null;
     const gearRules = gearFx[u.key] ? parsePassive(gearFx[u.key], kws).filter((r) => r.fx.length && !r.left).map((r) => ({ ...r, gear: true })) : [];
-    const rules = [...(h.passiveRules || parsePassive(h.passive, kws)), ...(kw ? kw.rules : []), ...gearRules];
+    // 키워드 규칙에는 표식이 어디 붙는지(kwOf)를 달아 둔다 — 아군에게 거는 표식의 「카드를 낼 때마다 「X」가 있으면」 은
+    // 그 표식을 든 아군이 낼 때다(matches · condOk). 주인 혼자 낼 때만 보던 것을 고쳤다(실비아 「초청객」)
+    const rules = [...(h.passiveRules || parsePassive(h.passive, kws)), ...(kw ? kw.rules.map((r) => ({ ...r, kwOf: kw.carrier })) : []), ...gearRules];
     s.passives[u.key] = rules;
     if (kw) s.kw[kw.id] = { ...kw, owner: u.key };
   }
@@ -242,7 +245,7 @@ export function collectAlways(s) {
         const stat = { dealtMod: "dealt", takenMod: "taken", atkMod: "atk", defMod: "def", critMod: "crit" }[f.k];
         if (!stat) continue;
         const who = f.target === "allAllies" ? s.party.map((u) => u.key) : [key];
-        for (const k of who) (s.always[k] = s.always[k] || []).push({ stat, v: f.v, cond: r.conds, owner: key });
+        for (const k of who) (s.always[k] = s.always[k] || []).push({ stat, v: f.v, cond: r.conds, owner: key, name: r.name });
       }
     }
   }
@@ -251,7 +254,13 @@ export function collectAlways(s) {
 function condOk(s, owner, r, info) {
   for (const c of r.conds) {
     if (c.c === "stack") {
-      const holder = (s.kw[c.id] && s.kw[c.id].carrier === "enemy") ? info.target : owner;
+      // 누구의 것을 세나 — 적 표식은 일을 당한 적, 아군 표식의 키워드 규칙(카드를 낼 때마다 「X」가 있으면)은 그 카드를 낸 아군,
+      // 그 밖(패시브의 「「X」가 N개 이상이면」)은 그 사도 자신. 실비아 「어머니의 특별 강의」 의 「초청객이 2개 이상」 은
+      // 실비아 자신이 든 수다 — 파티 합으로 세면 셋이 하나씩만 들어도 3 이라 늘 켜졌다
+      const kc = s.kw[c.id] && s.kw[c.id].carrier;
+      const holder = kc === "enemy" ? info.target
+        : kc === "ally" && r.kwOf === "ally" && info.actor ? (s.party.find((u) => u.key === info.actor) || owner)
+        : owner;
       if (stackOn(s, holder, c.id, owner) < c.n) return false;
     }
     if (c.c === "hp" && owner.hp / owner.maxHp > c.pct) return false;
@@ -264,11 +273,12 @@ function condOk(s, owner, r, info) {
   return true;
 }
 
-function matches(s, owner, w, ev, info) {
+function matches(s, owner, w, ev, info, kwOf) {
   if (w.on !== ev) return false;
   switch (ev) {
     case "play":
-      if (w.who !== "any" && info.hero !== owner.key) return false;
+      // 아군에게 거는 표식의 규칙은 표식을 든 누가 내도 본다(든 수는 condOk 가 낸 사람에게서 센다)
+      if (w.who !== "any" && kwOf !== "ally" && info.hero !== owner.key) return false;
       if (w.type && info.type !== w.type) return false;
       if (w.nth && info.nth !== w.nth) return false;
       if (w.minCost && (info.cost || 0) < w.minCost) return false;
@@ -294,13 +304,17 @@ export function emit(s, ev, info, run) {
       if (owner.dead) continue;
       const rules = s.passives[owner.key] || [];
       rules.forEach((r, i) => {
-        if (!matches(s, owner, r.when, ev, info)) return;
-        if (!condOk(s, owner, r, info)) return;
+        if (!matches(s, owner, r.when, ev, info, r.kwOf)) return;
         const id = `${owner.key}|${i}`;
+        // 「N장 낼 때마다 「X」가 …이면」 — 장수는 조건과 상관없이 세고, N장째에 조건을 본다.
+        // 전에는 조건이 맞을 때만 세서, 앞 턴에 하나 세 둔 것이 다음 턴 첫 장에 터졌다(실비아 AP 가 아무 때나 났다).
+        // 「한 턴에」(perTurn)면 턴마다 0 에서 센다
         if (r.when.every) {
-          s.counts[id] = (s.counts[id] || 0) + 1;
-          if (s.counts[id] % r.when.every) return;
+          const ck = r.when.perTurn ? `${id}|${s.turn}` : id;
+          s.counts[ck] = (s.counts[ck] || 0) + 1;
+          if (s.counts[ck] % r.when.every) return;
         }
+        if (!condOk(s, owner, r, info)) return;
         if (r.limit) {
           const key = `${id}|${r.limit.per === "turn" ? s.turn : "f"}`;
           if ((s.fired[key] || 0) >= r.limit.n) return;
@@ -336,7 +350,7 @@ export function tickTurnEnd(s, hurt, say) {
         for (const u of holders) {
           const n = kw.carrier === "self" ? (((s.stacks || {})[kw.owner] || {})[kw.id] || 0) : (u.status || {})[kw.id] || 0;
           if (!n || u.dead) continue;
-          const v = Math.max(1, Math.round(owner.atk * (HEAL_ROLE[owner.role] || 1) * p.ratio * n));   // 회복 역할 보정(rules.js)
+          const v = Math.max(1, Math.round(healStat(owner.atk, owner.role) * p.ratio * n));   // 회복력(rules.js)
           u.hp = Math.min(u.maxHp, u.hp + v);
         }
       }
@@ -372,7 +386,8 @@ export function tickMods(s) {
   }
 }
 
-export function addMod(u, stat, v, turns) {
+// src — 어디서 왔나(「실비아 「궁극의 유희」」 따위). 사도 정보 창이 버프 · 디버프마다 출처를 적는다
+export function addMod(u, stat, v, turns, src) {
   u.mods = u.mods || [];
-  u.mods.push({ stat, v, left: turns == null ? 1 : turns });
+  u.mods.push({ stat, v, left: turns == null ? 1 : turns, ...(src ? { src } : {}) });
 }

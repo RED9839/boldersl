@@ -39,7 +39,8 @@
     "design:check": "node tools/check-design.js",
     "effects": "node tools/check-effects.js",
     "build": "node tools/build-cards.js",
-    "fx": "node tools/check-fx.js"
+    "fx": "node tools/check-fx.js",
+    "sylvia": "node tools/check-sylvia.js"
   },
   "dependencies": {
     "@esotericsoftware/spine-webgl": "~4.1.56"

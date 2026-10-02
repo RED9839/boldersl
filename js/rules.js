@@ -79,8 +79,8 @@ export const SHOP_REROLL = 25;
 export const SHOP_REROLL_STEP = 25;
 // 카드 제거 · 복제는 덱을 원하는 모양으로 깎는 가장 센 수단이라 비싸다(2026-10 사용자: 대가를 크게, 횟수로 세지 말고 기본값으로).
 // 한 층 수입(보통 전투 15~25 · 보스 75 — 150 안팎)의 ⅔ — 제거하면 그 상점에선 다른 것을 거의 못 산다. 한 번 들를 때 한 번.
-export const PRICE_REMOVE = 100;         // 상점 카드 제거 — 늘 같은 값
-export const PRICE_REMOVE_STEP = 0;      // 횟수로 오르지 않는다(옛 규칙은 +25)
+export const PRICE_REMOVE = 100;         // 상점 카드 제거 — 첫 번째 값
+export const PRICE_REMOVE_STEP = 25;     // 뺄 때마다 오른다. 횟수는 판 전체(run.removals)라 모든 상점이 같이 쓴다(2026-10 사용자)
 // 이벤트 「카드 복제」 — 신탁 · 기적은 카드 종류에 붙어 있어 복제본도 그대로 가진다. 그래서 그런 카드를 고르면 골드를 더 받는다
 export const DUPE_FLASH_EXTRA = 40;
 // 진열 가중치 — 흔한 것이 자주 나온다
@@ -144,9 +144,12 @@ export const FRAIL = 0.10;
 // 유리하면 주는 피해 +10%, 받는 피해 -5%.
 const BEATS = { 광기: "순수", 순수: "냉정", 냉정: "광기", 활발: "우울", 우울: "활발" };
 export const NATURE_DMG = 0.10;
-// 회복 기준 — 카드는 「HP 회복(공격력 N%)」 로 적지만, 공격력이 낮은 서포터 · 탱커가 치료를 맡으면 양이 너무 작았다
-// (공격력 8 서포터의 「아군 전원 HP 회복(공격력 30%)」 = 2.4). 치료는 역할의 몫이라 역할마다 공격력에 곱해 센다
-export const HEAL_ROLE = { 서포터: 1.8, 탱커: 1.3, 딜러: 1 };
+// 회복력 — 회복은 공격력이 아니라 회복력으로 센다(카드 글 「HP 회복(회복력 N%)」).
+// 회복력 = 공격력 + 역할 몫. 공격력이 낮은 서포터 · 탱커도 치료가 바닥까지 꺼지지 않게 받쳐 주는 몫이고,
+// 딜러는 몫이 없어 전과 같다. 공격력 장비 · 버프는 그대로 회복력에도 붙는다.
+// (전에는 공격력에 역할 배율 서포터 ×1.8 · 탱커 ×1.3 을 곱했다 — 공격력 6 서포터는 10.8, 공격력 7 탱커는 9.1 에 그쳤다)
+export const HEAL_BONUS = { 서포터: 12, 탱커: 7, 딜러: 0 };
+export const healStat = (atk, role) => atk + (HEAL_BONUS[role] || 0);
 export const NATURE_DEF = 0.05;
 export function natureEdge(attacker, defender) {
   if (!attacker || !defender) return 0;
