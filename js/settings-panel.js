@@ -1,6 +1,6 @@
 // 설정 창의 내용 — 로비(⚙)와 전투 메뉴(☰ → 설정)가 같이 쓴다. 누르거나 밀면 바로 걸린다.
 //   화면   해상도 · 그래픽 품질 · 전체화면 · 사도 움직임 · 움직임 줄이기 · 글자 크게
-//   소리   전체 음량 · 목소리 음량
+//   소리   전체 음량 · 목소리 음량 · 효과음 음량
 // onSpine — 사도 움직임을 바꿨을 때 그 화면이 그림을 다시 세우게(전투 draw · 로비 메인 사도)
 import { getSettings, setSetting, RES_CHOICES } from "./settings.js";
 import { toggleFullscreen } from "./stage.js";
@@ -74,6 +74,7 @@ export function settingsPanel({ onSpine } = {}) {
     const sound = section("소리");
     slider(sound, "전체 음량", null, "volMaster");
     slider(sound, "목소리 음량", "사도의 목소리 — 0 이면 말하지 않습니다", "volVoice");
+    slider(sound, "효과음 음량", "타격 · 카드 · 단추 소리 — 0 이면 울리지 않습니다", "volSfx");
   }
   build();
   return wrap;

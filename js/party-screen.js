@@ -8,6 +8,7 @@ import * as C from "./combat.js";
 import * as RULES from "./rules.js";
 import * as art from "./art.js";
 import { speak } from "./voice.js";
+import { sfx } from "./sfx.js";
 import { el, hint, screen, NTINT, uiIcon, goldLabel, openHelp, fsButton, img, withKeywords, showCard, showPiles, bigCard, BATTLE_BG, GRADE_COLOR, emptySlotIcon, equipCard } from "./ui-common.js";
 
 // ── 편성 ───────────────────────────────────────────────────────────────
@@ -408,7 +409,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
     deckSec.appendChild(deckBox);
     side.appendChild(deckSec);
     const go = el("button", "tm-fgo tf-go", "떠납니다");
-    go.onclick = () => { for (const k of picked) rows[k] = rows[k] || HERO_DATA[k].row; onStart(picked, rows); };
+    go.onclick = () => { sfx.play("ui.start"); for (const k of picked) rows[k] = rows[k] || HERO_DATA[k].row; onStart(picked, rows); };
     side.appendChild(go);
     main.appendChild(side);
     s.appendChild(main);
@@ -445,7 +446,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
       info.onclick = (e) => { e.stopPropagation(); cameFrom = null; view = key; tab = "능력치"; render(); };
       const x = el("span", "tf-tool tf-x", "✕");
       x.title = "빼기";
-      x.onclick = (e) => { e.stopPropagation(); remove(key); fill(); };
+      x.onclick = (e) => { e.stopPropagation(); sfx.play("ui.deselect"); remove(key); fill(); };
       tools.appendChild(info); tools.appendChild(x);
       n.appendChild(tools);
       // 「모든 열」 사도 — 어느 열에 설지 고른다. 선 열에 따라 패시브의 다른 줄이 켜진다
@@ -502,7 +503,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
       hd.appendChild(tt);
       if (key) {
         const out = el("button", "tf-out", "이 자리 비우기");
-        out.onclick = () => { remove(key); closePicker(); fill(); };
+        out.onclick = () => { sfx.play("ui.deselect"); remove(key); closePicker(); fill(); };
         hd.appendChild(out);
       }
       const x = el("button", "tf-close", "×");
@@ -534,11 +535,12 @@ export function partyScreen(onStart, onBack, opts = {}) {
           else { picked[i] = key; delete rows[target]; rows[key] = rows[key] || HERO_DATA[key].row; speak(key, ["decksetting", "greeting"]); }
         }
       } else if (!picked.includes(key)) {
-        if (picked.length >= 3) return hint("셋까지만 데려갈 수 있습니다 — 칸을 눌러 바꾸거나 비워 주세요");
+        if (picked.length >= 3) { sfx.play("ui.error"); return hint("셋까지만 데려갈 수 있습니다 — 칸을 눌러 바꾸거나 비워 주세요"); }
         add(key);
       }
       if (filter.q) filter.q = "";
       hint("");
+      sfx.play("ui.select");
       closePicker();
       fill();
     }
@@ -710,9 +712,9 @@ export function partyScreen(onStart, onBack, opts = {}) {
     const take = el("button", "takebtn" + (on ? " on" : ""), on ? "편성에서 빼기" : "편성에 넣기");
     take.onclick = () => {
       const i = picked.indexOf(key);
-      if (i >= 0) picked.splice(i, 1);
-      else if (picked.length < 3) { picked.push(key); speak(key, ["decksetting", "greeting"]); }
-      else return hint("셋까지만 데려갈 수 있습니다");
+      if (i >= 0) { picked.splice(i, 1); sfx.play("ui.deselect"); }
+      else if (picked.length < 3) { picked.push(key); sfx.play("ui.select"); speak(key, ["decksetting", "greeting"]); }
+      else { sfx.play("ui.error"); return hint("셋까지만 데려갈 수 있습니다"); }
       hint("");
       render();
     };

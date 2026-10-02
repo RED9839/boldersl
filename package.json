@@ -8,6 +8,7 @@
     "build:deploy": "node tools/build-deploy.js",
     "deploy": "node tools/build-deploy.js && npx wrangler pages deploy dist --project-name bolzena --branch main --commit-dirty=true",
     "voice:select": "python tools/extract-select-voice.py",
+    "sfx": "python tools/extract-sfx.py",
     "currency": "python tools/extract-currency-icons.py",
     "sim": "node tools/sim.js 400",
     "smoke": "node tools/smoke.js",

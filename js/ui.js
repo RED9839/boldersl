@@ -13,6 +13,7 @@ import { spineView } from "./spine-view.js";
 import * as M from "./map.js";
 import { getZoom } from "./stage.js";
 import { settingsPanel } from "./settings-panel.js";
+import { sfx } from "./sfx.js";
 import { writeSave, saveOk } from "./save.js";
 import { HERO, TINT, el, hint, screen, NTINT, goldIcon, goldLabel, openHelp, fsButton, img, withKeywords, showCard, showPiles, bigCard, setStageBg, BATTLE_BG, statText, equipIcon, emptySlotIcon, equipCard } from "./ui-common.js";
 
@@ -248,6 +249,7 @@ export function mapScreen(run, onEnter, onQuit) {
     b.onclick = () => {
       if (dragged || busy || !can.has(n.id)) return;       // 끌다가 놓은 것은 누른 것이 아니다
       busy = true;
+      sfx.play("map.step");
       board.classList.add("going");
       b.classList.add("pick");
       party3.classList.add("walking");
@@ -305,6 +307,8 @@ export function rewardScreen(run, onPick) {
   bar.appendChild(el("span", "rwhy", "골드를 챙겼습니다. 고유 카드(은총) · 카드 강화(신탁)는 전투 중 빛나는 카드를 내면 얻습니다."));
   const rgot = run.reward || R.rollReward(run);
   if (rgot.gold) bar.appendChild(goldLabel("span", "sgold", `+${rgot.gold} 골드`));
+  sfx.play("reward", { delay: 120 });
+  if (rgot.gold) sfx.play("coin", { delay: 420 });
   const skip = el("button", "dexbtn", "계속합니다");
   skip.onclick = () => onPick(null, null);
   bar.appendChild(skip);
@@ -325,7 +329,7 @@ export function rewardScreen(run, onPick) {
         const row = el("div", "rrow");
         for (const id of got.equip) {
           const b = el("button", "sprice", "이걸 가집니다");
-          b.onclick = () => { R.takeEquip(run, id); writeSave(run); drawEq(); };
+          b.onclick = () => { R.takeEquip(run, id); writeSave(run); sfx.play("reward.card"); drawEq(); };
           row.appendChild(equipCard(id, b));
         }
         eqBox.appendChild(row);
@@ -433,7 +437,7 @@ export function rewardScreen(run, onPick) {
     if (terms.length) body.appendChild(termDl(terms));
     const row = el("div", "bmbtns");
     const go = el("button", "bmuse", "덱에 넣습니다");
-    go.onclick = () => { closeCenter(); onPick(id, null); };
+    go.onclick = () => { closeCenter(); sfx.play("reward.card"); onPick(id, null); };
     const x = el("button", "bmclose", "닫기");
     x.onclick = closeCenter;
     row.appendChild(go); row.appendChild(x);
@@ -460,7 +464,7 @@ export function rewardScreen(run, onPick) {
     if (terms.length) body.appendChild(termDl(terms));
     const row = el("div", "bmbtns");
     const go = el("button", "bmuse", "이 신탁을 붙입니다");
-    go.onclick = () => { closeCenter(); onPick(null, { cardId, n }); };
+    go.onclick = () => { closeCenter(); sfx.play("flash"); onPick(null, { cardId, n }); };
     const x = el("button", "bmclose", "닫기");
     x.onclick = closeCenter;
     row.appendChild(go); row.appendChild(x);
@@ -567,7 +571,7 @@ function gearPanel(run, mode, onChange, say) {
           clearTimeout(armed); armed = null;
           const why = R.sellEquip(run, id); writeSave(run);
           if (why && say) say(why);
-          else if (say) say(`「${e.ko}」 을(를) ${price} 골드에 팔았습니다`);
+          else { sfx.play("shop.sell"); if (say) say(`「${e.ko}」 을(를) ${price} 골드에 팔았습니다`); }
           draw(); onChange && onChange();
         };
         btns.appendChild(sell);
@@ -679,6 +683,7 @@ export function campScreen(run, withShop, onDone, onShop) {
     const before = run.party.map((k) => run.hp[k] || 0);
     const why = R.campRest(run); writeSave(run);
     if (why) return say(why);
+    sfx.play("camp.rest");
     // 불이 한 번 확 일고, 사도마다 찬 만큼 떠오른다
     fire.classList.remove("flare"); void fire.offsetWidth; fire.classList.add("flare");
     members.forEach((m, i) => {
@@ -828,6 +833,7 @@ export function campScreen(run, withShop, onDone, onShop) {
       const why = R.campTrain(run, { cardId: offer.cardId, n }); writeSave(run);
       closeSheet();
       if (why) return say(why);
+      sfx.play("flash");
       say(`「${c.name}」에 신탁을 붙였습니다. 불빛 아래에서 손에 익혔습니다.`);
       refresh();
     }, { verb: "신탁을 붙입니다" });
@@ -1069,7 +1075,7 @@ export function shopScreen(run, onDone, opts = {}) {
     rr.onclick = () => {
       const why = R.rerollShop(run); writeSave(run);
       if (why) return why === "골드가 모자랍니다" ? poor() : say(why);
-      say(pick(GOLDY.reroll)); act("reroll");
+      sfx.play("shop.reroll"); say(pick(GOLDY.reroll)); act("reroll");
       fresh = true; draw();
     };
     acts.appendChild(rr);
@@ -1103,6 +1109,7 @@ export function shopScreen(run, onDone, opts = {}) {
     b.onclick = () => {
       const why = R.buy(run, i); writeSave(run);
       if (why) return why === "골드가 모자랍니다" ? poor() : say(why);
+      sfx.play("shop.buy");
       if (it.kind === "equip") { bagNew = true; say(it.delivery ? GOLDY.delivery : GOLDY.equip); }
       else say(pick(GOLDY.buy));
       act("buy");
@@ -1178,7 +1185,7 @@ export function shopScreen(run, onDone, opts = {}) {
       const why = R.removeCard(run, id); writeSave(run);
       closeSheet();
       if (why) return why === "골드가 모자랍니다" ? poor() : say(why);
-      say(GOLDY.remove); act("remove"); draw();
+      sfx.play("shop.remove"); say(GOLDY.remove); act("remove"); draw();
     }, { verb: `${price} 골드로 뺍니다`, danger: true });
     run.deck.forEach((id) => {
       const c = CARDS[id];
@@ -1217,6 +1224,7 @@ const pctTxt = (p) => `${Math.round(p * 100)}%`;
 export function eventScreen(run, onDone, onFight) {
   const s = screen();
   s.className = "eventscreen2";
+  sfx.play("event.open");
   // 배경 — 이 층의 이벤트 자리 그림(싸움터와 같은 표)
   const floor = R.currentFloor(run);
   const bgFile = `assets/bg/${(BATTLE_BG[floor.n] || BATTLE_BG[1]).event}.jpg`;
@@ -1414,7 +1422,7 @@ export function eventScreen(run, onDone, onFight) {
     const box = el("div", "ev2-sheetbox");
     sheet.appendChild(box);
     s.appendChild(sheet);
-    const commit = (t) => { const w = EV.resolve(run, t); if (w) return hint(w); hint(""); act(["Happy_1", "Smile_1"]); draw(); };
+    const commit = (t) => { const w = EV.resolve(run, t); if (w) return hint(w); hint(""); if (t != null) sfx.play("reward.card"); act(["Happy_1", "Smile_1"]); draw(); };
     const head = (t, why) => { const d = el("div", "ev2-sheethead"); d.appendChild(el("b", null, t)); if (why) d.appendChild(el("span", null, why)); box.appendChild(d); };
     const skipBtn = (label = "받지 않습니다") => { const b = el("button", "ev2-skip", label); b.onclick = () => commit(null); return b; };
     let ts;
@@ -1554,6 +1562,7 @@ export function endScreen(kind, run, onRestart) {
   const s = screen();
   s.classList.add("endscreen");
   const clear = kind === "clear";
+  sfx.play(clear ? "victory" : "defeat");
 
   const bar = el("div", "dbar2");
   bar.appendChild(el("h1", "dtitle", clear ? "끝까지 갔습니다" : "여기까지"));

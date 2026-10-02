@@ -18,6 +18,7 @@ import { speak, stopVoice, voiceDone } from "./voice.js";
 import { toggleFullscreen } from "./stage.js";
 import { voiceCatsFor } from "./motion-voice.js";
 import { settingsPanel } from "./settings-panel.js";
+import { sfx } from "./sfx.js";
 
 const node = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
@@ -135,10 +136,10 @@ export function lobbyScreen(onStart, { onDex, onHelp, resume } = {}) {
     const r = resume.run, f = FLOORS[r.floor] || FLOORS[0];
     const names = r.party.map((k) => (HERO_DATA[k] || {}).ko || k).join(" · ");
     start.append(node("b", null, "이어하기"), node("span", null, `${r.floor + 1}층 ${f.name} · ${names}`));
-    start.onclick = leave(resume.go);
+    start.onclick = () => { sfx.play("ui.start"); leave(resume.go)(); };
   } else {
     start.append(node("b", null, "모험 시작"), node("span", null, "사도 셋을 골라 세계수 아래로"));
-    start.onclick = leave(onStart);
+    start.onclick = () => { sfx.play("ui.start"); leave(onStart)(); };
   }
   menu.appendChild(start);
   const item = (icon, label, why, fn, cls) => {
