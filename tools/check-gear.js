@@ -104,7 +104,8 @@ for (const c of Object.values(neutral)) {
       const at = `${"①②③④⑤"[f.n - 1]} 「${f.ko}」`;
       if (!r.fx.length) { errs.push(`${at} — 효과를 못 읽었다: ${f.text}`); continue; }
       if (r.left) errs.push(`${at} — 못 읽은 말: 「${r.left}」`);
-      const fc = flashCost(c.cost, r.fx), ftags = [...tags, ...r.fx.filter((x) => x.k === "tag").map((x) => x.id)];
+      // 신탁을 고른 카드는 신탁 글이 전문이다 — 머리 태그(소멸 등)는 엔진이 보지 않는다(js/combat.js hasTag). 그래서 여기서도 신탁 글의 태그만 본다
+      const fc = flashCost(c.cost, r.fx), ftags = r.fx.filter((x) => x.k === "tag").map((x) => x.id);
       const body = r.fx.filter((x) => x.k !== "costSet" && x.k !== "costDelta");
       const fv = valueOf(body), gone = ftags.includes("소멸");
       if (c.cost !== "X" && fc === 0) errs.push(`${at} — 교주 카드 신탁은 0코로 내리지 않는다`);
