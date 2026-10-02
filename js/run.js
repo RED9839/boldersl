@@ -29,7 +29,7 @@ export function newRun(partyKeys, rows, seed = Date.now()) {
     stops: {},                    // 들른 캠프 — { "0:camp": { used: "rest" } }
     camp: null,                   // 지금 캠프에서 굴린 수련 선택지
     deck: buildDeck(partyKeys),
-    floor: 0, node: 0,            // node 0..2 전투, 3 보스
+    floor: 0, node: 0,            // node 0..2 전투, 3 보스, 4 마지막 층 너머의 마지막 보스(isFinal)
     bench: Object.keys(HERO_DATA).filter((k) => !partyKeys.includes(k)),
 
     where: null,                  // 지금 어느 화면에 있나 — 이어하기가 그 자리로 돌아간다(js/main.js · js/save.js)
@@ -39,9 +39,13 @@ export function newRun(partyKeys, rows, seed = Date.now()) {
 
 export const currentFloor = (run) => FLOORS[run.floor];
 export const isBoss = (run) => run.node >= 3;
+// 판의 마지막 싸움 — 마지막 층의 보스를 넘은 뒤 뿌리 깊은 곳의 우로스(enemies.js final). 이것도 보스다
+export const isFinal = (run) => run.node >= 4;
+export const finalOf = (run) => (isFinal(run) && FLOORS[run.floor] && FLOORS[run.floor].final) || null;
 export function currentEnemies(run) {
   if (run.eventFight) return run.eventFight.enemies;      // 이벤트가 연 전투(js/events.js)
   const f = currentFloor(run);
+  if (isFinal(run)) return f.final.boss;
   if (isBoss(run)) return f.boss;
   // 지도의 칸이 정해 둔 짝(js/map.js) — 없으면(옛 저장 · 도구) 세기의 대표 싸움
   const at = run.map && run.map.at && run.map.rows.flat().find((n) => n.id === run.map.at);
@@ -155,7 +159,7 @@ export function rollReward(run) {
   const [lo, hi] = R.GOLD_FIGHT;
   const base = isBoss(run) ? R.GOLD_BOSS : lo + Math.floor(run.rng() * (hi - lo + 1)) + run.floor * 5;
   const gold = run.elite ? Math.round(base * R.ELITE_GOLD) : base;
-  const lastBoss = isBoss(run) && run.floor >= FLOORS.length - 1;
+  const lastBoss = isBoss(run) && run.floor >= FLOORS.length - 1 && (isFinal(run) || !FLOORS[run.floor].final);
   // 드랍 — 장비가 확률로 하나(R.DROP). 마지막 보스는 판이 끝나니 안 떨군다. 교주 카드는 상점 · 이벤트에서만
   const T = R.DROP[isBoss(run) ? "boss" : run.elite ? "elite" : "fight"];
   const at = (tbl) => tbl[Math.min(run.floor, tbl.length - 1)];
@@ -394,8 +398,9 @@ function shiftHp(run, k, d) {
   if ((run.hp[k] || 0) > 0) run.hp[k] = Math.max(1, Math.min(run.maxHp[k], run.hp[k] + Math.max(0, d)));
 }
 
-// 낀다 — swap 이 아니면 빈 칸에만(바꿔 끼기는 캠프에서)
-export function equip(run, heroKey, equipId, { swap = false } = {}) {
+// 낀다 — 한 번 끼면 빼지 못한다(뺄 길이 없다). replace 가 아니면 빈 칸에만.
+// replace 면 그 칸에 낀 것을 판다(sellPrice 만큼 골드) — 바꿔 끼기 = 옛 장비 팔기
+export function equip(run, heroKey, equipId, { replace = false } = {}) {
   const e = EQUIP[equipId];
   if (!e) return "그런 장비가 없습니다";
   if (!run.party.includes(heroKey)) return "파티에 없는 사도입니다";
@@ -403,30 +408,19 @@ export function equip(run, heroKey, equipId, { swap = false } = {}) {
   if (i < 0) return "가방에 없는 장비입니다";
   const g = (run.gear[heroKey] = run.gear[heroKey] || {});
   const old = g[e.slot];
-  if (old && !swap) return `${e.slot} 칸이 차 있습니다 — 바꿔 끼려면 바꾸기로`;
+  if (old && !replace) return `${e.slot} 칸이 차 있습니다 — 바꿔 끼면 낀 것은 팔립니다`;
   run.bag.splice(i, 1);
-  if (old) { shiftHp(run, heroKey, -statsOf(old, heroKey).hp); run.bag.push(old); }
+  if (old) { shiftHp(run, heroKey, -statsOf(old, heroKey).hp); run.gold += sellPrice(old); }
   g[e.slot] = equipId;
   shiftHp(run, heroKey, statsOf(equipId, heroKey).hp);
   return null;
 }
 
-// 뺀다 — 전투 밖이면 어디서든(지도 · 캠프 · 상점)
-export function unequip(run, heroKey, slot) {
-  const g = gearOf(run, heroKey);
-  const id = g[slot];
-  if (!id) return "빈 칸입니다";
-  shiftHp(run, heroKey, -statsOf(id, heroKey).hp);
-  delete g[slot];
-  run.bag.push(id);
-  return null;
-}
-
-// 판다 — 가방의 장비만(끼고 있는 것은 먼저 뺀다). 사는 값의 EQUIP_SELL 만큼 골드
+// 판다 — 가방의 장비만. 낀 것은 바꿔 낄 때 저절로 팔린다. 사는 값의 EQUIP_SELL 만큼 골드
 export const sellPrice = (equipId) => { const e = EQUIP[equipId]; return e ? Math.round((R.EQUIP_PRICE[e.grade] || 0) * R.EQUIP_SELL) : 0; };
 export function sellEquip(run, equipId) {
   const i = run.bag.indexOf(equipId);
-  if (i < 0) return "가방에 없는 장비입니다 — 끼고 있으면 먼저 뺍니다";
+  if (i < 0) return "가방에 없는 장비입니다 — 낀 장비는 바꿔 낄 때 팔립니다";
   run.bag.splice(i, 1);
   run.gold += sellPrice(equipId);
   return null;
@@ -467,6 +461,8 @@ export function takeEquip(run, equipId) {
 export function advance(run) {
   const wasBoss = isBoss(run);
   if (!wasBoss) { run.node++; return { swap: false }; }
+  // 마지막 층의 보스 뒤에 마지막 싸움이 있으면 층을 넘지 않고 그리로(node 4) — 캠프 한 번을 거친다(main.js finalCamp)
+  if (!isFinal(run) && run.floor === FLOORS.length - 1 && FLOORS[run.floor].final) { run.node = 4; return { swap: false, final: true }; }
   run.floor++; run.node = 0;
   if (run.floor >= FLOORS.length) { run.done = "clear"; return { swap: false }; }
   // 층 사이에 조금 쉰다 — 몸도 마음도. 사도 교체는 없다(처음 고른 셋으로 끝까지 간다)

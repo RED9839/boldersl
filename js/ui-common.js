@@ -10,6 +10,7 @@ import * as R from "./run.js";
 import * as art from "./art.js";
 import * as M from "./map.js";
 import { toggleFullscreen } from "./stage.js";
+import { 이가 } from "./ko.js";
 
 // 사도 정보는 기획서가 원본이다. 빛깔만 옛 heroes.js 가 들고 있다.
 export const HERO = (k) => HERO_DATA[k] || HEROES[k] || { ko: k, row: "mid", nature: null };
@@ -146,7 +147,7 @@ const HELP = [
   ["신탁", "은총 · 신탁 · 겨우살이의 축복", () => helpList([
     "싸우다 보면 카드가 빛납니다. 빛나는 카드를 내면 세계수의 뜻이 내립니다.",
     "은총 — 사도의 기본 카드가 빛납니다. 내면 그 사도의 고유 카드 하나가 손패로 옵니다(그 턴 0코). 고르지 않습니다. 한 번 뺀 고유 카드는 다시 오지 않습니다.",
-    "신탁 — 고유 카드 · 교주 카드가 빛납니다. 내면 신탁 다섯(① 경량 ② 강화 ③ 연계 ④ 변형 ⑤ 각성) 가운데 셋이 뜨고 하나를 고릅니다. 카드가 바로 바뀌고 이번에 내는 것은 0코입니다.",
+    "신탁 — 고유 카드 · 교주 카드가 빛납니다. 내면 그 카드의 신탁 다섯 가운데 셋이 뜨고 하나를 고릅니다(카드의 원래 효과도 곁에 보입니다). 카드가 바로 바뀌고 이번에 내는 것은 0코입니다.",
     `겨우살이의 축복 — 신탁 선택지 하나에 드물게(${Math.round(RULES.DIVINE * 100)}%) 붙는 덤입니다. 카드 종류마다 다른 열세 가지(피해 ×1.3 · 비용 -1 · 드로우 · AP · 회복 · 방어 · 취약 · 중독 …).`,
     "사도마다 따로 굴립니다 — 한 전투에 여러 사도, 운이 좋으면 셋 모두 은총이 빛납니다. 교주 카드 신탁은 사도와 별개로 한 번 더 굴립니다.",
     `사도 한 명당 — 은총: 일반 ${Math.round(RULES.EPI_HERO.fight * 100)}% · 엘리트 ${Math.round(RULES.EPI_HERO.elite * 100)}% · 보스 ${Math.round(RULES.EPI_HERO.boss * 100)}% / 신탁: 일반 ${Math.round(RULES.EPI_CARD.fight * 100)}% · 엘리트 ${Math.round(RULES.EPI_CARD.elite * 100)}% · 보스 ${Math.round(RULES.EPI_CARD.boss * 100)}%. 엘리트 · 보스는 은총이, 엘리트는 신탁도 적어도 하나는 빛납니다.`,
@@ -345,7 +346,7 @@ export function showPiles(piles, pick, cardFor, onDetail) {
       card.onclick = onDetail ? () => onDetail(id) : null;   // 누르면 자세히 — 더미 창 위에 뜬다
       card.title = onDetail ? "눌러서 자세히 보기" : "";
       if (onDetail) card.classList.add("canzoom");
-      if (c.flashOn) card.appendChild(el("span", "pflash", `${"①②③④⑤"[c.flashOn - 1]} ${c.flashKind || c.flashKo || ""}`));
+      if (c.flashOn) card.appendChild(el("span", "pflash", c.flashKind || c.flashKo || "신탁"));
       cell.appendChild(card);
       // 카드에는 줄여서 앉혔으니, 아래에 전문을 붙인다
       cell.appendChild(withKeywords(el("p", "pfull"), c.text, c.hero));
@@ -363,6 +364,17 @@ export function showPiles(piles, pick, cardFor, onDetail) {
 export function natureClass(c) {
   const nat = c && c.hero ? C.natureOf(c.hero) : null;
   return nat ? " p-" + nat : "";
+}
+
+// 신탁을 고를 때 견줄 카드의 효과 — 「원래 효과」(아직 신탁이 없다) · 「지금」(이미 붙은 신탁을 바꾼다).
+// 카드 그림 위 글은 작아서, 고르는 창마다 같은 상자로 한 번 더 읽히게 한다(전투 · 이벤트 · 캠프 · 보상)
+export function effectBox(c, label, head) {
+  const box = el("div", "fbase");
+  const top = el("span", "fbaselab", label);
+  if (head) top.appendChild(el("em", null, head));
+  box.appendChild(top);
+  box.appendChild(withKeywords(el("p", "fbasetext"), shortText(c.text), c.hero));
+  return box;
 }
 
 // 한 장의 카드. 도감 상세에서도 쓰고, 나중에 다른 곳에서도 쓸 수 있게 여기 한 번만 쓴다.
@@ -469,7 +481,7 @@ export function equipIcon(e, size = 48) {
     const pic = CARDART.pic[e.affinity + "_ult"];
     if (pic) { const f = el("span", "eaffface"); f.appendChild(img(pic)); f.title = `${e.affinityKo} 애착`; n.appendChild(f); }
   }
-  n.title = `${e.ko} · ${e.slot} · ${e.grade}`;
+  n.title = `${e.ko} · ${e.slot} · ${e.grade}${statText(e.stats) ? `\n${statText(e.stats)}` : ""} — 누르면 자세히`;
   return n;
 }
 // 빈 칸 — 그 칸의 모양만 흐리게
@@ -491,19 +503,100 @@ export function equipCard(id, extra) {
   head.appendChild(el("span", "egrade", e.grade));
   n.appendChild(head);
   n.appendChild(el("p", "eqstat", statText(e.stats) || "스탯 없음"));
-  // 효과 · 애착은 낀 사도의 패시브가 된다(docs/13-장비와 중립.md). 다 읽히지 않는 줄은 「아직 안 돕니다」로 흐리게
-  const effLine = (label, text, on) => {
-    const p = el("p", "eeff" + (on ? " on" : ""));
-    p.appendChild(el("span", "eoff", on ? label : `${label} · 아직 안 돕니다`));
-    p.appendChild(withKeywords(el("span"), " " + shortText(String(text).replace(/\s*\[[^\]]+\]/g, "")), e.affinity || null));
-    return p;
-  };
-  if (e.effect) n.appendChild(effLine("효과", e.effect, e.effectRead));
+  if (e.effect) n.appendChild(effLine(e, "효과", e.effect, e.effectRead));
   if (e.affinityKo) {
     n.appendChild(el("p", "eaff", `애착: ${e.affinityKo}${e.affinityLv3 ? ` — 끼면 ${statText(e.affinityLv3)} 더` : ""}`));
-    if (e.affinityPassive) n.appendChild(effLine(`애착 · ${e.affinityKo}`, e.affinityPassive, e.affinityRead));
+    if (e.affinityPassive) n.appendChild(effLine(e, `애착 · ${e.affinityKo}`, e.affinityPassive, e.affinityRead));
   }
   if (e.blurb) n.appendChild(el("p", "eblurb", e.blurb));
   if (extra) n.appendChild(extra);
   return n;
+}
+// 효과 · 애착은 낀 사도의 패시브가 된다(docs/13-장비와 중립.md). 다 읽히지 않는 줄은 「아직 안 돕니다」로 흐리게
+function effLine(e, label, text, on) {
+  const p = el("p", "eeff" + (on ? " on" : ""));
+  p.appendChild(el("span", "eoff", on ? label : `${label} · 아직 안 돕니다`));
+  p.appendChild(withKeywords(el("span"), " " + shortText(String(text).replace(/\s*\[[^\]]+\]/g, "")), e.affinity || null));
+  return p;
+}
+
+// ── 장비 자세히 ─────────────────────────────────────────────────────────
+// 장비 아이콘 · 장비 칸은 어디서든 누르면 이 창이 뜬다(지도 · 캠프 · 상점 · 보상 · 전투). 휴대폰은 마우스 올리기가 없다.
+// 가운데 창(.bmodal 80) 위에 뜬다 — 장비 창 안에서 눌러도 뒤에 숨지 않게. 한 번에 하나, 바깥 · Esc · 닫기로 닫는다.
+// heroKey: 낀(낄) 사도 — 그 사도 기준 스탯 · 애착. note: 한 줄 덧말. acts: [{ label, cls, run }] — 누르면 창을 닫고 run()
+let eqPop = null;
+export function closeEqPop() { if (eqPop) { eqPop.remove(); eqPop = null; } }
+if (typeof document === "object" && document.addEventListener) {
+  // 잡는 쪽(capture)에서 먼저 — 밑의 창(지도 장비 창 · 캠프 · 상점 시트)까지 Esc 로 같이 닫히지 않게
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && eqPop) { closeEqPop(); e.stopPropagation(); } }, true);
+}
+function popBox(cls) {
+  closeEqPop();
+  if (kwNote) { kwNote.remove(); kwNote = null; }
+  const back = el("div", "bmodal eqpop " + cls);
+  const box = el("div", "bmbox");
+  box.setAttribute("role", "dialog");
+  back.appendChild(box);
+  back.onclick = (ev) => { if (ev.target === back) closeEqPop(); };
+  document.body.appendChild(back);
+  eqPop = back;
+  return box;
+}
+const STAT_FULL = { atk: "공격력", def: "방어력", hp: "체력", crit: "치명" };
+export function showEquip(id, { heroKey = null, note = "", acts = [] } = {}) {
+  const e = EQUIP[id];
+  if (!e) return;
+  const box = popBox("eqdetail g-" + e.grade);
+  const face = el("div", "eqface");
+  face.appendChild(equipIcon(e, 104));
+  box.appendChild(face);
+  const body = el("div", "bmbody");
+  body.appendChild(el("span", "bmkind", `${e.slot} · ${e.grade}${e.affinityKo ? ` · 애착 ${e.affinityKo}` : ""}`));
+  body.appendChild(el("h3", "bmname", e.ko));
+  // 스탯 — 낀 사도가 있으면 그 사도 기준(애착이면 Lv.3 스탯까지 더해서)
+  const st = heroKey ? R.statsOf(id, heroKey) : { hp: 0, atk: 0, def: 0, crit: 0, ...e.stats };
+  const dl = el("dl", "bmterms eqstats");
+  for (const k of ["atk", "def", "hp", "crit"]) {
+    if (!st[k]) continue;
+    dl.appendChild(el("dt", null, STAT_FULL[k]));
+    dl.appendChild(el("dd", null, `+${st[k]}${k === "crit" ? "%" : ""}`));
+  }
+  if (!dl.children.length) { dl.appendChild(el("dt", null, "스탯")); dl.appendChild(el("dd", null, "없음")); }
+  body.appendChild(dl);
+  if (heroKey) body.appendChild(el("p", "eqwho", `${HERO(heroKey).ko || heroKey} 기준${e.affinity === heroKey ? " — 애착 보너스 포함" : ""}`));
+  if (e.effect) body.appendChild(effLine(e, "효과", e.effect, e.effectRead));
+  if (e.affinityKo) {
+    const on = !!heroKey && e.affinity === heroKey;
+    body.appendChild(el("p", "eaff" + (on ? " on" : ""), `애착 ${e.affinityKo}${e.affinityLv3 ? ` — ${이가(e.affinityKo)} 끼면 ${statText(e.affinityLv3)} 더` : ""}${on ? " · 받는 중" : ""}`));
+    if (e.affinityPassive) body.appendChild(effLine(e, `애착 · ${e.affinityKo}`, e.affinityPassive, e.affinityRead));
+  }
+  if (e.blurb) body.appendChild(el("p", "eblurb", e.blurb));
+  body.appendChild(goldLabel("p", "eqsell", `팔면 +${R.sellPrice(id)} 골드`));
+  if (note) body.appendChild(el("p", "eqnote", note));
+  const row = el("div", "bmbtns");
+  for (const a of acts) {
+    const b = el("button", a.cls || "bmuse", a.label);
+    b.onclick = () => { closeEqPop(); a.run(); };
+    row.appendChild(b);
+  }
+  const x = el("button", "bmclose", "닫기");
+  x.onclick = closeEqPop;
+  row.appendChild(x);
+  body.appendChild(row);
+  box.appendChild(body);
+}
+// 묻고 한다 — 되돌릴 수 없는 일(장비 바꿔 끼기 = 옛 장비 팔기). 장비 자세히와 같은 자리에 뜬다
+export function confirmPop({ title, text, ok, onOk }) {
+  const box = popBox("eqconfirm");
+  const body = el("div", "bmbody");
+  body.appendChild(el("h3", "bmname", title));
+  body.appendChild(el("p", "bmtext", text));
+  const row = el("div", "bmbtns");
+  const y = el("button", "bmuse", ok);
+  y.onclick = () => { closeEqPop(); onOk(); };
+  const x = el("button", "bmclose", "그만둡니다");
+  x.onclick = closeEqPop;
+  row.appendChild(y); row.appendChild(x);
+  body.appendChild(row);
+  box.appendChild(body);
 }
