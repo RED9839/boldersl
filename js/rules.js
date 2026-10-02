@@ -68,6 +68,8 @@ export const SHOP_REROLL = 25;
 export const SHOP_REROLL_STEP = 25;
 export const PRICE_REMOVE = 75;          // 카드 제거 — 쓸 때마다 +25 (한 번 들를 때 한 번)
 export const PRICE_REMOVE_STEP = 25;
+// 이벤트 「카드 복제」 — 신탁 · 기적은 카드 종류에 붙어 있어 복제본도 그대로 가진다. 그래서 그런 카드를 고르면 골드를 더 받는다
+export const DUPE_FLASH_EXTRA = 40;
 // 진열 가중치 — 흔한 것이 자주 나온다
 export const SHOP_GRADE_WEIGHT = { 일반: 5, 고급: 4, 희귀: 2, 전설: 1 };
 

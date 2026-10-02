@@ -35,6 +35,8 @@ const RULES_OUT = [
   [/^신탁\s*바꾸기\s*1$/, () => ({ k: "flash", swap: true })],
   [/^기적\s*(\d+)\s*%$/, (m) => ({ k: "shin", p: Number(m[1]) / 100 })],
   [/^기적\s*막힘$/, () => ({ k: "noShin" })],
+  // 이미 신탁을 붙인 카드 하나에 기적을 바로 얹는다(없으면 이번에 고르는 신탁에)
+  [/^기적\s*1$/, () => ({ k: "shinNow" })],
   [/^골칫거리\s*「(.+)」$/, (m) => ({ k: "curse", name: m[1] })],
   [/^지도\s*공개$/, () => ({ k: "scout" })],
   [new RegExp(`^다음\\s*상점:\\s*장비\\s*\\((${GRADES})\\)$`), (m) => ({ k: "shopGift", grade: m[1] })],
@@ -283,6 +285,12 @@ export function apply(run, ops) {
       }
       case "shin": E.shinChance = (E.shinChance || 0) + o.p; break;
       case "noShin": run.noShin = true; break;
+      case "shinNow": {
+        const ids = Object.keys(run.flash || {}).filter((id) => CARDS[id] && !(run.shin || {})[id]);
+        if (ids.length) { const id = ids[Math.floor(run.rng() * ids.length)]; run.shin = run.shin || {}; run.shin[id] = true; E.log.push(`기적! 「${CARDS[id].name}」 의 신탁 위에 한 줄이 더 얹혔습니다 (피해 ×1.3)`); }
+        else { E.shinChance = 1; E.log.push("기적을 얹을 신탁이 아직 없습니다 — 이번에 고르는 신탁에 얹힙니다"); }
+        break;
+      }
       case "curse": {
         const c = CURSES[o.name];
         if (c) { run.deck.push(c.id); E.log.push(`골칫거리 「${o.name}」 — 덱에`); }
@@ -344,6 +352,12 @@ export function resolve(run, value) {
     }
     case "dupe": {
       if (!run.deck.includes(value)) return "덱에 없는 카드입니다";
+      if (!dupeOk(value)) return "덱에 1장만 넣는 카드는 복제할 수 없습니다";
+      const extra = dupeExtra(run, value);
+      if (extra) {
+        if ((run.gold || 0) < extra) return `신탁 · 기적이 붙은 카드는 복제에 골드 ${extra} 가 더 듭니다 (지금 ${run.gold || 0})`;
+        run.gold -= extra; E.log.push(`신탁 · 기적까지 옮겨 적느라 골드 -${extra}`);
+      }
       run.deck.push(value);
       E.log.push(`「${CARDS[value].name}」 — 한 장 더`);
       break;
@@ -416,6 +430,10 @@ export function afterEventFight(run, won) {
   }
   apply(run, parseOut(out));
 }
+
+// 카드 복제 — 고를 수 있는가 · 웃돈. 신탁 · 기적은 카드 종류(id)에 붙어 있어 복제본도 그대로 가진다
+export function dupeOk(id) { const c = CARDS[id]; return !!c && !c.oneOnly; }
+export function dupeExtra(run, id) { return (run.flash || {})[id] || (run.shin || {})[id] ? R.DUPE_FLASH_EXTRA : 0; }
 
 // 이벤트를 닫는다 — 다음 칸으로
 export function leaveEvent(run) {
