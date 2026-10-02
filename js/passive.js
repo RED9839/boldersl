@@ -40,6 +40,8 @@ const TRIGGERS = [
   [/피해를\s*받으면/, () => ({ on: "hurt" })],
   [/HP가\s*(\d+)\s*%\s*이하가\s*되면/, (m) => ({ on: "lowHp", pct: Number(m[1]) / 100 })],
   [/아군이\s*쓰러지면/, () => ({ on: "allyDown" })],
+  // 새 적 규칙(docs/12) — 아군이 카드를 내다 적의 즉시 행동을 당겼을 때
+  [/적이\s*즉시\s*행동하면/, () => ({ on: "rush" })],
   [/(?:고학년\s*스킬을|궁극기를)\s*쓰면/, () => ({ on: "ult" })],   // 옛 이름(궁극기)도 읽는다
   [/적에게\s*(?:취약|약화|기절|디버프)을?를?\s*걸면/, () => ({ on: "debuff" })],
   [/「(.+?)」\s*(?:이|가)?\s*(\d+)\s*개?\s*가?\s*되면/, (m) => ({ on: "stackReach", id: m[1], n: Number(m[2]) })],
@@ -52,6 +54,10 @@ const CONDS = [
   [/HP가\s*(\d+)\s*%\s*이하이면/, (m) => ({ c: "hp", pct: Number(m[1]) / 100 })],
   [/적이\s*(\d+)\s*명\s*이상이면/, (m) => ({ c: "foes", n: Number(m[1]) })],
   [/혼자\s*남으면/, () => ({ c: "alone" })],
+  // 덱 무게(docs/11 §3-3) — 이번 턴 파티가 낸 카드 장수. 장수로 세니 신탁으로 코스트가 내려간 카드도 같다.
+  // 「턴 종료 시 이번 턴 카드를 2장 이하로 냈으면」 은 무거운 덱, 「4장 이상 냈으면」 은 가벼운 덱 쪽
+  [/이번\s*턴\s*카드를\s*(\d+)\s*장\s*이하로?\s*냈으면/, (m) => ({ c: "playedMax", n: Number(m[1]) })],
+  [/이번\s*턴\s*카드를\s*(\d+)\s*장\s*이상\s*냈으면/, (m) => ({ c: "playedMin", n: Number(m[1]) })],
   // 선 열 — 「모든 열」 사도가 편성에서 고른 열에 따라 다른 줄이 켜진다
   [/(전열|중열|후열)에\s*서\s*있으면/, (m) => ({ c: "row", row: { 전열: "front", 중열: "mid", 후열: "back" }[m[1]] })],
 ];
@@ -252,6 +258,8 @@ function condOk(s, owner, r, info) {
     if (c.c === "foes" && s.enemies.filter((e) => !e.dead).length < c.n) return false;
     if (c.c === "alone" && s.party.filter((u) => !u.dead && u !== owner).length) return false;
     if (c.c === "row" && owner.row !== c.row) return false;
+    if (c.c === "playedMax" && (s.playedThisTurn || 0) > c.n) return false;
+    if (c.c === "playedMin" && (s.playedThisTurn || 0) < c.n) return false;
   }
   return true;
 }

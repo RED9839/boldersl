@@ -41,7 +41,7 @@ for (const [id, c] of Object.entries(BUILT.cards)) {
   };
 }
 
-// ② 중립 카드 — 어느 사도에도 속하지 않는다. 골디의 상점에서 산다.
+// ② 교주 카드 — 어느 사도에도 속하지 않는다. 골디의 상점에서 산다.
 //    효과가 다 읽힌 것(playable)만 판다. 나머지도 장부에는 두어 도감·검사가 볼 수 있게 한다.
 for (const [id, c] of Object.entries(BUILT.neutral || {})) {
   book[id] = {

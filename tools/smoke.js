@@ -345,20 +345,20 @@ console.log("\n이후 화면");
   C.endTurn(s1);
   check(C.costOf(s1, got1) === CB.CARDS[got1].cost, "다음 턴부터는 제 비용");
 
-  // 중립 카드도 신탁 다섯 — 덱에 있으면 고유 카드처럼 신탁이 뜬다
+  // 교주 카드도 신탁 다섯 — 덱에 있으면 고유 카드처럼 신탁이 뜬다
   {
     const nids = CB.NEUTRAL_IDS.filter((id) => CB.CARDS[id].playable);
     check(nids.every((id) => (CB.CARDS[id].flash || []).length === 5 && CB.CARDS[id].flash.every((f, i) => f.n === i + 1 && f.fx.length && !f.unparsed)),
-      `중립 카드 ${nids.length}장 모두 신탁 다섯이 다 읽힌다`);
+      `교주 카드 ${nids.length}장 모두 신탁 다섯이 다 읽힌다`);
     const r8 = R.newRun(run.party, run.rows, 93), nid = nids[0];
     r8.deck = r8.deck.filter((id) => !CB.CARDS[id].unique); r8.deck.push(nid);
-    check(R.flashTargets(r8).includes(nid), "가진 중립 카드가 신탁 대상이 된다");
+    check(R.flashTargets(r8).includes(nid), "가진 교주 카드가 신탁 대상이 된다");
     let lit = null;
     for (let i = 0; i < 300 && !lit; i++) { r8.rng = C.makeRng(i + 1); const g = R.rollEpiphany(r8)[nid]; if (g && g.kind === "card") lit = g; }
-    check(!!lit, "중립 카드에 신탁이 빛난다");
+    check(!!lit, "교주 카드에 신탁이 빛난다");
     const s8 = C.newCombat({ partyKeys: r8.party, rows: r8.rows, deck: [nid], enemyIds: ["curburus"], seed: 5, hp: r8.hp, maxHp: r8.maxHp, glow: { [nid]: lit } });
     C.applyEpiphany(s8, nid, 0);
-    check(s8.flash[nid] === lit.options[0].n && s8.book[nid].flashOn === lit.options[0].n, `신탁을 고르면 중립 카드가 바뀐다 (${CB.CARDS[nid].name} → ${s8.book[nid].flashKo})`);
+    check(s8.flash[nid] === lit.options[0].n && s8.book[nid].flashOn === lit.options[0].n, `신탁을 고르면 교주 카드가 바뀐다 (${CB.CARDS[nid].name} → ${s8.book[nid].flashKo})`);
   }
 
   // 한 번 뺀 고유 카드는 은총 · 상점에 다시 안 나온다
@@ -476,7 +476,7 @@ console.log("\n골디의 상점");
   const sp = ui.shopScreen(r, () => {});
   check(!R.needsShop(r), "상점은 층마다 한 번");
   const neu = r.shop.items.filter((it) => it.kind === "neutral");
-  check(neu.length === 3 && neu.every((it) => CB[it.id].playable), `중립 카드 셋, 모두 효과가 다 도는 것 (${neu.map((it) => CB[it.id].name).join(" · ")})`);
+  check(neu.length === 3 && neu.every((it) => CB[it.id].playable), `교주 카드 셋, 모두 효과가 다 도는 것 (${neu.map((it) => CB[it.id].name).join(" · ")})`);
   check(neu.every((it) => it.price === CB[it.id].price), "값은 기획서의 골드 그대로");
   const EQUIP_DB = (await import("../js/cardbook.js")).EQUIP;
   const eqs = r.shop.items.filter((it) => it.kind === "equip");
@@ -500,7 +500,7 @@ console.log("\n골디의 상점");
   const ids1 = r.shop.items.map((it) => it.id).join();
   check(r.gold === g1 - 25 && R.rerollPrice(r) === 50 && ids1 !== ids0, "새로고침하면 25골드가 빠지고 진열이 바뀌고 다음 값은 50");
   check(r.shop.items.filter((it) => it.kind === "neutral").length === 3 && r.shop.items.filter((it) => it.kind === "equip").length === 3
-    && r.shop.items.every((it) => !it.sold), "새로고침한 진열도 중립 카드 셋 · 장비 셋, 팔린 칸 없이");
+    && r.shop.items.every((it) => !it.sold), "새로고침한 진열도 교주 카드 셋 · 장비 셋, 팔린 칸 없이");
   const rrBtn = clickAll(sp, (n) => n.classList.contains("sh-reroll"))[0];
   const rrPriceEl = rrBtn && rrBtn.children.find((c) => c.classList.contains("sh-actprice"));
   check(!!rrPriceEl && rrPriceEl.textContent.trim() === "50", `새로고침 단추에 오른 값이 적힌다 (${rrPriceEl && rrPriceEl.textContent})`);
@@ -528,12 +528,12 @@ console.log("\n골디의 상점");
   const n3 = r3.deck.length;
   const sp3 = ui.shopScreen(r3, () => {});
   check(r3.shop.gift && r3.deck.length === n3 + 1 && /황금대공/.test(sp3.textContent), `실비아가 있으면 선물 한 장 (${CB[r3.shop.gift].name})`);
-  // 중립 카드가 전투에서 실제로 돈다 — 주인이 없으니 공격력이 가장 높은 아군 기준
+  // 교주 카드가 전투에서 실제로 돈다 — 주인이 없으니 공격력이 가장 높은 아군 기준
   const nid = Object.keys(CB).find((id) => CB[id].neutral && CB[id].playable && CB[id].name === "저놈 잡아라!");
   const s9 = C2.newCombat({ partyKeys: r.party, rows: r.rows, deck: [nid, ...r.deck], enemyIds: ["fairymobcloserange"], seed: 5 });
   s9.hand = [nid]; s9.ap = 3;
   const res = C2.playCard(s9, 0, 0);
-  check(res && res.ok !== false, "중립 카드를 전투에서 낼 수 있다");
+  check(res && res.ok !== false, "교주 카드를 전투에서 낼 수 있다");
 }
 
 console.log("\n캠프");
@@ -656,7 +656,7 @@ console.log("\n장비");
     const el = rate((q) => { q.floor = 0; q.node = 0; q.elite = true; }, 400);
     const bo = rate((q) => { q.floor = 0; q.node = 3; }, 400);
     check(el.eq === 1 && bo.eq === 1, "엘리트 · 보스는 장비가 늘 떨어진다");
-    check(f1.ne + f3.ne + el.ne + bo.ne === 0, "중립 카드는 싸움에서 안 떨어진다 — 상점 · 이벤트에서만");
+    check(f1.ne + f3.ne + el.ne + bo.ne === 0, "교주 카드는 싸움에서 안 떨어진다 — 상점 · 이벤트에서만");
     // 같은 장비도 떨어진다 — 1층 일반 싸움의 일반 장비를 하나 빼고 다 가져도, 가진 것이 다시 나온다
     {
       const q = R.newRun(run.party.slice(), { ...run.rows }, 901);

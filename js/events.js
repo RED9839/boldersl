@@ -3,7 +3,7 @@
 //
 // 결과는 두 갈래로 나뉜다.
 //   바로 되는 것  골드 · HP · 최대 HP · 장비(무작위 한 점) · 다음 전투 효과 · 골칫거리 · 지도 공개 …
-//   고르는 것    카드 제거 · 카드 복제 · 고유 카드 · 중립 카드 · 신탁 · 사도 1명 — 화면이 하나씩 묻는다
+//   고르는 것    카드 제거 · 카드 복제 · 고유 카드 · 교주 카드 · 신탁 · 사도 1명 — 화면이 하나씩 묻는다
 
 import { EVENTS, CURSES } from "./data/events.js";
 import { CARDS, NEUTRAL_IDS, EQUIP, HERO_DATA } from "./cardbook.js";
@@ -25,7 +25,7 @@ const RULES_OUT = [
   [/^카드\s*제거\s*(\d+)$/, (m) => ({ k: "remove", n: Number(m[1]) })],
   [/^카드\s*복제\s*(\d+)$/, (m) => ({ k: "dupe", n: Number(m[1]) })],
   [/^고유\s*카드\s*선택$/, () => ({ k: "unique" })],
-  [new RegExp(`^중립\\s*카드(?:\\s*\\((${GRADES})\\))?$`), (m) => ({ k: "neutral", grade: m[1] || null })],
+  [new RegExp(`^(?:교주|중립)\\s*카드(?:\\s*\\((${GRADES})\\))?$`), (m) => ({ k: "neutral", grade: m[1] || null })],
   [new RegExp(`^장비\\s*\\((${GRADES})\\)$`), (m) => ({ k: "equip", grade: m[1] })],
   [/^신탁\s*1$/, () => ({ k: "flash" })],
   [/^기적\s*(\d+)\s*%$/, (m) => ({ k: "shin", p: Number(m[1]) / 100 })],
@@ -252,7 +252,7 @@ export function apply(run, ops) {
       }
       case "neutral": {
         const cards = neutralOffer(run, o.grade, 3);
-        if (cards.length) E.pending.push({ k: "card", cards, label: `중립 카드${o.grade ? ` (${o.grade})` : ""}` });
+        if (cards.length) E.pending.push({ k: "card", cards, label: `교주 카드${o.grade ? ` (${o.grade})` : ""}` });
         break;
       }
       case "equip": {

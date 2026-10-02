@@ -203,16 +203,16 @@ const HELP = [
   ["신탁", "은총 · 신탁 · 기적", () => helpList([
     "싸우다 보면 카드가 빛납니다. 빛나는 카드를 내면 세계수의 뜻이 내립니다.",
     "은총 — 사도의 기본 카드가 빛납니다. 내면 그 사도의 고유 카드 하나가 손패로 옵니다(그 턴 0코). 고르지 않습니다. 한 번 뺀 고유 카드는 다시 오지 않습니다.",
-    "신탁 — 고유 카드 · 중립 카드가 빛납니다. 내면 신탁 다섯(① 강화 ② 경량 ③ 연계 ④ 변형 ⑤ 각성) 가운데 셋이 뜨고 하나를 고릅니다. 카드가 바로 바뀌고 이번에 내는 것은 0코입니다.",
+    "신탁 — 고유 카드 · 교주 카드가 빛납니다. 내면 신탁 다섯(① 강화 ② 경량 ③ 연계 ④ 변형 ⑤ 각성) 가운데 셋이 뜨고 하나를 고릅니다. 카드가 바로 바뀌고 이번에 내는 것은 0코입니다.",
     `기적 — 신탁 선택지 하나에 드물게(${Math.round(RULES.DIVINE * 100)}%) 붙는 덤입니다(비용 -1 · 드로우 · 피해 ×1.3 따위).`,
-    "사도마다 따로 굴립니다 — 한 전투에 여러 사도, 운이 좋으면 셋 모두 은총이 빛납니다. 중립 카드 신탁은 사도와 별개로 한 번 더 굴립니다.",
+    "사도마다 따로 굴립니다 — 한 전투에 여러 사도, 운이 좋으면 셋 모두 은총이 빛납니다. 교주 카드 신탁은 사도와 별개로 한 번 더 굴립니다.",
     `사도 한 명당 — 은총: 일반 ${Math.round(RULES.EPI_HERO.fight * 100)}% · 엘리트 ${Math.round(RULES.EPI_HERO.elite * 100)}% · 보스 ${Math.round(RULES.EPI_HERO.boss * 100)}% / 신탁: 일반 ${Math.round(RULES.EPI_CARD.fight * 100)}% · 엘리트 ${Math.round(RULES.EPI_CARD.elite * 100)}% · 보스 ${Math.round(RULES.EPI_CARD.boss * 100)}%. 엘리트 · 보스는 은총이, 엘리트는 신탁도 적어도 하나는 빛납니다.`,
   ])],
   ["드랍", "드랍과 상점", () => helpList([
     "보상 화면은 없습니다. 쓰러진 적이 골드를 떨구고, 가장 센 적이 장비를 떨굽니다. 이기면 그대로 챙깁니다.",
     `장비 — 일반 싸움 ${Math.round(RULES.DROP.fight.equip * 100)}% · 엘리트 · 보스는 늘(마지막 보스 빼고). 층이 오를수록 등급이 오릅니다. 같은 장비도 다시 떨어집니다 — 상점 · 이벤트도 마찬가지라 두 사도가 같은 것을 낄 수 있습니다.`,
-    "중립 카드는 싸움에서 떨어지지 않습니다 — 골디의 상점과 이벤트에서만 얻습니다.",
-    `골디의 상점(휴식+상점 칸) — 중립 카드 셋 · 장비 ${RULES.SHOP_EQUIP_N}점 · 새로고침 · 카드 제거. 고유 카드는 팔지 않습니다(은총으로만). 골디는 깎아 주지 않습니다.`,
+    "교주 카드는 싸움에서 떨어지지 않습니다 — 골디의 상점과 이벤트에서만 얻습니다.",
+    `골디의 상점(휴식+상점 칸) — 교주 카드 셋 · 장비 ${RULES.SHOP_EQUIP_N}점 · 새로고침 · 카드 제거. 고유 카드는 팔지 않습니다(은총으로만). 골디는 깎아 주지 않습니다.`,
   ])],
   ["장비", "장비", () => helpList([
     `사도마다 무기 · 방어구 · 장신구 한 칸씩입니다. 전투 밖이면 어디서든(지도의 「장비」 · 캠프 · 상점) 끼고 빼고 바꿔 낍니다. 가방의 장비는 사는 값의 ${Math.round(RULES.EQUIP_SELL * 100)}% 에 팔 수 있습니다.`,
@@ -418,7 +418,7 @@ function showPiles(piles, pick, cardFor, onDetail) {
 }
 
 // 사도 카드는 그 사도의 성격(순수·광기·냉정·우울·활발) 색을 입는다 — 속성이 카드 색으로 읽힌다.
-// 주인 없는 카드(중립·교주·골칫거리)는 종류(공격·방어…) 색 그대로.
+// 주인 없는 카드(교주·골칫거리)는 종류(공격·방어…) 색 그대로.
 function natureClass(c) {
   const nat = c && c.hero ? C.natureOf(c.hero) : null;
   return nat ? " p-" + nat : "";
@@ -3485,7 +3485,7 @@ export function campScreen(run, withShop, onDone, onShop) {
 // ── 골디의 상점 ─────────────────────────────────────────────────────────
 // 층마다 보스 앞에서 한 번. 골디(황금에서 태어난 용족 상인 · 교단 상점 담당)가 판다.
 // 인물 사전 그대로: '고객님' 하고 부르고, 정품만 팔고, **할인은 웃으며 거절한다.** 말하다 말고 와작.
-// 파는 것 — 중립 카드 셋(효과가 다 도는 것만) · 장비 셋 · 카드 제거 한 번. 새로고침하면 진열을 통째로 다시 굴린다.
+// 파는 것 — 교주 카드 셋(효과가 다 도는 것만) · 장비 셋 · 카드 제거 한 번. 새로고침하면 진열을 통째로 다시 굴린다.
 // 고유 카드는 팔지 않는다 — 은총(전투 중)으로만 얻는다.
 const GOLDY = {
   hello: "어서 오세요, 고객님! 오늘 들어온 물건은 전부 정품이에요.",
@@ -3652,7 +3652,7 @@ export function shopScreen(run, onDone, opts = {}) {
     shelf.classList.toggle("fresh", fresh);
     fresh = false;
     const rows = [
-      ["neutral", "중립 카드", "어느 사도의 것도 아닙니다 · 공격력·방어력이 가장 높은 아군 기준으로 돕니다"],
+      ["neutral", "교주 카드", "교주님이 직접 쓰는 카드입니다 — 어느 사도의 것도 아닙니다 · 공격력·방어력이 가장 높은 아군 기준으로 돕니다"],
       ["equip", "장비", "사면 가방에 들어갑니다 · 빈 칸이면 바로 낄 수 있습니다"],
     ];
     let n = 0;
@@ -3669,7 +3669,7 @@ export function shopScreen(run, onDone, opts = {}) {
         slot.style.setProperty("--i", String(n++));
         slots.appendChild(slot);
       });
-      if (!slots.children.length) slots.appendChild(el("p", "sh-none", kind === "equip" ? "오늘은 진열할 장비가 없습니다." : "오늘은 진열할 중립 카드가 없습니다."));
+      if (!slots.children.length) slots.appendChild(el("p", "sh-none", kind === "equip" ? "오늘은 진열할 장비가 없습니다." : "오늘은 진열할 교주 카드가 없습니다."));
       row.appendChild(slots);
       shelf.appendChild(row);
     }
@@ -3743,7 +3743,7 @@ export function shopScreen(run, onDone, opts = {}) {
     box.appendChild(bigCard(c, CARDART.pic[it.id] || null));
     slot.appendChild(box);
     const info = el("div", "sh-info");
-    info.appendChild(el("span", "sh-grade g-" + (c.grade || ""), `${c.grade || "중립"} · 중립`));
+    info.appendChild(el("span", "sh-grade g-" + (c.grade || ""), `${c.grade || "교주"} · 교주`));
     info.appendChild(el("p", "sh-blurb", c.blurb || shortText(c.text || "")));
     info.appendChild(buyBtn(it, i));
     slot.appendChild(info);
@@ -4063,7 +4063,7 @@ export function eventScreen(run, onDone, onFight) {
         const w = el("button", "ev2-card");
         const tag = el("div", "rwho");
         if (c.hero) { tag.appendChild(art.portrait(c.hero, { ko: HERO(c.hero).ko, tint: TINT(c.hero), size: 26, slot: "battle", still: true })); tag.appendChild(el("b", null, HERO(c.hero).ko)); }
-        else tag.appendChild(el("b", "sgrade g-" + (c.grade || ""), `${c.grade || "중립"} · 중립`));
+        else tag.appendChild(el("b", "sgrade g-" + (c.grade || ""), `${c.grade || "교주"} · 교주`));
         w.appendChild(tag);
         w.appendChild(bigCard(c, CARDART.pic[id] || null));
         w.onclick = () => ts.pick(w, id, c.name);

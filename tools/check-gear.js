@@ -1,10 +1,10 @@
-// 장비(아티팩트) · 중립 카드(스펠) 검사 — docs/13-장비와 중립.md 의 규칙대로 쓰였는가.
+// 장비(아티팩트) · 교주 카드(스펠) 검사 — docs/13-장비와 중립.md 의 규칙대로 쓰였는가.
 //
 //   node tools/check-gear.js                     기획서 전체
 //   node tools/check-gear.js 파일.md [파일.md …]  리뉴얼 중인 조각 파일(### 장비 / ### 중립 탭 모양 그대로)
 //   --quiet                                      ✗ 만 보인다
 //
-// 장비의 효과 · 애착 줄은 패시브 문법(js/passive.js), 중립 카드는 카드 문법(js/effects.js)으로 읽는다.
+// 장비의 효과 · 애착 줄은 패시브 문법(js/passive.js), 교주 카드는 카드 문법(js/effects.js)으로 읽는다.
 // 한 글자라도 못 읽으면 게임이 그 줄을 켜지 않는다 — 여기서 ✓ 가 될 때까지 고친다.
 import fs from "node:fs";
 import { DESIGN_DOC } from "./lib/paths.js";
@@ -76,9 +76,9 @@ for (const e of Object.values(equips)) {
   report(`장비 ${e.ko} (${e.grade}·${e.slot})`, errs, notes);
 }
 
-// ── 중립 카드 ───────────────────────────────────────────────────────────
+// ── 교주 카드 ───────────────────────────────────────────────────────────
 const neutral = {};
-for (const t of texts) Object.assign(neutral, parseNeutral(wrap(t, "## 스펠 → 중립 카드"), () => {}));
+for (const t of texts) Object.assign(neutral, parseNeutral(wrap(t, "## 스펠 → 교주 카드"), () => {}));
 for (const c of Object.values(neutral)) {
   const errs = [], notes = [];
   const { fx, left } = parseEffect(c.text, {});
@@ -95,7 +95,31 @@ for (const c of Object.values(neutral)) {
   // 신탁 다섯 — 고유 카드와 같은 자리(docs/07-스킬구성.md §7 · docs/13-장비와 중립.md §2)
   const KINDS = ["강화", "경량", "연계", "변형", "각성"];
   const got = (c.flash || []).map((f) => f.n).join("");
-  if (got !== "12345") errs.push(`신탁은 ① 강화 ② 경량 ③ 연계 ④ 변형 ⑤ 각성 다섯 (지금 ${got || "없음"})`);
+  // 새 틀(2026-10) — 사도 고유 카드와 같은 자유 신탁 다섯(분류 낱말 없음). 교주 카드는 0코로 내리지 않는다(원작 SP 사도만 0코, docs/11 §3-2)
+  const freeForm = (c.flash || []).length && (c.flash || []).every((f) => !f.kind);
+  if (got !== "12345") errs.push(`신탁은 다섯 (지금 ${got || "없음"})`);
+  if (freeForm) {
+    for (const f of c.flash) {
+      const r = parseEffect(f.text, {});
+      const at = `${"①②③④⑤"[f.n - 1]} 「${f.ko}」`;
+      if (!r.fx.length) { errs.push(`${at} — 효과를 못 읽었다: ${f.text}`); continue; }
+      if (r.left) errs.push(`${at} — 못 읽은 말: 「${r.left}」`);
+      const fc = flashCost(c.cost, r.fx), ftags = [...tags, ...r.fx.filter((x) => x.k === "tag").map((x) => x.id)];
+      const body = r.fx.filter((x) => x.k !== "costSet" && x.k !== "costDelta");
+      const fv = valueOf(body), gone = ftags.includes("소멸");
+      if (c.cost !== "X" && fc === 0) errs.push(`${at} — 교주 카드 신탁은 0코로 내리지 않는다`);
+      if (typeof fc === "number" && fc > 3) errs.push(`${at} — 3코 위로 올리지 않는다`);
+      if (c.cost !== "X" && fc > c.cost && gone) errs.push(`${at} — 코스트를 올린 신탁에 소멸을 같이 붙이지 않는다`);
+      if (c.cost !== "X" && fc > c.cost && fv < valueOf(fx) * 1.6) errs.push(`${at} — 코스트를 올렸으면 기본의 1.6배 이상 (지금 ${(fv / Math.max(0.01, valueOf(fx))).toFixed(2)}배)`);
+      if (typeof fc === "number" && fc >= 2 && body.some((x) => x.k === "draw" && x.v > 0)) errs.push(`${at} — 2코 이상에 드로우를 붙이지 않는다`);
+      if (body.some((x) => MODS.includes(x.k) && (x.turns || 1) >= 999) && !(c.oneOnly && gone)) errs.push(`${at} — 이번 전투 동안 증감은 덱에 1장만 카드 + 소멸`);
+      if (body.some((x) => x.k === "ap" && x.v > 1)) errs.push(`${at} — 교주 카드는 AP +1 까지`);
+      if (body.some((x) => x.k === "gauge" && x.v > 100)) errs.push(`${at} — 게이지는 한 장에 +100% 까지`);
+      const fb = baseValue(fc);
+      if (c.cost !== "X" && fv > fb * 1.9) errs.push(`${at} — 값어치 ${fv.toFixed(2)} 가 ${fc}코 기준(${fb})에 비해 너무 싸다`);
+    }
+  }
+  if (!freeForm) {
   const givesAp = fx.some((f) => f.k === "ap" && f.v > 0);
   for (const f of c.flash || []) {
     const r = parseEffect(f.text, {});
@@ -127,8 +151,9 @@ for (const c of Object.values(neutral)) {
     const fb = baseValue(fc);
     if (c.cost !== "X" && fv > fb * (f.n === 5 ? 2.4 : 1.9) && !(fc === 0 && gone)) errs.push(`${at} — 값어치 ${fv.toFixed(2)} 가 ${fc}코 기준(${fb})에 비해 너무 싸다`);
   }
-  report(`중립 ${c.ko} (${c.grade}·${c.cost}·${c.type})`, errs, notes);
+  }
+  report(`교주 ${c.ko} (${c.grade}·${c.cost}·${c.type})`, errs, notes);
 }
 
-console.log(`\n장비 ${Object.keys(equips).length} · 중립 ${Object.keys(neutral).length} — ✓ ${ok} · ✗ ${bad}`);
+console.log(`\n장비 ${Object.keys(equips).length} · 교주 ${Object.keys(neutral).length} — ✓ ${ok} · ✗ ${bad}`);
 process.exit(bad ? 1 : 0);

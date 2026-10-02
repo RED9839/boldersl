@@ -1,4 +1,4 @@
-// 기획서 「스펠 → 중립 카드」 탭을 읽는다.
+// 기획서 「스펠 → 교주 카드」 탭을 읽는다.
 //
 // 한 장은 이렇게 생겼다 — 43장 모두 같은 꼴이다.
 //
@@ -8,14 +8,14 @@
 //   - ① 강화 *정독*: 코스트 1→0
 //   - ④ 변형 *요점 정리*: 0코 스킬, 소멸 — 이번 턴만 …
 //
-// 중립 카드는 어느 사도에도 속하지 않는다. 골디의 상점에서 골드로 산다.
+// 교주 카드는 어느 사도에도 속하지 않는다. 골디의 상점에서 골드로 산다.
 // 신탁은 ① 강화 · ④ 변형 두 가지뿐이고, 글이 사도 카드와 달라(「코스트 1→0」) 지금은 읽어 두기만 한다.
 
 const GRADES = ["전설", "희귀", "고급", "일반"];
 
 export function parseNeutral(text, warn = () => {}) {
-  const from = text.indexOf("## 스펠 → 중립 카드");
-  if (from < 0) { warn("중립 카드 탭이 없다"); return {}; }
+  const from = text.indexOf("## 스펠 → 교주 카드");
+  if (from < 0) { warn("교주 카드 탭이 없다"); return {}; }
   const to = text.indexOf("\n## ", from + 5);
   const sec = text.slice(from, to < 0 ? undefined : to);
   const out = {};
@@ -27,9 +27,9 @@ export function parseNeutral(text, warn = () => {}) {
     const price = +((meta.match(/가격\s*(\d+)\s*골드/) || [])[1] || 0);
     const blurb = (meta.split(" — ")[1] || "").trim() || null;
     const line = L.find((l) => l.startsWith(`**${ko}**`));
-    if (!grade || !price || !line) { warn(`중립 카드를 못 읽었다: ${ko}`); continue; }
+    if (!grade || !price || !line) { warn(`교주 카드를 못 읽었다: ${ko}`); continue; }
     const m = line.match(/^\*\*.+?\*\*\s*\((\d+|X)·([가-힣]+)((?:,\s*[가-힣 ]+)*)\)\s*(.*)$/);
-    if (!m) { warn(`중립 카드 머리를 못 읽었다: ${ko}`); continue; }
+    if (!m) { warn(`교주 카드 머리를 못 읽었다: ${ko}`); continue; }
     const tags = m[3].split(",").map((t) => t.trim()).filter(Boolean);
     let body = m[4];
     const oneOnly = /덱에 1장만\./.test(body);
@@ -37,8 +37,8 @@ export function parseNeutral(text, warn = () => {}) {
     const shown = body.replace(/\s*\[[^\]]+\]/g, "").trim();   // [주는 피해] 는 전역 증가의 종류 표시 — 효과가 아니다
     const flash = [];
     for (const l of L) {
-      const f = l.match(/^-\s*([①②③④⑤])\s*(강화|경량|연계|변형|각성)\s*\*(.+?)\*\s*:\s*(.*)$/);
-      if (f) flash.push({ n: "①②③④⑤".indexOf(f[1]) + 1, kind: f[2], ko: f[3], text: f[4].replace(/\s*\[[^\]]+\]/g, "") });
+      const f = l.match(/^\s*-\s*([①②③④⑤])\s*(?:(강화|경량|연계|변형|각성)\s*)?\*(.+?)\*\s*:\s*(.*)$/);   // 새 틀은 분류 낱말이 없다(사도와 같다)
+      if (f) flash.push({ n: "①②③④⑤".indexOf(f[1]) + 1, kind: f[2] || "", ko: f[3], text: f[4].replace(/\s*\[[^\]]+\]/g, "") });
     }
     out[ko] = {
       ko, grade, price, oneOnly, blurb,

@@ -102,7 +102,7 @@ export function runFx(s, fxList, ctx, api) {
       }
 
       // ── 방어·실드·회복 ────────────────────────────────────────────
-      // 방어·실드는 방어력 기준 — 중립 카드는 방어력이 가장 높은 아군(defOwner)을 본다
+      // 방어·실드는 방어력 기준 — 교주 카드는 방어력이 가장 높은 아군(defOwner)을 본다
       case "block": for (const t of resolve(s, ctx, f.target)) t.block += Math.max(1, Math.round(defOf(api, ctx.defOwner || owner) * f.ratio)); break;
       case "shield": for (const t of resolve(s, ctx, f.target)) t.shield = (t.shield || 0) + Math.max(1, Math.round(defOf(api, ctx.defOwner || owner) * f.ratio)); break;
       // 회복은 역할 보정을 곱한다 — 서포터 ×1.8 · 탱커 ×1.3 (rules.js HEAL_ROLE)

@@ -91,7 +91,7 @@ export function rollEpiphany(run) {
   };
   for (const k of heroes) if (run.rng() < (R.EPI_HERO[kind] || 0)) grace(k);
   if (heroes.length && R.EPI_SURE.hero.includes(kind) && !Object.keys(glow).length) grace(pick(heroes));
-  // 카드 신탁 — 신탁이 아직 없는 카드. 사도마다(그 사도의 고유 카드) + 중립 카드 몫을 따로 굴린다.
+  // 카드 신탁 — 신탁이 아직 없는 카드. 사도마다(그 사도의 고유 카드) + 교주 카드 몫을 따로 굴린다.
   // 프리클이 몰래 챙겨 둔 것(rewardFlash)이 있거나 반드시 뜨는 칸인데 아무것도 안 빛났으면 하나는 반드시
   const able = flashTargets(run).filter((id) => !glow[id]);
   const owners = {};
@@ -138,7 +138,7 @@ export function rollReward(run) {
   const base = isBoss(run) ? R.GOLD_BOSS : lo + Math.floor(run.rng() * (hi - lo + 1)) + run.floor * 5;
   const gold = run.elite ? Math.round(base * R.ELITE_GOLD) : base;
   const lastBoss = isBoss(run) && run.floor >= FLOORS.length - 1;
-  // 드랍 — 장비가 확률로 하나(R.DROP). 마지막 보스는 판이 끝나니 안 떨군다. 중립 카드는 상점 · 이벤트에서만
+  // 드랍 — 장비가 확률로 하나(R.DROP). 마지막 보스는 판이 끝나니 안 떨군다. 교주 카드는 상점 · 이벤트에서만
   const T = R.DROP[isBoss(run) ? "boss" : run.elite ? "elite" : "fight"];
   const at = (tbl) => tbl[Math.min(run.floor, tbl.length - 1)];
   const eq = !lastBoss && run.rng() < T.equip ? offerEquip(run, at(T.equipGrade), 1, { dupes: true }) : [];
@@ -162,7 +162,7 @@ export function takeReward(run, cardId) {
 
 // ── 골디의 상점 ──────────────────────────────────────────────────────────
 // 층마다 보스 앞에서 한 번 들른다. 파는 것:
-//   중립 카드 셋(효과가 다 도는 것만) · 파티 사도의 고유 카드 둘 · 카드 제거(한 번)
+//   교주 카드 셋(효과가 다 도는 것만) · 파티 사도의 고유 카드 둘 · 카드 제거(한 번)
 // 골디는 **할인하지 않는다**(인물 사전: 할인 요구에는 웃으며 단호). 값은 기획서의 골드 그대로.
 export const needsShop = (run) => isBoss(run) && !run.shopSeen[run.floor] && !run.done;
 
@@ -207,7 +207,7 @@ export function campTrain(run, pick) {
   return null;
 }
 
-// 진열 — 중립 카드 셋(흔한 것이 자주) + 장비 셋. 고유 카드는 팔지 않는다(은총으로만)
+// 진열 — 교주 카드 셋(흔한 것이 자주) + 장비 셋. 고유 카드는 팔지 않는다(은총으로만)
 function shelf(run) {
   const has = new Set(run.deck);
   const pool = NEUTRAL_IDS.filter((id) => CARDS[id].playable && !(CARDS[id].oneOnly && has.has(id)));

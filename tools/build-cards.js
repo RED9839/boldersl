@@ -81,7 +81,7 @@ function mk(id, hero, c, kw, where, extra) {
   return { id, hero, ko: c.ko, cost: c.cost, type: c.type, text: c.text, ...parse(c.text, kw, where), ...extra };
 }
 
-// ── 중립 카드 — 어느 사도에도 속하지 않는다. 골디의 상점에서 판다 ─────────────
+// ── 교주 카드 — 어느 사도에도 속하지 않는다. 골디의 상점에서 판다 ─────────────
 // cards 와 따로 둔다: 사도 카드 1,080장을 세는 검사들이 이것까지 세지 않게.
 // **다 읽힌 것만 판다**(playable). 반쯤 읽힌 카드는 사면 반만 도는데 멀쩡해 보인다 — 가장 나쁜 경우다.
 const neutral = {};
@@ -149,4 +149,4 @@ console.log(`사도 ${nH}명 · 카드 ${nCard}장 → js/data/built.js (${(fs.s
 console.log(`  효과가 붙은 카드 ${withFx}/${nCard} (${((withFx / nCard) * 100).toFixed(1)}%)`);
 console.log(`  글자를 다 못 읽은 곳 ${nUnparsed}`);
 console.log(`  장비 ${nEquip}종 — 스탯 줄 전부 · 효과가 전투에서 켜지는 것 ${nEffRead}종(나머지는 스탯만)`);
-console.log(`  중립 카드 ${nNeutral}장 중 효과가 다 도는 것 ${nPlayable}장 — 상점은 이것만 판다`);
+console.log(`  교주 카드 ${nNeutral}장 중 효과가 다 도는 것 ${nPlayable}장 — 상점은 이것만 판다`);

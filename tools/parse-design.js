@@ -49,7 +49,7 @@ for (const raw of blocks) {
   heroes[key] = h;
 }
 
-// ── 중립 카드 — 골디의 상점에서 판다 ─────────────────────────────────
+// ── 교주 카드 — 골디의 상점에서 판다 ─────────────────────────────────
 const neutral = parseNeutral(text, warn);
 
 // ── 장비 — 사도당 무기·방어구·장신구 한 칸씩 ───────────────────────────
@@ -79,7 +79,7 @@ const n = Object.keys(heroes).length;
 const byNature = {};
 for (const h of Object.values(heroes)) byNature[h.nature] = (byNature[h.nature] || 0) + 1;
 console.log(`사도 ${n}명 · 카드 ${nCard}장 · 신탁 ${nFlash}개 → js/data/design.js (${(fs.statSync(dst).size / 1024).toFixed(0)}KB)`);
-console.log(`  중립 카드 ${Object.keys(neutral).length}장 (상점용) · 장비 ${Object.keys(equip).length}종`);
+console.log(`  교주 카드 ${Object.keys(neutral).length}장 (상점용) · 장비 ${Object.keys(equip).length}종`);
 console.log(`  성격: ${Object.entries(byNature).map(([k, v]) => `${k} ${v}`).join(" · ")}`);
 if (trouble.length) {
   console.log(`  못 읽은 것 ${trouble.length}:`);

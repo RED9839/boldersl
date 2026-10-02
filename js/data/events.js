@@ -67,9 +67,9 @@ export const EVENTS = [
     id: "C5", name: "부탁을 거절 못 하는 아이", pool: "공용", kind: "거래", npc: "버터",
     scene: "버터가 제 몸만 한 짐을 끌고 간다. 누가 떠넘긴 전단지 뭉치다. 버터는 부탁을 거절하지 않는다.",
     options: [
-      { label: "같이 들어 준다", out: "HP -10% · 중립 카드 (고급)", say: "버터가 묻어 둔 간식을 파내 준다." },
+      { label: "같이 들어 준다", out: "HP -10% · 교주 카드 (고급)", say: "버터가 묻어 둔 간식을 파내 준다." },
       { label: "짐을 떠넘긴 쪽을 찾아간다", out: "골드 +50", say: "떠넘긴 품삯을 받아 냈다." },
-      { label: "아는 사이", hero: "코미", out: "중립 카드 (고급)", say: "코미가 짐을 슬쩍 절반만 들어 준다. 자청은 안 한다 — 버터라서." },
+      { label: "아는 사이", hero: "코미", out: "교주 카드 (고급)", say: "코미가 짐을 슬쩍 절반만 들어 준다. 자청은 안 한다 — 버터라서." },
     ],
   },
   {
@@ -86,7 +86,7 @@ export const EVENTS = [
     scene: "애마 슈파볼트를 탄 슈팡이 급정거한다. 내리지는 않는다.",
     options: [
       { label: "택배를 맡긴다", out: "골드 -40 · 다음 상점: 장비 (고급)", say: "다음 상점에서 장비 하나를 공짜로 받는다." },
-      { label: "길을 비켜 준다", out: "중립 카드 (일반)", say: "슈팡이 던져 주고 간 물건이다." },
+      { label: "길을 비켜 준다", out: "교주 카드 (일반)", say: "슈팡이 던져 주고 간 물건이다." },
       { label: "파손된 상자를 따진다", out: "없음", say: "파손 책임은 절대 인정하지 않는다." },
       { label: "무료 마개조", hero: "바나", out: "장비 (희귀)", say: "허락도 없이 슈파볼트를 손봤다. 슈팡은 투덜대면서 사례한다." },
     ],
@@ -154,8 +154,8 @@ export const EVENTS = [
     id: "E6", name: "요정 무리의 숨바꼭질", pool: 0, kind: "전투",
     scene: "요정 무리가 나무 뒤에서 킥킥댄다. 놀아 달라는 뜻이다.",
     options: [
-      { label: "쫓아간다", fight: { name: "요정 무리", enemies: ["fairymobcloserange", "fairymoblongrange"], win: "골드 +60 · 중립 카드 (일반)" } },
-      { label: "과자를 나눠 준다", out: "골드 -20 · 중립 카드 (고급)" },
+      { label: "쫓아간다", fight: { name: "요정 무리", enemies: ["fairymobcloserange", "fairymoblongrange"], win: "골드 +60 · 교주 카드 (일반)" } },
+      { label: "과자를 나눠 준다", out: "골드 -20 · 교주 카드 (고급)" },
       { label: "모른 척한다", out: "다음 전투: 아군 전원 약화 1턴", say: "뒤통수에 장난을 맞았다." },
     ],
   },
@@ -201,7 +201,7 @@ export const EVENTS = [
     id: "M4", name: "오락실 패왕", pool: 1, kind: "판정", npc: "칸나",
     scene: "모나티엄 오락실. 전 게임 공략자, 칸나가 펀칭머신 앞에 서 있다. 휴가는 오늘도 반려됐다.",
     options: [
-      { label: "펀칭머신", judge: { by: "atk-max", at: 13, pass: "골드 +80 · 중립 카드 (희귀)", fail: "골드 +20" } },
+      { label: "펀칭머신", judge: { by: "atk-max", at: 13, pass: "골드 +80 · 교주 카드 (희귀)", fail: "골드 +20" } },
       { label: "휴가 신청서를 대신 올려 준다", out: "없음", say: "반려. 칸나가 한숨을 쉰다." },
     ],
   },
@@ -285,7 +285,7 @@ export const EVENTS = [
     options: [
       { label: "떼어 낸다", fight: { name: "저주 인형", enemies: ["witchcurseddollwizard", "elfcurseddolltanker"], win: "장비 (희귀)" } },
       { label: "돌아서 간다", out: "HP -10%" },
-      { label: "인형 전문가", hero: "바롱", out: "중립 카드 (희귀)", say: "실밥을 다시 꿰매자 얌전해졌다." },
+      { label: "인형 전문가", hero: "바롱", out: "교주 카드 (희귀)", say: "실밥을 다시 꿰매자 얌전해졌다." },
     ],
   },
   {

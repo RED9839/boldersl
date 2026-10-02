@@ -642,7 +642,7 @@ export function canPlay(s, cardId) {
   return null;
 }
 
-// 살아 있는 아군 중 그 스탯이 가장 높은 사람 — 중립 카드의 기준
+// 살아 있는 아군 중 그 스탯이 가장 높은 사람 — 교주 카드의 기준
 function bestAlly(s, stat) {
   const up = s.party.filter((u) => !u.dead);
   return up.length ? up.reduce((a, b) => ((b[stat] || 0) > (a[stat] || 0) ? b : a)) : null;
@@ -657,7 +657,7 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   if (why) return { ok: false, why };
 
   const c = cardOf(s, cardId);
-  // 중립 카드는 주인이 없다 — 기획서: 따로 적지 않으면 **공격력·방어력이 가장 높은 아군 기준**
+  // 교주 카드는 주인이 없다 — 기획서: 따로 적지 않으면 **공격력·방어력이 가장 높은 아군 기준**
   const owner = c.hero ? s.party.find((u) => u.key === c.hero) : c.neutral ? bestAlly(s, "atk") : null;
 
   // X 코스트는 남은 AP 를 전부 쓴다. 그 수가 곧 X 다.
