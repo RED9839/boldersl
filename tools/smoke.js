@@ -1186,6 +1186,90 @@ console.log("지도 (js/map.js · docs/10-지도.md)");
   check(entered && entered.type === "fight", "칸을 누르면 그 칸으로 들어간다");
 }
 
+console.log("");
+console.log("판 이어하기 (js/save.js) — 새로고침해도 그 자리에서");
+{
+  const S = await import("../js/save.js");
+  const L = await import("../js/lobby.js");
+  const { CARDS: CARDS_ALL } = await import("../js/cardbook.js");
+  const canonEq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const mem = {};
+  globalThis.localStorage = { getItem: (k) => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); }, removeItem: (k) => { delete mem[k]; } };
+  globalThis.innerWidth = 1600; globalThis.innerHeight = 900;      // 얻은 것이 날아가는 자리 — 가짜 DOM 에는 창 크기가 없다
+  // 이긴 판의 「얻은 것」 머리를 고친다 — 가짜 DOM 에 querySelector(.이름) 하나를 잠깐 붙인다
+  Node.prototype.querySelector = function (sel) { const cls = sel.replace(/^\./, ""); return (function f(n) { for (const c of n.children) { if (c.classList.contains(cls)) return c; const r = f(c); if (r) return r; } return null; })(this); };
+  try {
+    const rr = R.newRun(started.party, started.rows, 777);
+    rr.where = { k: "fight" };
+    const fa = ui.fightScreen(rr, () => {}, () => {});
+    check(!!mem[S.SAVE_KEY], "싸움을 열자마자 판과 싸움이 적힌다");
+    for (let k = 0; k < 2; k++) {
+      const c = clickAll(fa, (n) => n.classList.contains("card") && !n.classList.contains("no"))[0];
+      if (!c) break;
+      const foe = clickAll(fa, (n) => n.classList.contains("foe") && !n.classList.contains("dead"))[0];
+      fa.dropCard(Number(c.dataset.i), foe ? Number(foe.dataset.idx) : 0);
+    }
+    const sv = S.readSave();
+    check(!!sv && !!sv.combat && sv.combat.hand.join() === fa._st.hand.join() && sv.combat.ap === fa._st.ap && sv.combat.log.length === fa._st.log.length,
+      "카드를 낸 뒤의 손패 · AP · 기록이 그대로 적힌다");
+    const fb = ui.fightScreen(sv.run, () => {}, () => {}, { resume: sv.combat });
+    check(fb._st === sv.combat, "이어하면 새로 굴리지 않고 적어 둔 싸움을 연다");
+    check(count(fb, "card") === fa._st.hand.length, `손패가 그대로 그려진다 (${count(fb, "card")}장)`);
+    check(fb._st.rng.state === fa._st.rng.state && sv.run.rng.state === rr.rng.state, "판 · 싸움의 난수도 그 자리에서 잇는다");
+    check(sv.run.reward && canonEq(sv.run.reward, rr.reward), "전리품(골드 · 장비)도 처음 굴린 그대로");
+
+    // 고르던 신탁 — 창이 떠 있는 채로 새로고침하면 같은 창이 다시 뜬다
+    const st = fb._st;
+    const uid = Object.keys(CARDS_ALL).find((id) => CARDS_ALL[id].unique && started.party.includes(CARDS_ALL[id].hero)
+      && (CARDS_ALL[id].flash || []).length === 5 && CARDS_ALL[id].cost <= st.ap && !C2.canPlay(st, id));
+    st.hand.push(uid);
+    st.glow[uid] = { kind: "card", options: [{ n: 1, shin: null }, { n: 3, shin: "draw" }] };
+    const epis = () => docBody.children.filter((n) => n.classList.contains("epimodal"));
+    fb.dropCard(st.hand.indexOf(uid), C2.alive(st.enemies)[0].idx);
+    check(epis().length === 1, "빛나는 카드를 내면 신탁 창이 뜬다");
+    const sv2 = S.readSave();
+    check(!!sv2.combat.pendingEpi && sv2.combat.pendingEpi.cardId === uid, "고르던 신탁이 판에 적힌다");
+    for (const n of epis()) n.remove();                // 새로고침 — 창은 사라진다
+    const fc = ui.fightScreen(sv2.run, () => {}, () => {}, { resume: sv2.combat });
+    check(epis().length === 1, "이어하면 그 신탁 창이 다시 뜬다");
+    const opt = clickAll(epis()[0], (n) => n.classList.contains("epiopt"))[1];
+    opt.onclick();
+    const sv3 = S.readSave();
+    check(!sv3.combat.pendingEpi && sv3.combat.flash[uid] === 3 && sv3.combat.shin[uid] === "draw" && !sv3.combat.hand.includes(uid),
+      "고르면 신탁이 걸리고 카드가 나간 판이 적힌다");
+    check(fc._st.rng.state === sv3.combat.rng.state, "적힌 난수 = 화면의 난수");
+
+    // 싸움이 끝나면 다음 칸으로 갈 자리(fightDone)가 적힌다 — 금화를 줍는 연출 중에 새로고침해도 넘어간다
+    for (const e of fc._st.enemies) { e.hp = 1; e.block = 0; e.shield = 0; }
+    for (let k = 0; k < 6 && !fc._st.over; k++) {
+      const c = clickAll(fc, (n) => n.classList.contains("card") && !n.classList.contains("no"))[0];
+      if (!c) { clickAll(fc).find((n) => label(n) === "턴 넘기기").onclick(); continue; }
+      const foe = clickAll(fc, (n) => n.classList.contains("foe") && !n.classList.contains("dead"))[0];
+      fc.dropCard(Number(c.dataset.i), foe ? Number(foe.dataset.idx) : 0);
+    }
+    const sv4 = S.readSave();
+    check(fc._st.over && sv4 && sv4.run.where.k === "fightDone" && sv4.run.where.result === fc._st.over && !sv4.combat,
+      `싸움이 끝나면 「끝난 싸움」 자리가 적힌다 (${fc._st.over})`);
+
+    // 로비 — 이어할 판이 있으면 「이어하기」 가 맨 위에, 새 모험은 한 번 묻는다
+    const s3 = doc.querySelector("#screen");
+    let went = 0, resumed = 0;
+    L.lobbyScreen(() => went++, { resume: { run: sv4.run, go: () => resumed++ } });
+    const prim = clickAll(s3, (n) => n.classList.contains("home-primary"))[0];
+    check(!!prim && prim.textContent.includes("이어하기"), `맨 위 단추가 이어하기 (${prim && prim.textContent})`);
+    prim.onclick();
+    check(resumed === 1, "누르면 그 판으로");
+    L.lobbyScreen(() => went++, { resume: { run: sv4.run, go: () => resumed++ } });
+    clickAll(s3, (n) => n.classList.contains("lb-new"))[0].onclick();
+    const ask = docBody.children.find((n) => n.classList.contains("lb-modal"));
+    check(!!ask && /버/.test(ask.textContent) && went === 0, "새 모험은 지금 판을 버린다고 먼저 묻는다");
+    clickAll(ask, (n) => n.classList.contains("lb-confirmyes"))[0].onclick();
+    check(went === 1 && !docBody.children.includes(ask), "버린다고 하면 편성으로");
+    L.lobbyScreen(() => went++, {});
+    check(clickAll(s3, (n) => n.classList.contains("home-primary"))[0].textContent.includes("모험 시작"), "이어할 판이 없으면 모험 시작");
+  } finally { delete globalThis.localStorage; delete globalThis.innerWidth; delete globalThis.innerHeight; delete Node.prototype.querySelector; }
+}
+
 console.log("모듈이 읽히는가");
 {
   const JS = pathNode.join(pathNode.dirname(f2u(import.meta.url)), "..", "js");

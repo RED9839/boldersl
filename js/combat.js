@@ -31,9 +31,13 @@ export const natureEdge = R.natureEdge;
 
 
 // ── 난수 (씨앗을 주면 같은 판이 재현된다) ───────────────────────────────
+// 부르는 법은 그대로 rng() 다. 속 상태는 rng.state 로 읽고 되돌린다 — 판을 저장했다 이어할 때(js/save.js)
+// 새로고침으로 같은 굴림을 다시 굴릴 수 없게, 저장한 그 자리의 다음 수부터 이어진다.
 export function makeRng(seed = Date.now()) {
   let s = seed >>> 0 || 1;
-  return () => ((s ^= s << 13), (s ^= s >>> 17), (s ^= s << 5), (s >>> 0) / 4294967296);
+  const rng = () => ((s ^= s << 13), (s ^= s >>> 17), (s ^= s << 5), (s >>> 0) / 4294967296);
+  Object.defineProperty(rng, "state", { get: () => s >>> 0, set: (v) => { s = v >>> 0 || 1; } });
+  return rng;
 }
 
 // ── 상태 이상 ──────────────────────────────────────────────────────────

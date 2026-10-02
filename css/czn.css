@@ -2642,6 +2642,13 @@ body:has(#screen.lobby2) .top { display: none; }
 .lb-modal .lb-pick.on { border-color: #f3d48c; box-shadow: 0 0 0 2px #f3d48c66; }
 .lb-modal .lb-pick:hover:not(:disabled) { transform: translateY(-2px); border-color: #f3d48c99; }
 .lb-none { grid-column: 1 / -1; text-align: center; color: #aaa; }
+/* 새 모험 — 이어할 판을 버린다고 묻는 창 */
+.lb-confirm { width: min(460px, 92vw); }
+.lb-confirmtext { margin: 0; padding: 18px 18px 6px; font-size: 14px; line-height: 1.6; color: #e9e3d0; }
+.lb-confirmbtns { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; padding: 14px 18px 18px; }
+.lb-modal .lb-confirmbtns button { min-height: 0; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 800; }
+.lb-modal .lb-confirmyes { background: #c9584e; border: 1px solid #e58a80; color: #fff; }
+.lb-modal .lb-confirmno { background: transparent; border: 1px solid #ffffff2a; color: #ddd; }
 
 /* 휴대폰 · 좁은 화면 — 메뉴를 조금 좁히고 글을 줄인다 */
 .phone #screen.lobby2 { grid-template-columns: minmax(0, 1fr) 280px; }

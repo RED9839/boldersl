@@ -81,7 +81,8 @@ function zoneOf(sk, p) {
 
 // ── 로비 ──────────────────────────────────────────────────────────────
 // onStart 모험 시작(편성으로) · onDex 사도 도감 · onHelp 도움말
-export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
+// resume { run, go } — 이어할 판이 있으면(js/save.js) 「이어하기」 가 맨 위에 서고, 새 모험은 그 판을 버린다고 한 번 묻는다
+export function lobbyScreen(onStart, { onDex, onHelp, resume } = {}) {
   const s = document.querySelector("#screen");
   s.className = "lobby2";
   s.replaceChildren();
@@ -130,8 +131,15 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
   const menu = node("nav", "lb-menu");
   const start = node("button", "lb-start home-primary");
   start.type = "button";
-  start.append(node("b", null, "모험 시작"), node("span", null, "사도 셋을 골라 세계수 아래로"));
-  start.onclick = leave(onStart);
+  if (resume) {
+    const r = resume.run, f = FLOORS[r.floor] || FLOORS[0];
+    const names = r.party.map((k) => (HERO_DATA[k] || {}).ko || k).join(" · ");
+    start.append(node("b", null, "이어하기"), node("span", null, `${r.floor + 1}층 ${f.name} · ${names}`));
+    start.onclick = leave(resume.go);
+  } else {
+    start.append(node("b", null, "모험 시작"), node("span", null, "사도 셋을 골라 세계수 아래로"));
+    start.onclick = leave(onStart);
+  }
   menu.appendChild(start);
   const item = (icon, label, why, fn, cls) => {
     const b = node("button", "lb-item" + (cls ? " " + cls : ""));
@@ -144,6 +152,7 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
     menu.appendChild(b);
     return b;
   };
+  if (resume) item("✦", "새 모험", "지금 판을 버리고 사도 셋을 새로 고릅니다", () => openAbandon(), "lb-new");
   if (onDex) item("❖", "사도 도감", "135명의 능력 · 카드 · 신탁", leave(onDex), "lb-dex");
   if (onHelp) item("?", "도움말", "상성 · 줄 · 은총과 신탁 · 드랍", () => onHelp(), "lb-help");
   item("⚙", "설정", "해상도 · 그래픽 · 소리 · 글자", () => openSettings(), "lb-set");
@@ -393,6 +402,30 @@ export function lobbyScreen(onStart, { onDex, onHelp } = {}) {
       draw();
       q.focus && q.focus();
     });
+  }
+
+  // ── 새 모험 — 이어할 판이 있으면 버린다고 한 번 묻는다. 실제로 지우는 것은 새 판을 떠날 때(main.js) ──
+  function openAbandon() {
+    const back = node("div", "lb-modal");
+    const box = node("div", "lb-box lb-confirm");
+    const head = node("div", "lb-boxhead");
+    head.appendChild(node("b", null, "새 모험을 떠날까요?"));
+    const x = node("button", "lb-x", "×");
+    x.type = "button";
+    head.appendChild(x);
+    box.appendChild(head);
+    box.appendChild(node("p", "lb-confirmtext", "진행 중인 판이 있습니다. 사도 셋을 골라 새 판을 떠나는 순간 그 판은 지워지고, 다시 이어할 수 없습니다."));
+    const row = node("div", "lb-confirmbtns");
+    const yes = node("button", "lb-confirmyes", "판을 버리고 새로 떠납니다");
+    yes.type = "button";
+    const no = node("button", "lb-confirmno", "돌아가기");
+    no.type = "button";
+    row.append(yes, no);
+    box.appendChild(row);
+    back.appendChild(box);
+    const close = openModal(back, x);
+    no.onclick = close;
+    yes.onclick = () => { close(); leave(onStart)(); };
   }
 
   // ── 설정 — 전투와 같은 창(js/settings-panel.js) ──

@@ -8,7 +8,7 @@ import { CARDS as OLD_CARDS, EXTRA } from "./data/cards.js";
 import { CARDS, NEUTRAL_IDS, EQUIP, flashed } from "./cardbook.js";
 import { FLOORS } from "./data/enemies.js";
 import * as R from "./rules.js";
-import { buildDeck, makeRng } from "./combat.js";
+import { buildDeck, makeRng, newCombat } from "./combat.js";
 
 export function newRun(partyKeys, rows, seed = Date.now()) {
   const hp = {}, maxHp = {};
@@ -32,6 +32,7 @@ export function newRun(partyKeys, rows, seed = Date.now()) {
     floor: 0, node: 0,            // node 0..2 전투, 3 보스
     bench: Object.keys(HERO_DATA).filter((k) => !partyKeys.includes(k)),
 
+    where: null,                  // 지금 어느 화면에 있나 — 이어하기가 그 자리로 돌아간다(js/main.js · js/save.js)
     done: null,
   };
 }
@@ -47,6 +48,23 @@ export function currentEnemies(run) {
   return (at && at.foes) || f.fights[run.node];
 }
 
+// 싸움을 연다 — 전투 상태와 전리품(골드 · 장비)을 이 자리에서 한 번 굴린다. 화면(ui.js fightScreen)과 시험 도구가 같이 쓴다.
+// 굴리는 차례가 판의 난수를 정하니 바꾸지 않는다: 신탁(빛날 카드) → 전리품. 전투는 제 씨앗으로 따로 굴린다.
+export function openFight(run) {
+  const next = run.nextFight || null;          // 이벤트가 걸어 둔 「다음 전투」 효과 — 여기서 한 번 가져간다(events.js takeNextFight 와 같다)
+  run.nextFight = null;
+  const st = newCombat({
+    partyKeys: run.party, rows: run.rows, deck: run.deck.slice(),
+    enemyIds: currentEnemies(run), hp: run.hp, maxHp: run.maxHp, traits: run.traits, gear: gearStats(run), gearFx: gearPassives(run), flash: run.flash,
+    enemyHp: run.elite && !run.eventFight ? R.ENEMY_HP * R.ELITE_HP : undefined,   // 엘리트 칸 — 체력 ×1.5
+    next, shin: run.shin, gauge: run.gauge || 0,   // 기적이 붙은 카드 · 고학년 게이지는 전투 사이에 이어진다
+    glow: run.forceGlow || rollEpiphany(run),   // 신탁 — 이 전투에서 빛날 카드(카제나). forceGlow 는 시험 도구가 정해 넣는 것
+    seed: (run.seed + run.floor * 101 + run.node * 7 + (run.step || 0) * 13 + (run.eventFight ? 555 : 0)) >>> 0,
+  });
+  // 전리품 — 싸움을 열 때 정해 둔다. 이벤트가 연 전투는 적힌 보상만(events.js afterEventFight)
+  const loot = run.eventFight ? null : rollReward(run);
+  return { st, loot };
+}
 
 // 전투가 끝난 뒤 — 체력을 남기고, 만난 짝을 적어 둔다
 export function afterFight(run, combat) {

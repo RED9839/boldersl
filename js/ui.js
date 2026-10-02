@@ -21,6 +21,7 @@ import { getZoom, toggleFullscreen } from "./stage.js";
 import { getSettings, setSetting } from "./settings.js";
 import { settingsPanel } from "./settings-panel.js";
 import { speak } from "./voice.js";
+import { writeSave, saveOk } from "./save.js";
 
 const $ = (sel) => document.querySelector(sel);
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
@@ -639,7 +640,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
       ? `${picked.map((k) => HERO_DATA[k].ko).join(" · ")} — ${picked.length}/3`
       : "아직 아무도 안 골랐습니다");
     foot.appendChild(said);
-    foot.appendChild(backToForm);
+    if (!opts.dexOnly) foot.appendChild(backToForm);   // 이어할 판이 있을 때 로비에서 연 도감 — 새 판은 「새 모험」 확인으로만
     return { foot, said };
   }
 
@@ -1326,26 +1327,17 @@ export function partyScreen(onStart, onBack, opts = {}) {
 // 카제나의 전투 화면을 따라 네 구역으로 짠다 — 적 · 아군 상태창 · 손패 · 코스트 창.
 // 손패는 사도 배치 순서를 따른다(앞줄 사도의 카드가 왼쪽에 온다).
 // onQuit — 메뉴의 「메인화면으로」. 없으면 그 줄을 안 보인다
-export function fightScreen(run, onDone, onQuit) {
+// opts.resume — 이어하기로 되살린 싸움(js/save.js). 그때는 새로 굴리지 않고, 전리품도 판에 적어 둔 것(run.reward)을 쓴다
+export function fightScreen(run, onDone, onQuit, opts = {}) {
   const s = screen();
   s.classList.add("battle");
-  const enemyIds = R.currentEnemies(run);
   const floor = R.currentFloor(run);
   // 싸움터 배경 — 층마다 한 장, 보스·이벤트 전투는 따로. 그림이 없으면(assets 는 저장소에 없다) 어두운 바탕이 남는다.
   setStageBg(s, run);
-  const st = C.newCombat({
-    partyKeys: run.party, rows: run.rows, deck: run.deck.slice(),
-    enemyIds, hp: run.hp, maxHp: run.maxHp, traits: run.traits, gear: R.gearStats(run), gearFx: R.gearPassives(run), flash: run.flash,
-    enemyHp: run.elite && !run.eventFight ? RULES.ENEMY_HP * RULES.ELITE_HP : undefined,   // 엘리트 칸 — 체력 ×1.5
-    // 이벤트가 걸어 둔 「다음 전투」 효과는 여기서 한 번 가져간다 · 기적이 붙은 카드
-    next: EV.takeNextFight(run), shin: run.shin, gauge: run.gauge || 0,   // 고학년 게이지는 전투 사이에 이어진다
-    glow: run.forceGlow || R.rollEpiphany(run),   // 신탁 — 이 전투에서 빛날 카드(카제나). forceGlow 는 시험 도구가 정해 넣는 것
-    seed: (run.seed + run.floor * 101 + run.node * 7 + (run.step || 0) * 13 + (run.eventFight ? 555 : 0)) >>> 0,
-  });
-
   // 전리품 — 싸움을 열 때 정해 둔다(골드 · 엘리트 · 보스의 장비). 적이 쓰러질 때마다 골드를 나눠 떨군다.
   // 보상 화면은 없다 — 떨어진 것은 오른쪽 「얻은 것」 목록에 쌓이고, 이기면 그대로 챙긴다.
-  const loot = run.eventFight ? null : R.rollReward(run);
+  const resumed = opts.resume || null;
+  const { st, loot } = resumed ? { st: resumed, loot: run.eventFight ? null : run.reward } : R.openFight(run);
   const goldShare = (() => {
     if (!loot || !loot.gold) return [];
     const n = st.enemies.length, base = Math.floor(loot.gold / n), out = st.enemies.map(() => base);
@@ -1852,6 +1844,9 @@ export function fightScreen(run, onDone, onQuit) {
 
   // ── 그리기 ───────────────────────────────────────────────────────────
   function draw() {
+    // 무엇을 하든(카드 · 고학년 스킬 · 턴 넘기기) 엔진은 그 자리에서 다 풀고 여기로 온다 — 그린 것이 보이기 전에 적어 둔다.
+    // 끝난 싸움은 finish 가 판에 남긴 뒤 적는다
+    if (!st.over) writeSave(run, st);
     closeModal();
     const need = selCard >= 0 ? targetsNeeded(st.hand[selCard]) : null;
 
@@ -2319,7 +2314,7 @@ export function fightScreen(run, onDone, onQuit) {
     box.appendChild(body);
     if (page === "quit") {
       body.appendChild(el("h3", "bmname", "메인화면으로 갈까요?"));
-      body.appendChild(el("p", "bmhelp", "이 판은 저장되지 않습니다 — 나가면 처음부터 다시 떠납니다."));
+      body.appendChild(el("p", "bmhelp", "이 판은 지금 자리 그대로 저장되어 있습니다 — 로비의 「이어하기」로 돌아옵니다."));
       const row = el("div", "bmbtns");
       const yes = el("button", "bmuse danger", "나갑니다");
       yes.onclick = () => { closeModal(); if (onQuit) onQuit(); };
@@ -2358,7 +2353,7 @@ export function fightScreen(run, onDone, onQuit) {
       const q = el("div", "mlist");
       const b = el("button", "mitem quit");
       b.appendChild(el("b", null, "메인화면으로"));
-      b.appendChild(el("span", null, "이 판은 저장되지 않습니다"));
+      b.appendChild(el("span", null, saveOk() ? "판은 저장됩니다 — 로비에서 이어하기" : "저장할 수 없는 브라우저입니다 — 나가면 이 판은 사라집니다"));
       b.onclick = () => openMenu("quit");
       q.appendChild(b);
       body.appendChild(q);
@@ -2562,8 +2557,13 @@ export function fightScreen(run, onDone, onQuit) {
       setTimeout(() => lootCard(g.options[0], `은총 · ${HERO(g.hero).ko}`), 900);
       selCard = st.hand.indexOf(glowId);
     } else if (g && !C.canPlay(st, glowId)) {
+      // 고르는 중인 신탁도 판에 적는다 — 닫을 수 없는 창이라, 새로고침해도 이 창으로 돌아와 고르게 한다
+      st.pendingEpi = { cardId: glowId, targetIdx };
+      writeSave(run, st);
       openEpiphany(glowId, g, (choice) => {
+        delete st.pendingEpi;
         C.applyEpiphany(st, glowId, choice);
+        writeSave(run, st);              // 고른 신탁을 곧장 적는다 — 이어서 묻는 창(아군 · 버릴 카드)에서 새로고침해도 다시 고를 수 없게
         const o = g.options[choice], f = (CARDS[glowId].flash || [])[o.n - 1] || {};
         lootCard(glowId, `신탁 ${"①②③④⑤"[o.n - 1]} ${f.kind || f.ko || ""}${o.shin ? ` · 축복(${RULES.DIVINE_KO[o.shin]})` : ""}`);
         selCard = st.hand.indexOf(glowId);
@@ -2658,13 +2658,16 @@ export function fightScreen(run, onDone, onQuit) {
     endBtn.disabled = true;
     hand.querySelectorAll("button").forEach((b) => (b.disabled = true));
     R.afterFight(run, st);
-    if (st.over !== "win") { setTimeout(() => onDone(st.over), 700); return; }
+    if (st.over !== "win") { run.where = { k: "fightDone", result: st.over }; writeSave(run); setTimeout(() => onDone(st.over), 700); return; }
     if (loot) {
       // 떨어진 것을 챙긴다 — 장비는 가방으로. 아직 못 떨궜으면(마지막 한 방에 여럿) 여기서
       dropItems({ x: (innerWidth || 1600) * 0.7, y: (innerHeight || 900) * 0.4 });
       if (loot.equip && loot.equip.length && !loot.equipTaken) R.takeEquip(run, loot.equip[0]);
       R.takeReward(run, null);                 // 골드 — 판에는 바로 들어간다. 화면은 사도들이 주우며 올린다
     }
+    // 판에 다 남긴 뒤 적는다 — 금화를 줍는 연출 중에 새로고침해도 다음 칸(main.js)으로 넘어간다
+    run.where = { k: "fightDone", result: st.over };
+    writeSave(run);
     // 사도들이 오른쪽으로 달려가며 바닥의 금화를 줍는다 → 얻은 것을 보이고 넘어간다
     walkOut(() => {
       if (loot) {
@@ -2676,7 +2679,25 @@ export function fightScreen(run, onDone, onQuit) {
     });
   }
 
+  // 이어하기 — 이미 쓰러진 적의 골드 · 장비와 이 싸움에서 얻은 은총 · 신탁을 「얻은 것」 에 다시 올린다(판은 그대로)
+  if (resumed) {
+    for (const u of st.enemies) {
+      if (!u.dead) continue;
+      goneFoes.add(u.idx);
+      if (u.idx === carrier && loot && !itemsDropped) { itemsDropped = true; if (loot.equip && loot.equip[0]) dropEquip(loot.equip[0]); }
+      if (goldShare[u.idx]) addGold(goldShare[u.idx]);
+    }
+    for (const id of (st.gained && st.gained.cards) || []) if (CARDS[id]) lootCard(id, `은총 · ${HERO(CARDS[id].hero).ko}`);
+    for (const f of (st.gained && st.gained.flash) || []) if (CARDS[f.cardId]) lootCard(f.cardId, `신탁 ${"①②③④⑤"[f.n - 1] || ""}`);
+  }
   draw();
+  // 신탁을 고르던 중이었으면 그 창을 다시 연다 — 같은 카드 · 같은 선택지
+  if (st.pendingEpi) {
+    const p = st.pendingEpi;
+    selCard = st.hand.indexOf(p.cardId);
+    if (selCard >= 0 && C.glowOf(st, p.cardId)) play(p.targetIdx);
+    else { delete st.pendingEpi; selCard = -1; }
+  }
   return s;
 }
 
@@ -2822,7 +2843,7 @@ export function mapScreen(run, onEnter, onQuit) {
     };
     list.appendChild(sp);
     if (onQuit) {
-      const q = el("button", "mitem quit"); q.appendChild(el("b", null, "메인화면으로")); q.appendChild(el("span", null, "이 판은 저장되지 않습니다"));
+      const q = el("button", "mitem quit"); q.appendChild(el("b", null, "메인화면으로")); q.appendChild(el("span", null, saveOk() ? "판은 저장됩니다 — 로비에서 이어하기" : "저장할 수 없는 브라우저입니다 — 나가면 이 판은 사라집니다"));
       q.onclick = () => { closeCenter(); onQuit(); };
       list.appendChild(q);
     }
@@ -2982,7 +3003,7 @@ export function rewardScreen(run, onPick) {
         const row = el("div", "rrow");
         for (const id of got.equip) {
           const b = el("button", "sprice", "이걸 가집니다");
-          b.onclick = () => { R.takeEquip(run, id); drawEq(); };
+          b.onclick = () => { R.takeEquip(run, id); writeSave(run); drawEq(); };
           row.appendChild(equipCard(id, b));
         }
         eqBox.appendChild(row);
@@ -3275,7 +3296,7 @@ function gearPanel(run, mode, onChange, say) {
           c.appendChild(el("span", "gst", st + (e.affinity === k ? " · 애착" : "")));
           // 빼기 — 전투 밖이면 어디서든(지도 · 캠프 · 상점). 빼면 가방으로
           const x = el("button", "gout", "빼기");
-          x.onclick = () => { const why = R.unequip(run, k, sl); if (why && say) say(why); draw(); onChange && onChange(); };
+          x.onclick = () => { const why = R.unequip(run, k, sl); writeSave(run); if (why && say) say(why); draw(); onChange && onChange(); };
           c.appendChild(x);
         } else c.appendChild(el("span", "gempty", "비어 있음"));
         slots.appendChild(c);
@@ -3295,7 +3316,7 @@ function gearPanel(run, mode, onChange, say) {
           const h = HERO_DATA[k] || HERO(k);
           const full = !!R.gearOf(run, k)[e.slot];
           const b = el("button", "gtobtn" + (e.affinity === k ? " aff" : ""), `${h.ko}${full ? " (바꾸기)" : ""}${e.affinity === k ? " ♥" : ""}`);
-          b.onclick = () => { const why = R.equip(run, k, id, { swap: true }); if (why && say) say(why); draw(); onChange && onChange(); };
+          b.onclick = () => { const why = R.equip(run, k, id, { swap: true }); writeSave(run); if (why && say) say(why); draw(); onChange && onChange(); };
           btns.appendChild(b);
         }
         // 팔기 — 되돌릴 수 없으니 두 번 눌러야 판다(한 번 누르면 「한 번 더 누르면 판매」)
@@ -3312,7 +3333,7 @@ function gearPanel(run, mode, onChange, say) {
             return;
           }
           clearTimeout(armed); armed = null;
-          const why = R.sellEquip(run, id);
+          const why = R.sellEquip(run, id); writeSave(run);
           if (why && say) say(why);
           else if (say) say(`「${e.ko}」 을(를) ${price} 골드에 팔았습니다`);
           draw(); onChange && onChange();
@@ -3424,7 +3445,7 @@ export function campScreen(run, withShop, onDone, onShop) {
   rest.body.appendChild(restGain);
   rest.b.onclick = () => {
     const before = run.party.map((k) => run.hp[k] || 0);
-    const why = R.campRest(run);
+    const why = R.campRest(run); writeSave(run);
     if (why) return say(why);
     // 불이 한 번 확 일고, 사도마다 찬 만큼 떠오른다
     fire.classList.remove("flare"); void fire.offsetWidth; fire.classList.add("flare");
@@ -3572,7 +3593,7 @@ export function campScreen(run, withShop, onDone, onShop) {
     const wrap = el("div", "cp-trainwrap");
     const fr = el("div", "cp-flash");
     const ts = twoStep((n) => {
-      const why = R.campTrain(run, { cardId: offer.cardId, n });
+      const why = R.campTrain(run, { cardId: offer.cardId, n }); writeSave(run);
       closeSheet();
       if (why) return say(why);
       say(`「${c.name}」에 신탁을 붙였습니다. 불빛 아래에서 손에 익혔습니다.`);
@@ -3814,7 +3835,7 @@ export function shopScreen(run, onDone, opts = {}) {
     const rr = actBtn("sh-reroll", "새로고침", "진열을 통째로 바꿉니다", rrPrice);
     if (run.gold < rrPrice) rr.classList.add("short");
     rr.onclick = () => {
-      const why = R.rerollShop(run);
+      const why = R.rerollShop(run); writeSave(run);
       if (why) return why === "골드가 모자랍니다" ? poor() : say(why);
       say(pick(GOLDY.reroll)); act("reroll");
       fresh = true; draw();
@@ -3848,7 +3869,7 @@ export function shopScreen(run, onDone, opts = {}) {
     b.disabled = !!it.sold;
     if (!it.sold && run.gold < it.price) b.classList.add("short");
     b.onclick = () => {
-      const why = R.buy(run, i);
+      const why = R.buy(run, i); writeSave(run);
       if (why) return why === "골드가 모자랍니다" ? poor() : say(why);
       if (it.kind === "equip") { bagNew = true; say(it.delivery ? GOLDY.delivery : GOLDY.equip); }
       else say(pick(GOLDY.buy));
@@ -3922,7 +3943,7 @@ export function shopScreen(run, onDone, opts = {}) {
     const grid = el("div", "sh-deck");
     // 두 단계 — 눌러 고르고 「N 골드로 뺍니다」 로 정한다(골드가 나가니 한 번 눌러 바로 빠지면 안 된다)
     const ts = twoStep((id) => {
-      const why = R.removeCard(run, id);
+      const why = R.removeCard(run, id); writeSave(run);
       closeSheet();
       if (why) return why === "골드가 모자랍니다" ? poor() : say(why);
       say(GOLDY.remove); act("remove"); draw();
@@ -4060,6 +4081,8 @@ export function eventScreen(run, onDone, onFight) {
   function draw() {
     const E = run.event;
     if (!E) return;
+    // 갈림길 · 선택지 · 고르는 것을 하나 고를 때마다 엔진(events.js)이 다 풀고 여기로 온다 — 그리기 전에 적어 둔다
+    writeSave(run);
     const ev = E.id ? EV.eventById(E.id) : null;
     setStage(ev);
     paintTop(ev, E);
