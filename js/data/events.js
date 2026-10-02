@@ -108,7 +108,7 @@ export const EVENTS = [
     options: [
       { label: "측량을 돕는다", out: "HP -10% · 지도 공개", say: "산을 두 개 넘었다. 그윈은 숨도 안 찼다." },
       { label: "그윈이 낸 샛길로 간다", out: "HP -15% · 다음 전투: 적 패시브 꺼짐 2턴", say: "아무도 안 다닌 길이라 험했다. 적은 그쪽에서 올 줄 몰랐다." },
-      { label: "깃발 꽂을 자리를 같이 지킨다", fight: { name: "먼저 와 있던 저주 인형", enemies: ["fairycurseddolltanker", "elfcurseddolldealer", "witchcurseddollsupporter"], win: "골드 +60 · 지도 공개" } },
+      { label: "깃발 꽂을 자리를 같이 지킨다", fight: { name: "자리를 두고 다투던 누루링", enemies: ["nururingtanker_fairy", "nururingwarrior", "nururingsupporter_witch"], win: "골드 +60 · 지도 공개" } },
       { label: "언니와 동생", hero: "델리아", out: "지도 공개 · 다음 전투: 첫 손패 +1", say: "탐험대 대장이 언니 짐을 챙겨 따라왔다. 그윈은 동생 앞에서 늘 더 씩씩하다." },
     ],
   },
@@ -165,11 +165,11 @@ export const EVENTS = [
   },
   {
     id: "E3", name: "위성에서 보이는 밭", pool: 0, kind: "판정·전투", npc: "캬롯",
-    scene: "캬롯의 밭. 작물이 산만 하다. 몇몇은 근육 덩어리다. 밭 가장자리에서 인삼이 슬금슬금 움직인다.",
+    scene: "캬롯의 밭. 작물이 산만 하다. 몇몇은 근육 덩어리다. 밭 가장자리에서 산사모가 슬금슬금 움직인다.",
     options: [
       { label: "거대 당근을 뽑는다", judge: { by: "atk-max", at: 12, pass: "최대 HP +6 · 골드 +30", fail: "HP -10% · 최대 HP +3",
         passSay: "뽑혔다. 캬롯이 사탕수수를 흔들며 기뻐했다." } },
-      { label: "밭을 넘보는 인삼을 쫓는다", fight: { name: "인삼 무리", enemies: ["ginseng", "ginseng"], win: "최대 HP +4 · 골드 +50" } },
+      { label: "밭을 넘보는 산사모를 쫓는다", fight: { name: "산사모 무리", enemies: ["ginseng", "ginseng"], win: "최대 HP +4 · 골드 +50" } },
       { label: "\"맛은 작은 게 낫던데\"", out: "없음", say: "작물 무시는 그냥 넘어가지 않는다. 캬롯이 당근을 입에 그대로 밀어 넣고 쫓아냈다." },
       { label: "언니네 밭", hero: "카렌", out: "최대 HP +5", say: "캬롯이 동생 일행이라며 특제 영양제를 나눠 줬다. 카렌은 그사이 야채 케이크를 한 입 강제로 먹었다." },
     ],
@@ -272,9 +272,9 @@ export const EVENTS = [
   },
   {
     id: "E13", name: "막힌 유적", pool: 0, kind: "전투", npc: "마리",
-    scene: "숲속 유적 입구를 요정 저주 인형들이 막고 있다. 날개가 유독 큰 탐험가 마리가 폭탄을 만지작거린다. 보존에는 관심이 없다 — 막히면 터뜨린다.",
+    scene: "숲속 유적 입구를 누루링-요정들이 막고 있다. 날개가 유독 큰 탐험가 마리가 폭탄을 만지작거린다. 보존에는 관심이 없다 — 막히면 터뜨린다.",
     options: [
-      { label: "같이 뚫고 들어간다", fight: { name: "유적의 저주 인형", enemies: ["fairycurseddolltanker", "fairycurseddolldealer", "fairycurseddollsupporter"], win: "장신구 (희귀) · 골드 +30" } },
+      { label: "같이 뚫고 들어간다", fight: { name: "유적의 누루링", enemies: ["nururingtanker_fairy", "nururingwarrior_fairy", "nururingsupporter_fairy"], win: "장신구 (희귀) · 골드 +30" } },
       { label: "지도를 산다", out: "골드 -40 · 지도 공개", say: "폭탄마로만 알려졌지만 지도는 정확했다." },
       { label: "\"그거 도굴 아닌가요?\"", out: "없음", say: "모험이라고 했다. 아주 단호하게." },
       { label: "옆길", hero: "네티", out: "골드 +60", say: "폭탄이라면 질색인 네티가 드릴로 옆길을 냈다. 유물은 제자리에 두고, 길에 굴러다니던 원석만 챙겼다." },
@@ -282,12 +282,12 @@ export const EVENTS = [
   },
   {
     id: "E14", name: "안 팔린 민트초코", pool: 0, kind: "전투", npc: "파트라",
-    scene: "빵집 거리 뒷문. 견습 파트라가 안 팔린 민트초코 빵을 한 수레 끌고 나온다. 그 냄새를 따라 숲에서 먹보곰이 어슬렁거린다.",
+    scene: "빵집 거리 뒷문. 견습 파트라가 안 팔린 민트초코 빵을 한 수레 끌고 나온다. 그 수레 밑에서 잘못 구워진 빵, 목매킴이 굴러 나온다.",
     options: [
-      { label: "곰을 막는다", fight: { name: "먹보곰", enemies: ["gluttonbear", "ginseng"], win: "골드 +60 · 최대 HP +4" } },
+      { label: "빵을 막는다", fight: { name: "목매킴", enemies: ["mogmaekim", "mogmaekim", "buseuleogi"], win: "골드 +60 · 최대 HP +4" } },
       { label: "민트초코 빵을 산다", out: "골드 -40 · 다음 전투: 적 패시브 꺼짐 2턴", say: "민트 향이 옷에 깊이 배었다. 다음에 만나는 적들은 코를 막느라 성질을 못 부린다." },
       { label: "\"민트초코는 좀…\"", out: "없음", say: "얼굴 끝부터 붉어졌다. 수레째 쫓겨났다." },
-      { label: "텀블러 출동", hero: "샤샤", out: "HP +20%", say: "샤샤의 텀블러가 곰을 쫓아냈다. 파트라는 곰보다 텀블러가 더 무서워 수레 뒤에 숨었다가, 고맙다며 빵을 나눠 줬다. 민트초코였다." },
+      { label: "텀블러 출동", hero: "샤샤", out: "HP +20%", say: "샤샤의 텀블러가 목매킴을 쫓아냈다. 파트라는 빵보다 텀블러가 더 무서워 수레 뒤에 숨었다가, 고맙다며 빵을 나눠 줬다. 민트초코였다." },
     ],
   },
   {
@@ -408,16 +408,16 @@ export const EVENTS = [
     id: "M11", name: "지상 드론 출장 수리", pool: 1, kind: "전투", npc: "레이지",
     scene: "IT관리반 레이지가 또 불려 나왔다. 자가 수리가 된다며 수리를 거부하는 지상 드론이 공장 앞에서 다리를 굴러 댄다. 고장 난 건 못 본 척하지 못한다.",
     options: [
-      { label: "같이 붙잡는다", fight: { name: "지상 드론", enemies: ["droneg", "drones"], elite: true, win: "무기 (희귀)" } },
+      { label: "같이 붙잡는다", fight: { name: "드론 G형", enemies: ["droneg_repair", "drones"], elite: true, win: "무기 (희귀)" } },
       { label: "장갑 여는 순서를 받아 적는다", out: "골드 -30 · 다음 전투: 첫 턴 적 전체 즉시 행동 -2", say: "레이지가 투덜대며 알려 준다. 장갑을 내리는 때까지." },
       { label: "마개조 사부", hero: "바나", out: "무기 (희귀)", say: "허락도 없이 지상 드론을 붙잡아 손봤다. 다리가 원래보다 이상한 물건이 되어 나왔다." },
     ],
   },
   {
     id: "M12", name: "동맹국 방범 순찰", pool: 1, kind: "전투", npc: "헤일리",
-    scene: "제복 차림의 헤일리가 경례를 붙인다. 이 땅을 동맹국으로 알고 오늘도 방범 순찰 중이다. 골목의 저주 인형들을 침투조로 지목했다.",
+    scene: "제복 차림의 헤일리가 경례를 붙인다. 이 땅을 동맹국으로 알고 오늘도 방범 순찰 중이다. 골목의 낙서투성이 드론들을 침투조로 지목했다.",
     options: [
-      { label: "작전에 합류한다", fight: { name: "침투조", enemies: ["elfcurseddolldealer", "elfcurseddollsupporter"], win: "방어구 (희귀)" } },
+      { label: "작전에 합류한다", fight: { name: "침투조", enemies: ["drones_scrap", "droneg_repair"], win: "방어구 (희귀)" } },
       { label: "작전 브리핑을 듣는다", out: "HP -10% · 다음 전투: 적 전체 취약 2턴", say: "브리핑 뒤에 구보로 순찰로를 한 바퀴 돌았다. 가짜를 가려내는 눈만큼은 진짜다." },
       { label: "\"여긴 동맹국이 아니에요\"", out: "없음", say: "헤일리는 제 인식을 의심하지 않는다. 경례만 받았다." },
       { label: "무전 보고", hero: "캐시", out: "다음 전투: 적 전체 취약 2턴", say: "캐시의 무전 보고를 받자 헤일리가 침투조의 빈틈을 정확히 짚는다." },
@@ -503,10 +503,10 @@ export const EVENTS = [
     ],
   },
   {
-    id: "B6", name: "뿌리 틈의 저주 인형", pool: 2, kind: "전투·다음 전투",
-    scene: "뿌리 사이에 마녀 저주 인형이 실에 매달려 있다. 가까이 가면 움직인다. 실을 끊자 끊긴 실끼리 다시 이어 붙으려 꿈틀댄다.",
+    id: "B6", name: "뿌리 틈의 누루링 인형", pool: 2, kind: "전투·다음 전투",
+    scene: "뿌리 사이에 마녀가 만들다 버린 인형, 누루링이 실에 매달려 있다. 가까이 가면 움직인다. 실을 끊자 끊긴 실끼리 다시 이어 붙으려 꿈틀댄다.",
     options: [
-      { label: "떼어 낸다", fight: { name: "저주 인형", enemies: ["witchcurseddolltanker", "witchcurseddolldealer"], win: "골드 +60 · 고유 카드 선택" } },
+      { label: "떼어 낸다", fight: { name: "누루링 인형", enemies: ["curseddoll_naive", "curseddoll_mad"], win: "골드 +60 · 고유 카드 선택" } },
       { label: "실을 하나하나 끊어 둔다", out: "HP -10% · 다음 전투: 적 패시브 꺼짐 2턴", say: "손끝이 실가시에 쓸렸다. 끊어 둔 실은 한동안 다시 이어지지 않는다." },
       { label: "인형 전문가", hero: "바롱", out: "교주 카드 (희귀)", say: "뜯어진 자리를 다시 꿰매자 얌전해졌다. 바롱은 주인님이 하신 일이라고 했다." },
     ],
@@ -515,7 +515,7 @@ export const EVENTS = [
     id: "B7", name: "서열 결투장", pool: 2, kind: "전투·도박·장비",
     scene: "힘으로 서열이 갈리는 마녀 사회의 결투장. 오늘도 판이 섰다.",
     options: [
-      { label: "참가한다", fight: { name: "결투장의 강자", enemies: ["oldtree", "witchcurseddollwizard", "wisps"], elite: true,
+      { label: "참가한다", fight: { name: "결투장의 강자", enemies: ["nururingwarrior_witch", "curseddoll_jolly", "hatsnail_mad"], elite: true,
         winGamble: [{ p: 0.25, out: "무기 (전설)" }, { p: 0.75, out: "장비 (희귀)" }] } },
       { label: "관전 내기", gamble: [
         { p: 0.5, out: "골드 -50 · 골드 +120", say: "건 쪽이 이겼다." },
@@ -539,7 +539,7 @@ export const EVENTS = [
     id: "B9", name: "연체 도서 수금", pool: 2, kind: "전투·신탁", npc: "바리에",
     scene: "벨리티엔 공공도서관. 사서 바리에가 몽둥이를 들고 나선다. 연체된 고서를 뿌리 밑 것들이 깔고 앉아 있다고 한다.",
     options: [
-      { label: "수금을 거든다", fight: { name: "책을 깔고 앉은 것들", enemies: ["hatsnail", "magicfork"], win: "골드 +70 · 카드 제거 1" } },
+      { label: "수금을 거든다", fight: { name: "책을 깔고 앉은 것들", enemies: ["hatsnail", "nururingarcher_witch"], win: "골드 +70 · 카드 제거 1" } },
       { label: "기한을 지켜 책을 빌린다", out: "골드 -30 · 신탁 바꾸기 1", say: "대여료는 받는다. 책에는 같은 수를 다른 길로 푸는 법이 적혀 있었다." },
       { label: "책을 냄비 받침으로 쓴다", out: "없음", say: "몽둥이가 먼저 나왔다." },
       { label: "유일한 단골", hero: "제이드", out: "고유 카드 선택", say: "멀쩡한 단골이 왔다고 바리에가 아껴 둔 책을 먼저 빼 준다." },
@@ -580,22 +580,22 @@ export const EVENTS = [
   },
   {
     id: "B13", name: "물을 머금은 웅덩이", pool: 2, kind: "전투·장비",
-    scene: "뿌리 밑 웅덩이에 커다란 비늘이 떠 있다. 물속에서 무언가가 똬리를 틀고 위를 노려본다. 가장자리에는 식충 화분이 입을 벌리고 있다.",
+    scene: "뿌리 밑 웅덩이에 커다란 비늘이 떠 있다. 물속에서 무언가가 똬리를 틀고 위를 노려본다. 가장자리에는 햇팽이들이 모자를 끌고 붙어 있다.",
     options: [
       { label: "떨어진 비늘을 건진다", out: "HP -15% · 방어구 (희귀)", say: "물줄기를 한 번 뒤집어썼다. 비늘은 단단했다." },
-      { label: "웅덩이를 지키는 것들을 친다", fight: { name: "웅덩이 가의 것들", enemies: ["nependers", "witchcurseddollwizard"], win: "골드 +80" } },
+      { label: "웅덩이를 지키는 것들을 친다", fight: { name: "웅덩이 가의 것들", enemies: ["hatsnail_jolly", "nururingsupporter_witch"], win: "골드 +80" } },
       { label: "뿌리 물을 떠 마신다", out: "HP +20% · 다음 전투: 아군 전원 약화 1턴", say: "차고 맑았다. 몸이 조금 무거워졌다." },
     ],
   },
   {
-    id: "B14", name: "위습 등불 길", pool: 2, kind: "전투·도박·다음 전투",
-    scene: "뿌리 사이 어둠에 푸른 등불이 줄지어 떠 있다. 위습이다. 흩어졌다 모이며 길을 내주는 척한다.",
+    id: "B14", name: "모자 등불 길", pool: 2, kind: "전투·도박·다음 전투",
+    scene: "뿌리 사이 어둠에 푸른 등불이 줄지어 떠 있다. 버려진 마녀 모자에 매달린 등불이다 — 햇팽이들이 모자째 끌고 다니며 길을 내주는 척한다.",
     options: [
       { label: "등불을 따라간다", gamble: [
-        { p: 0.5, out: "지도 공개", say: "위습이 정말로 지름길을 냈다." },
+        { p: 0.5, out: "지도 공개", say: "햇팽이가 정말로 지름길을 냈다." },
         { p: 0.5, out: "HP -15%", say: "막다른 뿌리였다. 돌아 나오느라 지쳤다." },
       ] },
-      { label: "등불을 붙잡아 가둔다", fight: { name: "위습 떼", enemies: ["wisps", "wisps", "magicfork"], win: "골드 +60 · 최대 HP +4" } },
+      { label: "등불을 붙잡아 가둔다", fight: { name: "모자 등불 떼", enemies: ["hatsnail_jolly", "hatsnail_jolly", "hatsnail_mad"], win: "골드 +60 · 최대 HP +4" } },
       { label: "등불을 끄고 더듬어 걷는다", out: "HP -10% · 다음 전투: 첫 턴 적 전체 즉시 행동 -2", say: "빛에 홀리지 않으니 저것들이 재촉해도 서두르지 않게 됐다." },
     ],
   },

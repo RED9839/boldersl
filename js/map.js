@@ -8,14 +8,14 @@
 //   1-12        보스
 // 한 줄에 자리(레인)가 넷 — 칸은 그 자리에만 서고, 선은 같은 자리 · 바로 옆 자리로만 이어진다(엇갈리지 않는다).
 // 모든 칸은 처음 줄에서 닿고, 모든 칸에서 보스에 닿는다.
-// 싸움의 세기는 줄이 정한다 — 층의 싸움 세 벌(FLOORS[].fights) 가운데 1-1~1-3 약 · 1-4~1-6 중 · 1-7~ 강.
+// 싸움의 세기는 줄이 정한다 — 층의 싸움(FLOORS[].pools — 세기마다 네다섯 벌) 가운데 1-1~1-3 약 · 1-4~1-6 중 · 1-7~ 강.
 // 엘리트는 한 단계 센 싸움을 체력 ×ELITE_HP 로(rules.js) — 이기면 장비 하나와 신탁, 골드 더.
 //
 // 지도는 판의 씨앗과 층으로 정해진다 — 다시 그려도 같은 길이다. 설계는 docs/10-지도.md.
 import { makeRng } from "./combat.js";
-import { FLOORS } from "./data/enemies.js";
+import { FLOORS, ENEMIES } from "./data/enemies.js";
 
-// 싸움 칸마다 그 층 · 그 세기의 싸움 가운데 하나(엘리트는 전용 두 벌). 바로 앞 칸과 같은 짝은 되도록 피한다
+// 싸움 칸마다 그 층 · 그 세기의 싸움 가운데 하나(엘리트는 전용 넷). 바로 앞 칸과 같은 짝은 되도록 피한다
 function pickFoes(rng, floor, node, prev) {
   const F = FLOORS[floor] || FLOORS[0];
   const pool = node.type === "elite" ? F.elites || [F.fights[2]] : (F.pools || F.fights.map((x) => [x]))[node.fight] || [F.fights[0]];
@@ -135,6 +135,10 @@ export function aheadOf(run) {
 // 이 판의 지금 층 지도 — 없거나 층이 바뀌었으면 새로 그린다
 export function mapOf(run) {
   if (!run.map || run.map.floor !== run.floor) run.map = genMap(run.seed, run.floor);
+  // 이어하던 판의 지도에 지금은 없는 적이 적혀 있으면(적 개편 전 저장) 그 칸만 같은 세기의 짝으로 다시 고른다
+  for (const n of run.map.rows.flat()) {
+    if (n.foes && n.foes.some((k) => !ENEMIES[k])) n.foes = pickFoes(makeRng((run.seed ^ (n.row * 97 + n.col)) >>> 0), run.floor, n, []);
+  }
   return run.map;
 }
 export const nodeById = (map, id) => map.rows.flat().find((n) => n.id === id) || null;

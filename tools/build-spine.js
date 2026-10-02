@@ -12,7 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ROSTER, HEROES } from "../js/data/heroes.js";
 import ARTMAP from "../js/data/artmap.js";
-import { ENEMIES } from "../js/data/enemies.js";
+import { ENEMIES, foeLook } from "../js/data/enemies.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const AS = path.join(HERE, "..", "assets");
@@ -71,16 +71,14 @@ for (const [key, dir] of Object.entries({ goldy: "goldy" })) {
   total += got.bytes;
 }
 
-// 적 — tools/extract-spine.py 가 assets/monsterspine 에 꺼내 둔다. key 가 곧 몬스터 폴더 이름이다.
-// 저주 인형 셋은 게임에 따로 된 스파인이 없고 curseddoll 한 벌을 성격 스킨으로 나눠 입는다.
-// 저주 인형은 종족 · 역할이 달라도 한 벌을 나눠 입는다 — 이름에 curseddoll 이 들어가면 모두 그 한 벌
-const ENEMY_DIR = new Proxy({}, { get: (_, k) => (typeof k === "string" && k.includes("curseddoll") ? "curseddoll" : undefined) });
+// 적 — tools/extract-spine.py 가 assets/monsterspine 에 꺼내 둔다. 폴더 이름이 곧 그림(foeLook(key).art)이다.
+// 같은 몬스터의 성격 갈래 · 누루링의 종족 갈래는 그림 한 벌을 스킨으로 나눠 입는다 — 그림마다 한 번만 담는다(art.js 도 그림 이름으로 찾는다)
 manifest.enemy = {};
 const msrc = path.join(AS, "monsterspine");
 if (!fs.existsSync(msrc)) trouble.push("적 스파인을 아직 안 꺼냈습니다 — python tools/extract-spine.py");
 else {
-  for (const key of Object.keys(ENEMIES)) {
-    const got = copySet(path.join(msrc, ENEMY_DIR[key] || key), path.join(OUT, "enemy", key));
+  for (const key of new Set(Object.keys(ENEMIES).map((k) => foeLook(k).art))) {
+    const got = copySet(path.join(msrc, key), path.join(OUT, "enemy", key));
     if (!got) { trouble.push(`enemy/${key} — 한 벌이 안 갖춰졌습니다`); continue; }
     if (got.error) { trouble.push(`enemy/${key} — ${got.error}`); continue; }
     manifest.enemy[key] = { atlas: got.atlas, skel: got.skel, pages: got.pages };
@@ -100,7 +98,7 @@ fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null,
 
 const ni = Object.keys(manifest.ingame).length, ns = Object.keys(manifest.standing).length;
 const ne = Object.keys(manifest.enemy).length;
-console.log(`전투 SD ${ni}명 · 스탠딩 ${ns}명 · 적 ${ne}/${Object.keys(ENEMIES).length}종 · 미니미 ${manifest.minimi ? "있음" : "없음"} · ${mb(total)} → assets/spine/`);
+console.log(`전투 SD ${ni}명 · 스탠딩 ${ns}명 · 적 그림 ${ne}/${new Set(Object.keys(ENEMIES).map((k) => foeLook(k).art)).size}벌(${Object.keys(ENEMIES).length}종) · 미니미 ${manifest.minimi ? "있음" : "없음"} · ${mb(total)} → assets/spine/`);
 for (const t of trouble) console.log(`  ! ${t}`);
 if (!ALL) {
   const miss = Object.keys(ARTMAP.art).filter((k) => !manifest.ingame[k] || !manifest.standing[k]);
