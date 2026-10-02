@@ -1094,7 +1094,7 @@ export function shopScreen(run, onDone, opts = {}) {
     shelf.classList.toggle("fresh", fresh);
     fresh = false;
     const rows = [
-      ["neutral", "교주 카드", "교주님이 직접 쓰는 카드입니다 — 어느 사도의 것도 아닙니다 · 공격력·방어력이 가장 높은 아군 기준으로 돕니다"],
+      ["neutral", "교주 카드", "교주님이 직접 쓰는 카드입니다 — 어느 사도의 것도 아닙니다 · 사도 스탯을 빌리지 않고 AP · 드로우 · 즉시 행동 · 정해진 % 버프와 디버프로 돕니다"],
       ["equip", "장비", "사면 가방에 들어갑니다 · 빈 칸이면 바로 낄 수 있습니다"],
     ];
     let n = 0;

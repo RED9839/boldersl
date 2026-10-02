@@ -29,6 +29,23 @@ export function shortText(t) {
 
 export { SHORT };
 
+// 카드 면의 수치 조각 — 「피해 100%」 「4회 × 피해 30%」 「방어 200%」 「실드 …」 「회복 …」(줄인 글 기준).
+// 전투 화면은 낸 사도의 지금 능력치로 숫자를 크게, % 를 작게 얹는다(ui-common withNumbers). 싸움 밖은 % 그대로.
+// 돌려주는 것: [{ t } | { t, kind: dmg · block · shield · heal, label, pct, hits }] — t 를 이으면 원래 글
+const NUM = /(?:(\d+)회 × )?(마법 피해|피해|방어|실드|회복) (\d+)%/g;
+const NUM_KIND = { "마법 피해": "dmg", 피해: "dmg", 방어: "block", 실드: "shield", 회복: "heal" };
+export function numParts(text) {
+  const t = String(text || ""), out = [];
+  let at = 0;
+  for (const m of t.matchAll(NUM)) {
+    if (m.index > at) out.push({ t: t.slice(at, m.index) });
+    out.push({ t: m[0], kind: NUM_KIND[m[2]], label: m[2], pct: Number(m[3]), hits: m[1] ? Number(m[1]) : 0 });
+    at = m.index + m[0].length;
+  }
+  if (at < t.length) out.push({ t: t.slice(at) });
+  return out;
+}
+
 // ── 밑줄 칠 낱말 가르기 ──────────────────────────────────────────────
 //
 // 글을 조각으로 가른다. [{ t: "피해 " }, { t: "취약", kw: {...} }, { t: " 1턴" }]

@@ -3,7 +3,7 @@
 import { HEROES } from "./data/heroes.js";
 import { HERO_DATA, EQUIP } from "./cardbook.js";
 import CARDART from "./data/cardart.js";
-import { shortText, splitKeywords, cardParts } from "./card-text.js";
+import { shortText, splitKeywords, cardParts, numParts } from "./card-text.js";
 import * as C from "./combat.js";
 import * as RULES from "./rules.js";
 import * as R from "./run.js";
@@ -144,6 +144,13 @@ const HELP = [
     `고학년 스킬은 사도마다 게이지 ${RULES.ULT_COSTS.join(" · ")}% 가운데 하나를 씁니다. 사도의 둥근 얼굴 단추가 빛나면 쓸 수 있습니다.`,
     `손패는 ${RULES.HAND_MAX}장까지입니다.`,
   ])],
+  // 장수를 누구 것으로 세는지 — 패시브 글이 「에르핀의 …」 「파티가 …」 로 밝힌다(js/passive.js)
+  ["패시브", "패시브 — 장수 세기", () => helpList([
+    "「에르핀의 공격 카드를 3장 낼 때마다」 — 그 사도가 낸 카드만 셉니다. 다른 아군의 카드는 세지 않습니다. 센 장수는 전투 내내 이어집니다(「한 턴에」 가 붙으면 턴마다 0 부터).",
+    "「공격 카드를 낼 때마다」 처럼 이름이 없으면 그 사도 자신의 카드입니다. 장비는 「자신의 …」 — 낀 사도의 카드를 셉니다.",
+    "「파티가 이번 턴 카드를 3장째 낼 때」 · 「파티가 이번 턴 카드를 3장 이상 냈으면」 — 누가 냈든 파티 셋이 이번 턴 낸 카드를 함께 셉니다. 「아군이 … 낼 때마다」 도 누구든입니다.",
+    "사도 정보 창의 패시브 줄에 지금 센 수가 붙습니다 — 「에르핀 공격 1/3」 은 에르핀 것만, 「파티 2장」 은 파티 전체입니다.",
+  ])],
   ["신탁", "은총 · 신탁 · 겨우살이의 축복", () => helpList([
     "싸우다 보면 카드가 빛납니다. 빛나는 카드를 내면 세계수의 뜻이 내립니다.",
     "은총 — 사도의 기본 카드가 빛납니다. 내면 그 사도의 고유 카드 하나가 손패로 옵니다(그 턴 0코). 고르지 않습니다. 한 번 뺀 고유 카드는 다시 오지 않습니다.",
@@ -161,6 +168,7 @@ const HELP = [
   ["장비", "장비", () => helpList([
     `사도마다 무기 · 방어구 · 장신구 한 칸씩입니다. 전투 밖이면 어디서든(지도의 「장비」 · 캠프 · 상점) 끼고 빼고 바꿔 낍니다. 가방의 장비는 사는 값의 ${Math.round(RULES.EQUIP_SELL * 100)}% 에 팔 수 있습니다.`,
     "스탯 줄은 사도 스탯에 그대로 더합니다. 효과 줄은 낀 사도의 패시브가 됩니다.",
+    "회복력 = 공격력 + 역할 몫(서포터 · 탱커). 「회복력 +N」 스탯은 회복력에만 더해져 회복 카드 · 패시브의 「HP 회복(회복력 N%)」 이 커집니다.",
     "이름에 사도가 붙은 장비는 그 사도가 끼면 애착 줄과 작은 스탯이 더 붙습니다.",
     "등급 — 일반 · 고급 · 희귀 · 전설. 일반 몇 종은 스탯뿐입니다.",
   ])],
@@ -238,6 +246,24 @@ export function withKeywords(node, text, heroKey) {
   return node;
 }
 
+// 카드 글 — 전투 중이면 수치 조각(「피해 100%」)을 실제 숫자로: 「피해 14」 크게 · 「100%」 작게, 여러 번은 「6×4」.
+// calc(kind, ratio) → 숫자(낸 사도의 지금 능력치 · fight-screen cardCalc). 없으면(싸움 밖 · 교주 카드) % 그대로
+export function withNumbers(node, text, heroKey, calc) {
+  if (!calc) return withKeywords(node, text, heroKey);
+  for (const p of numParts(text)) {
+    if (!p.kind) { withKeywords(node, p.t, heroKey); continue; }
+    const v = calc(p.kind, p.pct / 100);
+    if (v == null) { withKeywords(node, p.t, heroKey); continue; }
+    const n = el("span", "cnum n-" + p.kind);
+    withKeywords(n, p.label + " ", heroKey);
+    n.appendChild(el("b", "cnv", p.hits ? `${v}×${p.hits}` : String(v)));
+    n.appendChild(el("small", "cnp", `${p.pct}%`));
+    n.title = `${p.t} — 지금 능력치로 센 값(맞는 쪽의 취약 · 상성은 빼고)`;
+    node.appendChild(n);
+  }
+  return node;
+}
+
 // 풀이 쪽지. 한 번에 하나만 뜬다.
 function showKeyword(kw) {
   if (kwNote) { kwNote.remove(); kwNote = null; }
@@ -284,7 +310,8 @@ export function showCard(c, heroKey) {
 // 손패와 같은 카드 꼴로 펼치고, 뽑을 더미 · 버린 더미 · 사라진 카드 · 덱 전체를 오간다.
 // piles: [{ key, label, ids, why }] · pick: 처음 열 칸 · cardFor: id → 이 판에서의 카드(신탁 반영)
 // onDetail: id → 카드를 누르면 가운데에 자세히(전투의 카드 창). 없으면 보기만 한다
-export function showPiles(piles, pick, cardFor, onDetail) {
+// numFor: id → 그 카드의 수치 셈(전투 중만, bigCard calc)
+export function showPiles(piles, pick, cardFor, onDetail, numFor) {
   if (kwNote) { kwNote.remove(); kwNote = null; }
   const back = el("div", "pilemodal");
   const box = el("div", "pilebox");
@@ -342,7 +369,7 @@ export function showPiles(piles, pick, cardFor, onDetail) {
       } else who.appendChild(el("b", null, "공용"));
       if (bag.get(id) > 1) who.appendChild(el("span", "pn", `×${bag.get(id)}`));
       cell.appendChild(who);
-      const card = bigCard(c, CARDART.pic[id] || null);
+      const card = bigCard(c, CARDART.pic[id] || null, numFor ? numFor(id) : null);
       card.onclick = onDetail ? () => onDetail(id) : null;   // 누르면 자세히 — 더미 창 위에 뜬다
       card.title = onDetail ? "눌러서 자세히 보기" : "";
       if (onDetail) card.classList.add("canzoom");
@@ -378,7 +405,8 @@ export function effectBox(c, label, head) {
 }
 
 // 한 장의 카드. 도감 상세에서도 쓰고, 나중에 다른 곳에서도 쓸 수 있게 여기 한 번만 쓴다.
-export function bigCard(c, pic) {
+// calc — 전투 중이면 수치를 실제 숫자로(withNumbers). 싸움 밖(도감 · 덱 · 보상)은 넘기지 않는다 — % 그대로
+export function bigCard(c, pic, calc) {
   // 우리가 그린 일러스트는 카드를 꽉 채우고, 글자가 그 위에 얹힌다.
   // 원작에서 꺼낸 스킬 아이콘은 128px 라 늘리면 뭉개진다 — 가운데에 작게 둔다.
   const full = !!pic && pic.includes("/cardart/");
@@ -403,7 +431,7 @@ export function bigCard(c, pic) {
   n.appendChild(artBox);
 
   const body = el("p", "gtext");
-  withKeywords(body, cardParts(c, c.hero).action, c.hero);
+  withNumbers(body, cardParts(c, c.hero).action, c.hero, calc);
   n.appendChild(body);
   n.onclick = () => showCard(c, c.hero);
   n.title = "눌러서 낱말 풀이 보기";
@@ -432,7 +460,7 @@ export const BATTLE_BG = {
 //   mode "empty" — 보상·상점: 가방의 장비를 **빈 칸에만** 끼운다
 //   mode "camp"  — 캠프: 바꿔 끼고 뺄 수 있다
 // 지금 도는 것은 스탯 줄과 애착 Lv.3 스탯뿐이다. 효과 줄은 글만 보여 주고 「아직 안 돈다」고 적는다.
-const STAT_KO = { hp: "HP", atk: "공격", def: "방어", crit: "치명" };
+const STAT_KO = { hp: "HP", atk: "공격", def: "방어", crit: "치명", heal: "회복력" };
 export const statText = (st) => Object.entries(st || {}).filter(([, v]) => v).map(([k, v]) => `${STAT_KO[k]} +${v}${k === "crit" ? "%" : ""}`).join(" · ");
 
 // ── 장비 아이콘 ─────────────────────────────────────────────────────────
@@ -542,7 +570,7 @@ function popBox(cls) {
   eqPop = back;
   return box;
 }
-const STAT_FULL = { atk: "공격력", def: "방어력", hp: "체력", crit: "치명" };
+const STAT_FULL = { atk: "공격력", def: "방어력", hp: "체력", crit: "치명", heal: "회복력" };
 export function showEquip(id, { heroKey = null, note = "", acts = [] } = {}) {
   const e = EQUIP[id];
   if (!e) return;
@@ -554,12 +582,13 @@ export function showEquip(id, { heroKey = null, note = "", acts = [] } = {}) {
   body.appendChild(el("span", "bmkind", `${e.slot} · ${e.grade}${e.affinityKo ? ` · 애착 ${e.affinityKo}` : ""}`));
   body.appendChild(el("h3", "bmname", e.ko));
   // 스탯 — 낀 사도가 있으면 그 사도 기준(애착이면 Lv.3 스탯까지 더해서)
-  const st = heroKey ? R.statsOf(id, heroKey) : { hp: 0, atk: 0, def: 0, crit: 0, ...e.stats };
+  const st = heroKey ? R.statsOf(id, heroKey) : { hp: 0, atk: 0, def: 0, crit: 0, heal: 0, ...e.stats };
   const dl = el("dl", "bmterms eqstats");
-  for (const k of ["atk", "def", "hp", "crit"]) {
+  for (const k of ["atk", "def", "hp", "crit", "heal"]) {
     if (!st[k]) continue;
     dl.appendChild(el("dt", null, STAT_FULL[k]));
-    dl.appendChild(el("dd", null, `+${st[k]}${k === "crit" ? "%" : ""}`));
+    // 회복력은 공격력과 따로 붙는다 — 회복 카드 · 패시브의 「회복력 N%」 가 이만큼 커진다
+    dl.appendChild(el("dd", null, `+${st[k]}${k === "crit" ? "%" : ""}${k === "heal" ? " (회복에만)" : ""}`));
   }
   if (!dl.children.length) { dl.appendChild(el("dt", null, "스탯")); dl.appendChild(el("dd", null, "없음")); }
   body.appendChild(dl);

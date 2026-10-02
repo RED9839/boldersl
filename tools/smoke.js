@@ -567,7 +567,7 @@ console.log("\n골디의 상점");
   const n3 = r3.deck.length;
   const sp3 = ui.shopScreen(r3, () => {});
   check(r3.shop.gift && r3.deck.length === n3 + 1 && /황금대공/.test(sp3.textContent), `실비아가 있으면 선물 한 장 (${CB[r3.shop.gift].name})`);
-  // 교주 카드가 전투에서 실제로 돈다 — 주인이 없으니 공격력이 가장 높은 아군 기준
+  // 교주 카드가 전투에서 실제로 돈다 — 주인이 없어도(사도 스탯을 빌리지 않는다)
   const nid = Object.keys(CB).find((id) => CB[id].neutral && CB[id].playable && CB[id].name === "저놈 잡아라!");
   const s9 = C2.newCombat({ partyKeys: r.party, rows: r.rows, deck: [nid, ...r.deck], enemyIds: ["fairymobcloserange"], seed: 5 });
   s9.hand = [nid]; s9.ap = 3;
