@@ -6,7 +6,7 @@
 브라우저가 그림을 아예 받아 오지 않아 아이콘이 한 장도 안 떴는데,
 smoke 는 검사 백 몇 개를 전부 통과했다. 그래서 이 도구가 따로 있다.
 
-  python tools/shot.py                  로비 · 도감 · 사도 정보 네 갈피를 찍고 대조한다
+  python tools/shot.py                  로비 · 도감(사도 · 교주 카드 · 장비) · 사도 정보 네 갈피를 찍고 대조한다
   python tools/shot.py --hero 네르
   python tools/shot.py --no-check       사진만
   python tools/shot.py --out 어디
@@ -78,6 +78,12 @@ def main():
         shot(d, a.out, "2-팀편성")
         d.find_element(By.CSS_SELECTOR, ".tm-fdex").click(); time.sleep(1.2)
         shot(d, a.out, "3-도감")
+        # 도감의 다른 갈피 둘 — 교주 카드 · 장비. 찍고 사도 갈피로 돌아온다
+        pick_tab = "[...document.querySelectorAll('.dextab')].find(b => b.textContent.trim() === arguments[0]).click()"
+        for i, tab in enumerate(("교주 카드", "장비")):
+            d.execute_script(pick_tab, tab); time.sleep(1.2)
+            shot(d, a.out, f"3{'bc'[i]}-도감-{tab}")
+        d.execute_script(pick_tab, "사도"); time.sleep(1.0)
 
         box = d.find_element(By.CSS_SELECTOR, ".dsearch")
         box.send_keys(a.hero); time.sleep(0.8)

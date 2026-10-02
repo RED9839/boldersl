@@ -151,6 +151,29 @@ check(count(p, "decho") === 19, `이격 열아홉에 표가 붙는다 (${count(p
 }
 check(/에르핀 · 티그 · 네르/.test(p.textContent), "도감 아래에 고른 셋이 (바꾼 순서대로) 적힌다");
 
+// 도감 갈피 셋 — 교주 카드 · 장비도 같은 틀에서
+{
+  const tab = (t) => clickAll(p, (n) => n.classList.contains("dextab")).find((b) => b.textContent === t);
+  check(clickAll(p, (n) => n.classList.contains("dextab")).length === 3, "도감에 갈피 셋 (사도 · 교주 카드 · 장비)");
+  tab("교주 카드").onclick();
+  check(count(p, "cbcell") === 43 && count(p, "gcard") === 43, `교주 카드 도감에 43장이 카드 꼴로 (${count(p, "cbcell")})`);
+  check(count(p, "cbprice") === 43, `교주 카드마다 값 (${count(p, "cbprice")})`);
+  clickAll(p, (n) => n.classList.contains("railbtn")).find((b) => b.textContent.includes("전설")).onclick();
+  check(count(p, "cbcell") === 10, `등급으로 거른다 — 전설 ${count(p, "cbcell")}장`);
+  check(count(p, "cbf") === 0, "신탁은 접혀 있다");
+  clickAll(p, (n) => n.classList.contains("cbflashbtn"))[0].onclick();
+  check(count(p, "cbf") === 5, `눌러서 신탁 다섯을 펼친다 (${count(p, "cbf")})`);
+  tab("장비").onclick();
+  check(count(p, "ecard") === 29, `장비로 넘어가도 등급 거르개는 그대로 — 전설 ${count(p, "ecard")}점`);
+  clickAll(p, (n) => n.classList.contains("chip")).find((b) => b.textContent === "전체").onclick();
+  check(count(p, "ecard") === 87 && count(p, "eicon") >= 87, `장비 도감에 87점이 아이콘과 함께 (${count(p, "ecard")})`);
+  clickAll(p, (n) => n.classList.contains("railbtn")).find((b) => b.textContent.includes("무기")).onclick();
+  check(count(p, "ecard") === 30, `칸으로 거른다 — 무기 ${count(p, "ecard")}점`);
+  check(/에르핀 · 티그 · 네르/.test(p.textContent) && count(p, "dfoot") === 1, "갈피를 옮겨도 아래에 고른 셋과 「편성으로」");
+  tab("사도").onclick();
+  check(count(p, "dex") === 135, "사도 갈피로 돌아온다");
+}
+
 {
   const dsearch = (function find(x) { for (const c of x.children) { if (c.classList.contains("dsearch")) return c; const r = find(c); if (r) return r; } return null; })(p);
   const dname = (c) => { const f = (x) => { for (const y of x.children) { if (y.classList.contains("dname")) return y; const r = f(y); if (r) return r; } return null; }; const q = f(c); return q ? q.textContent : ""; };

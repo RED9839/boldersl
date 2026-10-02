@@ -3,7 +3,7 @@ import { HEROES, ROSTER } from "./data/heroes.js";
 import { CARDS, flashed } from "./cardbook.js";
 import { TRAITS } from "./data/traits.js";
 import { ENEMIES, FLOORS } from "./data/enemies.js";
-import { HERO_DATA, kitOf, EQUIP } from "./cardbook.js";
+import { HERO_DATA, kitOf, EQUIP, NEUTRAL_IDS } from "./cardbook.js";
 import CARDART from "./data/cardart.js";
 import { shortText, splitKeywords, cardParts, polite } from "./card-text.js";
 
@@ -60,6 +60,8 @@ const ROWS_KO = { front: "전열", mid: "중열", back: "후열" };
 // 명단 · 도감에 적는 자리 — 「모든 열」 사도는 그렇게 적는다
 const rowLabel = (h) => (h && h.anyRow ? "모든 열" : ROWS_KO[h && h.row] || "");
 const ROLES = ["탱커", "딜러", "서포터"];
+const DEX_TABS = ["사도", "교주 카드", "장비"];      // 도감의 갈피
+const GRADES = ["전설", "희귀", "고급", "일반"];      // 교주 카드 · 장비의 등급(높은 것부터)
 const NTINT = { 순수: "#7fd3a8", 광기: "#d9737f", 냉정: "#7fd6f5", 우울: "#9a8cc0", 활발: "#f5dc5a", 공명: "#c9c9d6" };
 // 카드 타입 — 원작 도감처럼 한 글자 표시와 빛깔을 준다
 const TMARK = { 공격: "✕", 스킬: "◈", 방어: "⬢", 쉴드: "⬢", 회복: "✚", 강화: "▲", 기술: "◆" };
@@ -477,6 +479,8 @@ export function partyScreen(onStart, onBack, opts = {}) {
   let dexHome = opts.view === "도감";      // 로비에서 곧장 연 도감 — 편성으로 넘어가면 풀린다(그 뒤 도감의 ◁ 은 편성으로)
   let cameFrom = null;                   // 사도 정보에서 나가면 들어온 곳으로 돌아간다
   let tab = "능력치";                    // 사도 정보에서 먼저 뜨는 갈피
+  let dexTab = "사도";                    // 도감의 갈피 — 사도 · 교주 카드 · 장비
+  const book = { grade: null, slot: null, open: new Set() };   // 교주 카드 · 장비 도감의 거르개, 신탁을 펼친 카드
   const rows = {};
   const filter = { race: null, nature: null, role: null, q: "" };
   let sort = "성급", desc = true;
@@ -493,8 +497,17 @@ export function partyScreen(onStart, onBack, opts = {}) {
     const back = el("button", "iconbtn back", "◁");
     back.onclick = () => { if (dexHome && onBack) return onBack(); view = null; render(); };   // 도감에서 나가면 편성으로(로비에서 왔으면 로비로)
     bar.appendChild(back);
-    bar.appendChild(el("h1", "dtitle", "사도 도감"));
+    bar.appendChild(el("h1", "dtitle", `${dexTab} 도감`));
+    // 갈피 셋 — 사도 · 교주 카드 · 장비. 같은 틀(왼쪽 레일 · 오른쪽 격자 · 아래 편성으로)을 같이 쓴다
+    const tabs = el("div", "dextabs");
+    for (const t of DEX_TABS) {
+      const b = el("button", "dextab" + (t === dexTab ? " on" : ""), t);
+      b.onclick = () => { if (dexTab !== t) { dexTab = t; render(); } };
+      tabs.appendChild(b);
+    }
+    bar.appendChild(tabs);
     bar.appendChild(fsButton("fsright"));
+    if (dexTab !== "사도") { s.appendChild(bar); bookBody(); s.appendChild(dexFoot().foot); return; }
 
     const search = el("input", "dsearch");
     search.placeholder = "이름";
@@ -576,13 +589,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
     body.appendChild(right);
     s.appendChild(body);
 
-    // 아래 — 고른 셋을 알려 주고 편성으로 돌아가는 길
-    const foot = el("div", "dfoot");
-    const backToForm = el("button", "go", "편성으로");
-    backToForm.onclick = () => { dexHome = false; view = null; render(); };
-    const said = el("span", "dsaid");
-    foot.appendChild(said);
-    foot.appendChild(backToForm);
+    const { foot, said } = dexFoot();
     s.appendChild(foot);
 
     function fill() {
@@ -623,6 +630,125 @@ export function partyScreen(onStart, onBack, opts = {}) {
     fill();
   }
 
+  // 아래 — 고른 셋을 알려 주고 편성으로 돌아가는 길(도감 갈피 셋이 같이 쓴다)
+  function dexFoot() {
+    const foot = el("div", "dfoot");
+    const backToForm = el("button", "go", "편성으로");
+    backToForm.onclick = () => { dexHome = false; view = null; render(); };
+    const said = el("span", "dsaid", picked.length
+      ? `${picked.map((k) => HERO_DATA[k].ko).join(" · ")} — ${picked.length}/3`
+      : "아직 아무도 안 골랐습니다");
+    foot.appendChild(said);
+    foot.appendChild(backToForm);
+    return { foot, said };
+  }
+
+  // ── 교주 카드 · 장비 도감 ──────────────────────────────────────────────
+  // 사도 도감과 같은 틀 — 왼쪽 레일(교주 카드는 등급, 장비는 칸) · 오른쪽 거르개 · 머리 · 격자.
+  // 그림은 이미 있는 것을 그대로 쓴다 — 카드는 bigCard(상점 · 더미 창과 같은 카드), 장비는 equipCard(상점 · 가방과 같은 장비 칸)
+  function bookBody() {
+    const isCard = dexTab === "교주 카드";
+    const body = el("div", "dbody");
+    const rail = el("nav", "rail");
+    const railKey = isCard ? "grade" : "slot";
+    const railVals = isCard ? GRADES : RULES.SLOTS;
+    const mk = (val) => {
+      const b = el("button", "railbtn" + ((book[railKey] || "ALL") === val ? " on" : ""));
+      const emb = el("span", "remb");
+      if (val === "ALL") emb.textContent = "◎";
+      else if (isCard) { emb.textContent = "◆"; emb.style.color = GRADE_COLOR[val]; }
+      else emb.appendChild(emptySlotIcon(val, 22));
+      b.appendChild(emb);
+      b.appendChild(el("span", "rname", val));
+      b.onclick = () => { book[railKey] = val === "ALL" ? null : val; render(); };
+      return b;
+    };
+    rail.appendChild(mk("ALL"));
+    for (const v of railVals) rail.appendChild(mk(v));
+    body.appendChild(rail);
+
+    const right = el("div", "dright");
+    // 장비는 레일이 칸이라, 등급을 위의 거르개로 고른다
+    if (!isCard) {
+      const chips = el("div", "chiprow");
+      const all = el("button", "chip" + (book.grade ? "" : " on"), "전체");
+      all.onclick = () => { book.grade = null; render(); };
+      chips.appendChild(all);
+      for (const g of GRADES) {
+        const b = el("button", "chip bkgrade" + (book.grade === g ? " on" : ""));
+        b.style.setProperty("--gc", GRADE_COLOR[g]);
+        b.appendChild(el("i", "bkdot"));
+        b.appendChild(el("span", null, g));
+        b.onclick = () => { book.grade = book.grade === g ? null : g; render(); };
+        chips.appendChild(b);
+      }
+      right.appendChild(chips);
+    }
+
+    const byGrade = (a, b) => GRADES.indexOf(a.grade) - GRADES.indexOf(b.grade);
+    const list = isCard
+      ? NEUTRAL_IDS.map((id) => CARDS[id]).filter((c) => c && (!book.grade || c.grade === book.grade))
+        .sort((a, b) => byGrade(a, b) || a.cost - b.cost || a.name.localeCompare(b.name))
+      : Object.values(EQUIP).filter((e) => (!book.slot || e.slot === book.slot) && (!book.grade || e.grade === book.grade))
+        .sort((a, b) => byGrade(a, b) || RULES.SLOTS.indexOf(a.slot) - RULES.SLOTS.indexOf(b.slot) || a.ko.localeCompare(b.ko));
+    const total = isCard ? NEUTRAL_IDS.length : Object.keys(EQUIP).length;
+
+    const head = el("div", "dhead2");
+    head.appendChild(el("span", "hemb", isCard ? "◈" : "⚔"));
+    const ht = el("div");
+    const sel = isCard ? book.grade : [book.slot, book.grade].filter(Boolean).join(" · ");
+    ht.appendChild(el("b", null, `${sel || "모든"} ${dexTab}`));
+    ht.appendChild(el("span", "hcount", `${list.length}/${total}`));
+    head.appendChild(ht);
+    head.appendChild(el("span", "bknote", isCard
+      ? "골디의 상점에서 삽니다 · 어느 사도의 것도 아닙니다 · 카드를 누르면 낱말 풀이"
+      : "사도마다 무기 · 방어구 · 장신구 한 칸씩 · 애착 사도가 끼면 더 셉니다"));
+    right.appendChild(head);
+
+    const grid = el("div", "dexgrid " + (isCard ? "cbgrid" : "eqgrid"));
+    for (const x of list) grid.appendChild(isCard ? neutralCell(x) : equipCard(x.id));
+    if (!list.length) grid.appendChild(el("div", "more", "맞는 것이 없습니다."));
+    right.appendChild(grid);
+    body.appendChild(right);
+    s.appendChild(body);
+  }
+
+  // 교주 카드 한 칸 — 카드 그림 · 등급과 값 · 전문 · 신탁 다섯(눌러서 펼친다)
+  function neutralCell(c) {
+    const cell = el("div", "cbcell");
+    cell.appendChild(bigCard(c, CARDART.pic[c.id] || null));
+    const meta = el("div", "cbmeta");
+    meta.appendChild(el("span", "sh-grade g-" + (c.grade || ""), c.grade || "교주"));
+    if (c.price) meta.appendChild(goldLabel("span", "cbprice", String(c.price)));
+    if (c.oneOnly) meta.appendChild(el("span", "cbone", "한 장만"));
+    cell.appendChild(meta);
+    cell.appendChild(withKeywords(el("p", "cbtext"), c.text, null));
+    if (c.blurb) cell.appendChild(el("p", "cbblurb", c.blurb));
+    if (c.flash && c.flash.length) {
+      const on = book.open.has(c.id);
+      const btn = el("button", "cbflashbtn" + (on ? " on" : ""), `신탁 ${c.flash.length} ${on ? "▴" : "▾"}`);
+      const box = el("div", "cbflash");
+      const fill = () => {
+        const open = book.open.has(c.id);
+        btn.className = "cbflashbtn" + (open ? " on" : "");
+        btn.textContent = `신탁 ${c.flash.length} ${open ? "▴" : "▾"}`;
+        box.innerHTML = "";
+        if (!open) return;
+        for (const f of c.flash) {
+          const n = el("div", "cbf");
+          n.appendChild(el("b", null, `${"①②③④⑤"[f.n - 1] || ""} ${f.ko}`));
+          n.appendChild(withKeywords(el("p"), f.text, null));
+          box.appendChild(n);
+        }
+      };
+      btn.onclick = () => { if (book.open.has(c.id)) book.open.delete(c.id); else book.open.add(c.id); fill(); };
+      fill();
+      cell.appendChild(btn);
+      cell.appendChild(box);
+    }
+    return cell;
+  }
+
   // 도감 · 사도 정보도 편성과 같은 1층 싸움터를 깐다 — 흐리고 어둡게는 css 가(czn.css 끝)
   function stageBg() {
     const bg = `assets/bg/${BATTLE_BG[1].fight}.jpg`;
@@ -654,7 +780,8 @@ export function partyScreen(onStart, onBack, opts = {}) {
     const helpBtn = el("button", "tm-fhelp", "도움말");
     helpBtn.onclick = () => openHelp("상성");
     head.appendChild(helpBtn);
-    const dexBtn = el("button", "tm-fdex", "사도 도감");
+    const dexBtn = el("button", "tm-fdex", "도감");
+    dexBtn.title = "사도 · 교주 카드 · 장비 도감";
     dexBtn.onclick = () => { filter.q = ""; view = "도감"; render(); };
     head.appendChild(dexBtn);
     s.appendChild(head);

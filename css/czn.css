@@ -3063,3 +3063,69 @@ body:has(#screen.teamscreen3) .top { display: none; }
 .dcpick .allypick .dccell b { font-size: 15px; }
 .dcpick .allypick .dccell span { font-size: 12px; opacity: .8; font-variant-numeric: tabular-nums; }
 .dcpick .allypick .dccell:focus-visible { outline: 2px solid #ffe7a3; outline-offset: 2px; }
+
+/* ══ 도감 — 사도 칸의 그림은 칸 안에 온전히 ══════════════════════════════════════
+   그림(전투 SD, 정사각)을 세로 칸(172×246)에 cover 로 깔면 1.4배로 커져 양옆과 머리 장식이 잘렸다.
+   칸 너비에 맞추고(contain) 위에 붙인다 — 아래 남는 자리에 이름표가 앉는다 */
+#screen.dexscreen .dex .art img { object-fit: contain; object-position: 50% 12%; transform: scale(.94); transform-origin: 50% 0; }
+
+/* ══ 도감 갈피 셋 — 사도 · 교주 카드 · 장비 ═══════════════════════════════════════ */
+#screen.dexscreen .dextabs { display: flex; gap: 4px; padding: 3px; border-radius: 12px; background: #0d0b16c7; border: 1px solid #ffffff26; backdrop-filter: blur(4px); }
+#screen.dexscreen .dextab {
+  min-height: 0; padding: 7px 14px; border-radius: 9px; border: 0; font-size: 13.5px; font-weight: 800;
+  background: transparent; color: #b9b2d6; white-space: nowrap;
+}
+#screen.dexscreen .dextab:hover:not(:disabled) { transform: none; color: #fff; background: #ffffff12; }
+#screen.dexscreen .dextab.on { background: linear-gradient(180deg, #ffe7a8, #f0b94a); color: #2a1a05; box-shadow: 0 0 12px #f0b94a55; }
+#screen.dexscreen .remb .eicon { background: transparent; box-shadow: none; border: 0; color: #d9d2f2; }
+#screen.dexscreen .railbtn.on .remb .eicon { color: #f6d58e; }
+#screen.dexscreen .bkgrade .bkdot { width: 9px; height: 9px; border-radius: 50%; background: var(--gc); box-shadow: 0 0 6px var(--gc); }
+#screen.dexscreen .bknote { margin-left: auto; font-size: 12px; color: #b9b2d6; text-align: right; word-break: keep-all; }
+
+/* 교주 카드 — 카드 그림(상점과 같은 bigCard) · 등급과 값 · 전문 · 신탁 */
+#screen.dexscreen .cbgrid { grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 14px; }
+.cbcell {
+  display: flex; flex-direction: column; gap: 7px; padding: 10px; border-radius: 14px; min-width: 0;
+  background: linear-gradient(180deg, #ffffff0d, #ffffff04); border: 1px solid #ffffff14;
+}
+.cbcell .gcard { width: 100%; box-shadow: 0 10px 22px #000a; cursor: zoom-in; }
+.cbmeta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cbmeta .sh-grade { align-self: center; }
+.cbprice { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; font-weight: 900; color: #f6d58e; font-variant-numeric: tabular-nums; }
+.cbprice .gico { width: 16px; height: 16px; }
+.cbprice .gico img { width: 100%; height: 100%; object-fit: contain; }
+.cbone { font-size: 11px; padding: 2px 7px; border-radius: 99px; background: #ff8fb026; color: #ffb3c8; font-weight: 700; }
+.cbtext { margin: 0; font-size: 12px; line-height: 1.6; color: #e8e3ff; word-break: keep-all; }
+.cbblurb { margin: 0; font-size: 11px; color: #9a92ba; word-break: keep-all; }
+.cbflashbtn {
+  align-self: flex-start; min-height: 0; margin-top: auto; padding: 5px 12px; border-radius: 99px; font-size: 12px; font-weight: 800;
+  background: #ffffff0d; border: 1px solid #f6d58e66; color: #f6d58e;
+}
+.cbflashbtn:hover:not(:disabled) { transform: none; background: #f6d58e1f; }
+.cbflashbtn.on { background: #f6d58e26; border-color: #f6d58e; }
+.cbflash { display: flex; flex-direction: column; gap: 5px; }
+.cbflash:empty { display: none; }
+.cbf { padding: 6px 8px; border-radius: 8px; background: #0d0b16b3; border: 1px solid #ffffff1a; }
+.cbf b { font-size: 12px; color: #f6d58e; }
+.cbf p { margin: 2px 0 0; font-size: 11.5px; line-height: 1.55; color: #d9d2f2; word-break: keep-all; }
+
+/* 장비 — 상점 · 가방과 같은 장비 칸(equipCard)을 어두운 유리로 */
+#screen.dexscreen .eqgrid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+#screen.dexscreen .ecard {
+  width: auto; min-width: 0; background: #0d0b16d9; border: 1px solid #ffffff1f; border-top-width: 4px; color: #f4f1ff; box-shadow: 0 10px 22px #0009;
+}
+#screen.dexscreen .ecard.g-전설 { border-top-color: #d9a441; } #screen.dexscreen .ecard.g-희귀 { border-top-color: #7a6be0; }
+#screen.dexscreen .ecard.g-고급 { border-top-color: #3aa37a; } #screen.dexscreen .ecard.g-일반 { border-top-color: #9aa0b4; }
+#screen.dexscreen .ecard .eqstat { color: #9fe3b4; }
+#screen.dexscreen .ecard :is(.eslot, .eoff) { background: #ffffff14; color: #b9b2d6; }
+#screen.dexscreen .ecard :is(.egrade, .eblurb, .eeff) { color: #b9b2d6; }
+#screen.dexscreen .ecard .eeff.on { color: #e8e3ff; }
+#screen.dexscreen .ecard .eaff { color: #ff9ec0; }
+
+/* 폰 — 갈피는 머리 줄에 작게, 격자는 좁게 */
+.phone #screen.dexscreen .dextab { padding: 0 11px; min-height: 36px; font-size: 12.5px; }
+.phone #screen.dexscreen .dsearch { width: 110px; }
+.phone #screen.dexscreen .cbgrid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.phone #screen.dexscreen .eqgrid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.phone .cbcell { padding: 7px; gap: 5px; }
+.phone #screen.dexscreen .ecard { padding: 9px 10px; gap: 4px; }.phone #screen.dexscreen .kw { min-height: 0; }   /* 폰의 단추 최소 높이가 낱말 단추에 걸려 줄 사이가 벌어졌다 */
