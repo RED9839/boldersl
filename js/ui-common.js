@@ -1,0 +1,509 @@
+// 화면들이 같이 쓰는 것 — 요소 만들기 · 화면 비우기 · 카드 꼴 · 낱말 쪽지 · 도움말 · 장비 아이콘.
+// ui.js(지도 · 보상 · 캠프 · 상점 · 이벤트 · 끝) · party-screen.js · fight-screen.js 가 여기서 꺼내 쓴다. 여기는 그 셋을 부르지 않는다.
+import { HEROES } from "./data/heroes.js";
+import { HERO_DATA, EQUIP } from "./cardbook.js";
+import CARDART from "./data/cardart.js";
+import { shortText, splitKeywords, cardParts } from "./card-text.js";
+import * as C from "./combat.js";
+import * as RULES from "./rules.js";
+import * as R from "./run.js";
+import * as art from "./art.js";
+import * as M from "./map.js";
+import { toggleFullscreen } from "./stage.js";
+
+// 사도 정보는 기획서가 원본이다. 빛깔만 옛 heroes.js 가 들고 있다.
+export const HERO = (k) => HERO_DATA[k] || HEROES[k] || { ko: k, row: "mid", nature: null };
+export const TINT = (k) => (HEROES[k] || {}).tint || "#8a8a9a";
+
+const $ = (sel) => document.querySelector(sel);
+export const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+
+export let kwNote = null;                 // 낱말 풀이 쪽지 — 한 번에 하나만 뜬다
+// 쪽지(낱말 풀이 · 카드 쪽지 · 더미 창)는 「닫기」 말고도 바깥을 누르거나 Esc 로 닫는다.
+// 누르기 시작(pointerdown)에 닫으니, 다른 낱말을 누르면 앞의 쪽지가 닫히고 새 쪽지가 뜬다
+if (typeof document === "object" && document.addEventListener) {
+  document.addEventListener("pointerdown", (e) => {
+    if (kwNote && !kwNote.contains(e.target)) { kwNote.remove(); kwNote = null; }
+  }, true);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && kwNote) { kwNote.remove(); kwNote = null; }
+  });
+}
+export function hint(t) { $("#hint").textContent = t || ""; }
+export function screen() {
+  // 화면이 바뀌면 아래 안내도 지운다 — 전투에서 뜬 「도울 아군을 고릅니다」 가
+  // 끝 화면까지 따라와 있었다.
+  hint("");
+  // 낱말 쪽지도 같이 접는다 — 몸통에 붙어 있어서 저 혼자 남는다
+  if (kwNote) { kwNote.remove(); kwNote = null; }
+  const s = $("#screen"); s.innerHTML = ""; s.className = ""; return s;
+}
+export const NTINT = { 순수: "#7fd3a8", 광기: "#d9737f", 냉정: "#7fd6f5", 우울: "#9a8cc0", 활발: "#f5dc5a", 공명: "#c9c9d6" };
+// 카드 타입 — 원작 도감처럼 한 글자 표시와 빛깔을 준다
+export const TMARK = { 공격: "✕", 스킬: "◈", 방어: "⬢", 쉴드: "⬢", 회복: "✚", 강화: "▲", 기술: "◆" };
+export const TKIND = { 공격: "atk", 스킬: "skill", 방어: "def", 쉴드: "def", 회복: "heal", 강화: "buff", 기술: "skill" };
+
+// 원작에서 꺼낸 작은 표들 — assets/uiicons/성격_순수.png 꼴이다.
+// 그림이 없으면 글자 한 자로 떨어진다. 꺼낸 것이 없어도 화면은 그대로 돈다.
+//
+// 그림을 먼저 붙이고, 안 되면 글자로 되돌린다. 반대로 하면 안 된다 —
+// 문서에 안 붙은 <img> 에 loading="lazy" 를 걸어 놓고 onload 를 기다린 적이 있는데,
+// 화면 밖이라 브라우저가 아예 받아 오지를 않아서 아이콘이 한 장도 안 떴다.
+export function uiIcon(kind, name, cls, fallback) {
+  const n = el("i", cls);
+  const im = document.createElement("img");
+  im.src = `assets/uiicons/${kind}_${name}.png`;
+  im.alt = name;
+  im.onerror = () => { im.remove(); n.textContent = fallback; };
+  n.appendChild(im);
+  return n;
+}
+
+// 골드 — 원작 재화 아이콘(atlases/currencyicons 의 CurrencyIcon_0008, 잎사귀 금화 · tools/extract-currency-icons.py).
+// 그림이 없으면 「✦」 로 떨어진다(uiIcon 과 같은 차례 — 그림을 먼저 붙이고 안 되면 글자)
+const GOLD_ICON = "assets/currency/CurrencyIcon_0008.png";
+export function goldIcon(cls = "gico") {
+  const n = el("i", cls);
+  const im = document.createElement("img");
+  im.src = GOLD_ICON;
+  im.alt = "골드";
+  im.onerror = () => { im.remove(); n.textContent = "✦"; n.classList.add("noimg"); };
+  n.appendChild(im);
+  return n;
+}
+// 골드 아이콘 + 글(「120 골드」 · 「+35」 따위)
+export function goldLabel(tag, cls, text) {
+  const n = el(tag, cls);
+  n.appendChild(goldIcon());
+  n.appendChild(document.createTextNode(text));
+  return n;
+}
+
+// 성격 상성 그림 — 광기 → 순수 → 냉정 → 광기 는 삼각형, 활발 ↔ 우울 은 세로 한 줄.
+// 화살표가 가리키는 쪽에 강하다(rules.js BEATS). on: 빛낼 성격들(편성에 든 사도의 성격)
+function natureChart(on = new Set()) {
+  const W = 250, H = 150, R = 20;
+  const at = { 광기: [62, 16], 순수: [114, 94], 냉정: [10, 94], 활발: [196, 16], 우울: [196, 94] };
+  const box = el("div", "natchart");
+  box.style.width = W + "px"; box.style.height = H + "px";
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = typeof document === "object" && document.createElementNS ? document.createElementNS(NS, "svg") : el("svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("width", String(W)); svg.setAttribute("height", String(H));
+  svg.innerHTML = `<defs><marker id="natarr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#f6d58e"/></marker></defs>`;
+  // 화살 — 원 둘레에서 둘레까지
+  const arrow = (a, b, both) => {
+    const [x1, y1] = at[a].map((v) => v + R), [x2, y2] = at[b].map((v) => v + R);
+    const d = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / d, uy = (y2 - y1) / d;
+    const hot = on.has(a) || on.has(b);
+    const line = typeof document === "object" && document.createElementNS ? document.createElementNS(NS, "line") : el("line");
+    line.setAttribute("x1", String(x1 + ux * (R + 3))); line.setAttribute("y1", String(y1 + uy * (R + 3)));
+    line.setAttribute("x2", String(x2 - ux * (R + 5))); line.setAttribute("y2", String(y2 - uy * (R + 5)));
+    line.setAttribute("class", hot ? "hot" : "");
+    line.setAttribute("marker-end", "url(#natarr)");
+    if (both) line.setAttribute("marker-start", "url(#natarr)");
+    svg.appendChild(line);
+  };
+  arrow("광기", "순수"); arrow("순수", "냉정"); arrow("냉정", "광기"); arrow("활발", "우울", true);
+  box.appendChild(svg);
+  for (const [nat, [x, y]] of Object.entries(at)) {
+    const n = el("div", "natnode" + (on.has(nat) ? " on" : on.size ? " off" : "") + (y < 50 ? " ntop" : ""));   // 위 줄은 이름을 원 위에
+    n.style.left = x + "px"; n.style.top = y + "px";
+    n.style.setProperty("--tint", NTINT[nat]);
+    n.appendChild(uiIcon("성격", nat, "natico", nat.slice(0, 1)));
+    n.appendChild(el("span", "natname", nat));
+    box.appendChild(n);
+  }
+  return box;
+}
+
+// ── 도움말 모음 ─────────────────────────────────────────────────────────
+// 규칙을 화면마다 흩어 적지 않고 여기 한 곳에 모은다. 편성 · 전투 · 지도의 메뉴에서 연다.
+// 숫자는 rules.js 에서 바로 읽는다 — 규칙을 바꾸면 도움말도 같이 바뀐다.
+const HELP = [
+  ["상성", "성격 상성", () => {
+    const d = el("div");
+    d.appendChild(natureChart());
+    d.appendChild(el("p", null, `화살표가 가리키는 쪽에 강합니다. 유리한 상대에게는 주는 피해 +${Math.round(RULES.NATURE_DMG * 100)}%, 받는 피해 -${Math.round(RULES.NATURE_DEF * 100)}%.`));
+    d.appendChild(el("p", null, "광기 → 순수 → 냉정 → 광기로 돌고, 활발과 우울은 서로에게 강합니다. 공명은 상성이 없습니다. 적에게도 성격이 있습니다."));
+    return d;
+  }],
+  ["열", "열과 맞는 순서", () => helpList([
+    "사도마다 전열 · 중열 · 후열이 정해져 있습니다(원작 배치 그대로). 바꿀 수 없습니다.",
+    "적은 가장 앞 열부터 노립니다. 전열이 비면 중열, 그다음 후열입니다. 뒤를 노리는 수는 거꾸로 후열부터입니다.",
+    "같은 열에 둘 이상이면 적 쪽(오른쪽)에 선 사도가 먼저 맞습니다. 편성 무대의 ⇄ 로 자리를 바꿉니다.",
+    "열이 주는 효과 · 조건(후열 버프 · 「뒷줄에 있어야」)은 자리와 상관없이 열만 봅니다.",
+    "도발이 걸리면 어느 열이든 그 사도가 맞습니다.",
+    "「모든 열」 사도(티그(영웅) · 죠안)는 편성에서 설 열을 고르고, 선 열에 따라 패시브가 달라집니다.",
+  ])],
+  ["AP", "AP 와 고학년 게이지", () => helpList([
+    `AP 는 파티 공용입니다. 매 턴 ${RULES.AP_PER_TURN}, 남으면 사라집니다.`,
+    `카드에 쓴 AP 1당 고학년 게이지 +${RULES.GAUGE_PER_AP}%(최대 ${RULES.GAUGE_MAX}%). 0코 카드는 게이지를 채우지 않습니다.`,
+    `고학년 스킬은 사도마다 게이지 ${RULES.ULT_COSTS.join(" · ")}% 가운데 하나를 씁니다. 사도의 둥근 얼굴 단추가 빛나면 쓸 수 있습니다.`,
+    `손패는 ${RULES.HAND_MAX}장까지입니다.`,
+  ])],
+  ["신탁", "은총 · 신탁 · 겨우살이의 축복", () => helpList([
+    "싸우다 보면 카드가 빛납니다. 빛나는 카드를 내면 세계수의 뜻이 내립니다.",
+    "은총 — 사도의 기본 카드가 빛납니다. 내면 그 사도의 고유 카드 하나가 손패로 옵니다(그 턴 0코). 고르지 않습니다. 한 번 뺀 고유 카드는 다시 오지 않습니다.",
+    "신탁 — 고유 카드 · 교주 카드가 빛납니다. 내면 신탁 다섯(① 강화 ② 경량 ③ 연계 ④ 변형 ⑤ 각성) 가운데 셋이 뜨고 하나를 고릅니다. 카드가 바로 바뀌고 이번에 내는 것은 0코입니다.",
+    `겨우살이의 축복 — 신탁 선택지 하나에 드물게(${Math.round(RULES.DIVINE * 100)}%) 붙는 덤입니다. 카드 종류마다 다른 열세 가지(피해 ×1.3 · 비용 -1 · 드로우 · AP · 회복 · 방어 · 취약 · 중독 …).`,
+    "사도마다 따로 굴립니다 — 한 전투에 여러 사도, 운이 좋으면 셋 모두 은총이 빛납니다. 교주 카드 신탁은 사도와 별개로 한 번 더 굴립니다.",
+    `사도 한 명당 — 은총: 일반 ${Math.round(RULES.EPI_HERO.fight * 100)}% · 엘리트 ${Math.round(RULES.EPI_HERO.elite * 100)}% · 보스 ${Math.round(RULES.EPI_HERO.boss * 100)}% / 신탁: 일반 ${Math.round(RULES.EPI_CARD.fight * 100)}% · 엘리트 ${Math.round(RULES.EPI_CARD.elite * 100)}% · 보스 ${Math.round(RULES.EPI_CARD.boss * 100)}%. 엘리트 · 보스는 은총이, 엘리트는 신탁도 적어도 하나는 빛납니다.`,
+  ])],
+  ["드랍", "드랍과 상점", () => helpList([
+    "보상 화면은 없습니다. 쓰러진 적이 골드를 떨구고, 가장 센 적이 장비를 떨굽니다. 이기면 그대로 챙깁니다.",
+    `장비 — 일반 싸움 ${Math.round(RULES.DROP.fight.equip * 100)}% · 엘리트 · 보스는 늘(마지막 보스 빼고). 층이 오를수록 등급이 오릅니다. 같은 장비도 다시 떨어집니다 — 상점 · 이벤트도 마찬가지라 두 사도가 같은 것을 낄 수 있습니다.`,
+    "교주 카드는 싸움에서 떨어지지 않습니다 — 골디의 상점과 이벤트에서만 얻습니다.",
+    `골디의 상점(휴식+상점 칸) — 교주 카드 셋 · 장비 ${RULES.SHOP_EQUIP_N}점 · 새로고침 · 카드 제거. 고유 카드는 팔지 않습니다(은총으로만). 골디는 깎아 주지 않습니다.`,
+  ])],
+  ["장비", "장비", () => helpList([
+    `사도마다 무기 · 방어구 · 장신구 한 칸씩입니다. 전투 밖이면 어디서든(지도의 「장비」 · 캠프 · 상점) 끼고 빼고 바꿔 낍니다. 가방의 장비는 사는 값의 ${Math.round(RULES.EQUIP_SELL * 100)}% 에 팔 수 있습니다.`,
+    "스탯 줄은 사도 스탯에 그대로 더합니다. 효과 줄은 낀 사도의 패시브가 됩니다.",
+    "이름에 사도가 붙은 장비는 그 사도가 끼면 애착 줄과 작은 스탯이 더 붙습니다.",
+    "등급 — 일반 · 고급 · 희귀 · 전설. 일반 몇 종은 스탯뿐입니다.",
+  ])],
+  ["지도", "지도", () => helpList([
+    `한 층은 ${M.ROWS}칸 길입니다. 출발에서 오른쪽으로 가며 이어진 칸을 골라 들어갑니다. 끝은 보스, 그 앞은 늘 휴식+상점입니다.`,
+    `칸 — ${["fight", "elite", "camp", "campshop", "event", "boss"].map((k) => M.KIND_KO[k]).join(", ")}.`,
+    `엘리트는 한 단계 센 적(체력 ×${RULES.ELITE_HP})이고, 이기면 장비가 늘 떨어지고 신탁이 늘 뜹니다.`,
+    "휴식 칸에서는 쉬거나(HP 회복) 수련합니다. 처음 고른 셋으로 끝까지 갑니다 — 층을 넘어도 사도는 바뀌지 않습니다. 고학년 게이지는 전투가 끝나도 남은 만큼 다음 전투로 이어집니다.",
+  ])],
+];
+function helpList(lines) {
+  const ul = el("ul", "helplist");
+  for (const t of lines) ul.appendChild(el("li", null, t));
+  return ul;
+}
+// 도움말을 연다. key 로 그 갈피를 먼저 편다(예: "상성"). 바깥 · Esc · 닫기로 닫는다
+export function openHelp(key = "상성") {
+  if (kwNote) { kwNote.remove(); kwNote = null; }
+  const back = el("div", "helpmodal");
+  const box = el("div", "helpbox");
+  back.appendChild(box);
+  back.onclick = (e) => { if (e.target === back) { back.remove(); kwNote = null; } };
+  const head = el("div", "helphead");
+  head.appendChild(el("b", null, "도움말"));
+  const x = el("button", "kwclose", "닫기");
+  x.onclick = () => { back.remove(); kwNote = null; };
+  head.appendChild(x);
+  box.appendChild(head);
+  const wrap = el("div", "helpwrap");
+  const tabs = el("div", "helptabs");
+  const page = el("div", "helppage");
+  wrap.appendChild(tabs); wrap.appendChild(page);
+  box.appendChild(wrap);
+  const show = (k) => {
+    tabs.innerHTML = ""; page.innerHTML = "";
+    for (const [id, title] of HELP) {
+      const t = el("button", "helptab" + (id === k ? " on" : ""), title);
+      t.onclick = () => show(id);
+      tabs.appendChild(t);
+    }
+    const [, title, make] = HELP.find((h) => h[0] === k) || HELP[0];
+    page.appendChild(el("h3", null, title));
+    page.appendChild(make());
+  };
+  show(key);
+  document.body.appendChild(back);
+  kwNote = back;
+}
+
+// 전체화면 단추 — 사이트 머리 줄(전체화면 단추가 있는 곳)을 숨기는 화면들(편성 · 도감 · 상점 · 캠프 · 지도)의 머리에 단다
+export function fsButton(cls = "") {
+  const b = el("button", "fsmini" + (cls ? " " + cls : ""), "⛶");
+  b.title = "전체화면";
+  b.onclick = (e) => { e.stopPropagation(); toggleFullscreen(); };
+  return b;
+}
+
+export function img(src, cls) {
+  const n = el("img", cls);
+  n.src = src; n.loading = "lazy"; n.alt = "";
+  n.onerror = () => n.remove();
+  return n;
+}
+
+// 글을 넣되 아는 낱말에는 밑줄을 긋고 풀이를 매단다.
+// 짚으면 title 로, 누르면 풀이 쪽지로 뜬다 — 손가락으로도 볼 수 있어야 한다.
+export function withKeywords(node, text, heroKey) {
+  for (const part of splitKeywords(text, heroKey)) {
+    if (!part.kw) { node.appendChild(document.createTextNode(part.t)); continue; }
+    const b = el("button", "kw" + (part.kw.text ? "" : " nodef"), part.t);
+    b.title = part.kw.text || `${part.kw.ko} — 기획서에 이름만 있고 풀이가 아직 없습니다`;
+    b.onclick = (e) => { if (e && e.stopPropagation) e.stopPropagation(); showKeyword(part.kw); };
+    node.appendChild(b);
+  }
+  return node;
+}
+
+// 풀이 쪽지. 한 번에 하나만 뜬다.
+function showKeyword(kw) {
+  if (kwNote) { kwNote.remove(); kwNote = null; }
+  const n = el("div", "kwnote");
+  const head = el("div", "kwhead");
+  head.appendChild(el("b", null, kw.ko));
+  head.appendChild(el("span", "kwkind", kw.kind || ""));
+  n.appendChild(head);
+  n.appendChild(el("p", null, kw.text || "기획서에 이름만 있고 풀이가 아직 없습니다."));
+  const x = el("button", "kwclose", "닫기");
+  x.onclick = () => { n.remove(); kwNote = null; };
+  n.appendChild(x);
+  document.body.appendChild(n);
+  kwNote = n;
+}
+
+// 카드 한 장을 펼친 쪽지 — 하는 일 한 줄과 그 아래 낱말 풀이.
+export function showCard(c, heroKey) {
+  if (kwNote) { kwNote.remove(); kwNote = null; }
+  const { action, terms } = cardParts(c, heroKey);
+  const n = el("div", "kwnote cardnote");
+  const head = el("div", "kwhead");
+  head.appendChild(el("span", "kwcost", c.xcost ? "X" : String(c.cost)));
+  head.appendChild(el("b", null, c.name));
+  head.appendChild(el("span", "kwkind", c.type));
+  n.appendChild(head);
+  n.appendChild(withKeywords(el("p", "cardact"), action, heroKey));
+  if (terms.length) {
+    const box = el("dl", "terms");
+    for (const t of terms) {
+      box.appendChild(el("dt", "t" + (t.kind === "이 카드" ? " here" : ""), t.ko));
+      box.appendChild(el("dd", null, t.text || "기획서에 이름만 있고 풀이가 아직 없습니다."));
+    }
+    n.appendChild(box);
+  }
+  const x = el("button", "kwclose", "닫기");
+  x.onclick = () => { n.remove(); kwNote = null; };
+  n.appendChild(x);
+  document.body.appendChild(n);
+  kwNote = n;
+}
+
+// 더미를 열어 본다 — 이름만 늘어놓으면 무엇을 하는 카드인지 모른다(실제로 그런 말을 들었다).
+// 손패와 같은 카드 꼴로 펼치고, 뽑을 더미 · 버린 더미 · 사라진 카드 · 덱 전체를 오간다.
+// piles: [{ key, label, ids, why }] · pick: 처음 열 칸 · cardFor: id → 이 판에서의 카드(신탁 반영)
+// onDetail: id → 카드를 누르면 가운데에 자세히(전투의 카드 창). 없으면 보기만 한다
+export function showPiles(piles, pick, cardFor, onDetail) {
+  if (kwNote) { kwNote.remove(); kwNote = null; }
+  const back = el("div", "pilemodal");
+  const box = el("div", "pilebox");
+  back.appendChild(box);
+  back.onclick = (e) => { if (e && e.target === back) close(); };
+  const close = () => { back.remove(); kwNote = null; };
+
+  const head = el("div", "pilehead");
+  const tabs = el("div", "piletabs");
+  head.appendChild(tabs);
+  const x = el("button", "kwclose", "닫기");
+  x.onclick = close;
+  head.appendChild(x);
+  box.appendChild(head);
+  const why = el("p", "pwhy");
+  box.appendChild(why);
+  const grid = el("div", "pilegrid");
+  box.appendChild(grid);
+
+  let cur = pick;
+  function draw() {
+    tabs.innerHTML = "";
+    for (const pl of piles) {
+      const t = el("button", "ptab" + (pl.key === cur ? " on" : ""));
+      t.appendChild(el("span", null, pl.label));
+      t.appendChild(el("b", null, String(pl.ids.length)));
+      t.onclick = () => { cur = pl.key; draw(); };
+      tabs.appendChild(t);
+    }
+    const pl = piles.find((q) => q.key === cur) || piles[0];
+    why.textContent = pl.why || "";
+    grid.innerHTML = "";
+    // 같은 카드는 한 장으로 묶고 ×n 을 붙인다. id 가 달라도(마력탄 두 장) 글이 같으면 같은 카드다.
+    const bag = new Map();
+    const first = new Map();
+    for (const id of pl.ids) {
+      const c = cardFor(id) || {};
+      const sig = [c.hero, c.name, c.cost, c.text].join("|");
+      if (!first.has(sig)) first.set(sig, id);
+      const rep = first.get(sig);
+      bag.set(rep, (bag.get(rep) || 0) + 1);
+    }
+    const order = [...bag.keys()].sort((a, b) => {
+      const ca = cardFor(a) || {}, cb = cardFor(b) || {};
+      return String(ca.hero || "").localeCompare(String(cb.hero || "")) || (ca.cost || 0) - (cb.cost || 0) || String(ca.name).localeCompare(String(cb.name));
+    });
+    for (const id of order) {
+      const c = cardFor(id);
+      if (!c) continue;
+      const cell = el("div", "pilecell");
+      const who = el("div", "rwho");
+      if (c.hero) {
+        who.appendChild(art.portrait(c.hero, { ko: HERO(c.hero).ko, tint: TINT(c.hero), size: 22, slot: "battle", still: true }));
+        who.appendChild(el("b", null, HERO(c.hero).ko));
+      } else who.appendChild(el("b", null, "공용"));
+      if (bag.get(id) > 1) who.appendChild(el("span", "pn", `×${bag.get(id)}`));
+      cell.appendChild(who);
+      const card = bigCard(c, CARDART.pic[id] || null);
+      card.onclick = onDetail ? () => onDetail(id) : null;   // 누르면 자세히 — 더미 창 위에 뜬다
+      card.title = onDetail ? "눌러서 자세히 보기" : "";
+      if (onDetail) card.classList.add("canzoom");
+      if (c.flashOn) card.appendChild(el("span", "pflash", `${"①②③④⑤"[c.flashOn - 1]} ${c.flashKind}`));
+      cell.appendChild(card);
+      // 카드에는 줄여서 앉혔으니, 아래에 전문을 붙인다
+      cell.appendChild(withKeywords(el("p", "pfull"), c.text, c.hero));
+      grid.appendChild(cell);
+    }
+    if (!pl.ids.length) grid.appendChild(el("p", "pwhy", "비어 있습니다."));
+  }
+  draw();
+  document.body.appendChild(back);
+  kwNote = back;
+}
+
+// 사도 카드는 그 사도의 성격(순수·광기·냉정·우울·활발) 색을 입는다 — 속성이 카드 색으로 읽힌다.
+// 주인 없는 카드(교주·골칫거리)는 종류(공격·방어…) 색 그대로.
+export function natureClass(c) {
+  const nat = c && c.hero ? C.natureOf(c.hero) : null;
+  return nat ? " p-" + nat : "";
+}
+
+// 한 장의 카드. 도감 상세에서도 쓰고, 나중에 다른 곳에서도 쓸 수 있게 여기 한 번만 쓴다.
+export function bigCard(c, pic) {
+  // 우리가 그린 일러스트는 카드를 꽉 채우고, 글자가 그 위에 얹힌다.
+  // 원작에서 꺼낸 스킬 아이콘은 128px 라 늘리면 뭉개진다 — 가운데에 작게 둔다.
+  const full = !!pic && pic.includes("/cardart/");
+  const n = el("article", "gcard k-" + (TKIND[c.type] || "skill") + natureClass(c) + (full ? " full" : ""));
+  const head = el("div", "ghead");
+  head.appendChild(el("span", "gcost", c.xcost ? "X" : String(c.cost)));
+  const t = el("div", "gtitle");
+  t.appendChild(el("b", null, c.name));
+  const ty = el("span", "gtype");
+  ty.appendChild(el("i", null, TMARK[c.type] || "◈"));
+  ty.appendChild(el("span", null, c.type));
+  t.appendChild(ty);
+  head.appendChild(t);
+  n.appendChild(head);
+
+  const artBox = el("div", "gart");
+  if (pic) artBox.appendChild(img(pic, "gpic"));
+  // 그린 것이 없으면 그 사도의 인게임 그림을 깐다. 무늬만 있는 것보다 낫다 —
+  // 어차피 그 사도의 카드라, 누구 카드인지도 같이 읽힌다.
+  else if (c.hero) { artBox.classList.add("heroart"); artBox.appendChild(art.portrait(c.hero, { ko: "", slot: "battle", still: true, size: 0 })); }
+  else artBox.appendChild(el("span", "gglyph", TMARK[c.type] || "◈"));
+  n.appendChild(artBox);
+
+  const body = el("p", "gtext");
+  withKeywords(body, cardParts(c, c.hero).action, c.hero);
+  n.appendChild(body);
+  n.onclick = () => showCard(c, c.hero);
+  n.title = "눌러서 낱말 풀이 보기";
+  return n;
+}
+
+// 화면 뒤에 그 싸움의 배경을 깐다 — 전투와, 이긴 뒤의 보상 화면이 같은 그림을 쓴다.
+// 변수에 담긴 url() 은 그 변수를 쓰는 css 파일 기준으로 풀린다 — 그래서 문서 기준 절대 주소로 넘긴다
+export function setStageBg(s, run) {
+  const floor = R.currentFloor(run);
+  const bg = BATTLE_BG[floor.n] || BATTLE_BG[1];
+  const bgFile = `assets/bg/${run.eventFight ? bg.event : R.isBoss(run) ? bg.boss : bg.fight}.jpg`;
+  s.style.setProperty("--stagebg", `url("${typeof location === "object" ? new URL(bgFile, location.href).href : bgFile}")`);
+}
+
+// 싸움터 배경 — assets/bg (tools/extract-bg.py 가 게임에서 뽑은 16:9 그림)
+// 에르피엔은 숲속 버섯 마을, 모나티엄은 엘프 도시, 벨리티엔은 마녀 왕국의 보랏빛 숲
+export const BATTLE_BG = {
+  1: { fight: "stage3_2", boss: "stage3_3", event: "stage2_1" },
+  2: { fight: "stage8_1", boss: "stage9_1", event: "stage4_1" },
+  3: { fight: "stage23_1", boss: "stage25_1", event: "stage16_1" },
+};
+
+// ── 장비 ────────────────────────────────────────────────────────────────
+// 칸은 사도당 무기·방어구·장신구. 기획서: 얻는 곳은 보상·상점·이벤트, **바꿔 끼기는 휴식 노드(캠프)에서.**
+//   mode "empty" — 보상·상점: 가방의 장비를 **빈 칸에만** 끼운다
+//   mode "camp"  — 캠프: 바꿔 끼고 뺄 수 있다
+// 지금 도는 것은 스탯 줄과 애착 Lv.3 스탯뿐이다. 효과 줄은 글만 보여 주고 「아직 안 돈다」고 적는다.
+const STAT_KO = { hp: "HP", atk: "공격", def: "방어", crit: "치명" };
+export const statText = (st) => Object.entries(st || {}).filter(([, v]) => v).map(([k, v]) => `${STAT_KO[k]} +${v}${k === "crit" ? "%" : ""}`).join(" · ");
+
+// ── 장비 아이콘 ─────────────────────────────────────────────────────────
+// 장비 그림은 게임에서 꺼낸 것이 없다(장비는 기획서가 지은 것이다). 이름에서 종류를 읽어 그린다 —
+// 지팡이 · 검 · 활 · 낫 · 주먹 · 총 / 모자 · 로브 · 갑옷 · 장갑 / 반지 · 왕관 · 책 · 병 · 보석.
+// 테두리는 등급 색, 애착 장비는 그 사도의 얼굴이 모서리에 붙는다.
+const GEAR_GLYPH = {
+  staff: '<path d="M17 2.5a4 4 0 0 1 2.8 6.8L18 11l-1.6-1.6L7 18.8l-.6 2.6-2.4.6-.9-.9.6-2.4 2.6-.6 9.4-9.4L14.1 7l1.7-1.8A4 4 0 0 1 17 2.5z"/><circle cx="17.3" cy="6.6" r="1.7" fill="#fffc"/>',
+  sword: '<path d="M20 3v3.5L9.5 17 12 19.5 10.5 21 8 18.5 5.5 21 3 18.5 5.5 16 3 13.5 4.5 12 7 14.5 17.5 4H20z"/>',
+  dagger: '<path d="M19 4l-1 4-8 8-2-2 8-8 3-2zM7.5 14.5l2 2-1.5 1.5 1 1-1.5 1.5-1-1L4 22l-2-2 2.5-2.5-1-1L5 15l1 1 1.5-1.5z"/>',
+  bow: '<path d="M5 3c7 1.5 14.5 9 16 16l-2 .5C17.8 13.4 10.6 6.2 4.5 5L5 3zM4 20L18 6l1.5-1.5L21 3l-.5 3.5L19 8 5 22z"/>',
+  scythe: '<path d="M3 21L14 10l1.4 1.4L4.4 22.4zM13 4c4-2 9-1 9 1-3-1-6-.5-8 1.5l-2.5 2.5L10 7.5z"/>',
+  fist: '<path d="M7 9V6a1.5 1.5 0 0 1 3 0V5a1.5 1.5 0 0 1 3 0v.5a1.5 1.5 0 0 1 3 0V7a1.5 1.5 0 0 1 3 0v6c0 4-3 7-7 7h-1c-3.5 0-6-2.5-6-6v-3a1.5 1.5 0 0 1 2-1.4z"/>',
+  gun: '<path d="M3 8h16l2 2v3h-5l-1 2h-3l-1 3H7l1-4H3z"/>',
+  hat: '<path d="M8 4h8l1 9h3v3H4v-3h3z"/><rect x="7" y="10" width="10" height="2" fill="#0005"/>',
+  robe: '<path d="M8 3l4 3 4-3 5 4-3 3v11H6V10L3 7z"/>',
+  armor: '<path d="M12 2l8 3v6c0 5.5-3.4 9.3-8 11-4.6-1.7-8-5.5-8-11V5z"/><path d="M12 5v14" stroke="#0005" stroke-width="1.6"/>',
+  glove: '<path d="M6 11V6a1.5 1.5 0 0 1 3 0v3-5a1.5 1.5 0 0 1 3 0v5-4a1.5 1.5 0 0 1 3 0v5-3a1.5 1.5 0 0 1 3 0v8c0 4-2.5 6-6 6h-2c-3 0-5-2-5-5v-3a1.5 1.5 0 0 1 1-1.4z"/>',
+  ring: '<circle cx="12" cy="14" r="6" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M9 4h6l2 3-5 4-5-4z"/>',
+  crown: '<path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z"/>',
+  book: '<path d="M5 3h11a3 3 0 0 1 3 3v15H8a3 3 0 0 1-3-3z"/><path d="M8 18h11" stroke="#0005" stroke-width="1.6"/>',
+  potion: '<path d="M9 2h6v2h-1v4.5l5 7.5a4 4 0 0 1-3.4 6H8.4A4 4 0 0 1 5 16l5-7.5V4H9z"/><path d="M7 15h10" stroke="#fff6" stroke-width="1.6"/>',
+  gem: '<path d="M7 3h10l4 6-9 12L3 9z"/><path d="M3 9h18M9 3l3 6 3-6M12 9v12" stroke="#0004" stroke-width="1.2"/>',
+};
+const GEAR_WORDS = [
+  [/지팡이|요술봉|깃발|가지/, "staff"], [/대검|검|칼|커터/, "sword"], [/비수|단검|단도|송곳|수리검/, "dagger"], [/활|화살|바람살/, "bow"],
+  [/낫/, "scythe"], [/글러브|케틀벨|메이스|뽀개기/, "fist"], [/물총|건$/, "gun"],
+  [/모자|페도라|감투|머리띠/, "hat"], [/망토|로브|미라주|간호복|보자기/, "robe"], [/건틀릿|장갑|골무/, "glove"], [/갑옷|조끼|견갑|벨트|쿠션/, "armor"],
+  [/반지|팔찌/, "ring"], [/왕관|티아라|머리핀/, "crown"], [/비급|교본|지침서|기록서|마법서|카드|액자|패드|E-Pad/, "book"],
+  [/물약|주스|성배|향로|램프|호롱불|머핀/, "potion"],
+];
+function gearKind(e) {
+  for (const [re, k] of GEAR_WORDS) if (re.test(e.ko)) return k;
+  return e.slot === "무기" ? "sword" : e.slot === "방어구" ? "armor" : "gem";
+}
+export const GRADE_COLOR = { 전설: "#f0b94a", 희귀: "#9a7cf0", 고급: "#4fc08a", 일반: "#a8adbf" };
+export function equipIcon(e, size = 48) {
+  const n = el("span", "eicon g-" + (e ? e.grade : "none"));
+  n.style.width = n.style.height = size + "px";
+  if (!e) return n;
+  n.style.setProperty("--gc", GRADE_COLOR[e.grade] || "#a8adbf");
+  const gp = CARDART.pic[e.id];
+  if (gp) { n.classList.add("haspic"); n.appendChild(img(gp)); }
+  else n.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor">${GEAR_GLYPH[gearKind(e)]}</svg>`;
+  if (e.affinity) {
+    const pic = CARDART.pic[e.affinity + "_ult"];
+    if (pic) { const f = el("span", "eaffface"); f.appendChild(img(pic)); f.title = `${e.affinityKo} 애착`; n.appendChild(f); }
+  }
+  n.title = `${e.ko} · ${e.slot} · ${e.grade}`;
+  return n;
+}
+// 빈 칸 — 그 칸의 모양만 흐리게
+const SLOT_GLYPH = { 무기: "sword", 방어구: "armor", 장신구: "gem" };
+export function emptySlotIcon(slot, size = 48) {
+  const n = el("span", "eicon empty");
+  n.style.width = n.style.height = size + "px";
+  n.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor">${GEAR_GLYPH[SLOT_GLYPH[slot] || "gem"]}</svg>`;
+  return n;
+}
+
+export function equipCard(id, extra) {
+  const e = EQUIP[id];
+  const n = el("div", "ecard g-" + e.grade);
+  const head = el("div", "ehead");
+  head.appendChild(equipIcon(e, 44));
+  head.appendChild(el("span", "eslot", e.slot));
+  head.appendChild(el("b", null, e.ko));
+  head.appendChild(el("span", "egrade", e.grade));
+  n.appendChild(head);
+  n.appendChild(el("p", "eqstat", statText(e.stats) || "스탯 없음"));
+  // 효과 · 애착은 낀 사도의 패시브가 된다(docs/13-장비와 중립.md). 다 읽히지 않는 줄은 「아직 안 돕니다」로 흐리게
+  const effLine = (label, text, on) => {
+    const p = el("p", "eeff" + (on ? " on" : ""));
+    p.appendChild(el("span", "eoff", on ? label : `${label} · 아직 안 돕니다`));
+    p.appendChild(withKeywords(el("span"), " " + shortText(String(text).replace(/\s*\[[^\]]+\]/g, "")), e.affinity || null));
+    return p;
+  };
+  if (e.effect) n.appendChild(effLine("효과", e.effect, e.effectRead));
+  if (e.affinityKo) {
+    n.appendChild(el("p", "eaff", `애착: ${e.affinityKo}${e.affinityLv3 ? ` — 끼면 ${statText(e.affinityLv3)} 더` : ""}`));
+    if (e.affinityPassive) n.appendChild(effLine(`애착 · ${e.affinityKo}`, e.affinityPassive, e.affinityRead));
+  }
+  if (e.blurb) n.appendChild(el("p", "eblurb", e.blurb));
+  if (extra) n.appendChild(extra);
+  return n;
+}

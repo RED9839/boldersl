@@ -76,7 +76,7 @@ function end(kind) {
 
 function fight(resumed) {
   // 안내는 화면을 세운 **뒤에** 단다 — screen() 이 들어올 때 지우기 때문이다.
-  run.where = { k: "fight" };              // 싸움을 열고 굴린 직후 화면(ui.js)이 판과 싸움을 같이 적는다
+  run.where = { k: "fight" };              // 싸움을 열고 굴린 직후 화면(fight-screen.js)이 판과 싸움을 같이 적는다
   ui.fightScreen(run, fightDone, start, { resume: resumed });
 }
 function fightDone(result) {
@@ -84,7 +84,7 @@ function fightDone(result) {
   reward();
 }
 
-// 보상 화면은 없다 — 골드 · 장비 · 은총 · 신탁은 전투 중에 떨어져 오른쪽 목록에 쌓이고, 이기면 이미 챙겼다(ui.js fightScreen)
+// 보상 화면은 없다 — 골드 · 장비 · 은총 · 신탁은 전투 중에 떨어져 오른쪽 목록에 쌓이고, 이기면 이미 챙겼다(fight-screen.js fightScreen)
 function reward() {
   ui.hint("");
   run.elite = false;                       // 엘리트 보상은 한 번

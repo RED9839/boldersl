@@ -48,7 +48,7 @@ export function currentEnemies(run) {
   return (at && at.foes) || f.fights[run.node];
 }
 
-// 싸움을 연다 — 전투 상태와 전리품(골드 · 장비)을 이 자리에서 한 번 굴린다. 화면(ui.js fightScreen)과 시험 도구가 같이 쓴다.
+// 싸움을 연다 — 전투 상태와 전리품(골드 · 장비)을 이 자리에서 한 번 굴린다. 화면(fight-screen.js fightScreen)과 시험 도구가 같이 쓴다.
 // 굴리는 차례가 판의 난수를 정하니 바꾸지 않는다: 신탁(빛날 카드) → 전리품. 전투는 제 씨앗으로 따로 굴린다.
 export function openFight(run) {
   const next = run.nextFight || null;          // 이벤트가 걸어 둔 「다음 전투」 효과 — 여기서 한 번 가져간다(events.js takeNextFight 와 같다)

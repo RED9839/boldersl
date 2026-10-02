@@ -33,7 +33,7 @@ const follow = (root, path) => path.reduce((o, k) => (o == null ? undefined : o[
 
 // ── 싸움 ────────────────────────────────────────────────────────────────
 export function packCombat(s) {
-  const { rng, book, fx, ...rest } = s;     // fx — 화면의 연출 쪽지(ui.js). 판이 아니라 적지 않는다
+  const { rng, book, fx, ...rest } = s;     // fx — 화면의 연출 쪽지(fight-screen.js). 판이 아니라 적지 않는다
   const enemies = s.enemies.map((e) => {
     if (!e.intent) return { ...e, intent: null };
     const path = pathTo(ENEMIES[e.key], e.intent);

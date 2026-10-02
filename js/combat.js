@@ -163,7 +163,7 @@ function shuffle(rng, a) {
   return a;
 }
 const say = (s, t) => s.log.push(t);
-// 연출 쪽지 — 화면(ui.js)이 s.fx = [] 를 달아 두었을 때만 적는다. 누가 움직이고(act) 맞고(hurt) 쓰러졌는지(die).
+// 연출 쪽지 — 화면(fight-screen.js)이 s.fx = [] 를 달아 두었을 때만 적는다. 누가 움직이고(act) 맞고(hurt) 쓰러졌는지(die).
 // 판에는 아무 영향이 없다 — 저장(save.js)도 빼고 적는다. 화면 없는 도구(sim · check-*)에서는 s.fx 가 없어 아무것도 안 쌓인다
 const cue = (s, k, u, more) => { if (s.fx && u) s.fx.push({ k, side: u.side, idx: u.idx, ...more }); };
 
@@ -665,7 +665,7 @@ function bestAlly(s, stat) {
   return up.length ? up.reduce((a, b) => ((b[stat] || 0) > (a[stat] || 0) ? b : a)) : null;
 }
 
-// opts.discard — 이 카드의 「손패 N장 버리」에 버릴 카드 id(낸 사람이 고른 것 · ui.js). 없으면 손 끝에서부터(모의전 · 미리보기)
+// opts.discard — 이 카드의 「손패 N장 버리」에 버릴 카드 id(낸 사람이 고른 것 · fight-screen.js). 없으면 손 끝에서부터(모의전 · 미리보기)
 export function playCard(s, handIdx, targetIdx, opts = {}) {
   if (s.over) return { ok: false, why: "전투가 끝났습니다" };
   const cardId = s.hand[handIdx];
