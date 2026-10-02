@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import D from "../js/data/design.js";
-import { parseEffect } from "../js/effects.js";
+import { parseEffect, parseBless } from "../js/effects.js";
 import { parsePassive } from "../js/passive.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -65,6 +65,8 @@ for (const h of wanted) {
         n: f.n, kind: f.kind, ko: f.ko, text: f.text,
         ...parse(f.text, kw, `${h.ko}/${u.ko}/${f.kind}`),
       })),
+      // 그 카드만의 겨우살이의 축복 — 신탁 위에 얹는 한 줄(kind 배율 + 덤 fx)
+      ...(u.bless ? { bless: (() => { const b = parseBless(u.bless.text, { keyword: kw }); if (b.left) nUnparsed++; return { ko: u.bless.ko, text: u.bless.text, kind: b.kind, fx: b.fx, unparsed: b.left || null }; })() } : {}),
     };
   });
   starter[key] = mine;

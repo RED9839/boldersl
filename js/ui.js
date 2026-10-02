@@ -358,7 +358,7 @@ export function rewardScreen(run, onPick) {
       const pick = el("div", "rpick rgot");
       const who = el("div", "rwho");
       const fl = (CARDS[f.cardId].flash || [])[f.n - 1] || {};
-      who.appendChild(el("b", null, `신탁 「${fl.kind || fl.ko || ""}」${f.shin ? ` · 축복(${RULES.DIVINE_KO[f.shin]})` : ""}`));
+      who.appendChild(el("b", null, `신탁 「${fl.kind || fl.ko || ""}」${f.shin ? ` · 축복(${RULES.shinLabel(CARDS[f.cardId], f.shin)})` : ""}`));
       pick.appendChild(who);
       pick.appendChild(bigCard(flashed(CARDS[f.cardId], f.n), CARDART.pic[f.cardId] || null));
       gr.appendChild(pick);
@@ -1536,7 +1536,7 @@ export function eventScreen(run, onDone, onFight) {
       const fr = el("div", "rrow flashrow");
       fr.appendChild(flashTarget(c, p.cardId));
       for (const k of p.options) {
-        const [nm, eff] = RULES.DIVINE_KO[k].split(" — ");
+        const [nm, eff] = RULES.shinLabel(c, k).split(" — ");
         const b = el("button", "fcard shin");
         const hd = el("div", "fhead2"); hd.appendChild(el("b", null, nm)); b.appendChild(hd);
         b.appendChild(el("p", "ftext2", eff));

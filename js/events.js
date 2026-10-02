@@ -298,7 +298,7 @@ export function apply(run, ops) {
       }
       case "shinNow": {
         const ids = Object.keys(run.flash || {}).filter((id) => CARDS[id] && !(run.shin || {})[id]);
-        if (ids.length) { const id = ids[Math.floor(run.rng() * ids.length)]; run.shin = run.shin || {}; run.shin[id] = true; E.log.push(`겨우살이의 축복! 「${CARDS[id].name}」 — 신탁 위에 한 줄이 더 (피해 ×1.3)`); }
+        if (ids.length) { const id = ids[Math.floor(run.rng() * ids.length)]; run.shin = run.shin || {}; run.shin[id] = CARDS[id].bless ? "own" : true; E.log.push(`겨우살이의 축복! 「${CARDS[id].name}」 — ${R.shinLabel(CARDS[id], run.shin[id])}`); }
         else { E.shinChance = 1; E.log.push("축복을 얹을 신탁이 아직 없습니다 — 이번에 고르는 신탁에 얹힙니다"); }
         break;
       }
@@ -372,8 +372,8 @@ export function resolve(run, value) {
         break;
       }
       run.shin = run.shin || {};
-      run.shin[value] = p.kind;
-      E.log.push(`겨우살이의 축복! 「${CARDS[value].name}」 — ${R.DIVINE_KO[p.kind]}`);
+      run.shin[value] = CARDS[value].bless ? "own" : p.kind;      // 그 카드만의 축복이 있으면 그것
+      E.log.push(`겨우살이의 축복! 「${CARDS[value].name}」 — ${R.shinLabel(CARDS[value], run.shin[value])}`);
       break;
     }
     case "shinKind": {
@@ -381,7 +381,7 @@ export function resolve(run, value) {
       if (!p.options.includes(value)) return "고를 수 없는 축복입니다";
       run.shin = run.shin || {};
       run.shin[p.cardId] = value;
-      E.log.push(`겨우살이의 축복! 「${CARDS[p.cardId].name}」 — ${R.DIVINE_KO[value]}`);
+      E.log.push(`겨우살이의 축복! 「${CARDS[p.cardId].name}」 — ${R.shinLabel(CARDS[p.cardId], value)}`);
       break;
     }
     case "dupe": {
@@ -412,8 +412,8 @@ export function resolve(run, value) {
       // 기적 — 신탁 위에 드물게 한 줄 더(배율 ×1.3). 「꽃을 꺾으면」 이번 판은 안 뜬다
       if (E.shinChance && !run.noShin && run.rng() < E.shinChance) {
         run.shin = run.shin || {};
-        run.shin[p.offer.cardId] = true;
-        E.log.push("겨우살이의 축복! 신탁 위에 한 줄이 더 (피해 ×1.3)");
+        run.shin[p.offer.cardId] = CARDS[p.offer.cardId].bless ? "own" : true;
+        E.log.push(`겨우살이의 축복! 신탁 위에 한 줄이 더 (${R.shinLabel(CARDS[p.offer.cardId], run.shin[p.offer.cardId])})`);
       }
       break;
     }

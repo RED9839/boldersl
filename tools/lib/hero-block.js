@@ -91,6 +91,14 @@ export function parseHeroBlock(raw, warn = () => {}) {
       cur.flash.push({ n: "①②③④⑤".indexOf(f[1]) + 1, kind: f[2] || "", ko: f[3].trim(), text: strip(f[4]) });
       continue;
     }
+    // 「✦ *이름*: …」 — 그 카드만의 겨우살이의 축복(사도 고유, v3). 카드당 하나
+    const b = line.match(/^\s+-\s*✦\s*\*(.+?)\*:\s*(.+)$/);
+    if (b) {
+      if (!cur) { warn(`${name} — 카드 없이 축복이 나왔다`); continue; }
+      if (cur.bless) warn(`${name}/${cur.ko} — 축복이 둘이다`);
+      cur.bless = { ko: b[1].trim(), text: strip(b[2]) };
+      continue;
+    }
     if (/^\s*-/.test(line)) warn(`${name} 고유 카드 — 못 읽은 줄: ${line.trim().slice(0, 40)}`);
   }
   if (h.unique.length !== 4) warn(`${name} — 고유 카드가 ${h.unique.length}장 (넷이어야 한다)`);

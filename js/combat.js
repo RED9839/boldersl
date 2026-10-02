@@ -656,7 +656,7 @@ export function useUlt(s, heroKey, targetIdx = 0) {
 export function costOf(s, cardId) {
   const c = cardOf(s, cardId);
   if ((s.freeOnce && s.freeOnce[cardId]) || (s.freeTurn && s.freeTurn[cardId])) return 0;
-  const divine = s.shin && s.shin[cardId] === "cost" ? 1 : 0;      // 기적 「비용 -1」
+  const divine = s.shin && R.shinKindOf(CARDS[cardId], s.shin[cardId]) === "cost" ? 1 : 0;      // 기적 「비용 -1」(고유 축복의 코스트 -1 도)
   return Math.max(0, c.cost - divine - s.nextCheaper);
 }
 
@@ -726,7 +726,7 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   // 기적 — true(이벤트의 옛 값) · "power" 는 피해 ×1.3
   const sh = s.shin && s.shin[cardId];
   // opts.ally — 적과 아군을 둘 다 고르는 카드(「적 1명 …, 아군 1명 …」)의 아군 쪽. 화면이 한 번 더 묻는다
-  const ctx = { owner, combo: null, targetIdx, allyIdx: opts.ally, x: c.xcost ? paid : 0, shin: sh === true ? "power" : (sh || null) };
+  const ctx = { owner, combo: null, targetIdx, allyIdx: opts.ally, x: c.xcost ? paid : 0, shin: R.shinKindOf(CARDS[cardId], sh) };
   s.acting = c.hero || null;
   s.modSrc = `${owner ? owner.ko + " " : ""}「${c.name}」`;   // 버프 · 디버프의 출처(정보 창)
   cue(s, "act", owner, { anim: c.type === "공격" ? "attack" : "skill", card: c });   // card — 화면이 카드에 맞는 동작을 고른다(js/data/card-motion.js)
@@ -737,6 +737,9 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
     } else {
       for (const f of c.fx) applyFx(s, c, f, ctx);
     }
+    // 그 카드만의 축복 — 덤 효과가 카드 효과 뒤에 돈다(배율은 ctx.shin 이 이미 실었다)
+    const bl = sh === "own" && CARDS[cardId] && CARDS[cardId].bless;
+    if (bl && bl.fx && bl.fx.length) { say(s, `겨우살이의 축복 「${bl.ko}」`); runFx(s, bl.fx, { ...ctx, shin: null }, fxApi(s)); }
   } finally { s.discardPick = null; }       // 고른 버릴 카드는 이 카드의 효과에서만 쓴다
   // 티그의 오버드라이브 — 평타 계수를 바꾸고 공속을 올린다(원작). 여기선 한 번 더 들어간다.
   if (s.overdrive && c.hero === "tig" && c.type === "공격") {

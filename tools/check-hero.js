@@ -11,12 +11,13 @@ import { DESIGN_DOC } from "./lib/paths.js";
 import fs from "node:fs";
 import { parseHeroBlock, slug } from "./lib/hero-block.js";
 import { parsePassive, parseKeyword } from "../js/passive.js";
-import { parseEffect } from "../js/effects.js";
+import { parseEffect, parseBless } from "../js/effects.js";
 import D from "../js/data/design.js";
 import { valueOf, baseValue, flashCost, oracleRules, tagsOf } from "./lib/card-value.js";
 
 const args = process.argv.slice(2);
 const DESIGN = DESIGN_DOC;
+const needBless = args.includes("--bless");   // v3 — 고유 카드마다 「✦ 축복」 이 있어야 한다
 const only = args.includes("--only") ? (args[args.indexOf("--only") + 1] || "").split(",").filter(Boolean) : [];
 const files = args.includes("--design") ? [DESIGN] : args.filter((a) => a.endsWith(".md"));
 if (!files.length) { console.log("쓰는 법: node tools/check-hero.js 파일.md | --design"); process.exit(2); }
@@ -209,8 +210,32 @@ for (const file of files) {
       const free = u.flash.every((f) => !f.kind);
       if (!free) u.flash.forEach((f, i) => { if (f.kind !== FLASH[i]) errs.push(`「${u.ko}」 신탁 ${i + 1}번이 「${f.kind || "(분류 없음)"}」 — 「${FLASH[i]}」 여야 한다(자유 신탁이면 다섯 모두 분류 없이)`); });
     }
+    // ── 겨우살이의 축복(사도 고유, v3) — 「✦ *이름*: 효과」 ──
+    {
+      const anyBless = h.unique.some((u) => u.bless);
+      for (const u of h.unique) {
+        if (!u.bless) { if (needBless || anyBless) errs.push(`「${u.ko}」 — 축복 줄(「✦ *이름*: 효과」)이 없다`); continue; }
+        pieces++;
+        const b = parseBless(u.bless.text, { keywords: kws });
+        if (!b.kind && !b.fx.length) errs.push(`「${u.ko}」 축복 「${u.bless.ko}」 — 효과를 못 읽었다: ${u.bless.text}`); else read++;
+        if (b.left) errs.push(`「${u.ko}」 축복 「${u.bless.ko}」 — 못 읽은 말: 「${b.left}」`);
+        if (b.kind === "cost" && !(typeof u.cost === "number" && u.cost >= 2)) errs.push(`「${u.ko}」 축복 — 코스트 -1 은 2코 이상 카드만(0코가 되면 안 된다)`);
+        const base = valueOf(parseEffect(u.text, { keywords: kws }).fx) || 0.5;
+        const extra = valueOf(b.fx);
+        // 공용 풀이 ×1.3 이다 — 고유 축복도 그 언저리: 덤은 기본 카드 값의 15~60%, 배율과 덤을 같이 쓰면 덤은 30% 까지
+        const cap = b.kind ? 0.3 : 0.6;
+        if (extra > base * cap + 0.05) errs.push(`「${u.ko}」 축복 「${u.bless.ko}」 — 덤이 너무 크다 (값어치 ${extra.toFixed(2)} · 기본의 ${Math.round(cap * 100)}% = ${(base * cap).toFixed(2)} 까지)`);
+        if (!b.kind && extra < base * 0.1 - 0.05) errs.push(`「${u.ko}」 축복 「${u.bless.ko}」 — 덤이 너무 작다 (값어치 ${extra.toFixed(2)} · 기본의 10% 이상)`);
+        for (const f of b.fx) { sane(f, `「${u.ko}」 축복`, errs, false); if (f.k === "ap" && f.v > 0 && !(typeof u.cost === "number" && u.cost >= 1)) errs.push(`「${u.ko}」 축복 — 0코 카드에 AP 금지`); }
+        notes.push(`축복 ${u.ko} → ${u.bless.ko}: ${b.kind || "-"}${b.fx.length ? " + " + b.fx.map(fxLabel).join(", ") : ""}`);
+      }
+    }
+    // 「(턴당 N회)」 는 카드 · 고학년 스킬 글에도 쓰지 않는다(2026-10 사용자)
+    for (const c of cards) if (/턴당\s*\d+\s*회/.test(c.text || "")) errs.push(`${c.where} — 「턴당 N회」 를 쓰지 않는다`);
+    if (/턴당\s*\d+\s*회/.test((h.keyword && h.keyword.text) || "")) errs.push(`키워드 — 「턴당 N회」 를 쓰지 않는다`);
     if (h.unique[0] && !h.unique[0].tags.includes("시그니처")) errs.push(`첫 고유 카드에 「시그니처」 표시가 없다`);
     if (!h.source) errs.push("**원작** 줄이 없다 — 나무위키에서 무엇을 가져왔는지 한 줄");
+    else if (needBless && !/^포지션\s*:/.test(h.source)) errs.push("**원작** 줄은 「포지션: …」 으로 시작한다(docs/14 §1)");
 
     if (errs.length) bad++;
     console.log(`\n${errs.length ? "✗" : "✓"} ${h.ko}`);

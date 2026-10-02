@@ -321,3 +321,22 @@ export function parseCard(card, hero) {
   const { fx, left } = parseEffect(card.text, { keyword });
   return { ...card, fx, unparsed: left || null };
 }
+
+// ── 겨우살이의 축복(사도 고유) ─────────────────────────────────────────
+// 「✦ *이름*: 효과」 — 신탁 위에 한 줄. 앞머리에 배율 하나(피해 ×1.3 · 회복 ×1.3 · 방어·실드 ×1.3 ·
+// 코스트 -1 · 취약인 적에게 피해 ×1.3)를 둘 수 있고, 그 뒤는 카드를 낼 때 덤으로 도는 효과다.
+// 돌려주는 것: { kind: "power"|"heal"|"guard"|"cost"|"weakSpot"|null, fx, left }
+const BLESS_KIND = [
+  [/^취약(?:\s*상태)?인\s*적에게\s*피해\s*×\s*1\.3\s*[.,]?\s*/, "weakSpot"],
+  [/^피해\s*×\s*1\.3\s*[.,]?\s*/, "power"],
+  [/^회복(?:량)?\s*×\s*1\.3\s*[.,]?\s*/, "heal"],
+  [/^(?:방어\s*·\s*실드|방어|실드)(?:량)?\s*×\s*1\.3\s*[.,]?\s*/, "guard"],
+  [/^코스트\s*-\s*1\s*[.,]?\s*/, "cost"],
+];
+export function parseBless(text, opts = {}) {
+  let t = (text || "").trim(), kind = null;
+  for (const [re, k] of BLESS_KIND) { const m = t.match(re); if (m) { kind = k; t = t.slice(m[0].length).trim(); break; } }
+  if (!t) return { kind, fx: [], left: "" };
+  const { fx, left } = parseEffect(t, opts);
+  return { kind, fx, left };
+}

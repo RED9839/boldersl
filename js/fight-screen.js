@@ -1526,7 +1526,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (!u) return null;
     const api = { statOf: (x, k) => C.statOf(st, x, k) };
     const sh = st.shin && st.shin[id];
-    const shin = sh === true ? "power" : sh || null;      // combat playCard 와 같은 풀이
+    const shin = RULES.shinKindOf(CARDS[id], sh);      // combat playCard 와 같은 풀이
     const dealt = Math.max(0.1, 1 + (C.statOf(st, u, "dealt") || 0));
     return (kind, ratio) => (kind === "dmg" ? Math.max(0, Math.round(FX.hitAmount(api, u, ratio, { shin: shin === "power" }) * dealt))
       : kind === "heal" ? FX.healAmount(api, u, ratio, shin)
@@ -2554,7 +2554,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         const f = (base.flash || [])[opt.n - 1] || {};
         card = bigCard(flashed(base, opt.n), CARDART.pic[cardId] || null);
         cell.appendChild(el("span", "epikind", f.kind || f.ko || ""));   // 자유 신탁은 분류 대신 이름
-        if (opt.shin) { cell.classList.add("shin"); cell.appendChild(el("span", "epishin", `겨우살이의 축복 · ${RULES.DIVINE_KO[opt.shin]}`)); }
+        if (opt.shin) { cell.classList.add("shin"); cell.appendChild(el("span", "epishin", `겨우살이의 축복 · ${RULES.shinLabel(base, opt.shin)}`)); }
       }
       card.onclick = null; card.title = "";
       cell.appendChild(card);
@@ -2659,7 +2659,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         C.applyEpiphany(st, glowId, choice);
         writeSave(run, st);              // 고른 신탁을 곧장 적는다 — 이어서 묻는 창(아군 · 버릴 카드)에서 새로고침해도 다시 고를 수 없게
         const o = g.options[choice], f = (CARDS[glowId].flash || [])[o.n - 1] || {};
-        lootCard(glowId, `신탁 「${f.kind || f.ko || ""}」${o.shin ? ` · 축복(${RULES.DIVINE_KO[o.shin]})` : ""}`);
+        lootCard(glowId, `신탁 「${f.kind || f.ko || ""}」${o.shin ? ` · 축복(${RULES.shinLabel(CARDS[glowId], o.shin)})` : ""}`);
         selCard = st.hand.indexOf(glowId);
         play(targetIdx);
       });

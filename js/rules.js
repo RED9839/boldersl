@@ -56,6 +56,9 @@ export const DIVINE_KO = {
   atkUp: "한 땀 한 땀 — 내면 이번 전투 이 사도 공격력 +10%", defUp: "꺾이지 않는 실 — 내면 이번 전투 이 사도 방어력 +10%",
 };
 export const DIVINE_NAME = "겨우살이의 축복";
+// 축복 풀이 — run.shin[id] 의 값: 공용 풀 이름 · true(옛 이벤트 = power) · "own"(그 카드만의 축복, card.bless)
+export const shinKindOf = (card, sh) => sh === true ? "power" : sh === "own" ? ((card && card.bless && card.bless.kind) || null) : (sh || null);
+export const shinLabel = (card, sh) => sh === "own" && card && card.bless ? `${card.bless.ko} — ${card.bless.text}` : (DIVINE_KO[sh === true ? "power" : sh] || "");
 
 // 기적은 기획서가 값을 적어 뒀다 — 「선택지 3개 중 1개가 낮은 확률(기본 5%)로」.
 // 아직 풀을 파서로 읽지 않아 쓰지는 않는다. 값만 여기 둔다.
