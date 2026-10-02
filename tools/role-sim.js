@@ -5,16 +5,17 @@
 //   node tools/role-sim.js 캬롯 --quick                     방향만 빨리 볼 때(파티 6 × 판 12 · 맞춤 고르기 판 12)
 //   --jobs N   작업 스레드 수(기본: 코어의 1/4, 최대 8). 결과는 스레드 수와 상관없이 같다
 //   --tune N   맞춤 고르기에 쓰는 판 수(기본 24)
+//   --bot simple  옛 손으로(기본 smart — tools/lib/bot.js). 옛 숫자와 견줄 때
 //
 // 한 판 = 3층 12전 연속(체력 이어짐 · 전투 뒤 20% 회복 · 층 사이 완전 회복). 보상 · 장비 · 상점은 없다.
 // 그래서 클리어율의 절대값보다 **편성끼리 · 판끼리의 차이**를 본다.
 // 맞춤(fit) = 카드마다 다섯 갈래를 번갈아 끼워 보며 그 파티에 가장 잘 맞는 신탁을 고른 것(두 바퀴).
-// 손(봇)은 운영을 한다 — 고학년은 차면 쓰고, 누가 절반 아래면 회복·방어부터, AP·드로우·키워드 쌓기를 먼저,
-// 그 사도 키워드를 쓰는 카드는 키워드가 셋 이상일 때.
+// 손(봇)은 tools/lib/bot.js — 기본은 판을 복사해 수마다 둬 보고 고르는 손(smart), --bot simple 은 옛 글자 규칙 손.
 import { pathToFileURL, fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
 import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
+import { makeBots } from "./lib/bot.js";
 // 측정은 오래 돌고 여러 개를 함께 띄우기 쉽다 — 낮은 우선순위로 돌아 컴퓨터를 막지 않게
 try { os.setPriority(19); } catch {}
 
@@ -53,37 +54,12 @@ function partiesOf(comp) {
   return Array.from({ length: P }, () => { const p = [K]; for (const l of rest) { let k; do k = POOL[l][Math.floor(r() * POOL[l].length)]; while (p.includes(k)); p.push(k); } return p; });
 }
 
-const stackOf = (s) => (KW && ((s.stacks || {})[K] || {})[KW]) || 0;
-const text = (s, id) => (C.cardOf(s, id) || {}).text || "";
-function target(s) { let t = 0, best = 1e9; s.enemies.forEach((e, j) => { if (!e.dead && e.hp < best) { best = e.hp; t = j; } }); return t; }
-const spendRe = KW ? new RegExp(`「${KW}」\\s*(전부|\\d)\\s*소모|「${KW}」\\s*1당`) : null;
-function play(s, r) {
-  let g = 0;
-  while (!s.over && g++ < 80) {
-    for (const u of s.party) if (!C.canUlt(s, u.key)) { C.useUlt(s, u.key, target(s)); if (s.over) return; }
-    const ok = s.hand.map((id, i) => i).filter((i) => !C.canPlay(s, s.hand[i]));
-    if (!ok.length) break;
-    const hurt = s.party.some((u) => !u.dead && u.hp < u.maxHp * 0.5);
-    const score = (i) => {
-      const id = s.hand[i], t = text(s, id), cost = C.costOf(s, id);
-      const spend = spendRe && (C.cardOf(s, id) || {}).hero === K && spendRe.test(t);
-      if (hurt && /회복|방어|실드|받는 피해 -/.test(t)) return 120;
-      if (spend) return stackOf(s) >= 3 ? 50 + stackOf(s) : -10;
-      if (/AP\s*\+\d/.test(t)) return 100;
-      if (/드로우/.test(t)) return 80;
-      if (/「[^」]+」\s*\+\d/.test(t)) return 60 + cost;
-      return 30 + cost * 5 + r();
-    };
-    // 적의 즉시 행동을 본다 — 다음 한 장이 피해 주는 수를 당길 때, 되돌리는 카드(「즉시 행동 -N」)가 있으면 그것부터,
-    // 없으면 사람처럼 거기서 멈춘다(작은 수는 당겨도 낸다)
-    const near = C.rushOf && s.enemies.some((e) => !e.dead && !e.sealed && e.intent && C.rushOf(e) && (e.rushCnt || 0) + 1 >= C.rushOf(e)
-      && ["attack", "back", "multi", "attackAll"].includes(e.intent.t));
-    const calms = (i) => ((C.cardOf(s, s.hand[i]) || {}).fx || []).some((f) => f.k === "rushDown" || (f.k === "status" && f.id === "기절"));
-    ok.sort((a, b) => (near ? calms(b) - calms(a) : 0) || score(b) - score(a));
-    if (near && !calms(ok[0])) break;
-    if (!C.playCard(s, ok[0], target(s)).ok) break;
-  }
-}
+// 손(봇) — tools/lib/bot.js. --bot simple 은 옛 손(글자 규칙으로 줄 세우기), 기본은 smart(판을 복사해 둬 보고 고르는 손)
+const RULES = await import(pathToFileURL(path.join(ROOT, "js/rules.js")).href);
+const { ENEMIES } = await import(pathToFileURL(path.join(ROOT, "js/data/enemies.js")).href);
+const BOT = opt("bot", "smart");
+const bots = makeBots({ C, B, R: RULES, ENEMIES });
+const play = (s, r) => (BOT === "simple" ? bots.simplePlay(s, r, K) : bots.smartPlay(s, { depth: +opt("depth", 1) }));
 
 const FULL = FLOORS.reduce((a, f) => a + f.fights.length + 1, 0);
 function runOnce(party, seed, flash) {
