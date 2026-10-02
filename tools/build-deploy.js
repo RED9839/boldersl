@@ -69,6 +69,71 @@ if (fs.existsSync(vIndexPath)) {
   console.log(`  목소리 — 편성 대사 ${Object.keys(out).length}명`);
 } else console.log("  ! 목소리 색인이 없다 — 목소리 없이 싣는다");
 
+// ③-2 궁극기 이펙트 — 색인과 사도별 fx.json, 거기서 실제로 부르는 그림만(tools/extract-fx.py). 없으면 게임은 이펙트 없이 돈다
+const fxIndexPath = A("fx/index.json");
+if (fs.existsSync(fxIndexPath)) {
+  const before = { files, bytes };
+  const idx = JSON.parse(fs.readFileSync(fxIndexPath, "utf8"));
+  copyFile(fxIndexPath, path.join(DIST, "assets/fx/index.json"));
+  const pngs = new Set();
+  for (const hero of new Set(Object.values(idx.effects).map((e) => e.hero))) {
+    const fxPath = A(`fx/${hero}/fx.json`);
+    if (!fs.existsSync(fxPath)) continue;
+    copyFile(fxPath, path.join(DIST, `assets/fx/${hero}/fx.json`));
+    for (const fx of Object.values(JSON.parse(fs.readFileSync(fxPath, "utf8")))) for (const e of fx.em) pngs.add(e.tex);
+  }
+  let miss = 0;
+  for (const t of pngs) if (fs.existsSync(A("fx/" + t))) copyFile(A("fx/" + t), path.join(DIST, "assets/fx", t)); else miss++;
+  console.log(`  이펙트 — 사도 ${Object.keys(idx.heroes).length}명 · 그림 ${pngs.size}장 · ${files - before.files}개 ${((bytes - before.bytes) / 1024 / 1024).toFixed(1)}MB${miss ? ` (그림 ${miss}장 없음)` : ""}`);
+} else console.log("  ! 이펙트 색인이 없다 — 이펙트 없이 싣는다");
+
+// ③-3 구운 이펙트 — 색인과 거기 적힌 시트 쪽만(tools/fx-baked.py). 없으면 그 이펙트는 위의 파티클 흉내로 돈다
+const bakedIndexPath = A("fx-baked/index.json");
+if (fs.existsSync(bakedIndexPath)) {
+  const before = { files, bytes };
+  const idx = JSON.parse(fs.readFileSync(bakedIndexPath, "utf8"));
+  copyFile(bakedIndexPath, path.join(DIST, "assets/fx-baked/index.json"));
+  let miss = 0;
+  for (const e of Object.values(idx.effects)) for (const p of e.pages) {
+    if (fs.existsSync(A("fx-baked/" + p.file))) copyFile(A("fx-baked/" + p.file), path.join(DIST, "assets/fx-baked", p.file)); else miss++;
+  }
+  console.log(`  구운 이펙트 — ${Object.keys(idx.effects).length}개 · ${files - before.files}개 ${((bytes - before.bytes) / 1024 / 1024).toFixed(1)}MB${miss ? ` (시트 ${miss}쪽 없음)` : ""}`);
+}
+
+// ③-4 효과음 — js/data/sfx-map.js 가 부르는 것만: 공용 갈래 + 사도 · 적의 제 소리(갈래 꼬리에 맞는 것). 색인도 그만큼만(tools/extract-sfx.py)
+const sfxIndexPath = A("sfx/index.json");
+if (fs.existsSync(sfxIndexPath)) {
+  const before = { files, bytes };
+  const { SFX, HERO_KINDS, ENEMY_KINDS, kindsIn, monsterDir, SLOT_GROUPS, slotsIn } = await import("../js/data/sfx-map.js");
+  const { HERO_DATA } = await import("../js/cardbook.js");
+  const { ENEMIES } = await import("../js/data/enemies.js");
+  const ARTMAP = (await import("../js/data/artmap.js")).default;
+  const idx = JSON.parse(fs.readFileSync(sfxIndexPath, "utf8"));
+  const keys = Object.keys(idx), want = new Set();
+  for (const e of Object.values(SFX)) for (const f of e.f) want.add(f);
+  for (const k of Object.keys(HERO_DATA)) {
+    const d = ARTMAP.art[k] && String(ARTMAP.art[k]).toLowerCase();
+    if (d) for (const l of Object.values(kindsIn(keys, "hero", d, HERO_KINDS))) for (const f of l) want.add(f);
+    if (d) for (const g of Object.keys(SLOT_GROUPS)) for (const f of slotsIn(keys, d, g).list) want.add(f);   // 동작 소리 칸(SFX 이벤트로 트는 것)
+  }
+  const mdirs = new Set(keys.filter((k) => k.startsWith("monster/")).map((k) => k.split("/")[1]));
+  for (const k of Object.keys(ENEMIES)) {
+    const d = monsterDir(k, mdirs);
+    if (d) for (const l of Object.values(kindsIn(keys, "monster", d, ENEMY_KINDS))) for (const f of l) want.add(f);
+  }
+  const out = {};
+  let miss = 0;
+  for (const f of [...want].sort()) {
+    if (!idx[f] || !fs.existsSync(A(`sfx/${f}.ogg`))) { miss++; continue; }
+    copyFile(A(`sfx/${f}.ogg`), path.join(DIST, `assets/sfx/${f}.ogg`));
+    out[f] = idx[f];
+  }
+  fs.mkdirSync(path.join(DIST, "assets/sfx"), { recursive: true });
+  fs.writeFileSync(path.join(DIST, "assets/sfx/index.json"), JSON.stringify(out));
+  files++;
+  console.log(`  효과음 — ${Object.keys(out).length}개 ${((bytes - before.bytes) / 1024 / 1024).toFixed(1)}MB${miss ? ` (${miss}개 없음)` : ""}`);
+} else console.log("  ! 효과음 색인이 없다 — 효과음 없이 싣는다");
+
 // ④ Cloudflare 설정 — 그림은 오래 붙들고(바뀌면 이름이 같아도 배포마다 새로), 코드는 늘 새로
 fs.writeFileSync(path.join(DIST, "_headers"), [
   "/assets/*",
