@@ -1504,7 +1504,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   }
   // 이겼다 — 사도들이 달리는 동작으로 오른쪽 끝까지 가며 바닥의 금화를 줍는다. 다 가면 then()
   function walkOut(then) {
-    const heroes = [...standEls.values()].filter((n) => !n.classList.contains("dead"));
+    const heroes = [...standEls.values()].filter((n) => !n.classList.contains("dead") && !n.classList.contains("falling"));
     if (!groundOk || !heroes.length || typeof requestAnimationFrame !== "function") { for (const c of ground) pickCoin(c); return then(); }
     s.classList.add("victory");
     const z = zNow(), W = innerWidth || 1600;
@@ -1579,6 +1579,155 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (!u) return 99;                       // 교주 카드는 맨 뒤
     return C.ROWS.indexOf(u.row) * 10 + u.idx;
   };
+
+  // ── 전투 모션 ────────────────────────────────────────────────────────
+  // 엔진은 카드 · 고학년 스킬 · 턴 넘기기를 그 자리에서 다 풀고, 누가 움직이고(act) 맞고(hurt) 쓰러졌는지(die)를
+  // st.fx 에 적어 둔다(combat.js cue). draw() 끝에서 그 순서대로 몸짓을 붙인다 — 판에는 아무 영향이 없다(저장도 뺀다).
+  // 적의 턴은 엔진이 한꺼번에 푸니 적마다 조금씩 띄워 한 명씩 움직이게 보인다. 움직임 줄이기(calm)면 아무것도 안 한다
+  st.fx = [];
+  const FOE_MOOD = { 순수: "Naive", 광기: "Mad", 냉정: "Cool", 우울: "Gloomy", 활발: "Jolly" };   // 적의 공격 동작 끝말(Attack1_1_Mad 따위)
+  const calmNow = () => typeof document === "object" && !!document.documentElement && document.documentElement.classList.contains("calm");
+  const later = (ms, fn) => setTimeout(fn, ms);
+  let fxEnd = 0;                            // 지금 붙인 몸짓이 다 끝나는 때(performance.now 기준)
+  const heroSwing = {};                     // 사도마다 공격 동작을 번갈아(Attack1_1 · Attack2_1)
+  const unitNode = (side, idx) => {
+    if (side === "enemy") return (foeEls.get(idx) || {}).n || null;
+    const u = st.party.find((x) => x.idx === idx);
+    return (u && standEls.get(u.key)) || null;
+  };
+  const artOf = (n) => (n && n.querySelector(":scope > .art")) || null;
+  // 움직이는 그림 — 새로 만드는 중이면(첫 그림은 불러오느라 늦다) 조금 기다린다. 그림 한 장이면 null
+  function viewOf(side, idx, wait = 400) {
+    return new Promise((res) => {
+      const t0 = Date.now();
+      const look = () => {
+        const a = artOf(unitNode(side, idx));
+        if (a && a.spine) return res(a.spine);
+        if (!a || !a.classList.contains("art-spine") || Date.now() - t0 > wait) return res(null);
+        setTimeout(look, 40);
+      };
+      look();
+    });
+  }
+  function actName(v, side, idx, anim) {
+    if (side === "enemy") {
+      const e = st.enemies.find((x) => x.idx === idx), mood = e && FOE_MOOD[ENEMY_NATURE[e.key]];
+      const all = v.animations();
+      const find = (base) => (mood && v.has(`${base}_${mood}`) ? `${base}_${mood}` : all.find((n) => n.toLowerCase().startsWith(base.toLowerCase())));
+      return [anim === "skill" ? find("Skill1_1") || find("Attack1_1") : find("Attack1_1") || find("Skill1_1")];
+    }
+    if (anim === "ult" && v.has("Ultimate1_1")) {
+      const chain = [];
+      for (let k = 2; v.has(`Ultimate1_${k}`); k++) chain.push(`Ultimate1_${k}`);
+      return ["Ultimate1_1", chain];
+    }
+    if (anim === "attack") {
+      const n = (heroSwing[idx] = (heroSwing[idx] || 0) + 1);
+      const pick = n % 2 === 0 && v.has("Attack2_1") ? "Attack2_1" : "Attack1_1";
+      return [v.has(pick) ? pick : "Skill1_1"];
+    }
+    return [v.has("Skill1_1") ? "Skill1_1" : "Attack1_1"];
+  }
+  async function actFx(e) {
+    const v = await viewOf(e.side, e.idx);
+    if (!v) return;
+    const [name, chain] = actName(v, e.side, e.idx, e.anim);
+    if (name) v.play(name, false, chain);
+  }
+  // 맞음 — 피격 동작이 있으면 그것(사도 Hit · 적 Hit1_1)에 붉은 번쩍임, 없으면 흔들림까지. 다른 동작 도중이면 끊지 않는다
+  async function hitFx(e) {
+    const v = await viewOf(e.side, e.idx, 200);
+    const a = artOf(unitNode(e.side, e.idx));
+    if (!a) return;
+    const cur = (v && v.current()) || "";
+    const hit = v && /^(idle|groggy)|^$/i.test(cur) ? ["Hit", "Hit1_1"].find((n) => v.has(n)) : null;
+    if (hit) v.play(hit);
+    const cls = hit ? "fxflash" : "fxhit";
+    a.classList.remove("fxhit", "fxflash");
+    void a.offsetWidth;                     // 같은 표시를 다시 달아도 처음부터 돌게
+    a.classList.add(cls);
+    later(450, () => a.classList.remove(cls));
+  }
+  // 쓰러짐 — Die 를 마지막 자세로 붙들고, 다 쓰러진 뒤에 원래대로 사라진다(적) · 흐려진다(사도)
+  async function dieFx(e) {
+    const n = unitNode(e.side, e.idx);
+    const v = await viewOf(e.side, e.idx, 200);
+    const ms = v && v.play("Die", false, null, { hold: true }) ? Math.min(1400, v.duration("Die") * 1000) : 0;
+    later(ms, () => {
+      if (!n || !n.classList.contains("falling")) return;
+      n.classList.remove("falling");
+      n.classList.add(e.side === "enemy" ? "dying" : "dead");
+    });
+  }
+  // 기절한 적은 Groggy 로 비틀거린다 — 풀리면 쉬는 동작으로
+  function syncGroggy() {
+    for (const u of st.enemies) {
+      if (u.dead) continue;
+      viewOf("enemy", u.idx, 1500).then((v) => {
+        if (!v || !v.has("Groggy")) return;
+        const cur = v.current() || "";
+        if (u.sealed && /^idle/i.test(cur)) v.play("Groggy", true);
+        else if (!u.sealed && /^groggy/i.test(cur)) v.toRest();
+      });
+    }
+  }
+  // draw() 끝에서 — 쌓인 쪽지를 비우고 몸짓을 차례로 건다
+  function runFx() {
+    const q = st.fx.splice(0);
+    if (!groundOk || calmNow()) return;
+    if (!q.length) { syncGroggy(); return; }
+    const beats = [];
+    for (const e of q) {
+      if (e.k === "act" || !beats.length) beats.push({ act: e.k === "act" ? e : null, hits: [] });
+      if (e.k !== "act") beats[beats.length - 1].hits.push(e);
+      // 쓰러진 자리는 그 차례가 올 때까지 남겨 둔다 — 안 그러면 몸짓보다 먼저 사라진다
+      if (e.k === "die") {
+        const n = unitNode(e.side, e.idx);
+        if (n && n.classList.contains(e.side === "enemy" ? "dying" : "dead")) { n.classList.remove("dying", "dead"); n.classList.add("falling"); }
+      }
+    }
+    let t = 0, foes = false;
+    for (const b of beats) {
+      const foe = !!b.act && b.act.side === "enemy";
+      foes = foes || foe;
+      if (b.act) later(t, () => actFx(b.act));
+      const hitAt = t + (!b.act ? 0 : b.act.anim === "ult" ? 500 : 220);
+      for (const h of b.hits) later(hitAt, () => (h.k === "die" ? dieFx(h) : hitFx(h)));
+      t = hitAt + (foe ? 380 : 120);
+    }
+    fxEnd = performance.now() + t;
+    later(t + 60, syncGroggy);
+    // 적이 차례로 움직이는 동안만 손패 · 턴 넘기기를 잠근다(끝나면 바로 푼다)
+    if (foes && t > 600) { s.classList.add("fxbusy"); later(t, () => s.classList.remove("fxbusy")); }
+  }
+  // 싸움을 열 때 — 모두 등장 동작(이어하기로 다시 그릴 때는 안 한다).
+  // 그림은 앞 싸움의 것을 다시 쓰기도 해서(spine-view 의 pool) 쓰러진 · 달리던 자세가 남아 있을 수 있다 — 쉬는 동작으로 돌려 둔다
+  function openFx(fresh) {
+    if (!groundOk) return;
+    const spawn = fresh && !calmNow();
+    for (const u of [...st.party, ...st.enemies]) {
+      if (u.dead) continue;
+      viewOf(u.side, u.idx, 4000).then((v) => {
+        if (!v) return;
+        if (spawn && v.play("Spawn")) return;
+        if (!/^(idle|groggy)/i.test(v.current() || "")) v.toRest();
+      });
+    }
+  }
+  // 이겼다 — 남은 몸짓이 끝나면 살아남은 사도들이 Victory. 걸어 나가기까지 얼마나 기다리면 되는지 돌려준다
+  function cheerFx() {
+    if (!groundOk || calmNow()) return 0;
+    const wait = Math.max(0, fxEnd - performance.now()) + 150;
+    // 막 다시 그린 칸이라 그림(el.spine)은 조금 뒤에 붙는다 — 움직이는 그림인지(art-spine)만 보고 기다릴 몫을 정한다
+    let any = false;
+    for (const u of st.party) {
+      const a = !u.dead && artOf(unitNode("party", u.idx));
+      if (!a || !a.classList.contains("art-spine")) continue;
+      any = true;
+      later(wait, () => viewOf("party", u.idx).then((v) => v && v.play("Victory", false, null, { hold: true })));
+    }
+    return any ? wait + 1500 : wait;
+  }
 
   // ── 적 칸 ────────────────────────────────────────────────────────────
   function foeNode(u, clickable, onPick) {
@@ -2030,6 +2179,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     logLast.appendChild(el("span", "lgmore", `${st.log.length}줄 ▾`));
 
     paintPreview(selCard, null);
+    runFx();
     if (st.over) finish();
   }
 
@@ -2668,15 +2818,16 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     // 판에 다 남긴 뒤 적는다 — 금화를 줍는 연출 중에 새로고침해도 다음 칸(main.js)으로 넘어간다
     run.where = { k: "fightDone", result: st.over };
     writeSave(run);
-    // 사도들이 오른쪽으로 달려가며 바닥의 금화를 줍는다 → 얻은 것을 보이고 넘어간다
-    walkOut(() => {
+    // 남은 몸짓이 끝나면 살아남은 사도들이 기뻐하고(Victory), 오른쪽으로 달려가며 바닥의 금화를 줍는다 → 얻은 것을 보이고 넘어간다
+    const cheer = cheerFx();
+    later(cheer, () => walkOut(() => {
       if (loot) {
         lootBox.classList.add("on", "done");
         lootBox.querySelector(".lthead").textContent = "승리 — 얻은 것";
         if (!lootList.children.length) lootList.appendChild(el("p", "ltnone", "이번에는 떨어진 것이 없습니다"));
       }
       setTimeout(() => { for (const c of ground) c.node.remove(); onDone(st.over); }, loot ? 1300 : 500);
-    });
+    }));
   }
 
   // 이어하기 — 이미 쓰러진 적의 골드 · 장비와 이 싸움에서 얻은 은총 · 신탁을 「얻은 것」 에 다시 올린다(판은 그대로)
@@ -2691,6 +2842,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     for (const f of (st.gained && st.gained.flash) || []) if (CARDS[f.cardId]) lootCard(f.cardId, `신탁 ${"①②③④⑤"[f.n - 1] || ""}`);
   }
   draw();
+  openFx(!resumed);
   // 신탁을 고르던 중이었으면 그 창을 다시 연다 — 같은 카드 · 같은 선택지
   if (st.pendingEpi) {
     const p = st.pendingEpi;

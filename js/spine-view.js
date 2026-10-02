@@ -233,13 +233,16 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
   const api = {
     // 한 번만 하는 동작(공격·피격)은 끝나면 쉬는 동작으로 돌아온다. 없는 이름이면 아무 일도 없다.
     // then — 끝나면 이어서 할 동작 하나(골디의 Touch_Idle → Touch_End 처럼 짝을 이룬 것). 그것까지 하고 쉰다.
+    //   여럿이면 배열로 — 고학년 스킬처럼 Ultimate1_1 → 1_2 → … 로 이어지는 것
     // hold — 끝나도 쉬는 동작으로 가지 않고 마지막 자세로 멈춰 있는다(대사가 끝날 때까지 붙들기). 돌아갈 때는 toRest()
     play(name, loopIt = false, then, { hold = false } = {}) {
       const a = findAnim(name);
       if (!a) return false;
       state.setAnimation(0, a.name, loopIt);
-      const b = !loopIt && findAnim(then);
-      if (b) state.addAnimation(0, b.name, false, 0);
+      for (const n of loopIt ? [] : [].concat(then || [])) {
+        const b = findAnim(n);
+        if (b) state.addAnimation(0, b.name, false, 0);
+      }
       if (!loopIt && !hold && rest) state.addAnimation(0, rest.name, true, 0);
       return true;
     },

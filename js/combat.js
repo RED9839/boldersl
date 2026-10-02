@@ -163,6 +163,9 @@ function shuffle(rng, a) {
   return a;
 }
 const say = (s, t) => s.log.push(t);
+// 연출 쪽지 — 화면(ui.js)이 s.fx = [] 를 달아 두었을 때만 적는다. 누가 움직이고(act) 맞고(hurt) 쓰러졌는지(die).
+// 판에는 아무 영향이 없다 — 저장(save.js)도 빼고 적는다. 화면 없는 도구(sim · check-*)에서는 s.fx 가 없어 아무것도 안 쌓인다
+const cue = (s, k, u, more) => { if (s.fx && u) s.fx.push({ k, side: u.side, idx: u.idx, ...more }); };
 
 // 사도가 말한다. 그 순간에 맞는 줄이 없으면 아무 말도 안 한다 — 틀린 대사보다 없는 편이 낫다.
 // 한 전투에서 같은 순간을 되풀이하지 않는다(같은 말을 두 번 들으면 대사가 아니라 소리가 된다).
@@ -400,6 +403,7 @@ function actEnemy(s, e, it = e.intent, passive = false) {
     if (it.next) e.intent = null;          // 모으던 힘도 흩어진다
     return;
   }
+  cue(s, "act", e, { anim: ["attack", "back", "attackAll", "multi"].includes(it.t) ? "attack" : "skill" });
   if (it.t === "attack" || it.t === "back") {
     const t = pickTarget(s, it.t === "back");
     if (t) {
@@ -491,6 +495,7 @@ function hurt(s, u, v, { from, pure } = {}) {
   if (!pure && u.shield > 0) { const a = Math.min(u.shield, d); u.shield -= a; d -= a; }
   const before = u.hp / u.maxHp;
   u.hp -= d;
+  if (d > 0) cue(s, "hurt", u, { v: d });
   if (u.side === "party" && d > 0) speak(s, u.key, "hit");
   if (u.hp <= 0) { kill(s, u, pure); return; }
   if (u.side === "party" && d > 0 && !pure) {
@@ -507,6 +512,7 @@ function kill(s, u, byPoison) {
   if (u.dead) return;
   // 엘리아스에는 죽음이 없다 — 쓰러진 사도는 주말농장에 간다(docs/03-세계관.md)
   u.hp = 0; u.dead = true;
+  cue(s, "die", u);
   if (u.side === "party") speak(s, u.key, "down");
   say(s, u.side === "party" ? `${u.ko} 주말농장으로` : `${u.ko} 쓰러짐`);
   if (u.side === "party") emit(s, "allyDown", { who: u });
@@ -595,6 +601,7 @@ export function useUlt(s, heroKey, targetIdx = 0) {
   const owner = s.party.find((x) => x.key === heroKey);
   say(s, `${owner.ko} 고학년 스킬 — ${ult.ko} (게이지 ${ult.cost}%)`);
   speak(s, heroKey, "ego");
+  cue(s, "act", owner, { anim: "ult" });
   // 효과는 아직 산문이다(기획서 그대로). 효과 파서가 붙기 전까지는 게이지만 돈다.
   // 전에는 옛 효과 실행기(applyFx)로 돌려서 아무 일도 없었다 — 고학년 스킬은 게이지만 먹었다.
   if (ult.fx && ult.fx.length) {
@@ -687,6 +694,7 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   // opts.ally — 적과 아군을 둘 다 고르는 카드(「적 1명 …, 아군 1명 …」)의 아군 쪽. 화면이 한 번 더 묻는다
   const ctx = { owner, combo: null, targetIdx, allyIdx: opts.ally, x: c.xcost ? paid : 0, defOwner: c.neutral ? bestAlly(s, "def") : null, shin: sh === true ? "power" : (sh || null) };
   s.acting = c.hero || null;
+  cue(s, "act", owner, { anim: c.type === "공격" ? "attack" : "skill" });
   try {
     if (c.built) {
       // 기획서에서 읽은 카드 — 효과 조각을 run-fx 가 실행한다(스탯 기반 %)
