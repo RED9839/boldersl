@@ -219,6 +219,8 @@ const PARTIES = [
   ["마요", "엘레나", "아멜리아"].map(byKo),
   [keys[3], keys[47], keys[101]],
   [keys[12], keys[66], keys[130]],
+  // 판이 일찍 끝나면 「이벤트 고른 뒤」 같은 자리를 못 지나갈 수 있다 — 값 · 확률을 바꿀 때마다 길이 달라져 한 판을 더 둔다(2026-10)
+  [keys[30], keys[80], keys[120]],
 ].filter((p) => p.every(Boolean));
 const seen = {};
 let forks = 0, lockSteps = 0, bad = [], dirty = [], raws = 0, ident = 0;

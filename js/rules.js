@@ -140,8 +140,9 @@ export const SHOP_REROLL = 25;
 export const SHOP_REROLL_STEP = 25;
 // 카드 제거 · 복제는 덱을 원하는 모양으로 깎는 가장 센 수단이라 비싸다(2026-10 사용자: 대가를 크게, 횟수로 세지 말고 기본값으로).
 // 한 층 수입(보통 전투 15~25 · 보스 75 — 150 안팎)의 ⅔ — 제거하면 그 상점에선 다른 것을 거의 못 산다. 한 번 들를 때 한 번.
-export const PRICE_REMOVE = 100;         // 상점 카드 제거 — 첫 번째 값
-export const PRICE_REMOVE_STEP = 25;     // 뺄 때마다 오른다. 횟수는 판 전체(run.removals)라 모든 상점이 같이 쓴다(2026-10 사용자)
+// 2026-10-04 사용자 — 카제나 델랑 상점(제거 80 크레딧)에 맞춰 100 → 80, 오름 +25 → +20. 다섯 번에 750 → 600
+export const PRICE_REMOVE = 80;          // 상점 카드 제거 — 첫 번째 값
+export const PRICE_REMOVE_STEP = 20;     // 뺄 때마다 오른다. 횟수는 판 전체(run.removals)라 모든 상점이 같이 쓴다(2026-10 사용자)
 // 이벤트 「카드 복제」 — 신탁 · 기적은 카드 종류에 붙어 있어 복제본도 그대로 가진다. 그래서 그런 카드를 고르면 골드를 더 받는다
 export const DUPE_FLASH_EXTRA = 40;
 // 진열 가중치 — 흔한 것이 자주 나온다
