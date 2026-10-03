@@ -5,12 +5,13 @@
 // 고유 카드 540장마다: 축복을 붙이고(run.shin[id] = "own") 내 본다 —
 //   · 던지지 않는다 · 덤 효과가 있으면 기록에 「겨우살이의 축복 「이름」」 이 남는다
 //   · 코스트 -1 축복은 비용이 1 준다 · 배율 축복은 같은 카드보다 피해 · 회복 · 방어가 커진다
-import { newCombat, playCard, costOf } from "../js/combat.js";
+//   · 보존 축복은 내지 않고 턴을 넘기면 손에 남는다(축복 없는 같은 카드는 버려진다)
+import { newCombat, playCard, costOf, endTurn } from "../js/combat.js";
 import { CARDS } from "../js/cardbook.js";
 import { divineKindsFor } from "../js/run.js";
 import * as R from "../js/rules.js";
 
-let fails = 0, n = 0, extra = 0, cost = 0;
+let fails = 0, n = 0, extra = 0, cost = 0, kept = 0;
 const fail = (m) => { if (fails < 20) console.log("  실패 " + m); fails++; };
 
 const ids = Object.keys(CARDS).filter((id) => CARDS[id].unique && CARDS[id].bless);
@@ -33,6 +34,14 @@ for (const id of ids) {
     const c0 = costOf(plain, id), c1 = costOf(blessed, id);
     if (c.bless.kind === "cost") { cost++; if (!(c1 === Math.max(0, c0 - 1))) fail(`${c.name} — 코스트 -1 축복인데 비용 ${c0} → ${c1}`); }
     else if (c1 !== c0) fail(`${c.name} — 축복이 비용을 바꿨다 (${c0} → ${c1})`);
+    if (c.bless.fx.some((f) => f.k === "tag" && f.id === "보존")) {
+      kept++;
+      const a = mk(null), b = mk("own");
+      // 뽑을 더미를 채워 둔다 — 비어 있으면 버린 더미를 섞어 같은 카드를 다시 뽑는다
+      for (const t of [a, b]) t.draw = Array(12).fill(`${party[1]}_s0`);
+      endTurn(a); endTurn(b);
+      if (!b.hand.includes(id) || (a.hand.includes(id) && !(c.tags || []).includes("보존"))) fail(`${c.name} — 보존 축복인데 턴을 넘기면 손에 안 남는다`);
+    }
     const r = playCard(blessed, 0, 0, { ally: 0 });
     if (!r.ok) { fail(`${c.name} — 축복을 붙이니 못 낸다 (${r.why})`); continue; }
     if (c.bless.fx.length) {
@@ -42,6 +51,6 @@ for (const id of ids) {
   } catch (e) { fail(`${c.name} — 던졌다: ${e.message}`); }
 }
 
-console.log(`축복 ${n}장 · 덤 효과 ${extra} · 코스트 -1 ${cost}`);
+console.log(`축복 ${n}장 · 덤 효과 ${extra} · 코스트 -1 ${cost} · 보존 ${kept}`);
 console.log(fails ? `실패 ${fails}` : "축복이 카드마다 그 카드의 것으로 돈다");
 process.exit(fails ? 1 : 0);

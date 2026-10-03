@@ -115,11 +115,11 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
     (s.stackCap[kw.owner] = s.stackCap[kw.owner] || {})[kw.id] = kw.cap;
   }
   P.collectAlways(s);
-  // 개전 카드는 첫 손패에 든다 — 뽑을 더미는 끝에서부터 뽑으니 끝으로 옮긴다
-  const opening = s.draw.filter((id) => hasTag(cardOf(s, id), "개전"));
-  if (opening.length) s.draw = [...s.draw.filter((id) => !opening.includes(id)), ...opening];
-  // 기적이 붙은 카드 — 피해 배율 ×1.3(rules.js SHIN). 이벤트에서 얻는다
+  // 기적이 붙은 카드 — 피해 배율 ×1.3(rules.js SHIN). 이벤트에서 얻는다. 축복의 개전 · 보존(blessTag)이 보니 먼저 건다
   s.shin = { ...(shin || {}) };
+  // 개전 카드는 첫 손패에 든다 — 뽑을 더미는 끝에서부터 뽑으니 끝으로 옮긴다
+  const opening = s.draw.filter((id) => hasTag(cardOf(s, id), "개전") || blessTag(s, id, "개전"));
+  if (opening.length) s.draw = [...s.draw.filter((id) => !opening.includes(id)), ...opening];
   // 신탁 — 빛나는 카드(run.js rollEpiphany). 내는 순간 화면이 셋 중 하나를 고르게 하고 applyEpiphany 로 건다
   s.glow = JSON.parse(JSON.stringify(glow || {}));
   s.gained = { cards: [], flash: [] };     // 이 전투에서 얻은 것 — 끝나면 run.js afterFight 가 판에 남긴다
@@ -307,8 +307,8 @@ export function endTurn(s) {
   }
 
   // 보존 카드는 손에 남는다
-  const keep = s.hand.filter((id) => hasTag(cardOf(s, id), "보존"));
-  s.discard.push(...s.hand.splice(0).filter((id) => !cardOf(s, id).temp && !hasTag(cardOf(s, id), "보존")));
+  const keep = s.hand.filter((id) => hasTag(cardOf(s, id), "보존") || blessTag(s, id, "보존"));
+  s.discard.push(...s.hand.splice(0).filter((id) => !cardOf(s, id).temp && !keep.includes(id)));
   s.hand.push(...keep);
   checkOver(s); if (s.over) return s;
 
@@ -576,6 +576,12 @@ function checkOver(s) {
 // ── 카드 ───────────────────────────────────────────────────────────────
 // 이 판에서 그 카드가 실제로 무엇인가 — 신탁을 골랐으면 바뀐 쪽이다.
 export const cardOf = (s, id) => (s.book && s.book[id]) || CARDS[id];
+
+// 그 카드만의 축복(✦)에 붙은 태그 — 「✦ *이름*: 보존」 처럼. 축복을 받은 카드(run.shin[id] = "own")만(docs/14 §5)
+export function blessTag(s, cardId, id) {
+  const b = s.shin && s.shin[cardId] === "own" && CARDS[cardId] && CARDS[cardId].bless;
+  return !!(b && (b.fx || []).some((f) => f.k === "tag" && f.id === id));
+}
 
 // 카드의 태그 — 개전(첫 손패에 든다) · 보존(턴이 끝나도 손에 남는다) · 소멸(내면 이 전투에서 사라진다).
 // 신탁을 고른 카드는 신탁 글이 전문이다 — 머리의 태그는 기본 카드의 것이라 보지 않는다.

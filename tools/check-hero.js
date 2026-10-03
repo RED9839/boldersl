@@ -58,6 +58,8 @@ for (const file of files) {
     // ── 패시브 ──
     const rules = parsePassive(h.passive || "", kws);
     if (!rules.length) errs.push("패시브가 없다");
+    // 패시브는 둘까지(엘다인 패시브도 센다 · docs/14 §2) — 이름 하나에 문장이 여럿이어도 하나다
+    { const names = [...new Set(rules.map((r) => r.name))]; if (needBless && names.length > 2) errs.push(`패시브가 ${names.length}개 — 둘까지(${names.join(" · ")}). 열마다 다른 줄은 한 패시브의 문장으로`); }
     let passiveDoes = 0;
     for (const r of rules) {
       pieces++;
@@ -70,6 +72,9 @@ for (const file of files) {
       notes.push(`패시브 ${r.name}: [${whenLabel(r.when)}${r.conds.length ? " · " + r.conds.map(condLabel).join(" · ") : ""}${r.limit ? ` · ${r.limit.per === "turn" ? "턴당" : "전투당"} ${r.limit.n}회` : ""}] → ${what || "없음"}`);
       for (const f of r.fx) sane(f, `패시브 「${r.name}」`, errs, r.when.on === "always");
       capRule(r, `패시브 「${r.name}」`, errs);
+      // 조건은 한 겹까지 — 장수 거르개(「스킬」 · 「1코 이상」) · 「한 턴에」 · 조건(「X」가 N개 이상이면 …)을 겹으로 센다.
+      // 선 열(「전열에 서 있으면」)은 편성에서 정해지는 갈래라 세지 않는다(docs/14 §2)
+      if (needBless) { const ly = layers(r); if (ly.length > 1) errs.push(`패시브 「${r.name}」 — 조건이 ${ly.length}겹(${ly.join(" + ")}). 하나만 남긴다: ${r.text}`); }
       // 늘 켜진 % 증감만 하는 패시브 — 원작 어사이드 「모든 아군 피해량 증가」 를 그대로 옮긴 꼴이다.
       // 전투에서 보이지도 않고 누구 것인지도 모른다. 조건(언제·「X」가 있으면)이나 키워드와 엮는다.
       const MODS = ["dealtMod", "takenMod", "atkMod", "defMod", "critMod", "healMod"];
@@ -104,6 +109,8 @@ for (const file of files) {
     for (const c of cards) {
       pieces++;
       const { fx, left } = parseEffect(c.text, { keywords: kws });
+      // 효과 셋까지(docs/14 §2) — 고유 카드와 신탁. 시작 카드 · 고학년 스킬은 세지 않는다
+      if (needBless && !c.where.startsWith("시작") && !c.where.startsWith("고학년")) { const n = effCount(fx); if (n > 3) errs.push(`${c.where} — 효과가 ${n}개(셋까지). 「「X」가 있으면 …」 덤은 신탁 ⑤ · 축복으로 옮기거나 한 마디를 덜어낸다`); }
       if (!fx.length) errs.push(`${c.where} — 효과를 하나도 못 읽었다: ${c.text}`);
       else read++;
       if (left) errs.push(`${c.where} — 못 읽은 말: 「${left}」`);
@@ -221,7 +228,9 @@ for (const file of files) {
         if (b.left) errs.push(`「${u.ko}」 축복 「${u.bless.ko}」 — 못 읽은 말: 「${b.left}」`);
         if (b.kind === "cost" && !(typeof u.cost === "number" && u.cost >= 2)) errs.push(`「${u.ko}」 축복 — 코스트 -1 은 2코 이상 카드만(0코가 되면 안 된다)`);
         const base = valueOf(parseEffect(u.text, { keywords: kws }).fx) || 0.5;
-        const extra = valueOf(b.fx);
+        // 축복의 보존 · 개전 — 그 카드가 손에 남는다 · 첫 손패에 든다(js/combat.js blessTag). 덤 0.3 으로 친다
+        const extra = valueOf(b.fx) + b.fx.filter((f) => f.k === "tag" && (f.id === "보존" || f.id === "개전")).length * 0.3;
+        if (b.fx.some((f) => f.k === "tag" && f.id === "소멸")) errs.push(`「${u.ko}」 축복 — 소멸은 축복에 붙이지 않는다`);
         // 공용 풀이 ×1.3 이다 — 고유 축복도 그 언저리: 덤은 기본 카드 값의 15~60%, 배율과 덤을 같이 쓰면 덤은 30% 까지
         const cap = b.kind ? 0.3 : 0.6;
         if (extra > base * cap + 0.05) errs.push(`「${u.ko}」 축복 「${u.bless.ko}」 — 덤이 너무 크다 (값어치 ${extra.toFixed(2)} · 기본의 ${Math.round(cap * 100)}% = ${(base * cap).toFixed(2)} 까지)`);
@@ -248,6 +257,30 @@ console.log(`\n사도 ${heroes}명 · 문제 있는 사도 ${bad}명 · 효과 �
 process.exit(bad ? 1 : 0);
 
 // ── 도우미 ──
+// 효과 수(docs/14 §2 「효과 셋까지」) — 읽은 조각을 센다. 쉼표 수가 아니다.
+//   안 센다: 태그(보존 · 개전 · 소멸 …) · 코스트 · 대상 범위 · 「「X」 1당」(뒤 피해의 배율)
+//   하나로 센다: 「방어·실드 전부 파괴 후 N% 피해」(파괴 + 피해) · 「손패 N장 버리고 드로우 M」(버리기 + 드로우)
+//   따로 센다: 「「X」가 있으면」(조건 하나) · 「「X」 N 소모」 · 그 뒤 덤 효과 하나하나 — 조건 덤도 효과다.
+//   그래서 「X. 「K」가 있으면 「K」 N 소모, Y」 는 넷이다
+function effCount(fx) {
+  let n = 0;
+  for (let i = 0; i < (fx || []).length; i++) {
+    const f = fx[i];
+    if (["tag", "costSet", "costDelta", "scope", "perStack"].includes(f.k)) continue;
+    if (f.k === "strip" && fx[i + 1] && fx[i + 1].k === "dmg") continue;
+    if (f.k === "discard" && fx[i + 1] && fx[i + 1].k === "draw") continue;
+    n++;
+  }
+  return n;
+}
+// 패시브 한 줄의 조건 겹 — 장수 거르개 · 한 턴에 · 조건(선 열은 빼고)
+function layers(r) {
+  const w = r.when, out = [];
+  if (w.every && (w.type || w.minCost)) out.push(`${w.type ? w.type + " " : ""}${w.minCost ? w.minCost + "코 이상 " : ""}카드만 셈`);
+  if (w.perTurn) out.push("한 턴에");
+  for (const c of r.conds) if (c.c !== "row") out.push(condLabel(c));
+  return out;
+}
 // 횟수 제한(docs/07 §4, 2026-10 사용자 「패시브에 턴당 최대 조건 없애라」) —
 //   「(턴당 N회)」 는 쓰지 않는다. 「(전투당 N회)」 는 위급할 때 한 번(HP가 N% 이하가 되면 · 처음 맞으면 · 아군이 쓰러지면)만.
 //   AP · 드로우는 언제 자체가 막는 것에만 — 턴 시작 · 턴 종료 · 전투 시작 · 파티가 이번 턴 N장째 · 「X」가 N개가 되면 ·

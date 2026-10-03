@@ -224,18 +224,23 @@ check(started.party.join(",") === "에르핀,티그,네르", `자리를 바꾼 �
   const B = (await import("../js/data/built.js")).default;
   check(B.heroes["죠안"].anyRow && B.heroes["티그_영웅"].anyRow && !B.heroes["티그"].anyRow, "모든 열 사도는 둘(티그(영웅) · 죠안)");
   const lit = (row) => {
-    // 열 줄은 죠안 카드를 4장 낼 때마다 돈다(원작 강화 평타 「네 번째 공격」) — 두 턴에 걸쳐 죠안 카드를 낸다
+    // 열 줄은 죠안 1코 이상 카드를 3장 낼 때마다 돈다 — 패시브 하나 「서 있는 열에 따라」 의 세 문장(docs/14 §2 패시브 둘까지)
     const t = C2.newCombat({ partyKeys: ["죠안", "에르핀", "네르"], rows: { 죠안: row }, deck: Array(12).fill("죠안_s0"), enemyIds: ["fairymobcloserange"], seed: 3 });
+    let buff = false;
     for (let turn = 0; turn < 3 && !t.over; turn++) {
-      for (let g = 0; g < 6; g++) { const i = t.hand.findIndex((id) => !C2.canPlay(t, id)); if (i < 0) break; C2.playCard(t, i, 0); }
+      for (let g = 0; g < 6; g++) {
+        const i = t.hand.findIndex((id) => !C2.canPlay(t, id)); if (i < 0) break; C2.playCard(t, i, 0);
+        buff = buff || t.party.some((u) => (u.mods || []).some((m) => m.stat === "dealt" && m.v > 0 && /서 있는 열에 따라/.test(m.src || "")));
+      }
       if (!t.over) C2.endTurn(t);
     }
-    return { row: t.party[0].row, gauge: t.gauge, log: t.log.join("\n") };
+    const log = t.log.join("\n");
+    return { row: t.party[0].row, gauge: t.gauge, fired: /죠안 · 서 있는 열에 따라/.test(log), ap: /죠안: AP \+1/.test(log), buff };
   };
   const mid = lit("mid"), back = lit("back"), front = lit("front");
-  check(mid.row === "mid" && /꿈결 기도/.test(mid.log) && !/후열 축복/.test(mid.log), `죠안 중열 — 중열 줄만 (게이지 ${mid.gauge}%)`);
-  check(back.row === "back" && /후열 축복/.test(back.log) && !/꿈결 기도/.test(back.log), "죠안 후열 — 후열 줄만");
-  check(front.row === "front" && !/꿈결 기도|후열 축복/.test(front.log), "죠안 전열 — 중열 · 후열 줄은 꺼진다");
+  check(mid.row === "mid" && mid.fired && mid.ap && !mid.buff, `죠안 중열 — 중열 줄(AP +1)만 (게이지 ${mid.gauge}%)`);
+  check(back.row === "back" && back.fired && back.buff && !back.ap, "죠안 후열 — 후열 줄(아군 주는 피해 +15%)만");
+  check(front.row === "front" && front.fired && !front.ap && !front.buff, "죠안 전열 — 중열 · 후열 줄은 꺼진다");
 }
 
 // 같은 열이면 적 쪽(파티 순서가 뒤)이 먼저 맞는다 — 에르핀(후열) · 티그 · 네르(둘 다 전열, 네르가 적 쪽)
