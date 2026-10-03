@@ -1547,8 +1547,8 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   }
 
   // ── 피해 미리보기 ────────────────────────────────────────────────────
-  // 카드를 고르거나 손패에서 카드에 올리면, 적마다 얼마나 깎이는지 적 위에 띄운다.
-  // 한 명을 고르는 카드는 적마다 "이 적을 치면" 의 값을, 적에 올리면 그 적을 쳤을 때의 전부를 보여 준다.
+  // 카드를 대상(적 · 아군)에 갖다 대면 그 대상에게 얼마나 들어가는지 띄운다 — 피해 · 회복 · 방어 · 실드.
+  // 대상이 없는 카드(광역 · 자신)는 싸움터에 올리거나 고르면 맞을 쪽 모두에게. hoverIdx 가 없으면 적마다 "이 적을 치면" 의 값.
   // 계산은 엔진이 한다(C.previewCard) — 판을 복사해 실제로 내 보는 것이라 실제와 어긋나지 않는다.
   // 고학년 스킬도 같은 자리에 — 끌어 올린 동안 적마다 얼마나 깎이는지(C.previewUlt). 전에는 카드만 보였다
   function paintPreview(handIdx, hoverIdx, ultKey) {
@@ -1672,7 +1672,14 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     n.oncontextmenu = (e) => { e.preventDefault(); off(); if (!holdDone) open(); };
   }
   // 들고 있는 것의 미리보기 — 고학년이면 고학년, 아니면 카드
-  const paintSel = () => (selUlt ? paintPreview(null, null, selUlt) : paintPreview(selCard, null));
+  // 고른 채로는 숫자를 띄우지 않는다 — 대상에 갖다 대야 그 대상에게 얼마나 들어가는지 뜬다(2026-10 사용자).
+  // 대상이 없는 카드(광역 · 자신)만 고르는 순간 보여 준다 — 갖다 댈 곳이 따로 없으니
+  const clearPreview = () => paintPreview(-1, null);
+  const paintSel = () => {
+    if (selUlt) return ultNeed(selUlt) ? clearPreview() : paintPreview(null, null, selUlt);
+    if (selCard >= 0 && !targetsNeeded(st.hand[selCard])) return paintPreview(selCard, null);
+    clearPreview();
+  };
 
   // 카드 면의 숫자 — 엔진이 쓰는 셈 그대로(run-fx hitAmount · guardAmount · healAmount): 낸 사도의 지금 공격력 · 방어력 · 회복력
   // (버프 · 패시브 · 장비 · 축복 포함). 피해는 낸 쪽의 주는 피해 증감까지 — 맞는 쪽의 취약 · 상성 · 받는 피해는 대상마다 달라 뺀다
@@ -1928,8 +1935,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         b.appendChild(stripe);
       }
       b.title = why || "";
-      b.onmouseenter = () => { if (!why) paintPreview(i, null); };
-      b.onmouseleave = () => paintPreview(selCard, null);
+      b.onmouseleave = () => paintSel();
       b.dataset.i = String(i);
       b.onpointerdown = (e) => startDrag(e, i, id, b, !!why);
       // 자세히 — 오른쪽 클릭(PC) · 길게 누르기(폰, startDrag 가 잰다)
@@ -2158,8 +2164,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const lit = drag.lit || drag.need;
     if (lit === "enemy") for (const [, { n }] of foeEls) { if (!n.classList.contains("dead")) n.classList.add("tgt", "dtgt"); }
     if (lit === "party") for (const [, n] of standEls) { if (!n.classList.contains("dead")) n.classList.add("tgt", "dtgt"); }
-    if (!drag.ult) paintPreview(drag.i, null);  // 끌기 시작 — 대상마다 「여기 놓으면」 을 미리 띄운다
-    else if (!drag.locked) paintPreview(null, null, drag.ult.key);
+    clearPreview();                             // 끌기 시작 — 숫자는 대상에 갖다 댈 때 뜬다(moveDrag)
   }
   function moveDrag(e) {
     if (!drag) return;
@@ -2200,8 +2205,10 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       drag.fx.classList.toggle("armed", !!t);
       // 싸움터에 놓는 고학년 — 올라오면 맞을 쪽이 모두 금빛으로
       if (drag.ult && !drag.need) for (const n of document.querySelectorAll(".dtgt")) n.classList.toggle("dover", !!t);
-      if (drag.need && !drag.ult) paintPreview(drag.i, t ? Number(t.dataset.idx) : null);
-      if (drag.need && drag.ult) paintPreview(null, t ? Number(t.dataset.idx) : null, drag.ult.key);
+      // 갖다 댄 대상에게 얼마나 들어가나 — 적이면 피해, 아군이면 회복 · 방어 · 실드. 대상 없는 카드는 싸움터에 올라오면 모두에게
+      if (!t) clearPreview();
+      else if (drag.ult) paintPreview(null, drag.need ? Number(t.dataset.idx) : null, drag.ult.key);
+      else paintPreview(drag.i, drag.need ? Number(t.dataset.idx) : null);
     }
   }
   // 끌어 놓을 대상 — 이름표 · 체력 칸만이 아니라 서 있는 그림 전체(칸 밖으로 넘친 캔버스까지)를 잡고,
@@ -2239,7 +2246,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     d.fx.remove();
     d.card.classList.remove("dragging");
     for (const n of document.querySelectorAll(".dtgt, .dover")) n.classList.remove("dtgt", "dover", ...(selCard >= 0 ? [] : ["tgt"]));
-    if (cancel) { hint(""); paintPreview(selCard, null); }
+    if (cancel) { hint(""); paintSel(); }
   }
   function endDrag() {
     const d = drag;
