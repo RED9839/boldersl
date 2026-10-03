@@ -16,7 +16,7 @@ main:has(.teamscreen) { max-width: 1440px; }
   display: flex; align-items: center; gap: 12px;
   padding: 12px 16px; border-bottom: 1px solid var(--line); background: #ffffffcc;
 }
-.fcount { font-size: 13px; font-weight: 800; color: var(--hot); }
+
 .dexbtn {
   margin-left: auto; font-size: 12px; font-weight: 700; padding: 8px 15px; border-radius: 9px;
   background: #fff; border: 1px solid var(--line); color: var(--ink);
@@ -31,7 +31,7 @@ main:has(.teamscreen) { max-width: 1440px; }
 }
 
 /* ── 큰 카드 셋 ───────────────────────────────────── */
-.tslots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; max-width: 760px; }
+
 .tcard { display: flex; flex-direction: column; gap: 7px; }
 .tcard.empty {
   display: grid; place-items: center; gap: 8px; align-content: center; min-height: 380px;
@@ -39,7 +39,6 @@ main:has(.teamscreen) { max-width: 1440px; }
 }
 .tcard.empty:hover { border-color: var(--hot); color: var(--hot); background: #fff; }
 .tplus { font-size: 34px; font-weight: 300; line-height: 1; }
-.twho { font-size: 12px; }
 
 .tface {
   position: relative; aspect-ratio: 172 / 250; border-radius: 14px; overflow: hidden;
@@ -53,70 +52,10 @@ main:has(.teamscreen) { max-width: 1440px; }
   background: linear-gradient(to top, #0c0e18e8 0, #0c0e1866 24%, transparent 46%); }
 .tface .dbadges { position: absolute; left: 8px; top: 8px; z-index: 2; display: flex; flex-direction: column; gap: 4px; }
 .tface .dbadges i { width: 26px; height: 26px; border-radius: 6px; }
-.brace { background: #1d2030d9; color: #e8eaf4; }
-
-.tlook {
-  position: absolute; right: 8px; top: 8px; z-index: 3;
-  width: 26px; height: 26px; display: grid; place-items: center; padding: 0;
-  font-size: 14px; border-radius: 50%; background: #ffffffd4; border: 1px solid #ffffff66; color: #3b3f52;
-}
-.tlook:hover { background: #fff; border-color: var(--hot); }
-.tstar { position: absolute; right: 9px; bottom: 54px; z-index: 2; font-size: 10px; color: #ffcf6b; }
-.tplate { position: absolute; left: 0; bottom: 0; width: 100%; padding: 9px 11px 11px; z-index: 2; }
-.tplate b { display: block; font-size: 17px; font-weight: 900; color: #fff; line-height: 1.15; }
-.tsub { display: block; font-size: 10px; color: #c3c8dc; }
-
-/* 위치 고르개 */
-.tpos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
-/* 위치는 고르는 것이 아니라 알려 주는 것이다 — 셋 중 제 자리에 불이 들어온다 */
-.pbtn {
-  display: grid; place-items: center;
-  font-size: 11px; font-weight: 700; padding: 6px 0; border-radius: 8px;
-  background: #fff; border: 1px solid var(--line); color: #b4b8c6;
-}
-.pbtn.on { background: #2f8a63; border-color: #2f8a63; color: #fff; }
-.thome { font-size: 10.5px; color: var(--dim); text-align: center; }
-.tdrop {
-  font-size: 11px; padding: 5px 0; border-radius: 8px;
-  background: #f1f2f8; border: 1px solid var(--line); color: #93374b;
-}
 
 /* ── 함께 가면 ────────────────────────────────────── */
-.tsyn { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; max-width: 760px; }
-.tsyn .sline {
-  display: inline-flex; align-items: center; gap: 7px; font-size: 12px;
-  padding: 6px 11px; background: #fff; border: 1px solid var(--line); border-radius: 99px;
-}
-.tsyn .why { font-size: 11px; color: var(--dim); }
-.apnum2 { font-size: 15px; font-weight: 900; color: var(--hot); }
-.tsyn > .why { font-size: 12px; color: var(--dim); }
 
 /* ── 오른쪽 — 이번 싸움 ───────────────────────────── */
-.tside {
-  padding: 18px 18px 22px; border-left: 1px solid var(--line); background: #f7f8fc;
-  overflow-y: auto; display: flex; flex-direction: column; gap: 4px;
-}
-.tchap { font-size: 11px; color: var(--dim); }
-.tmission { margin: 2px 0 0; font-size: 21px; font-weight: 900; letter-spacing: -.5px; }
-.twhere { margin: 2px 0 10px; font-size: 12px; color: var(--dim); }
-.tlabel {
-  font-size: 10px; font-weight: 800; letter-spacing: .16em; color: var(--dim);
-  padding-left: 7px; border-left: 3px solid var(--hot); margin: 14px 0 7px;
-}
-.tfoes { display: flex; flex-direction: column; gap: 6px; }
-.tfoe {
-  display: flex; align-items: center; gap: 9px; padding: 7px 10px;
-  background: #fff; border: 1px solid var(--line); border-radius: 10px;
-}
-.tfoe .art { width: 44px !important; height: 44px !important; background: #f1f2f8; border-radius: 8px; }
-.tfoe b { font-size: 13px; }
-.tfoe .why { display: block; font-size: 10.5px; color: var(--dim); }
-.tgoals { display: flex; flex-direction: column; gap: 5px; }
-.tgoal {
-  display: flex; gap: 8px; font-size: 12px; line-height: 1.6; padding: 7px 10px;
-  background: #fff; border: 1px solid var(--line); border-radius: 9px; color: #4b4e5e;
-}
-.tgoal i { font-style: normal; color: var(--hot); }
 
 .fdeck { display: flex; flex-direction: column; gap: 5px; }
 .dkrow { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
@@ -133,42 +72,13 @@ main:has(.teamscreen) { max-width: 1440px; }
 }
 
 /* ── 서랍 ─────────────────────────────────────────── */
-.tdrawer {
-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 20;
-  max-height: 0; overflow: hidden; transition: max-height .22s ease;
-  background: #fff; border-top: 1px solid var(--line);
-  box-shadow: 0 -12px 34px #2b2f4522;
-}
-.tdrawer.open { max-height: 62vh; overflow-y: auto; padding: 14px 16px 18px; }
-.dhead3 { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; }
-.dhead3 b { font-size: 14px; }
-.dhead3 .dsearch { margin-left: auto; width: 200px; }
-.dclose {
-  font-size: 12px; padding: 7px 14px; border-radius: 9px;
-  background: var(--sel); border: 0; color: #fff;
-}
-.tdrawer .pgrid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
-  gap: 9px; align-content: start;
-}
-.tdrawer .pcard {
-  position: relative; display: block; padding: 0; overflow: hidden;
-  aspect-ratio: 172 / 246; border-radius: 10px;
-  background: #dfe2ec; border: 1px solid #d3d7e4; transition: .16s;
-}
-.tdrawer .pcard:hover { transform: translateY(-3px); border-color: #b6bbcc; box-shadow: 0 8px 18px #2b2f4522; }
-.tdrawer .pcard.on { border-color: var(--hot); box-shadow: 0 0 0 2px #ff9a2f55; }
-.tdrawer .pcard .art { position: absolute; inset: 0; width: 100% !important; height: 100% !important; border-radius: 0; background: transparent; }
-.tdrawer .pcard .art img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
-.tdrawer .pcard .art-ph { width: 100%; height: 100%; font-size: 15px; }
-.teamscreen .more { grid-column: 1 / -1; padding: 24px; text-align: center; color: var(--dim); font-size: 13px; }
 
+.teamscreen .more { grid-column: 1 / -1; padding: 24px; text-align: center; color: var(--dim); font-size: 13px; }
 
 /* ══ 사도 교체 ══════════════════════════════════════════════════════════
    팀 편성과 같은 결 — 위에 지금 셋, 아래에서 부를 사람을 고른다.
    잃는 것(모은 고유 카드·번뜩임)을 카드 아래에 먼저 적는다. */
-.swapscreen .go { margin-left: auto; padding: 9px 26px; border-radius: 10px; }
-.sslots { display: grid; grid-template-columns: repeat(3, minmax(0, 200px)); gap: 16px; margin-top: 8px; }
+
 .scard {
   display: flex; flex-direction: column; gap: 6px; padding: 0; text-align: left;
   background: transparent; border: 0; color: var(--ink);
@@ -177,30 +87,4 @@ main:has(.teamscreen) { max-width: 1440px; }
 .scard:hover .tface { transform: translateY(-3px); box-shadow: 0 12px 26px #2b2f4533; }
 .scard.on .tface { outline: 3px solid #c2455c; outline-offset: 2px; }
 .scard.down .tface .art { filter: grayscale(1); }
-.sout {
-  position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 3;
-  font-size: 12px; font-weight: 900; color: #fff; background: #c2455ce6;
-  padding: 4px 12px; border-radius: 99px;
-}
-.shp { font-size: 11.5px; font-weight: 700; color: #2f8a63; text-align: center; }
-.shp.down { color: #c2455c; }
-.slose { font-size: 10.5px; color: var(--dim); text-align: center; line-height: 1.5; word-break: keep-all; }
 
-.spick { margin-top: 6px; }
-.spick .phead { display: flex; gap: 8px; padding-bottom: 8px; }
-.spick .dsearch { width: 220px; }
-.spick .pgrid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
-  gap: 9px; max-height: 46vh; overflow-y: auto; padding: 2px 4px 8px 2px; align-content: start;
-}
-.spick .pcard {
-  position: relative; display: block; padding: 0; overflow: hidden;
-  aspect-ratio: 172 / 246; border-radius: 10px;
-  background: #dfe2ec; border: 1px solid #d3d7e4; transition: .16s;
-}
-.spick .pcard:hover { transform: translateY(-3px); border-color: var(--hot); box-shadow: 0 8px 18px #2b2f4522; }
-.spick .pcard .art { position: absolute; inset: 0; width: 100% !important; height: 100% !important; border-radius: 0; background: transparent; }
-.spick .pcard .art img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
-.spick .pcard .art-ph { width: 100%; height: 100%; font-size: 15px; }
-.bondmark { background: #2f8a63 !important; color: #fff !important; }
-.swapscreen .more { grid-column: 1 / -1; padding: 24px; text-align: center; color: var(--dim); font-size: 13px; }

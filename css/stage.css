@@ -28,7 +28,7 @@ button, .card, .foe, .stand, .ally, .dex, .tcard, .pcard { touch-action: manipul
    화면 이름(battle·dexscreen…)은 main#screen **자신**에 붙는다. 그래서 다른 css 의
    main:has(.battle) 같은 규칙은 한 번도 맞은 적이 없다 — 여기서는 #screen.battle 로 쓴다. */
 #screen { max-width: 1560px; }
-#screen.endscreen, #screen.swapscreen { max-width: 1200px; }
+#screen.endscreen { max-width: 1200px; }
 
 /* ── 전투 — 스크롤 없이 한 화면 ───────────────────────────────────────
    몸통 높이를 화면에 묶고, 남는 세로는 싸움터가 먹는다. 손패는 늘 바닥에 붙는다. */
@@ -105,7 +105,6 @@ body:has(#screen.battle) { height: var(--app-h, 100vh); min-height: 0; overflow:
 .phone .pile2 { padding: 5px 2px; }
 .phone .turntag { top: 4px; }
 .phone .stand .sname, .phone .foe .fname { font-size: 13px; }
-.phone .intent .isay { font-size: 12px; }
 
 .phone .ally { padding: 4px 8px; gap: 6px; }
 .phone .ally .art { width: 34px !important; height: 34px !important; }
@@ -130,10 +129,10 @@ body:has(#screen.battle) { height: var(--app-h, 100vh); min-height: 0; overflow:
 /* 의도는 그림 위 제자리(흐름 안)에 둔다 — 그림 위에 겹쳐 띄웠더니 얼굴을 가리고 옆 적의 의도와 붙었다.
    그림을 줄인 것만으로 기둥이 싸움터 안에 들어온다. 말이 길면 줄여 자르고, 칸 폭을 넘지 않는다 */
 .phone .foe .intent { max-width: 100%; gap: 4px; }
-.phone .foe .intent .isay { overflow: hidden; text-overflow: ellipsis; }
+
 .phone .foe .intent .igem { width: 24px; height: 24px; }
 .phone .foe .intent .igem b { font-size: 11px; }
-.phone .foe .intent .isay { font-size: 11px; white-space: nowrap; }
+
 .phone .foe .fname, .phone .stand .sname { white-space: nowrap; flex-wrap: nowrap; font-size: 12px; }
 .phone .nature { flex: none; white-space: nowrap; font-size: 9.5px; padding: 0 5px; margin-left: 4px; }
 

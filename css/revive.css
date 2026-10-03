@@ -1,8 +1,17 @@
 /* ══ 리바이브 옷 — 로비 · 편성 · 사도/적 정보 창 · 싸움터 이름표 (2026-10 「원작 게임 UI처럼」) ══════════════
    원작(트릭컬 리바이브)의 장난감 같은 화면을 어두운 판으로(다른 화면 — 도감 · 지도 · 상점 — 과 맞춘다): 굵은 테두리, 아래로 딱 떨어지는 그림자,
    해바라기빛 큰 단추, 성격 빛깔 알약. 둥근 글꼴(Jua)은 이름 · 단추 · 숫자에만, 본문은 읽기 쉬운 고운돋움.
-   다른 css 뒤에 읽혀 덮는다 — 화면 하나씩(#screen.lobby2 · #screen.teamscreen3 · .bmodal · .battle 이름표)으로 묶었다. */
+   다른 css 뒤에 읽혀 덮는다 — 화면 하나씩(#screen.lobby2 · #screen.teamscreen3 · .bmodal · .battle 이름표)으로 묶었다.
+   맨 아래 ⑧ 이 모든 화면을 한 벌로 맞춘다 — 창 · 닫기 · 단추 · 알약 · 글꼴 · 글자 크기. 새 화면도 여기 값(--ui-* · --fs-*)을 쓴다. */
 :root {
+  /* ── 한 벌 — 빛깔 · 둥글기 · 글자 크기. 화면마다 따로 적지 말고 이것을 쓴다 ── */
+  --ui-bg: #0b0913; --ui-glass: #0d0b16c7; --ui-glass2: #1a1628e6; --ui-panel: #221c33; --ui-panel2: #2c2441;
+  --ui-line: #ffffff26; --ui-line2: #ffffff14; --ui-edge: #4f4170;
+  --ui-ink: #f4f1ff; --ui-dim: #b9b2d6; --ui-gold: #f6d58e; --ui-gold2: #d9a54a; --ui-sun: #ffcf3f;
+  --ui-good: #5fe3a8; --ui-bad: #ff8a9c; --ui-kw: #ffb347;
+  --ui-r-sm: 8px; --ui-r: 12px; --ui-r-lg: 16px; --ui-r-xl: 20px;
+  --fs-2xs: 11px; --fs-xs: 12px; --fs-sm: 13.5px; --fs-md: 15px; --fs-lg: 18px; --fs-xl: 22px; --fs-2xl: 28px;
+  --ui-btn: linear-gradient(180deg, #ffe7a8, #f0b94a); --ui-btn-ink: #2a1a05;
   --rv-paper: #221c33; --rv-cream: #2c2441; --rv-cream2: #3a2f55;
   --rv-ink: #120d1c; --rv-ink2: #b3a8c9; --rv-line: #4f4170; --rv-text: #f4eee0; --rv-shadow: #08060e;
   --rv-sun: #ffcf3f; --rv-sun-dk: #e8a21f; --rv-sky: #6cc4ff; --rv-coral: #ff7a8a; --rv-mint: #4fd1a0; --rv-lilac: #b79cff;
@@ -15,7 +24,7 @@
 }
 
 /* 공용 조각 — 종이 판 · 큰 단추 */
-.rv-panel, #screen.lobby2 .lb-item, #screen.lobby2 .lb-route, .tf-side > section, .bmbox, .lb-box, .tf-pickbox {
+#screen.lobby2 .lb-item, #screen.lobby2 .lb-route, .tf-side > section, .bmbox, .lb-box, .tf-pickbox {
   background: var(--rv-paper); color: var(--rv-text);
   border: 3px solid var(--rv-line); border-radius: var(--rv-r); box-shadow: var(--rv-drop), 0 18px 40px #000a;
 }
@@ -195,9 +204,6 @@
 .bmmeter b, .bmmeter b.blk, .fhp b.blk { color: #8fdcff; }
 .bmterms dt { color: #ffcf3f; font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 15px; }
 .bmterms dd { color: var(--rv-text); }
-.bmmoves dt { color: var(--rv-text); } .bmmoves dd { color: var(--rv-text); }
-.bmwhy { color: #ff8a9c; }
-.bmnow { color: #ffcf3f; }
 .bmhint { color: var(--rv-text); background: var(--rv-cream); box-shadow: inset 0 0 0 2px var(--rv-line); }
 .bmhint.no { color: var(--rv-ink2); background: #1a1426; box-shadow: inset 0 0 0 2px #4a3b5c55; }
 .bmuse { background: var(--rv-sun) !important; color: var(--rv-text) !important; border: 3px solid var(--rv-line) !important; box-shadow: 0 4px 0 var(--rv-shadow) !important; font-family: var(--rv-font); font-weight: var(--rv-w) !important; }
@@ -312,6 +318,8 @@ html.rv-nojua { --rv-w: 800; }
 .lb-bubble b { color: var(--rv-ink) !important; }
 .lb-bubble b { color: #fff !important; }
 .lb-start span { color: #4a3410 !important; }
+/* 노란 알약(마우스를 올리거나 끌어 댄 대상) — 어두운 글자에 어두운 외곽선이 겹쳐 글자가 뭉개졌다. 외곽선을 걷는다 */
+.battle .stand.dover .sname > span, .battle .foe.dover .fname .fnm, .battle .foe:hover .fname .fnm { text-shadow: none !important; -webkit-text-stroke: 0 !important; }
 /* 이름 알약 — 어두운 싸움터에서도 보이게 밝은 테두리 */
 .battle .stand .sname > span { background: #2c2441; border-color: #b3a8c9; }
 .battle .foe .fname .fnm { background: #4a2232; border-color: #ffb3bf; }
@@ -356,9 +364,9 @@ html.rv-nojua { --rv-w: 800; }
   position: fixed; inset: 0; z-index: 85; display: flex; align-items: center; justify-content: center; gap: 22px; padding: 24px;
   background: #07051099; backdrop-filter: blur(3px); animation: bmfade .14s ease-out; cursor: pointer;
 }
-.cardinspect .cibig { width: min(300px, 38vw); flex: none; cursor: pointer; transform: none !important; box-shadow: 0 0 0 3px var(--rv-line), 0 8px 0 var(--rv-shadow), 0 30px 60px #000c; animation: cipop .18s cubic-bezier(.2, .9, .3, 1.2); }
-.cardinspect .cibig .gtext { font-size: 16px; line-height: 1.5; -webkit-line-clamp: unset; }
-.cardinspect .cibig .gtitle b { font-size: 20px; }
+.cardinspect .cibig { width: min(380px, 40vw, 52vh); flex: none; cursor: pointer; transform: none !important; box-shadow: 0 0 0 3px var(--rv-line), 0 8px 0 var(--rv-shadow), 0 30px 60px #000c; animation: cipop .18s cubic-bezier(.2, .9, .3, 1.2); }
+.cardinspect .cibig .gtext { font-size: 19px; line-height: 1.5; -webkit-line-clamp: unset; }
+.cardinspect .cibig .gtitle b { font-size: 24px; }
 @keyframes cipop { from { transform: scale(.85) !important; opacity: 0; } }
 .ciside { display: flex; flex-direction: column; gap: 10px; width: min(360px, 44vw); max-height: 86vh; overflow: auto; }
 .ciwho { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -383,3 +391,155 @@ html.rv-nojua { --rv-w: 800; }
 .phone .cardinspect { gap: 12px; padding: 12px; }
 .phone .ktips.liftips { width: 200px; }
 @media (prefers-reduced-motion: reduce) { .cardinspect, .cardinspect .cibig, .ktips.liftips { animation: none; } }
+
+/* ═══ ⑧ 한 벌로 맞추기 (2026-10 UI 정돈) ═════════════════════════════════════════════════════
+   여러 번 덧입힌 옷(czn 유리 · 리바이브 굵은 테 · 하나씩 붙인 알약 · 쪽지)이 화면마다 글꼴 · 창 · 닫기 · 글자 크기가 달랐다.
+   여기서 한 벌로 묶는다:
+     글꼴   본문은 고운돋움(--rv-body), 이름 · 제목 · 단추 · 숫자는 Jua(--rv-font)
+     창     짙은 보라 판(--ui-panel) + 3px 테(--rv-line) + 아래로 떨어지는 그림자 — 설정 · 도움말 · 장비 · 더미 · 고르기 창이 모두 같다
+     닫기   × 는 40px 네모, 글자 닫기(「닫기」)는 같은 테의 작은 단추
+     단추   주 단추는 금빛(--ui-btn) · Jua, 그 밖은 판 + 테
+     글자   화면에 남는 가장 작은 글자는 11px(배율 전) — 9~10px 로 적혀 있던 것을 끌어올린다 */
+
+/* ── 글꼴 ── */
+body { font-family: var(--rv-body); }
+:is(.dtitle, .tf-title b, .mwhere b, .cp-title b, .sh-title b, .ev2-title b, .bwhere,
+    .helphead b, .helppage h3, .sh-sheethead b, .cp-sheethead b, .ev2-sheethead b, .lb-boxhead b, .tf-pickhead b, .bmname, .pilehead b,
+    .dhead2 b, .csec b, .sh-rowhead b, .sh-acttx b, .cp-cbody b, .ev2-label, .sttop h2, .ultbig h2, .statc strong, .fhead b, .flash b, .egoname,
+    .gtitle b, .gcost, .ktip b, .sh-plate b, .dname, .tm-fcp b, .ally .nm, .pnum, .gnum, .apnum) {
+  /* Jua 는 굵기가 하나 — 화면마다 적힌 800 · 900 을 따르면 글자가 번져 뭉갠다. 굵기는 여기서만 */
+  font-family: var(--rv-font); font-weight: var(--rv-w) !important; letter-spacing: 0;
+}
+/* 단추 · 갈피도 Jua */
+:is(.takebtn, .dfoot .go, .cp-leave, .sh-leave, .ev2-leave, .sh-buy, .tsok, .bmuse, .mitem.main, .dextab, .sidebtn, .helptab, .ptab,
+    .kwclose, .sh-close, .cp-close, .bmclose, .lb-x, .tf-close, .epideck, .ev2-skip, .iconbtn, .sortbtn, .tm-fhelp, .mdeck) {
+  font-family: var(--rv-font); font-weight: var(--rv-w) !important; letter-spacing: 0;
+}
+
+/* ── 화면 제목 — 굵은 잉크 테에 흰 글씨(편성 · 로비와 같은 결) ── */
+:is(.dtitle, .mwhere b, .cp-title b, .sh-title b, .ev2-title b) {
+  color: #fff; -webkit-text-stroke: 5px var(--rv-ink); paint-order: stroke fill; text-shadow: 0 4px 0 var(--rv-ink);
+}
+#screen.dexscreen .dtitle, #screen.detailscreen .dtitle { font-size: var(--fs-2xl); }
+
+/* ── 창 — 모두 같은 판 ── */
+:is(.helpbox, .pilebox, .sh-sheet, .cp-sheet, .ev2-sheetbox) {
+  background: var(--ui-panel); color: var(--rv-text); border: 3px solid var(--rv-line); border-radius: var(--ui-r-xl);
+  box-shadow: var(--rv-drop), 0 24px 60px #000c;
+}
+.bmbox, .lb-box, .tf-pickbox { border-radius: var(--ui-r-xl); }
+:is(.helpmodal, .pilemodal, .lb-modal, .tf-pick) { background: #06050bcc; backdrop-filter: blur(3px); }
+/* 창 머리 — 제목은 Jua 22px, 밑에 점선 하나 */
+:is(.helphead, .pilehead, .sh-sheethead, .cp-sheethead, .lb-boxhead) { border-bottom: 2px dashed #ffffff1a; }
+:is(.helphead b, .sh-sheethead b, .cp-sheethead b, .ev2-sheethead b, .lb-boxhead b) { font-size: var(--fs-xl); color: var(--rv-text); }
+.helphead { padding: 14px 18px; }
+/* 도움말 갈피 — 「AP 와 고학년 게이지」 가 두 줄로 꺾였다 */
+.helpwrap { grid-template-columns: 200px minmax(0, 1fr); }
+.helptabs { border-right: 2px dashed #ffffff14; }
+.helptab { font-size: var(--fs-sm); border-radius: var(--ui-r); }
+.helptab.on { background: var(--ui-sun); border-color: var(--rv-line); color: var(--rv-ink); }
+.phone .helpwrap { grid-template-columns: 150px minmax(0, 1fr); }
+
+/* ── 닫기 — × 는 네모 하나, 글자 닫기는 같은 테의 작은 단추 ── */
+:is(.lb-modal .lb-x, #screen.teamscreen3 .tf-close) {
+  width: 40px; height: 40px; min-height: 0; padding: 0; border-radius: var(--ui-r); font-size: 20px; line-height: 1;
+  background: var(--ui-panel2); color: var(--rv-text); border: 2px solid var(--rv-line); box-shadow: 0 3px 0 var(--rv-shadow);
+}
+:is(.kwclose, .sh-close, .cp-close, .bmodal .bmclose, .twostep .ev2-skip, .epideck) {
+  min-height: 0; padding: 7px 16px; border-radius: var(--ui-r); font-size: var(--fs-sm);
+  background: var(--ui-panel2); color: var(--rv-text); border: 2px solid var(--rv-line); box-shadow: 0 3px 0 var(--rv-shadow);
+}
+:is(.lb-modal .lb-x, #screen.teamscreen3 .tf-close, .kwclose, .sh-close, .cp-close, .bmodal .bmclose, .twostep .ev2-skip, .epideck):hover:not(:disabled) {
+  transform: none; background: #3a2f55; border-color: var(--ui-gold); color: #fff;
+}
+:is(.lb-modal .lb-x, #screen.teamscreen3 .tf-close, .kwclose, .sh-close, .cp-close, .bmodal .bmclose, .twostep .ev2-skip, .epideck):active:not(:disabled) {
+  transform: translateY(2px); box-shadow: 0 1px 0 var(--rv-shadow);
+}
+.phone :is(.kwclose, .sh-close, .cp-close, .bmodal .bmclose) { min-height: 40px; }
+.bmodal .bmbtns .bmclose { min-height: 44px; padding: 0 22px; font-size: var(--fs-md); }
+
+/* ── 주 단추 — 금빛 하나 ── */
+:is(#screen.detailscreen .takebtn:not(.on), #screen.dexscreen .dfoot .go, .cp-leave, .sh-leave, #screen.eventscreen2 .ev2-leave, .twostep .tsok:not(:disabled):not(.danger)) {
+  background: var(--ui-btn); color: var(--ui-btn-ink); border: 0; box-shadow: 0 4px 0 #8a5a12, 0 10px 22px #0008;
+}
+:is(#screen.detailscreen .takebtn, #screen.dexscreen .dfoot .go, .cp-leave, .sh-leave, #screen.eventscreen2 .ev2-leave, .twostep .tsok):active:not(:disabled) {
+  transform: translateY(3px); box-shadow: 0 1px 0 #8a5a12;
+}
+.twostep .tsok:disabled { background: var(--ui-panel2); color: var(--ui-dim); box-shadow: inset 0 0 0 2px #ffffff14; }
+
+/* ── 머리띠 — 전체화면 단추는 늘 오른쪽 끝 무리에(도감 · 사도 정보에서는 가운데에 떠 있었다) ── */
+:is(#screen.dexscreen, #screen.detailscreen) .dbar2 > .fsright { order: 8; }
+:is(#screen.dexscreen, #screen.detailscreen) .dbar2 > .takebtn { order: 9; }
+
+/* ── 갈피 · 알약 ── */
+#screen.detailscreen .sidebtn { font-size: var(--fs-md); }
+#screen.detailscreen .sidebtn.on { background: var(--ui-sun); border-color: var(--rv-line); color: var(--rv-ink); box-shadow: 0 3px 0 var(--rv-shadow); }
+.ptab { font-size: var(--fs-sm); }
+.ptab.on { background: var(--ui-sun); border-color: var(--rv-line); color: var(--rv-ink); }
+
+/* ── 사도 정보 — 입상의 무기 · 날개가 칸 왼쪽에서 칼로 자른 듯 잘렸다. 가장자리를 부드럽게 흐린다 ── */
+#screen.detailscreen .dmain:has(.sthero) {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 72px); mask-image: linear-gradient(90deg, transparent 0, #000 72px);
+}
+
+/* ── 카드 면 — 코스트는 둥근 알(빗금 「| 1」 이 깨진 글자처럼 보였다), 글은 그림 위 어둠에 얹는다 ── */
+.gcost {
+  display: grid; place-items: center; min-width: 1.5em; height: 1.5em; padding: 0 .25em; border: 0; border-radius: 99px; line-height: 1;
+  background: #0b0916e0; color: #fff; box-shadow: 0 0 0 1.5px var(--pc, #b9a2ff), 0 2px 4px #0008;
+}
+.gcard[class*=" p-"] .gcost { border: 0; }
+.ghead { align-items: center; }
+.gart:after { background: linear-gradient(to top, #0e0b19 0, #0e0b19f0 26%, #0e0b1999 44%, transparent 62%); }
+.gtext { text-shadow: 0 1px 3px #000; }
+/* 글이 길면 그림 위로 올라간다 — 글 칸 자체에 어둠을 깔아 그림 밝기와 상관없이 읽히게 */
+:where(.gcard:not(.full)) .gtext { padding-top: 18px; background: linear-gradient(to top, #0e0b19 0, #0e0b19e8 72%, #0e0b1900 100%); }
+.gtype { font-size: var(--fs-2xs); }
+/* :where — 바탕 글자 크기만 올린다. 손패 · 크게 보기 · 정보 창이 저마다 정한 크기는 그대로 이긴다 */
+:where(.gcard) .gtext { font-size: 11.5px; }
+:where(.gcard) .gtitle b { font-size: 13px; }
+.cardinspect .cibig .gcost { font-size: 22px; }
+/* 카드 종류는 셋 — 공격 · 스킬 · 강화. 강화는 금빛 테와 「한 장만 · 판 내내」 꼬리표(카제나의 강화 카드처럼) */
+.gtype i { font-style: normal; }
+.gcard.k-atk .gtype i { color: #ff8a9c; }
+.gcard.k-skill .gtype i { color: #c7b2ff; }
+.gcard.k-buff .gtype i { color: var(--ui-sun); }
+.gcard.k-buff { box-shadow: inset 0 0 0 2px #ffcf3fcc, inset 0 0 22px #ffcf3f33, 0 6px 16px #0006; }
+.gcard.k-buff .gtype { flex-wrap: wrap; }
+/* 꼬리표 — 카드 글(js)이 따로 붙이면(.gonce) 이 줄은 물러난다 */
+.gcard.k-buff:not(:has(.gonce)) .gtype::after {
+  content: "한 장만 · 판 내내"; margin-left: 4px; padding: 0 6px; border-radius: 99px; font-size: .95em; line-height: 1.5;
+  color: var(--rv-ink); background: var(--ui-sun); text-shadow: none; white-space: nowrap;
+}
+.gonce { display: inline-block; padding: 0 6px; border-radius: 99px; font-size: var(--fs-2xs); color: var(--rv-ink); background: var(--ui-sun); }
+
+/* ── 작은 글자 끌어올리기 — 배율이 걸리면 9~10px 은 실제 화면에서 8px 아래로 내려갔다 ── */
+#screen.dexscreen .dsub, #screen.dexscreen .rname, #screen.dexscreen .decho, #screen.dexscreen .dmark { font-size: var(--fs-2xs); }
+/* 「이격」 딱지가 이름 위에 겹쳐 「이격 네르(빡침)」 의 앞 글자를 가렸다 — 이름판 위로 올린다 */
+#screen.dexscreen .decho { bottom: 54px; }
+.tf-foe .tf-elite, .tm-fcp > span, .tm-fecho, .gslot .gsl, #screen.detailscreen .ftype, .hex .hexcost, .uface .ubadge { font-size: var(--fs-2xs); }
+:is(.ecard, #screen.shopscreen2) .eoff { font-size: var(--fs-2xs); }
+.battle .pile2 .plab { font-size: var(--fs-2xs); }
+.gtext .cnum .cnp, .bmtext .cnum .cnp { font-size: max(.74em, 9.5px); }
+.gauge .glabel { font-size: var(--fs-2xs); }
+
+/* ── 싸움터 왼쪽 사도 칸 — 고학년 이름이 낱말 가운데서 두 줄로 꺾였다(「오버드라/이브」). 한 줄 · 넘치면 … ── */
+.battle .allies { width: 196px; }
+.phone .battle .allies { width: 160px; }
+.battle .ally .abody { flex: 1; min-width: 0; }
+.battle .ally .ultbtn.grad, .phone .battle .ally .ultbtn.grad { min-width: 0; max-width: 100%; white-space: nowrap; font-size: var(--fs-xs); }
+.battle .ally .ultbtn.grad .uname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 휴대폰 — 적 이름이 두 글자에서 잘렸다(「목…」). 이름 알약을 한 치수 줄인다 */
+.phone .battle .foe .fname .fnm { font-size: 14px; padding: 0 9px; }
+/* 휴대폰 — 뽑을 더미가 사도 칸 셋 위에 겹쳤다. 사도 칸 위로 올린다 */
+.phone #screen.battle .pile2.draw { bottom: 232px; }
+
+/* ── 카드 크게 보기 — 옆 글이 흐린 싸움터 위에 맨몸으로 떠서 뒤의 이름표와 섞였다. 쪽지 판에 얹는다 ── */
+.ciside .cinone, .ciside .cihint {
+  padding: 10px 14px; border-radius: 14px; background: #120d1cf2; border: 2px solid var(--rv-line); box-shadow: 0 4px 0 var(--rv-shadow);
+  font-size: var(--fs-sm); line-height: 1.55; color: var(--rv-text);
+}
+.ciside .cihint { color: var(--ui-dim); }
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.lb-modal .lb-x, .kwclose, .sh-close, .cp-close, .bmodal .bmclose, .cp-leave, .sh-leave, .twostep .tsok) { transition: none; }
+}

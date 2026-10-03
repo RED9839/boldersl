@@ -2,7 +2,7 @@
    카제나의 「요원 도감 → 상세 정보」 얼개를 따랐다.
    메뉴는 밝고, 카드는 어둡다 — 원작이 그렇게 갈라 놓았고 카드가 그만큼 도드라진다. */
 
-.dexscreen, .detailscreen, .formscreen {
+.dexscreen, .detailscreen {
   --ink: #23242b;
   --dim: #7b7d8c;
   --line: #dfe1ea;
@@ -150,7 +150,7 @@
   display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 7px 9px;
   background: #fff; border: 1px solid var(--line); border-radius: 10px; clip-path: none;
 }
-.dfoot .slot.filled { border-color: var(--hot); }
+
 .dfoot .slot .empty { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%;
   background: #eef0f6; color: #a8abbb; font-size: 12px; font-weight: 800; }
 .dfoot .slot b { font-size: 13px; }
@@ -210,10 +210,6 @@
 .ability.key { border-left-color: #5aa9d6; }
 .ability h3 { margin: 0 0 4px; font-size: 12px; letter-spacing: .1em; color: var(--dim); }
 .ability p { margin: 0; font-size: 13px; line-height: 1.7; }
-.psec { font-size: 13px; margin: 6px 0 0; }
-.detailscreen .bond { display: flex; justify-content: space-between; gap: 10px; font-size: 13px;
-  padding: 7px 12px; background: #fff; border: 1px solid var(--line); border-radius: 9px; }
-.detailscreen .bond .why { color: var(--dim); font-size: 12px; }
 
 /* ── 카드 ────────────────────────────────────────────── */
 /* 여덟 장이 한 화면에 들어와야 한다 — 카제나 도감이 그렇다.
@@ -336,7 +332,6 @@
 .flash b { display: block; font-size: 12px; margin: 3px 0 2px; }
 .flash p { margin: 0; font-size: 11px; line-height: 1.6; color: #62657a; word-break: keep-all; }
 
-
 /* ══ 낱말에 밑줄 ═══════════════════════════════════════════════════════
    카드 글의 아는 낱말(동상·간식·취약·AP…)에 밑줄을 긋는다.
    짚으면 풀이가 뜨고, 누르면 쪽지가 뜬다 — 손가락으로도 봐야 한다. */
@@ -395,70 +390,30 @@
    진형(제 자리 ±12%) · 사이(첫 턴 AP) · 성격 상성 · 덱 열두 장이 한 화면에 있어야
    고를 수 있다. 훑어보기는 「사도 도감」 단추로 넘어간다. */
 
-main:has(.formscreen) { max-width: 1440px; }
-.fcount { font-size: 13px; font-weight: 800; color: var(--hot); margin-left: 2px; }
 .dexbtn {
   margin-left: auto; font-size: 12px; font-weight: 700; padding: 8px 15px; border-radius: 9px;
   background: #fff; border: 1px solid var(--line); color: var(--ink);
 }
 .dexbtn:hover:not(:disabled) { border-color: var(--hot); }
-.formscreen .dbar2 .go { padding: 9px 26px; border-radius: 10px; }
-
-.fbody { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); flex: 1; min-height: 0; }
-.fleft {
-  display: flex; flex-direction: column; gap: 6px; padding: 14px 16px 18px;
-  border-right: 1px solid var(--line); background: #f7f8fc; overflow-y: auto;
-}
-.fright { display: flex; flex-direction: column; min-width: 0; padding: 12px 16px 0; }
-
-.fsec { display: flex; align-items: baseline; gap: 8px; margin-top: 12px; }
-.fsec:first-child { margin-top: 0; }
-.fsec b { font-size: 13px; }
-.fsec .why { font-size: 11px; color: var(--dim); }
 
 /* ── 진형 ─────────────────────────────────────────── */
 .lanes { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .lane { display: flex; align-items: stretch; gap: 10px; }
-.lname {
-  flex: none; width: 42px; display: grid; place-items: center; font-size: 11px; font-weight: 800;
-  color: var(--dim); background: #eceef6; border-radius: 8px;
-}
-.lslots { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.lempty {
-  padding: 13px; font-size: 11px; color: #aeb2c2; text-align: center;
-  border: 1px dashed #cdd2e0; border-radius: 10px;
-}
+
 .lhero {
   display: flex; align-items: center; gap: 9px; padding: 8px 10px;
   background: #fff; border: 1px solid var(--line); border-left: 3px solid #c3c8d8; border-radius: 10px;
 }
 .lhero.home { border-left-color: var(--hp); }
 .lhero .art { width: 46px !important; height: 46px !important; border-radius: 8px; background: #f1f2f8; }
-.ltop { display: flex; align-items: center; gap: 5px; }
-.ltop b { font-size: 13.5px; }
+
 .lico { font-style: normal; display: none; }
 .lico:has(img) { display: block; width: 16px; height: 16px; }
 .lico img { width: 100%; height: 100%; object-fit: contain; }
-.lhome { font-size: 10.5px; color: var(--dim); }
-.lhero.home .lhome { color: #2f8a63; font-weight: 700; }
-.lmove { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
-.mv {
-  font-size: 10.5px; padding: 3px 8px; border-radius: 7px;
-  background: #f1f2f8; border: 1px solid var(--line); color: #6f7285;
-}
-.mv:hover:not(:disabled) { border-color: var(--hot); color: var(--ink); }
-.mv.drop { color: #c2455c; }
 
 /* ── 함께 가면 ────────────────────────────────────── */
 .syn { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
-.sline {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  padding: 7px 11px; font-size: 12.5px;
-  background: #fff; border: 1px solid var(--line); border-radius: 9px;
-}
-.sline .why { font-size: 11px; color: var(--dim); margin-left: auto; text-align: right; }
-.snat { display: flex; gap: 4px; flex-wrap: wrap; }
-.apnum2 { font-size: 17px; font-weight: 900; color: var(--hot); }
+
 .syn > .why { font-size: 11.5px; color: var(--dim); padding: 8px 2px; }
 
 /* ── 덱 ───────────────────────────────────────────── */
@@ -479,32 +434,12 @@ main:has(.formscreen) { max-width: 1440px; }
 /* ── 고르는 칸 ────────────────────────────────────── */
 .phead { display: flex; gap: 8px; padding-bottom: 10px; }
 .phead .dsearch { margin-left: 0; width: 220px; }
-.pgrid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
-  gap: 10px; overflow-y: auto; padding: 2px 4px 16px 2px; align-content: start;
-}
+
 .pcard { position: relative; }
-.pface {
-  position: relative; display: block; width: 100%; padding: 0; overflow: hidden;
-  aspect-ratio: 172 / 246; border-radius: 10px;
-  background: #dfe2ec; border: 1px solid #d3d7e4; transition: .18s;
-}
-.pface:hover { transform: translateY(-3px); box-shadow: 0 10px 22px #2b2f4526; border-color: #b6bbcc; }
-.pcard.on .pface { border-color: var(--hot); box-shadow: 0 0 0 2px #ff9a2f55; }
-.pface .art { position: absolute; inset: 0; width: 100% !important; height: 100% !important; border-radius: 0; background: transparent; }
-.pface .art img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
-.pface .art-ph { width: 100%; height: 100%; font-size: 17px; }
-.pinfo {
-  position: absolute; right: 6px; bottom: 6px; z-index: 3; font-size: 9.5px; padding: 2px 7px;
-  border-radius: 6px; background: #ffffffd9; border: 1px solid var(--line); color: #4b4e5e;
-}
-.pinfo:hover { border-color: var(--hot); }
-.formscreen .more { grid-column: 1 / -1; padding: 30px; text-align: center; color: var(--dim); font-size: 13px; }
 
 /* 도감 아래 — 고른 사람을 알려 주고 편성으로 돌아간다 */
 .dsaid { font-size: 12.5px; color: var(--dim); }
 .dfoot .dsaid { margin-right: auto; }
-
 
 /* ══ 보상 ═══════════════════════════════════════════════════════════════
    누구의 무슨 카드인지가 첫눈에 보여야 한다 — 이름만 떠 있으면 고를 수가 없다. */
@@ -552,20 +487,16 @@ main:has(.rewardscreen) { max-width: 1240px; }
 .fhead2 b { font-size: 13px; }
 .fko { font-size: 11.5px; color: var(--dim); }
 .ftext2 { margin: 2px 0 0 !important; font-size: 12.5px; line-height: 1.7; word-break: keep-all; }
-.fbefore {
-  margin: auto 0 0; padding-top: 7px; border-top: 1px dashed var(--line);
-  font-size: 11px; color: #9aa0b4; word-break: keep-all;
-}
 
 /* ══ 교체 · 끝 ══════════════════════════════════════════════════════════
    리뉴얼에서 빠져 있던 두 화면. 도감·보상과 같은 결로 맞춘다. */
-.endscreen, .swapscreen {
+.endscreen {
   --ink: #23242b; --dim: #7b7d8c; --line: #dfe1ea; --hot: #ff9a2f; --sel: #2e3140;
   color: var(--ink); background: linear-gradient(180deg, #fbfbfe 0, #eceef5 100%);
   border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; min-height: 56vh;
 }
-main:has(.endscreen), main:has(.swapscreen) { max-width: 1100px; }
-.endscreen .dbar2, .swapscreen .dbar2 {
+main:has(.endscreen) { max-width: 1100px; }
+.endscreen .dbar2 {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 16px; border-bottom: 1px solid var(--line); background: #ffffffcc;
 }
@@ -593,10 +524,6 @@ main:has(.endscreen), main:has(.swapscreen) { max-width: 1100px; }
 
 .dkcard.lit { border-color: var(--hot); background: #fff8ee; }
 .dkcard em { font-style: normal; color: var(--hot); font-weight: 900; }
-.endscreen .sline {
-  display: inline-flex; align-items: center; gap: 7px; font-size: 12px;
-  padding: 6px 11px; background: #fff; border: 1px solid var(--line); border-radius: 99px;
-}
 
 /* ══ 골디의 상점 ═════════════════════════════════════════════════════════
    보상 화면과 같은 결에 금빛을 얹는다. 값은 카드 아래 큰 단추 — 무엇이 얼마인지가 첫눈에. */
@@ -605,27 +532,7 @@ main:has(.endscreen), main:has(.swapscreen) { max-width: 1100px; }
   margin-left: 8px; padding: 3px 10px; border-radius: 99px;
   background: var(--gold-soft, #fff4dc); color: #8a5a10; font-size: 12.5px; font-weight: 700; white-space: nowrap;
 }
-.shost {
-  display: flex; align-items: center; gap: 12px; padding: 12px 18px;
-  border-bottom: 1px solid var(--line); background: linear-gradient(90deg, #fff7e6, #ffffff00);
-}
-.sface {
-  width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center;
-  background: radial-gradient(circle at 35% 30%, #ffe7a3, #d9a441 70%); color: #7a4d06; font-size: 20px;
-  box-shadow: inset 0 -3px 0 #b9832a;
-}
-.stalk { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-.stalk b { font-size: 12px; color: #8a5a10; }
-.sline2 { margin: 0; font-size: 13px; line-height: 1.6; word-break: keep-all; }
-.shaggle {
-  flex: none; font-size: 12px; padding: 6px 10px; border-radius: 8px;
-  background: #fff; border: 1px solid var(--line); color: var(--dim);
-}
-.shaggle:hover { border-color: var(--gold); color: #8a5a10; }
-.sitem .gcard { cursor: default; }
-.sitem .gcard:hover { transform: none; box-shadow: none; }
-.sitem.sold .gcard { filter: grayscale(.8); opacity: .55; }
-.sblurb { margin: 0; font-size: 11px; line-height: 1.5; color: var(--dim); word-break: keep-all; }
+
 .sprice {
   padding: 8px 10px; border-radius: 10px; font-size: 13px; font-weight: 700;
   background: #2e3140; color: #ffe2a0; border: 0;
@@ -636,62 +543,23 @@ main:has(.endscreen), main:has(.swapscreen) { max-width: 1100px; }
 .sgrade { font-size: 12px; }
 .sgrade.g-전설 { color: #b07a12; } .sgrade.g-희귀 { color: #6a5bd6; }
 .sgrade.g-고급 { color: #2f8f6a; } .sgrade.g-일반 { color: #7b7d8c; }
-.srmbtn {
-  align-self: flex-start; margin-top: 8px; padding: 8px 14px; border-radius: 10px; font-size: 13px;
-  background: #fff; border: 1px solid var(--line); color: var(--ink);
-}
-.srmbtn.on { border-color: var(--bad, #d9737f); color: var(--bad, #d9737f); }
-.srmbtn:disabled { opacity: .5; cursor: default; }
-.sdeck .rpick.small { width: 132px; }
-.sdeck .gcard { cursor: pointer; }
+
 @media (max-width: 640px) {
   .shopscreen .rpick { width: calc(50% - 7px); }
-  .sdeck .rpick.small { width: calc(33.3% - 10px); }
-  .shost { flex-wrap: wrap; }
+
 }
 /* 좁은 화면에서 낱말이 중간에 꺾이지 않게 · 값 단추는 카드 아래 한 줄로 */
 .shopscreen .dbar2 { flex-wrap: wrap; row-gap: 6px; }
 .shopscreen .dtitle, .shopscreen .dexbtn, .shopscreen .rsec b { white-space: nowrap; flex: none; }
 .shopscreen .rsec { flex-wrap: wrap; }
-.sitem { align-self: stretch; }
-.sitem .sprice { margin-top: auto; }
 
 /* ══ 캠프 ═════════════════════════════════════════════════════════════════
    모닥불처럼 둘 중 하나. 쉬면 얼마나 차는지 체력 막대 위에 미리 그린다. */
 .campscreen .dbar2 { flex-wrap: wrap; row-gap: 6px; }
 .campscreen .dtitle, .campscreen .dexbtn, .campscreen .rsec b { white-space: nowrap; flex: none; }
 .campscreen .rsec { flex-wrap: wrap; }
-.cmember {
-  display: flex; align-items: center; gap: 10px; padding: 10px 12px; min-width: 220px; flex: 1 1 220px;
-  background: #fff; border: 1px solid var(--line); border-radius: 12px;
-}
-.cmember .art { width: 40px !important; height: 40px !important; border-radius: 50%; background: #f1f2f8; flex: none; }
-.cmember.down { opacity: .6; }
-.cinfo { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
-.cinfo b { font-size: 13px; }
-.chp { position: relative; height: 8px; border-radius: 99px; background: #eceef5; overflow: hidden; }
-.chp i { position: absolute; left: 0; top: 0; bottom: 0; background: #5bbf8e; border-radius: 99px; }
-.chp em { position: absolute; top: 0; bottom: 0; background: #a9e6c6; }
+
 .cnum { font-size: 11.5px; color: var(--dim); }
-.cacts { align-items: stretch; }
-.cact {
-  flex: 1 1 200px; display: flex; flex-direction: column; gap: 4px; text-align: left;
-  padding: 14px 16px; border-radius: 12px; background: #fff; border: 1px solid var(--line); color: var(--ink);
-}
-.cact b { font-size: 15px; }
-.cact span { font-size: 12px; color: var(--dim); word-break: keep-all; }
-.cact:hover:not(:disabled) { border-color: var(--hot); transform: translateY(-2px); }
-.cact.on { border-color: var(--hot); background: #fff6ec; }
-.cact:disabled:not(.on) { opacity: .5; cursor: default; }
-.cshop {
-  margin-top: 8px; display: flex; align-items: center; gap: 12px; text-align: left; max-width: 460px;
-  padding: 12px 14px; border-radius: 12px; background: linear-gradient(90deg, #fff4dc, #fff); border: 1px solid #f0d9a8; color: var(--ink);
-}
-.cshop:hover { border-color: #c8932f; }
-.cshop .ctext { display: flex; flex-direction: column; gap: 2px; }
-.cshop .ctext b { font-size: 14px; }
-.cshop .ctext span { font-size: 12px; color: #8a5a10; }
-.campscreen .sface { width: 36px; height: 36px; font-size: 16px; }
 
 /* ══ 장비 ═════════════════════════════════════════════════════════════════
    칸 · 등급 · 스탯이 첫눈에. 아직 안 도는 효과는 흐리게, 그렇다고 적어서. */
@@ -718,6 +586,7 @@ main:has(.endscreen), main:has(.swapscreen) { max-width: 1100px; }
 .gwho { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; width: 56px; flex: none; }
 .gwho .art { width: 28px !important; height: 28px !important; border-radius: 50%; background: #f1f2f8; }
 .gwho b { font-size: 11.5px; text-align: center; }
+.gwho .gboon { font-size: 10px; line-height: 1.2; text-align: center; color: #b07a12; }   /* 강화 카드의 「판 내내」 버프 */
 .gslots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; flex: 1; min-width: 0; }
 .gslot { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 9px; background: #f6f7fb; border: 1px dashed #d6d9e4; min-width: 0; }
 .gslot.full { background: #fff; border-style: solid; }
@@ -725,7 +594,7 @@ main:has(.endscreen), main:has(.swapscreen) { max-width: 1100px; }
 .gslot b { font-size: 12px; word-break: keep-all; }
 .gst { font-size: 10.5px; color: #2f6f55; }
 .gempty { font-size: 11px; color: #b4b8c8; }
-.gout { align-self: flex-start; margin-top: 2px; font-size: 10.5px; padding: 2px 7px; border-radius: 6px; background: #fff; border: 1px solid var(--line); color: var(--dim); }
+
 .gbagh { margin: 4px 0 0; font-size: 12px; color: var(--dim); }
 .gto { display: flex; flex-wrap: wrap; gap: 5px; margin-top: auto; }
 .gtobtn { font-size: 11.5px; padding: 5px 8px; border-radius: 8px; background: #2e3140; color: #fff; border: 0; }
@@ -742,41 +611,6 @@ main:has(.endscreen), main:has(.swapscreen) { max-width: 1100px; }
 /* ══ 이벤트 ═════════════════════════════════════════════════════════════
    장면 — 선택지 — 결과. 선택지마다 치르는 것과 얻는 것을 결과 낱말 그대로 적는다.
    보상·캠프와 같은 밝은 틀이다 — 캠프의 「쉬기·수련」 단추(.cact)와 같은 결로 칠한다. */
-.evgold { margin-left: auto; margin-right: 10px; font-weight: 800; color: #b07a12; }
-.evscene { display: flex; gap: 16px; align-items: center; padding: 14px 16px; border-radius: 14px;
-  background: #fff; border: 1px solid var(--line); }
-.evscene .art { flex: none; }
-.evq { flex: none; width: 92px; height: 92px; display: grid; place-items: center; font-size: 44px; font-weight: 900;
-  color: #c8962a; border: 2px dashed #e6c878; border-radius: 16px; }
-.evtext p { margin: 4px 0 0; line-height: 1.7; color: var(--ink); }
-.evnpc { color: #b07a12; }
-.evparty { gap: 8px; }
-.evparty .cmember { flex: 1 1 0; min-width: 0; }
-.evopts { display: flex; flex-direction: column; gap: 8px; }
-.evopt { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; text-align: left; padding: 12px 16px;
-  border-radius: 12px; background: #fff; border: 1px solid var(--line); color: var(--ink); cursor: pointer; }
-.evopt:hover:not(:disabled) { border-color: var(--hot); transform: translateY(-1px); }
-.evopt.leave { background: transparent; border-style: dashed; }
-.evopt.locked { opacity: .5; cursor: default; }
-.evlabel { font-size: 15px; color: var(--ink); }
-.evout { color: var(--dim); font-size: 13px; }
-.evnote { width: 100%; font-size: 12px; color: #b0433b; margin: 0; }
-.evlock { width: 100%; font-size: 12px; color: #b0433b; }
-.evby { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 2px; border-radius: 99px;
-  background: #f1eaff; border: 1px solid #b89be6; color: #4b3a7a; font-size: 12px; }
-.evresult { padding: 12px 16px; border-radius: 12px; background: #fff; border: 1px solid var(--line); }
-.evchose { color: #b07a12; }
-.evsay { margin: 6px 0; font-style: italic; color: var(--ink); }
-.evlog { margin: 4px 0; color: var(--dim); }
-.evpick { display: flex; flex-direction: column; gap: 10px; }
-.evpickhero { cursor: pointer; border: 1px solid var(--line); background: #fff; }
-.evpickhero:hover { border-color: var(--hot); }
-.evforks { gap: 14px; }
-.evfork { flex: 1 1 0; text-align: left; padding: 16px; border-radius: 14px; background: #fff; border: 1px solid var(--line);
-  color: var(--ink); cursor: pointer; display: flex; flex-direction: column; gap: 6px; }
-.evfork:hover { border-color: var(--hot); }
-.evfork p { margin: 0; font-size: 13px; color: var(--dim); line-height: 1.6; }
-.evkind { font-size: 12px; color: #b07a12; }
 
 /* 겨우살이의 축복(사도 고유, docs/14 §5) */
 .cbbless b, .fbless b { color: #c9a227; }

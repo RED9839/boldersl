@@ -143,7 +143,6 @@ main:has(.battle) { max-width: 1240px; }
   background: #2a2340; border: 1px solid var(--line2); color: #cfc7ea;
 }
 
-
 /* ── 싸움터 ───────────────────────────────────────────
    왼쪽에 아군, 오른쪽에 적. 가장자리에 덱과 버린 더미.
    아군은 전열이 앞, 후열이 뒤 — 줄이 곧 서는 자리다. */
@@ -247,18 +246,14 @@ main:has(.battle) { max-width: 1240px; }
 .pile2:hover { border-color: var(--hot2); background: #16122acc; }
 
 /* 더미 보기 쪽지 */
-.pilenote { width: min(340px, calc(100vw - 40px)); }
+
 .pwhy { margin: 6px 0 0 !important; font-size: 11.5px !important; color: #9d96bd !important; }
 .plist { margin-top: 10px; max-height: 46vh; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
 .prow {
   display: flex; align-items: center; gap: 7px; font-size: 12px; padding: 5px 8px;
   background: #12101d; border: 1px solid #332c4e; border-radius: 8px; color: #ded7f2;
 }
-.prow .pcost {
-  display: grid; place-items: center; width: 17px; height: 17px; flex: none;
-  font-size: 10px; font-weight: 900; color: #16151c; background: var(--gold); border-radius: 50%;
-}
-.prow .ptype { font-size: 10px; color: #a49dc2; }
+
 .prow .pn { margin-left: auto; font-size: 11px; font-weight: 800; color: #ffcf6b; }
 
 /* ── 적 의도 — 카제나처럼 마름모에 숫자 ───────────── */
@@ -275,10 +270,6 @@ main:has(.battle) { max-width: 1240px; }
 .i-block .igem:before { background: linear-gradient(135deg, #5a9fd0, #2c5c86); }
 .i-buff .igem:before { background: linear-gradient(135deg, #e0b35a, #8f6b1e); }
 .i-debuff .igem:before, .i-jam .igem:before { background: linear-gradient(135deg, #9a7bd6, #56408f); }
-.isay {
-  font-size: 10.5px; font-weight: 700; color: #f3eefe; text-shadow: 0 1px 3px #000c;
-  background: #0c0a16b3; padding: 2px 8px; border-radius: 99px; white-space: nowrap;
-}
 
 /* ── 턴 알림 ──────────────────────────────────────── */
 .turnban {
@@ -379,7 +370,7 @@ main:has(.battle) { max-width: 1240px; }
 
 /* 힘을 모으는 적 — 다음 턴에 크게 온다. 눈에 띄어야 대비한다 */
 .intent.i-charge .igem { background: linear-gradient(135deg, #ffb13c, #ff5a3c); animation: pvblink 0.7s ease-in-out infinite alternate; }
-.intent.i-charge .isay { color: #ffd08a; font-weight: 800; }
+
 .intent.i-heal .igem { background: linear-gradient(135deg, #8fe39a, #3fa35a); }
 .intent.i-guard .igem { background: linear-gradient(135deg, #9cc8ff, #4a7fc0); }
 

@@ -156,6 +156,9 @@ def main():
                 shot(d, a.out, "7-보상")
 
         if not a.no_check:
+            # 이긴 판이 저장돼 있으면 첫 단추가 「이어하기」 라 편성으로 못 간다 — 지우고 본다
+            d.get(base + "/"); time.sleep(0.5)
+            d.execute_script("try { localStorage.removeItem('bolzena.run') } catch (e) {}")
             d.get(base + "/"); time.sleep(1.5)
             d.execute_script("document.querySelector('.home-primary').click()"); time.sleep(2.0)
             d.find_element(By.CSS_SELECTOR, ".tm-fdex").click(); time.sleep(1.4)
@@ -261,7 +264,8 @@ def verifyBattle(d, out=None):
     check(n["face"] == n["hand"], "카드마다 그림이나 무늬가 있다")
     check(n["own"] == n["hand"], "카드마다 누구 것인지 띠가 있다")
     check(n["lit"] == n["ap"] and n["pips"] >= n["ap"], f"AP 눈금이 숫자와 맞는다 ({n['lit']}/{n['pips']} · {n['ap']})")
-    check(n["ticks"] == 4, f"고학년 게이지에 비용 눈금 넷 ({n['ticks']})")
+    # 눈금은 파티 고학년 비용마다 하나(같은 비용은 하나) — fight-screen 이 일부러 그렇게 그린다
+    check(1 <= n["ticks"] <= 3, f"고학년 게이지에 파티 비용 눈금 ({n['ticks']})")
     check(n["allies"] == 3 and n["foes"] > 0, f"아군 {n['allies']} · 적 {n['foes']}")
     check(not n["blank"], "손패 그림이 모두 그려졌다" if not n["blank"] else f"빈 그림 {n['blank']}")
     check(n["tilt"] == n["hand"], f"손패가 손에 든 것처럼 펼쳐진다 ({n['tilt']}/{n['hand']})")
@@ -321,20 +325,31 @@ def verifyBattle(d, out=None):
         const c = [...document.querySelectorAll('.hand .card')].filter(x => !x.classList.contains('no'))[k];
         if (!c) return false;
         c.click();
+        // 누르면 카드를 크게 보여 준다(카제나식) — 적을 고르는 카드면 그대로 두고 찍는다
         if (document.querySelector('.foe.tgt')) return true;
+        const ci = document.querySelector('.cardinspect'); if (ci) ci.click();
         const sel = document.querySelector('.hand .card.sel');
         if (sel) sel.click();
       }
       return false;
     """); time.sleep(0.3)
     if picked:
+        # 카드 크게 보기 — 누르면 뜬다. 찍고 닫는다
+        check(len(d.find_elements(_B.CSS_SELECTOR, ".cardinspect .cibig")) == 1, "카드를 누르면 크게 보인다")
+        if out: shot(d, out, "6a-카드크게")
+        # 마우스가 앞 단계에서 적 위에 머물러 있으면 닫는 순간 그 적 미리보기가 뜬다 — 빈 곳(턴 넘기기)으로 옮겨 두고 닫는다
+        ActionChains(d).move_to_element(d.find_element(_B.CSS_SELECTOR, ".endturn")).perform()
+        d.execute_script("const ci = document.querySelector('.cardinspect'); if (ci) ci.click()"); time.sleep(0.3)
+        check(not d.find_elements(_B.CSS_SELECTOR, ".foe.pvon"), "고르기만 해서는 숫자가 안 뜬다 — 대상에 갖다 대야 뜬다")
+        foe0 = d.find_elements(_B.CSS_SELECTOR, ".foe.tgt")[0]
+        ActionChains(d).move_to_element(foe0).perform(); time.sleep(0.3)
         pv = d.execute_script("""
           const on = [...document.querySelectorAll('.foe.pvon')];
           return { on: on.length, alive: document.querySelectorAll('.foe:not(.dead)').length,
                    text: on.map(n => n.querySelector('.pv').textContent),
                    ghost: on.filter(n => parseFloat(n.querySelector('.ghost').style.width) > 0).length };
         """)
-        check(pv["on"] > 0, f"카드를 고르면 적 위에 피해가 뜬다 ({pv['on']}/{pv['alive']} · {', '.join(pv['text'])})")
+        check(pv["on"] > 0, f"카드를 든 채 적에 올리면 피해가 뜬다 ({pv['on']}/{pv['alive']} · {', '.join(pv['text'])})")
         check(all(("처치" in t) or ("-" in t) for t in pv["text"]), "뜨는 값이 피해 모양이다 (-N · 처치)")
         check(pv["ghost"] == pv["on"], f"체력 막대에 깎일 만큼 그림자가 진다 ({pv['ghost']})")
         if out: shot(d, out, "6b-미리보기")
