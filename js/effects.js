@@ -128,6 +128,11 @@ function durOf(t) {
 // 증감 조각에 run: true 를 붙인다 — 엔진(combat fxApi addMod)이 그것을 보고 정보 창에 「전투 내내」 로 적는다.
 // 옛 글 「판 내내」(강화 카드가 판 끝까지 가던 때)도 같은 것으로 읽는다 — 옛 저장 · 남은 글 대비. 「이번 전투 동안」 은 run 이 아니다
 function boonOf(t) { return /판\s*내내|전투\s*내내/.test(t) ? { run: true } : {}; }
+// 능력치 증감(공격력 · 방어력 · 치명 %)은 지속 말이 없으면 「전투 내내」 다 — 카드 면에서 「전투 내내」 를 빼도 같은 뜻이 되게(2026-10 사용자).
+// 「이번 턴」 · 「N턴」 · 「이번 전투 동안」 을 적었으면 그대로 따른다
+const modTimed = (t) => /이번\s*턴|\d+\s*턴|이번\s*전투/.test(t);
+function modDur(t) { return modTimed(t) ? durOf(t) : 999; }
+function modBoon(t) { return modTimed(t) ? boonOf(t) : { run: true }; }
 
 function xOf(clause) {
   const m = clause.match(/\(\s*AP\s*(?:\+\s*([가-힣]+))?\s*\)\s*회|\bX\s*회/);
@@ -172,9 +177,9 @@ const RULES = [
   { re: /다음\s*카드\s*(?:의\s*)?코스트\s*-\s*(\d+)/g, make: (m) => ({ k: "nextCheaper", v: Number(m[1]) }) },
   // 능력치 증감 — 「공격력 +10%」「방어력 +20%」「치명 확률 +10%」(강화 카드의 「전투 내내」 만 쓴다). 피해 규칙보다 먼저 읽는다
   // (「공격력 +10%」 는 피해가 아니다). 얼마나 가는지는 곁의 말(이번 턴 · N턴간 · 이번 전투)로 정한다. 회복력 증감은 없앴다(v6 — 치유도 방어력)
-  { re: /공격력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "atkMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "self", m, "atkMod") }) },
-  { re: /방어력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "defMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "self", m, "defMod") }) },
-  { re: /치명\s*(?:확률)?\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "critMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "self", m, "critMod") }) },
+  { re: /공격력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "atkMod", v: Number(m[1]) / 100, turns: modDur(near(text, m)), ...modBoon(near(text, m)), target: pickTarget(text, "self", m, "atkMod") }) },
+  { re: /방어력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "defMod", v: Number(m[1]) / 100, turns: modDur(near(text, m)), ...modBoon(near(text, m)), target: pickTarget(text, "self", m, "defMod") }) },
+  { re: /치명\s*(?:확률)?\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "critMod", v: Number(m[1]) / 100, turns: modDur(near(text, m)), ...modBoon(near(text, m)), target: pickTarget(text, "self", m, "critMod") }) },
   // 고정 피해 — 「공격력 N% 고정 피해」: 사기 · 약화 · 취약 · 불굴 · 상성 · 증감을 안 탄다(방어 · 실드에는 막힌다)
   {
     re: /공격력\s*(\d+)\s*%\s*고정\s*피해/g,

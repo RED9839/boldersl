@@ -948,3 +948,18 @@ body:has(#screen.battle) .bottom { top: 84px; }
 #screen.battle .ally.uready { border-color: var(--rv-sun) !important; box-shadow: 0 0 0 1px #ffcf3f60, 0 0 14px #ffcf3f55 !important; }
 #screen.battle .gauge.ready, #screen.battle .gauge.full { border-color: var(--rv-sun) !important; box-shadow: 0 0 14px #ffcf3f55 !important; }
 #screen.battle .bhead .partybox.danger { border-color: #ff6a6aaa !important; }
+
+/* 카드 그림이 없을 때 까는 인게임 SD 아이콘 — 가장자리가 잘린 그림이라 그림자가 네모로 졌다(2026-10 사용자 「카드 그림자 잘못 들어간 듯」).
+   그림자를 빼고 가장자리를 둥글게 흐려 잘린 선 · 모서리 조각이 안 보이게 */
+.gart.heroart img {
+  filter: none !important;
+  -webkit-mask-image: radial-gradient(ellipse 58% 56% at 50% 46%, #000 62%, transparent 100%);
+          mask-image: radial-gradient(ellipse 58% 56% at 50% 46%, #000 62%, transparent 100%);
+}
+/* 그림이 꽉 차지 않은 카드는 그림 칸(.gart) 안쪽만 아래로 어두워져 카드 안에 검은 네모가 졌다 — 꽉 찬 카드에만 어둠을 깐다 */
+.gcard:not(.full) .gart:after { background: none !important; }
+/* 기절 판 — 격파 · 기절 · 봉인으로 다음 차례에 못 움직이는 적. 예고하던 수 대신 금빛 「기절」(2026-10 사용자) */
+#screen.battle .foe .intent.i-stun { border-color: #ffcf3faa !important; }
+#screen.battle .foe .intent.i-stun .igem { background: linear-gradient(160deg, #ffe7a8, #e0a52a) !important; }
+#screen.battle .foe .intent.i-stun .igem b { color: #fff8e0; -webkit-text-stroke: 3px #5a3c06; }
+#screen.battle .foe .intent.i-stun .iwhat b { color: #ffe7a8; }

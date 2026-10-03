@@ -1123,7 +1123,9 @@ body:has(#screen.mapscreen) .top { display: none; }
 .gearmodal :is(.eslot, .eoff) { background: #ffffff14; color: #b9b2d6; }
 .gearmodal :is(.egrade, .eblurb, .eeff) { color: #b9b2d6; }
 /* 신탁 — 붙을 카드를 줄 맨 앞에 */
-.flashrow { align-items: center; }
+.flashrow { align-items: center; flex-wrap: nowrap; }
+/* 신탁 셋은 늘 한 줄로 — 칸이 고정 폭이라 넓은 화면에서도 셋째가 밑으로 내려갔다(2026-10 사용자) */
+.flashrow > .fcard { flex: 1 1 0; min-width: 0; max-width: 320px; width: auto; }
 .ftarget { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: none; }
 .ftarget .gcard { width: 170px; cursor: zoom-in; box-shadow: 0 0 0 2px #f6d58e, 0 0 22px #f6d58e66, 0 10px 22px #000a; }
 .ftlab { font-size: 12.5px; font-weight: 800; color: #f6d58e; text-shadow: 0 1px 3px #000; }

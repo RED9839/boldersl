@@ -1510,7 +1510,27 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       done.appendChild(el("span", "idone", "⚡ 행동함 · 이번 턴 쉼"));
       n.appendChild(done);
     }
-    if (u.intent && !u.dead) {
+    // 격파 · 기절 · 봉인 — 다음 차례에 움직이지 못한다. 예고하던 수 대신 「기절」 판(2026-10 사용자)
+    if (u.sealed && !u.dead) {
+      const tag = el("div", "intent i-stun");
+      const gem = el("span", "igem");
+      gem.appendChild(el("b", null, "✦"));
+      tag.appendChild(gem);
+      const what = el("span", "iwhat");
+      what.appendChild(el("b", null, "기절"));
+      what.appendChild(el("small", null, u.broken ? "격파 — 이번 차례 행동 불가" : "이번 차례 행동 불가"));
+      tag.appendChild(what);
+      const meta = el("span", "imeta");
+      const info = el("button", "finfo", "i");
+      info.title = "적 정보";
+      info.setAttribute("aria-label", `${u.ko} 정보`);
+      info.onclick = (e) => { stopEv(e); openFoe(u); };
+      meta.appendChild(info);
+      tag.appendChild(meta);
+      tag.title = u.intent && u.intent.say ? `하려던 수 「${u.intent.say}」 — 이번 차례에는 하지 못합니다` : "이번 차례에는 움직이지 못합니다";
+      n.appendChild(tag);
+    }
+    if (u.intent && !u.dead && !u.sealed) {
       const it = u.intent;
       const hitV = C.intentHit(u);
       const hit = hitV != null;
@@ -1679,9 +1699,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       gearRow = gs;
     }
     box.appendChild(top);
-    // 사도 층 상태(사기 · 열의 …) — 이름 옆 한 줄. 파티 층은 왼쪽 위 파티 막대에
-    const own = chips(u); own.classList.add("achips");
-    top.appendChild(own);
+    // 이름 옆 버프 칩은 뺐다 — 발밑 칩 · 사도 정보 창과 겹쳤다(2026-10 사용자)
 
     // 고학년 스킬 — 게이지가 차면 누를 수 있다
     const ult = C.ultOf(u.key);
@@ -1724,16 +1742,14 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       ultReadySeen.set(u.key, !why);
       // 카드처럼 쓴다 — 눌러 고르고 대상을 누르거나, 끌어다 놓는다(startUltDrag). 길게 누르기 · 오른쪽 클릭은 자세히.
       // 쓸 수 없으면 누르면 자세히(까닭이 보인다)
-      b.title = why ? `${why} · 눌러서 자세히` : "눌러 고른 뒤 대상을 누르거나, 끌어다 놓으면 씁니다 · 길게 누르면 자세히";
+      b.title = why ? `${why} · 눌러서 자세히` : "끌어다 놓으면 씁니다 · 누르면 자세히";
       b.setAttribute("aria-label", `${u.ko} 고학년 스킬 ${ult.ko} — ${b.title}`);
       b.onpointerdown = (e) => startUltDrag(e, u, b, why);
       b.oncontextmenu = (e) => { e.preventDefault(); if (drag) stopDrag(true); openUlt(u); };
+      // 한 번 누르기는 자세히만 — 누르자마자 고학년이 준비되어 실수로 쓰게 됐다(2026-10 사용자). 쓰는 것은 끌어 놓기, 또는 자세히 창의 「고르기」
       const tap = () => {
         if (dragDone) return;
-        if (why) return openUlt(u);
-        selCard = -1;
-        selUlt = selUlt === u.key ? null : u.key;
-        draw();
+        openUlt(u);
       };
       b.onclick = (e) => { stopEv(e); tap(); };
       box.appendChild(b);
@@ -2266,26 +2282,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
 
     gaugeFill.style.width = (st.gauge / 300) * 100 + "%";
     gaugeBox.style.setProperty("--g", (st.gauge / 300) * 100 + "%");
-    gaugeWho.innerHTML = "";
-    const seen = {};
-    for (const u of st.party) {
-      const ult = C.ultOf(u.key);
-      if (!ult || u.dead) continue;
-      const k = seen[ult.cost] = (seen[ult.cost] || 0) + 1;       // 같은 비용이면 옆으로 비껴 선다
-      const g = el("span", "gface" + (st.gauge >= ult.cost ? " on" : ""));
-      g.style.bottom = (ult.cost / 300) * 100 + "%";
-      g.style.setProperty("--at", (ult.cost / 300) * 100 + "%");   // 가로 게이지 — 그 비용 눈금 위에 선다
-      // 막 넘었다 — 그 얼굴이 한 번 튀어 오른다
-      if (gaugeSeen != null && gaugeSeen < ult.cost && st.gauge >= ult.cost && groundOk && !calmNow()) g.classList.add("pop");
-      g.style.setProperty("--k", String(k - 1));
-      g.title = `${u.ko} · ${ult.ko} (${ult.cost}%)`;
-      const pic = CARDART.pic[u.key + "_ult"];
-      if (pic) g.appendChild(img(pic));
-      else g.appendChild(el("b", null, u.ko.slice(0, 1)));
-      // 이름 첫 글자 — 작은 얼굴(고학년 그림의 한 조각)만으로는 누구인지 안 읽혔다(2026-10)
-      if (pic) g.appendChild(el("span", "gfname", u.ko.slice(0, 1)));   // i 는 막대 칸(.gbar i)의 꾸밈을 받는다
-      gaugeWho.appendChild(g);
-    }
+    gaugeWho.innerHTML = "";   // 눈금 위 사도 얼굴은 뺐다 — 쓸 수 있는 사도는 밑의 사도 칸이 빛난다(2026-10 사용자: 얼굴이 이름을 가림)
     gaugeNum.textContent = `${st.gauge}%`;
     gaugeBox.setAttribute("aria-valuenow", String(st.gauge));
     gaugeBox.setAttribute("aria-valuetext", `${st.gauge}%`);
@@ -2534,7 +2531,18 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       if (!drag || drag.on) return;
       const d = drag; drag = null;
       d.card.onpointermove = d.card.onpointerup = d.card.onpointercancel = null;
-      dragDone = true; setTimeout(() => { dragDone = false; }, 400);
+      // 손을 뗄 때까지 뒤따르는 click 을 삼킨다 — 떼는 순간의 click 이 막 뜬 창의 바깥(배경)을 눌러 창이 바로 닫혔다
+      // (2026-10 사용자: 「꾹 누르고 떼도 팝업 유지」). 400ms 로 끊으면 더 오래 누른 손은 그대로 닫혔다
+      dragDone = true;
+      const swallow = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+      const release = () => {
+        document.removeEventListener?.("pointerup", release, true);
+        document.removeEventListener?.("pointercancel", release, true);
+        setTimeout(() => { document.removeEventListener?.("click", swallow, true); dragDone = false; }, 60);
+      };
+      document.addEventListener?.("click", swallow, true);
+      document.addEventListener?.("pointerup", release, true);
+      document.addEventListener?.("pointercancel", release, true);
       if (d.ult) openUlt(d.ult); else openCard(d.id);
     }, 450);
     try { card.setPointerCapture(e.pointerId); } catch { /* 가짜 DOM */ }
@@ -2817,8 +2825,14 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (terms.length) body.appendChild(termList(terms));
     // 쓰는 것은 끌어서만 — 아군 상태창의 얼굴을 적(또는 싸움터)에 놓는다. 쓸 수 없으면 그 까닭을
     const need = ultNeed(u.key);
-    body.appendChild(el("p", "bmhint" + (why ? " no" : ""), why || (need === "party" ? "초상을 눌러 고른 뒤 아군을 누르거나, 아군에게 끌어 놓으면 씁니다" : need === "enemy" ? "초상을 눌러 고른 뒤 적을 누르거나, 적에게 끌어 놓으면 씁니다" : "초상을 눌러 고른 뒤 싸움터를 누르거나, 위로 끌어 놓으면 씁니다")));
+    body.appendChild(el("p", "bmhint" + (why ? " no" : ""), why || (need === "party" ? "초상을 아군에게 끌어 놓거나, 「고르기」 뒤 아군을 누르면 씁니다" : need === "enemy" ? "초상을 적에게 끌어 놓거나, 「고르기」 뒤 적을 누르면 씁니다" : "초상을 싸움터 위로 끌어 놓거나, 「고르기」 뒤 싸움터를 누르면 씁니다")));
     const row = el("div", "bmbtns");
+    // 고르기 — 이 창에서만 고학년을 준비시킨다(초상을 한 번 누르는 것으로는 준비되지 않는다)
+    if (!why && !u.dead) {
+      const go = el("button", "bmuse", "고르기");
+      go.onclick = () => { closeModal(); selCard = -1; selUlt = u.key; draw(); };
+      row.appendChild(go);
+    }
     const x = el("button", "bmclose", "닫기");
     x.onclick = closeModal;
     row.appendChild(x);
@@ -3324,9 +3338,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const tips = cardTips(id, c);
     if (tips.length) side.appendChild(tipBox(tips));
     else side.appendChild(el("p", "cinone", "따로 풀이할 낱말이 없는 카드입니다"));
-    side.appendChild(el("small", "cihint", lifted && !C.canPlay(st, id)
-      ? (targetsNeeded(id) ? "끌어서 대상에 놓거나, 닫고 대상을 누르면 냅니다 · 아무 데나 누르면 닫힙니다" : "끌어서 싸움터에 놓거나, 닫고 싸움터를 누르면 냅니다 · 아무 데나 누르면 닫힙니다")
-      : "아무 데나 누르면 닫힙니다"));
+    // 「끌어서 대상에 놓거나 …」 안내는 뺐다 — 해 보면 안다(2026-10 사용자)
     back.appendChild(side);
     const close = () => { back.remove(); if (modal === back) modal = null; document.removeEventListener?.("keydown", esc); };
     const esc = (e) => { if (e.key === "Escape") close(); };

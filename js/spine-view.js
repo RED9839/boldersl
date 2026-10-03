@@ -162,7 +162,10 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
   if (spare) {
     // 새 칸에도 「넘쳐도 된다」 표시를 단다 — 빠뜨렸더니 옮겨 붙인 캔버스가 칸(둥근 네모)에 잘려 보였다
     if (unit) el.classList.add("art-over");
-    el.appendChild(spare.canvas); if (spare.place) spare.place(el); spare.wake(); return spare.api;
+    el.appendChild(spare.canvas); if (spare.place) spare.place(el);
+    // 다시 쓰는 그림은 쉬는 동작부터 — 전투에서 달려 나가던(승리 뒤 walkOut) 자세 그대로 캠프에 서 있었다(2026-10 사용자: 우로스가 캠프에서 달리기)
+    spare.api.toRest();
+    spare.wake(); return spare.api;
   }
 
   const set = kind === "minimi" ? manifest.minimi : manifest[kind][key];
