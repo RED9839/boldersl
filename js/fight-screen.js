@@ -555,7 +555,10 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       return null;
     };
     const go = dc ? when(dc.go) : null, hit = dc ? when(dc.hit) : null;
-    const dash = go != null && hit != null && hit > go ? { go, hit, cfg: dc } : null;
+    const land = dc && dc.land ? when(dc.land) : null;
+    const home = dc && dc.home ? dc.home.map(when) : null;
+    const dash = go != null && hit != null && hit > go ? { go, hit, land: land != null && land > go && land <= hit ? land : hit,
+      home: home && home[0] != null && home[1] != null && home[1] > home[0] ? home : null, cfg: dc } : null;
     // 사도 소리 — 그 동작의 소리 갈래와 SFX(n) 이벤트(ms, 동작 시작에서 — 고리를 여러 번 돌리면 그만큼 늦은 조각의 시각)
     const group = e.side !== "party" ? null : e.anim === "ult" ? "ult" : motion ? motion.group : e.anim === "attack" ? (/^Attack2/.test(name) ? "power" : "attack") : "skill";
     let snd = null;
@@ -1051,11 +1054,15 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   //   go · hit — [조각, 초]. go 부터 달려 hit 에 닿는다 — 닿는 때가 타격(폭발 · 숫자 · 멈칫). loop — 고리 조각을 몇 번 돌리나(달리는 사이)
   //   reach — 앞으로 뻗은 본(에르핀 Point_Ult1 — 원작 폭발 자리). 그 본이 적 몸 앞에 오도록 멈춘다. 없으면 그림 폭의 35%
   //   hop — 달리지 않고 뛰어올라 화면 밖에 있는 사이에 옮긴다(에르핀_왕도 — 1_1 끝에 뛰고 1_2 에 내려찍는다)
+  //   land — 옮기기를 마치는 때 [조각, 초]. 그 뒤로는 적 머리 위에서 곧장 내려온다(없으면 hit 까지 옮긴다)
+  //   home — 돌아오는 창 [[조각, 초], [조각, 초]]. 화면 밖에 있는 사이에 제자리로 옮기고, 돌아서 뛰지 않는다
+  //     (에르핀_왕도 — 1_2 끝에 다시 뛰어올라 1_3 에 제자리로 떨어진다. 전에는 적 앞에 착지한 뒤 돌아서 뛰어왔다 — 2026-10 사용자)
   //   back — 동작이 다 끝나면 돌아서서(Move) 제자리로 뛰어오는 시간(ms)
   // 에르핀 「돌겨어어어!!! 억⋯?」 — 1_1 끝에서 달리기 시작, 1_2_Loop 두 바퀴 동안 달려 1_3(부딪쳐 나동그라짐) 첫 프레임에 닿는다
   const DASH = {
     에르핀: { go: ["Ultimate1_1", 0.85], hit: ["Ultimate1_3", 0], loop: { Ultimate1_2_Loop: 2 }, reach: "Point_Ult1", back: 560 },
-    에르핀_왕도: { go: ["Ultimate1_1", 1.96], hit: ["Ultimate1_2", 0.93], hop: true, reach: "FX_Punch", back: 560 },
+    에르핀_왕도: { go: ["Ultimate1_1", 1.96], land: ["Ultimate1_2", 0.05], hit: ["Ultimate1_2", 0.93], hop: true, reach: "FX_Punch",
+      home: [["Ultimate1_2", 2.78], ["Ultimate1_3", 0.5]], back: 0 },
   };
   // 총구 — 시전자 쪽 모으기 · 레이저가 붙을 본. [본, 끝(본 길이만큼 앞)]. 표에 없으면 이름(MUZZLE_RE)으로 찾고, 그것도 없으면 TUNE 의 dx · dy
   // 아멜리아 — Weapon_main7 끝이 총신 끝(뼈대 126개 중 Weapon_main1~11 · Point_Skill1 · Point_Cast1/2 · Point_Attack1~4 를 대어 보았다)
@@ -1084,7 +1091,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     reach = Math.max(0, Math.min(reach, (contact.x - from.x) * 0.6));
     const z = zNow();
     const total = plan.s ? plan.s.total : d.hit + 1000;
-    dash = { idx: u.idx, t0: performance.now(), go: d.go, hit: d.hit, ret: total, end: total + d.cfg.back,
+    dash = { idx: u.idx, t0: performance.now(), go: d.go, hit: d.land, ret: d.home ? d.home[0] : total, end: d.home ? d.home[1] : total + d.cfg.back, home: !!d.home,
       dx: (contact.x - reach - from.x) / z, dy: (ef.y - from.y) / z, hop: !!d.cfg.hop, turned: false, raf: 0 };
     dash.raf = requestAnimationFrame(dashTick);
     return { from, to: contact };
@@ -1105,7 +1112,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       const k = (ms - d.ret) / (d.end - d.ret);
       f = 1 - k * k * (3 - 2 * k);
       // 돌아서서 뛰어온다 — 쉬는 동작이 붙기 전에 Move 로
-      if (!d.turned) { d.turned = true; viewOf("party", d.idx, 0).then((v) => { if (v && dash === d && v.has("Move")) v.play("Move", true); }); }
+      if (!d.turned && !d.home) { d.turned = true; viewOf("party", d.idx, 0).then((v) => { if (v && dash === d && v.has("Move")) v.play("Move", true); }); }
     }
     const n = unitNode("party", d.idx), a = artOf(n);
     if (a) { a.style.translate = `${(d.dx * f).toFixed(1)}px ${(d.dy * f).toFixed(1)}px`; a.style.scale = d.turned ? "-1 1" : ""; }
