@@ -33,6 +33,7 @@
     "sim:save": "node tools/sim.js 1200 --save",
     "minimi": "python tools/build-minimi.py",
     "spine": "node tools/build-spine.js",
+    "npc": "python tools/bake-npc.py",
     "spine:check": "node tools/check-spine.js",
     "talk": "node tools/build-talk.js",
     "design": "node tools/parse-design.js",

@@ -72,6 +72,18 @@ export function goldIcon(cls = "gico") {
   n.appendChild(im);
   return n;
 }
+// 겨우살이 — 축복을 내려 주는 인물(이벤트 C11). 스탠딩을 한 장으로 구워 둔 전신 · 얼굴(tools/bake-npc.py, 원작 폴더 noone).
+// 축복이 적힌 자리(✦)에 작은 얼굴을 붙인다. 그림이 없으면 「✦」 로 떨어진다(goldIcon 과 같은 차례)
+export const MISTLETOE = { still: "assets/sd/npc/noone.png", face: "assets/sd/npc/noone_face.png" };
+export function mistletoeIcon(cls = "mtico") {
+  const n = el("i", cls);
+  const im = document.createElement("img");
+  im.src = MISTLETOE.face;
+  im.alt = "겨우살이";
+  im.onerror = () => { im.remove(); n.textContent = "✦"; n.classList.add("noimg"); };
+  n.appendChild(im);
+  return n;
+}
 // 골드 아이콘 + 글(「120 골드」 · 「+35」 따위)
 export function goldLabel(tag, cls, text) {
   const n = el(tag, cls);

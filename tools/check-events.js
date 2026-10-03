@@ -10,7 +10,7 @@ import { EVENTS, CURSES } from "../js/data/events.js";
 import * as EV from "../js/events.js";
 import { newRun } from "../js/run.js";
 import { HERO_DATA, CARDS } from "../js/cardbook.js";
-import { ENEMIES } from "../js/data/enemies.js";
+import { ENEMIES, FLOORS } from "../js/data/enemies.js";
 import { newCombat, playCard, endTurn, hasTag } from "../js/combat.js";
 
 let fails = 0;
@@ -38,17 +38,37 @@ console.log("나오는 것");
   for (const ev of EVENTS) pools[ev.pool]++;
   check(pools.공용 === 12 && pools[0] === 15 && pools[1] === 15 && pools[2] === 15, `풀 — 공용 ${pools.공용} · 에르피엔 ${pools[0]} · 모나티엄 ${pools[1]} · 벨리티엔 ${pools[2]}`);
   const names = new Set();
+  // 사도가 아닌 인물(겨우살이 — js/ui.js NPC_ART) · 「쓰러진 사도」(파티에서 그때그때)는 기획서 이름이 아니다
+  const NOT_HERO = new Set(["겨우살이", "쓰러진 사도"]);
   for (const ev of EVENTS) {
-    if (ev.npc) names.add(ev.npc);
+    if (ev.npc && !NOT_HERO.has(ev.npc)) names.add(ev.npc);
     for (const o of ev.options) for (const h of [].concat(o.hero || [])) names.add(h);
     for (const o of ev.options) if (o.price) names.add(o.price.hero);
   }
   const missing = [...names].filter((n) => !byKo(n));
   check(!missing.length, missing.length ? `기획서에 없는 사도: ${missing.join(", ")}` : `나오는 사도 ${names.size}명이 모두 기획서에 있다`);
   const foes = new Set();
-  for (const ev of EVENTS) for (const o of ev.options) if (o.fight) o.fight.enemies.forEach((e) => foes.add(e));
+  // 이벤트 전투의 적 — 층 이벤트는 배열, 공용은 { 층: [...] } 일 수 있다(C9). 층마다 나오는 적 묶음으로 편다
+  const fightsOf = (ev, o) => Array.isArray(o.fight.enemies) ? [[ev.pool, o.fight.enemies]] : Object.entries(o.fight.enemies).map(([f, l]) => [Number(f), l]);
+  for (const ev of EVENTS) for (const o of ev.options) if (o.fight) for (const [, l] of fightsOf(ev, o)) l.forEach((e) => foes.add(e));
   const noFoe = [...foes].filter((e) => !ENEMIES[e]);
   check(!noFoe.length, noFoe.length ? `없는 적: ${noFoe.join(", ")}` : `이벤트 전투의 적 ${foes.size}종이 모두 있다`);
+  // 그 땅의 적만 — 층 이벤트의 전투는 그 층 지도(일반 · 엘리트 · 보스)에 나오는 적으로, 공용 이벤트는 층마다 적을 따로 적는다
+  const floorFoes = FLOORS.map((F) => new Set([...F.pools.flat(2), ...F.elites.flat(), ...F.boss]));
+  const offFloor = [];
+  for (const ev of EVENTS) for (const o of ev.options) if (o.fight) {
+    if (ev.pool === "공용" && Array.isArray(o.fight.enemies)) { offFloor.push(`${ev.id} 공용인데 층마다 적을 안 나눴다`); continue; }
+    for (const [f, l] of fightsOf(ev, o)) for (const e of l) if (!floorFoes[f] || !floorFoes[f].has(e)) offFloor.push(`${ev.id} ${e}(${f + 1}층 아님)`);
+  }
+  if (EVENTS.some((ev) => ev.pool === "공용" && ev.options.some((o) => o.fight && !Array.isArray(o.fight.enemies) && FLOORS.some((_, f) => !o.fight.enemies[f]))))
+    offFloor.push("공용 이벤트 전투에 적이 빠진 층이 있다");
+  check(!offFloor.length, offFloor.length ? `다른 땅의 적: ${offFloor.join(", ")}` : "이벤트 전투의 적이 모두 그 층(공용은 층마다) 땅의 것이다");
+  // 무대 — 57종 모두 세울 그림이 있다(사도 · 겨우살이 · 쓰러진 사도 · 그 땅의 적). 적은 그 층(공용은 어느 층에나 있는 것) 땅의 것
+  const bare = EVENTS.filter((ev) => !ev.npc && !ev.foe).map((ev) => ev.id);
+  check(!bare.length, bare.length ? `무대에 세울 인물이 없는 이벤트: ${bare.join(", ")}` : "57종 모두 무대에 세울 인물(사도 · 겨우살이 · 쓰러진 사도 · 그 땅의 적)이 있다");
+  const badFoe = EVENTS.filter((ev) => ev.foe && (!ENEMIES[ev.foe] || (ev.pool === "공용" ? !floorFoes.every((F) => F.has(ev.foe)) : !floorFoes[ev.pool].has(ev.foe)))).map((ev) => `${ev.id} ${ev.foe}`);
+  check(!badFoe.length, badFoe.length ? `무대의 적이 없거나 다른 땅의 것: ${badFoe.join(", ")}` : "무대에 세운 적이 모두 그 층 땅의 것이다");
+  check(EVENTS.every((ev) => ev.npc !== "쓰러진 사도" || ev.cond === "fallen"), "「쓰러진 사도」 를 세우는 이벤트는 쓰러진 사도가 있을 때만 나온다");
   const races = new Set(Object.values(HERO_DATA).map((h) => h.race));
   const badRace = EVENTS.flatMap((ev) => ev.options.filter((o) => o.race && !races.has(o.race)).map((o) => o.race));
   check(!badRace.length, badRace.length ? `없는 종족: ${badRace.join(", ")}` : "종족 조건이 실제 종족 이름이다");
@@ -76,7 +96,7 @@ console.log("선택지 전부 골라 보기");
         try {
           const run = newRun(partyFor(probe), {}, seed * 97 + oi);
           run.gold = 500;
-          run.floor = ev.pool === "공용" ? 0 : ev.pool;
+          run.floor = ev.pool === "공용" ? seed - 1 : ev.pool;     // 공용은 세 층에서 한 번씩 — 층마다 적이 다른 전투(C9)
           // 조건 맞추기 — 쓰러진 사도 · HP 30% 이하 · 고유 카드(신탁 대상)
           if (ev.cond === "fallen") run.hp[run.party[2]] = 0;
           if (probe.when === "hp30") run.hp[run.party[1]] = Math.floor(run.maxHp[run.party[1]] * 0.25);

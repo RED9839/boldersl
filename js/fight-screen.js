@@ -19,7 +19,7 @@ import { spineView } from "./spine-view.js";
 import { loadFx, preloadUltFx, playUltFx, ultImpactMs, ultLagMs, playFx, preloadFx } from "./fx-burst.js";
 import { speak } from "./voice.js";
 import { cardMotion } from "./data/card-motion.js";
-import { HERO, TINT, NTINT, el, kwNote, hint, screen, TMARK, TKIND, goldIcon, openHelp, img, withKeywords, showCard, showPiles, natureClass, bigCard, effectBox, setStageBg, withNumbers, statText, equipIcon, emptySlotIcon, showEquip } from "./ui-common.js";
+import { HERO, TINT, NTINT, el, kwNote, hint, screen, TMARK, TKIND, goldIcon, mistletoeIcon, openHelp, img, withKeywords, showCard, showPiles, natureClass, bigCard, effectBox, setStageBg, withNumbers, statText, equipIcon, emptySlotIcon, showEquip } from "./ui-common.js";
 
 // 효과음 자리 — 전투 화면이 맞는 순간 · 고학년 · 카드 동작에 부른다. 효과음 모듈이 메서드를 갈아 끼운다(안 끼우면 조용하다).
 //   hit(kind, heavy, crit)  맞는 순간마다 — kind 는 타격 갈래(slash 베기 · shot 쏘기 · magic 마법 · blunt 둔기), 받는 쪽은 kind 앞에 "ally:"
@@ -2555,7 +2555,11 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         const f = (base.flash || [])[opt.n - 1] || {};
         card = bigCard(flashed(base, opt.n), CARDART.pic[cardId] || null);
         cell.appendChild(el("span", "epikind", f.kind || f.ko || ""));   // 자유 신탁은 분류 대신 이름
-        if (opt.shin) { cell.classList.add("shin"); cell.appendChild(el("span", "epishin", `겨우살이의 축복 · ${RULES.shinLabel(base, opt.shin)}`)); }
+        if (opt.shin) {
+          cell.classList.add("shin");
+          const tag = el("span", "epishin"); tag.appendChild(mistletoeIcon()); tag.appendChild(document.createTextNode(`겨우살이의 축복 · ${RULES.shinLabel(base, opt.shin)}`));
+          cell.appendChild(tag);
+        }
       }
       card.onclick = null; card.title = "";
       cell.appendChild(card);

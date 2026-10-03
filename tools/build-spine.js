@@ -63,8 +63,9 @@ for (const kind of ["ingame", "standing"]) {
     total += got.bytes;
   }
 }
-// 사도가 아닌 스탠딩 — 상점의 골디. 키는 영문 폴더 이름 그대로
-for (const [key, dir] of Object.entries({ goldy: "goldy" })) {
+// 사도가 아닌 스탠딩 — 상점의 골디, 이벤트 C11 · 축복 창의 겨우살이(원작 폴더 noone — 그 목소리가 「난 겨우살이야」 라고 한다).
+// 키는 영문 폴더 이름 그대로
+for (const [key, dir] of Object.entries({ goldy: "goldy", noone: "noone" })) {
   const got = copySet(path.join(AS, "standing", dir), path.join(OUT, "standing", key));
   if (!got || got.error) { trouble.push(`standing/${key} — ${got ? got.error : "한 벌이 안 갖춰졌습니다"}`); continue; }
   manifest.standing[key] = { atlas: got.atlas, skel: got.skel, pages: got.pages };

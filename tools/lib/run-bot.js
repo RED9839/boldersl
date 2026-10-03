@@ -197,7 +197,7 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
     if (EV.lockOf(run, opt)) return -1e9;
     if (opt.fight) {
       const hpx = RULES.foeScale(run.floor, { elite: !!opt.fight.elite }).hp;
-      const foeHp = opt.fight.enemies.reduce((a, id) => a + ((ENEMIES[id] || {}).hp || 40) * hpx, 0);
+      const foeHp = EV.foesOf(run, opt.fight).reduce((a, id) => a + ((ENEMIES[id] || {}).hp || 40) * hpx, 0);
       const win = opt.fight.winGamble ? opt.fight.winGamble.reduce((a, g) => a + g.p * opsValue(run, EV.parseOut(g.out)), 0) : opsValue(run, EV.parseOut(opt.fight.win || ""));
       const h = hpRatio(run);
       return win + 10 - foeHp * 0.25 - (h < 0.6 ? 60 : 0);

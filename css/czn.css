@@ -3716,3 +3716,16 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 .phone .phaseban b { font-size: 20px; }
 @keyframes phaseBan { 0% { opacity: 0; transform: scaleY(.3); } 12% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .battle .phaseban { animation: none; } }
+
+/* 겨우살이 — 축복이 적힌 자리(✦)의 작은 얼굴 · 축복 창 머리의 큰 얼굴(tools/bake-npc.py 가 구운 한 장). 그림이 없으면 ✦ */
+.mtico { display: inline-flex; align-items: center; justify-content: center; width: 1.4em; height: 1.4em; margin-right: .3em; vertical-align: -.36em; border-radius: 50%; overflow: hidden; flex: none; font-style: normal; background: #2a1f3d; box-shadow: 0 0 0 1px #c9a8ffaa; }
+.mtico img { width: 100%; height: 100%; object-fit: cover; }
+.mtico.noimg { width: auto; height: auto; margin-right: .25em; vertical-align: baseline; background: none; box-shadow: none; border-radius: 0; color: #c9a227; }
+.fhead2 .mtico { align-self: center; }
+.ev2-sheethead.mt { flex-direction: row; align-items: center; gap: 14px; }
+.ev2-sheethead.mt > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mtface { width: 60px; height: 60px; border-radius: 50%; overflow: hidden; flex: none; background: #2a1f3d; box-shadow: 0 0 0 2px #c9a8ff, 0 0 20px #9a6cff99; font-style: normal; }
+.mtface img { width: 100%; height: 100%; object-fit: cover; }
+.mtface.noimg { display: grid; place-items: center; font-size: 30px; color: #c9a8ff; }
+/* 이벤트 무대 — 어울리는 사도가 없어 그 땅의 적을 세울 때는 조금 작게 */
+.ev2-stand.foe { width: min(62%, calc(var(--app-h, 100vh) * .55)); height: 64%; bottom: 4%; }

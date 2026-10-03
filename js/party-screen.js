@@ -9,7 +9,7 @@ import * as RULES from "./rules.js";
 import * as art from "./art.js";
 import { speak } from "./voice.js";
 import { sfx } from "./sfx.js";
-import { el, hint, screen, NTINT, uiIcon, goldLabel, openHelp, fsButton, img, withKeywords, showCard, showPiles, bigCard, BATTLE_BG, GRADE_COLOR, emptySlotIcon, equipCard } from "./ui-common.js";
+import { el, hint, screen, NTINT, uiIcon, goldLabel, mistletoeIcon, openHelp, fsButton, img, withKeywords, showCard, showPiles, bigCard, BATTLE_BG, GRADE_COLOR, emptySlotIcon, equipCard } from "./ui-common.js";
 
 // ── 편성 ───────────────────────────────────────────────────────────────
 // 카제나의 「요원 도감 → 상세 정보」 얼개다.
@@ -312,7 +312,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
         }
         if (c.bless) {                       // 신탁 위에 얹히는 그 카드만의 축복
           const n = el("div", "cbf cbbless");
-          n.appendChild(el("b", null, `✦ ${c.bless.ko}`));
+          const bn = el("b"); bn.appendChild(mistletoeIcon()); bn.appendChild(document.createTextNode(c.bless.ko)); n.appendChild(bn);
           n.appendChild(withKeywords(el("p"), `겨우살이의 축복 — ${c.bless.text}`, null));
           box.appendChild(n);
         }
@@ -870,7 +870,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
       if (c.bless) {
         const n = el("div", "flash fbless");
         n.appendChild(el("span", "fkind", "축복"));
-        n.appendChild(el("b", null, `✦ ${c.bless.ko}`));
+        const bn = el("b"); bn.appendChild(mistletoeIcon()); bn.appendChild(document.createTextNode(c.bless.ko)); n.appendChild(bn);
         n.appendChild(withKeywords(el("p"), shortText(c.bless.text), c.hero));
         g.appendChild(n);
       }

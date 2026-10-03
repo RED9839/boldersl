@@ -127,6 +127,9 @@ export function enterEvent(run) {
 }
 export const eventById = (id) => EVENTS.find((e) => e.id === id) || null;
 
+// 이벤트 전투의 적 — 배열이면 그대로, { 층 번호: [...] } 면 지금 층의 것(공용 이벤트가 그 땅의 적을 부른다 — C9)
+export const foesOf = (run, fight) => Array.isArray(fight.enemies) ? fight.enemies : fight.enemies[run.floor] || fight.enemies[0];
+
 export function pickEvent(run, id) {
   if (!run.event || !run.event.choices.includes(id)) return "고를 수 없습니다";
   run.event.id = id;
@@ -199,7 +202,7 @@ export function choose(run, idx, { pickHero } = {}) {
   E.label = opt.label;
   if (opt.fight) {
     E.phase = "fight";
-    run.eventFight = { name: opt.fight.name, enemies: opt.fight.enemies, win: opt.fight.win || null, winGamble: opt.fight.winGamble || null, elite: !!opt.fight.elite };
+    run.eventFight = { name: opt.fight.name, enemies: foesOf(run, opt.fight), win: opt.fight.win || null, winGamble: opt.fight.winGamble || null, elite: !!opt.fight.elite };
     return { fight: run.eventFight };
   }
   let out = outOf(run, opt);

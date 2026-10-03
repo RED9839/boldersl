@@ -1,7 +1,7 @@
 // 화면 — 지도 · 보상 · 캠프 · 상점 · 이벤트 · 끝. 편성은 party-screen.js, 전투는 fight-screen.js, 같이 쓰는 조각은 ui-common.js.
 // 규칙은 combat.js 가 쥐고 있고, 여기는 그리고 누른 것을 넘긴다.
 import { CARDS, flashed } from "./cardbook.js";
-import { ENEMIES, FLOORS } from "./data/enemies.js";
+import { ENEMIES, FLOORS, foeLook } from "./data/enemies.js";
 import { HERO_DATA, EQUIP } from "./cardbook.js";
 import CARDART from "./data/cardart.js";
 import { shortText, cardParts, polite } from "./card-text.js";
@@ -16,7 +16,7 @@ import { getZoom } from "./stage.js";
 import { settingsPanel } from "./settings-panel.js";
 import { sfx } from "./sfx.js";
 import { writeSave, saveOk } from "./save.js";
-import { HERO, TINT, el, hint, screen, NTINT, goldIcon, goldLabel, openHelp, fsButton, img, withKeywords, showCard, showPiles, bigCard, effectBox, setStageBg, BATTLE_BG, statText, equipIcon, emptySlotIcon, equipCard, showEquip, confirmPop } from "./ui-common.js";
+import { HERO, TINT, el, hint, screen, NTINT, goldIcon, goldLabel, mistletoeIcon, MISTLETOE, openHelp, fsButton, img, withKeywords, showCard, showPiles, bigCard, effectBox, setStageBg, BATTLE_BG, statText, equipIcon, emptySlotIcon, equipCard, showEquip, confirmPop } from "./ui-common.js";
 
 // 다른 파일로 옮긴 것도 ui.js 에서 그대로 꺼내 쓴다(main.js · tools/smoke.js)
 export { hint, openHelp, equipIcon } from "./ui-common.js";
@@ -1282,6 +1282,18 @@ export function shopScreen(run, onDone, opts = {}) {
 const POOL_KO = (p) => (p === "공용" ? "어디서나" : `${(FLOORS[p] || {}).name || ""}`);
 const heroKeyByKo = (ko) => Object.keys(HERO_DATA).find((k) => HERO_DATA[k].ko === ko) || null;
 const pctTxt = (p) => `${Math.round(p * 100)}%`;
+// 이벤트의 npc 가 사도가 아닐 때 — 스탠딩 스파인(assets/spine/standing/<spine>)과 구워 둔 한 장(tools/bake-npc.py).
+// 겨우살이는 원작 폴더 noone(그 목소리가 「난 겨우살이야」). 정체는 말하지 않는다(docs/03)
+const NPC_ART = { 겨우살이: { spine: "noone", still: MISTLETOE.still, sub: "꿈속의 다정한 목소리" } };
+// C3 처럼 편지를 보낸 쪽이 그때그때 다른 이벤트 — 파티의 쓰러진 사도를 세운다
+const FALLEN_NPC = "쓰러진 사도";
+const stillImg = (src, alt) => {
+  const box = el("div", "art art-event");
+  const im = document.createElement("img"); im.src = src; im.alt = alt;
+  im.onerror = () => { im.remove(); box.classList.add("art-ph"); box.textContent = alt.slice(0, 3); };
+  box.appendChild(im);
+  return box;
+};
 
 // 새 판(eventscreen2) — 상점 · 캠프와 같은 옷: 이 층의 이벤트 배경, 왼쪽에 나오는 사도의 스탠딩과 말풍선(장면), 오른쪽에 선택지.
 // 선택지 · 결과에서 고를 것(카드 · 신탁 · 사도)은 모두 두 단계(twoStep) — 눌러 고르고 단추로 정한다.
@@ -1322,24 +1334,49 @@ export function eventScreen(run, onDone, onFight) {
   };
   const act = (names) => { if (npcView) npcView.play(names.find((n) => npcView.has && npcView.has(n)) || names[0]); };
 
-  // 무대 — 이벤트에 나오는 사도(인물 사전 이름 → 사도 키)의 스탠딩. 없으면 이벤트 표식
+  // 무대 — 이벤트에 나오는 인물의 스탠딩. 사도(인물 사전 이름 → 사도 키) · 사도 아닌 인물(NPC_ART) ·
+  // 「쓰러진 사도」(편지를 보낸 그 사도) · 어울리는 사도가 없으면 그 땅의 적(ev.foe). 아무것도 없으면 이벤트 표식
   function setStage(ev) {
     const id = ev ? ev.id : "fork";
     if (standFor === id) return;
     standFor = id;
     if (npcView) { npcView.dispose && npcView.dispose(); npcView = null; }
     stand.innerHTML = ""; stand.className = "ev2-stand"; plate.innerHTML = "";
-    const npc = ev && ev.npc && heroKeyByKo(ev.npc);
+    const mine = id;
+    const down = ev && ev.npc === FALLEN_NPC ? run.party.find((k) => (run.hp[k] || 0) <= 0) : null;
+    const npc = down || (ev && ev.npc && heroKeyByKo(ev.npc));
+    const other = ev && ev.npc && NPC_ART[ev.npc];
     if (npc) {
-      who.textContent = ev.npc;
-      plate.appendChild(el("b", null, ev.npc));
-      plate.appendChild(el("span", null, `${HERO(npc).race || ""} · ${HERO(npc).nature || ""}`));
-      const mine = id;
+      const ko = HERO(npc).ko;
+      who.textContent = ko;
+      plate.appendChild(el("b", null, ko));
+      plate.appendChild(el("span", null, down ? "주말농장에서 쉬는 중" : `${HERO(npc).race || ""} · ${HERO(npc).nature || ""}`));
       spineView(stand, "standing", npc, { anim: "Idle_1", mix: 0.25 }).then((v) => {
         if (standFor !== mine) { v && v.dispose && v.dispose(); return; }
-        if (!v) { stand.classList.add("still"); stand.appendChild(art.portrait(npc, { ko: ev.npc, tint: TINT(npc), size: 0, slot: "event", still: true })); return; }
+        if (!v) { stand.classList.add("still"); stand.appendChild(art.portrait(npc, { ko, tint: TINT(npc), size: 0, slot: "event", still: true })); return; }
         npcView = v; stand.classList.add("live");
         act(["Happy_1", "Smile_1", "Idle_1"]);
+      });
+    } else if (other) {
+      who.textContent = ev.npc;
+      plate.appendChild(el("b", null, ev.npc));
+      plate.appendChild(el("span", null, other.sub));
+      spineView(stand, "standing", other.spine, { anim: "Idle_1", mix: 0.25 }).then((v) => {
+        if (standFor !== mine) { v && v.dispose && v.dispose(); return; }
+        if (!v) { stand.classList.add("still"); stand.appendChild(stillImg(other.still, ev.npc)); return; }
+        npcView = v; stand.classList.add("live");
+      });
+    } else if (ev && ev.foe && ENEMIES[ev.foe]) {
+      // 어울리는 사도가 없는 사건 — 그 땅의 적(싸움터와 같은 모습 · 성격 스킨)을 조금 작게 세운다
+      const look = foeLook(ev.foe), foe = ENEMIES[ev.foe];
+      who.textContent = ev.name;
+      stand.classList.add("foe");
+      plate.appendChild(el("b", null, foe.ko));
+      plate.appendChild(el("span", null, `${POOL_KO(ev.pool)} · ${ev.kind}`));
+      spineView(stand, "enemy", look.art, { skin: look.skin }).then((v) => {
+        if (standFor !== mine) { v && v.dispose && v.dispose(); return; }
+        if (!v) { stand.classList.add("still"); stand.appendChild(art.portrait(ev.foe, { ko: foe.ko, tint: foe.tint, size: 0, slot: "foe", still: true })); return; }
+        npcView = v; stand.classList.add("live");
       });
     } else {
       who.textContent = ev ? ev.name : "갈림길";
@@ -1490,7 +1527,13 @@ export function eventScreen(run, onDone, onFight) {
     sheet.appendChild(box);
     s.appendChild(sheet);
     const commit = (t) => { const w = EV.resolve(run, t); if (w) return hint(w); hint(""); if (t != null) sfx.play("reward.card"); act(["Happy_1", "Smile_1"]); draw(); };
-    const head = (t, why) => { const d = el("div", "ev2-sheethead"); d.appendChild(el("b", null, t)); if (why) d.appendChild(el("span", null, why)); box.appendChild(d); };
+    // face — 겨우살이의 축복 창이면 머리에 겨우살이의 얼굴을 붙인다
+    const head = (t, why, face) => {
+      const d = el("div", "ev2-sheethead" + (face ? " mt" : ""));
+      const tx = face ? el("div") : d;
+      if (face) { d.appendChild(mistletoeIcon("mtface")); d.appendChild(tx); }
+      tx.appendChild(el("b", null, t)); if (why) tx.appendChild(el("span", null, why)); box.appendChild(d);
+    };
     const skipBtn = (label = "받지 않습니다") => { const b = el("button", "ev2-skip", label); b.onclick = () => commit(null); return b; };
     let ts;
 
@@ -1518,7 +1561,7 @@ export function eventScreen(run, onDone, onFight) {
       box.appendChild(ts.bar);
     } else if (p.k === "shinPick") {
       // 기적 — 대가 없는 카드 강화. 덱에서 한 장을 골라 위력 ×1.3 이나 비용 -1 을 얹는다
-      head("겨우살이의 축복", p.kind ? (p.kind === "cost" ? "덱에서 한 장 — 이 카드의 비용이 1 줄어듭니다" : "덱에서 한 장 — 이 카드의 피해가 ×1.3 이 됩니다") : "덱에서 한 장을 고르면, 그 카드에 맞는 축복 셋이 뜹니다");
+      head("겨우살이의 축복", p.kind ? (p.kind === "cost" ? "덱에서 한 장 — 이 카드의 비용이 1 줄어듭니다" : "덱에서 한 장 — 이 카드의 피해가 ×1.3 이 됩니다") : "덱에서 한 장을 고르면, 그 카드에 맞는 축복 셋이 뜹니다", true);
       ts = twoStep(commit, { verb: "이 카드에 축복을 얹습니다" });
       const grid = el("div", "ev2-cards");
       for (const id of EV.shinAble(run, p.kind)) {
@@ -1533,14 +1576,14 @@ export function eventScreen(run, onDone, onFight) {
       box.appendChild(ts.bar);
     } else if (p.k === "shinKind") {
       const c = CARDS[p.cardId];
-      head("겨우살이의 축복", `「${c.name}」 에 얹을 축복 — 셋 중 하나`);
+      head("겨우살이의 축복", `「${c.name}」 에 얹을 축복 — 셋 중 하나`, true);
       ts = twoStep(commit, { verb: "축복을 얹습니다" });
       const fr = el("div", "rrow flashrow");
       fr.appendChild(flashTarget(c, p.cardId));
       for (const k of p.options) {
         const [nm, eff] = RULES.shinLabel(c, k).split(" — ");
         const b = el("button", "fcard shin");
-        const hd = el("div", "fhead2"); hd.appendChild(el("b", null, nm)); b.appendChild(hd);
+        const hd = el("div", "fhead2"); hd.appendChild(mistletoeIcon()); hd.appendChild(el("b", null, nm)); b.appendChild(hd);
         b.appendChild(el("p", "ftext2", eff));
         b.onclick = () => ts.pick(b, k, nm);
         fr.appendChild(b);
