@@ -10,7 +10,7 @@ import { parseEffect } from "./effects.js";
 import { 은는, 을를, josa } from "./ko.js";
 import { CARDS, NEUTRAL_IDS, EQUIP, HERO_DATA, flashed, isCopy } from "./cardbook.js";
 import * as R from "./rules.js";
-import { rewardCards, offerFlash, offerEquip, offerEquipSlot, forgetCard, divineKindsFor, powerWhy, powerCard, flashOk, addCopy } from "./run.js";
+import { rewardCards, offerFlash, offerEquip, offerEquipSlot, gainEquip, forgetCard, divineKindsFor, powerWhy, powerCard, flashOk, addCopy } from "./run.js";
 
 export { EVENTS };
 const koOf = (k) => (HERO_DATA[k] || {}).ko || k;
@@ -298,7 +298,7 @@ export function apply(run, ops) {
       }
       case "equip": {
         const [id] = o.slot ? offerEquipSlot(run, o.grade, o.slot) : offerEquip(run, { [o.grade]: 1 }, 1);
-        if (id) { run.bag.push(id); E.log.push(`장비 「${EQUIP[id].ko}」(${o.grade}) — 가방에`); }
+        if (id) { gainEquip(run, id); E.log.push(`장비 「${EQUIP[id].ko}」(${o.grade}) — 끼거나 팝니다`); }
         else E.log.push(`${o.grade} ${은는(o.slot || "장비")} 이미 다 가졌습니다`);
         break;
       }

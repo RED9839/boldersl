@@ -91,6 +91,12 @@ const shopHere = (run) => run.shop && run.shop.floor === run.floor && run.shop.a
 function step(g) {
   const run = g.run, w = run.where;
   if (g.end || run.done) return null;
+  // 받은 장비 — 가방이 없다. 화면이 곧장 끼기 or 팔기를 묻듯 다음 수에 정한다: 빈 칸이 있으면 끼고, 없으면 판다(ui.js settleGear)
+  if (run.bag.length && w.k !== "fight") {
+    const id = run.bag[0], k = run.party.find((x) => !R.gearOf(run, x)[EQUIP[id].slot]);
+    if (k) R.equip(run, k, id); else R.sellEquip(run, id);
+    return k ? "장비 낌" : "장비 팖";
+  }
   if (w.k === "map") {
     const reach = M.reachable(run);
     // 상점을 아직 못 되살려 봤으면 상점 캠프로 간다 — 길은 싸움 길이(난이도)에 따라 갈려 상점을 한 번도 안 지나는 판이 생긴다
@@ -166,8 +172,6 @@ function step(g) {
       else R.campRest(run);
       return "캠프 고름";
     }
-    // 가방의 장비를 빈 칸에 낀다
-    for (const id of run.bag) for (const k of run.party) if (!R.equip(run, k, id)) return "장비 낌";
     if (w.kind === "campshop" && !shopHere(run)) { R.rollShop(run); run.shop.at = run.map.at; run.where = { k: "shop", kind: w.kind }; return "캠프→상점"; }
     if (w.kind === "final") { openFight(g); return "마지막 싸움"; }
     run.where = { k: "map" };
@@ -372,6 +376,19 @@ console.log("못 쓰는 저장은 버린다");
   { const d = clone(); d.run.deck.push("없는_카드"); check(S.unpack(d) === null, "모르는 카드가 있으면 버린다"); }
   { const d = clone(); d.run.party[0] = "없는_사도"; check(S.unpack(d) === null, "모르는 사도가 있으면 버린다"); }
   { const d = clone(); d.run.bag = ["없는_장비"]; check(S.unpack(d) === null, "모르는 장비가 있으면 버린다"); }
+  {
+    // 옛 판의 가방(가방이 있던 때 적은 저장) — 버리지 않고 「정할 차례」 로 남아 다음 화면에서 끼기 or 팔기로 묻는다(ui.js settleGear)
+    const d = clone(), ids = Object.keys(EQUIP).slice(0, 2);
+    d.run.bag = ids.slice();
+    const u = S.unpack(d);
+    check(!!u && JSON.stringify(u.run.bag) === JSON.stringify(ids), "옛 판의 가방은 버리지 않는다 — 정할 장비로 남는다");
+    const g0 = u.run.gold;
+    check(R.sellEquip(u.run, ids[0]) === null && R.equip(u.run, u.run.party[0], ids[1]) === null && !u.run.bag.length && u.run.gold === g0 + R.sellPrice(ids[0]),
+      "남은 것은 하나씩 팔거나 끼면 비워진다");
+    const d2 = clone(); delete d2.run.bag;
+    const u2 = S.unpack(d2);
+    check(!!u2 && Array.isArray(u2.run.bag) && !u2.run.bag.length, "가방 칸이 아예 없는 저장도 읽힌다(빈 줄)");
+  }
   { const d = clone(); delete d.run.rngState; check(S.unpack(d) === null, "난수 상태가 없으면 버린다"); }
   { const d = clone(); d.run.where = { k: "fight" }; check(S.unpack(d) === null, "싸움 중이라는데 싸움이 없으면 버린다"); }
   { const d = clone(); d.run.where = { k: "어딘가" }; check(S.unpack(d) === null, "모르는 화면이면 버린다"); }

@@ -91,7 +91,7 @@ export const EPI_HERO = { fight: 0.4, elite: 0.7, boss: 0.8, event: 0.3 };
 // 2026-10-04 사용자 「신탁 확률 조금 올리자」 — 일반 15→20→30 · 엘리트 40→50 · 보스 30→40 · 이벤트 10→15%
 export const EPI_CARD = { fight: 0.3, elite: 0.5, boss: 0.4, event: 0.15 };
 export const EPI_SURE = { hero: ["fight", "elite", "boss"], card: ["elite"] };
-export const DIVINE = 0.15;   // 카드 신탁 선택지에 기적이 얹힐 확률 — 10 → 15%(2026-10-04 사용자)
+export const DIVINE = 0.2;    // 카드 신탁 선택지에 기적(신 번뜩임)이 얹힐 확률 — 10 → 15 → 20%(2026-10-04 사용자: 살짝 올려)
 // 기적의 덤 — power 피해 ×1.3 · cost 비용 -1(1 이상일 때) · draw 내면 1장 더 뽑는다
 // 겨우살이의 축복(옛 이름 「기적」) — 기획서 「겨우살이의 축복」 탭의 카드 종류별 풀. 카드에 쓸모 있는 것만 뜬다(divineKindsFor)
 export const DIVINE_KINDS = {
@@ -158,7 +158,7 @@ export const SHOP_GRADE_WEIGHT = { 일반: 5, 고급: 4, 희귀: 2, 전설: 1 };
 export const SLOTS = ["무기", "방어구", "장신구"];
 // 값과 보스 보상의 등급은 기획서에 없어 **우리가 정했다**
 export const EQUIP_PRICE = { 일반: 90, 고급: 130, 희귀: 180, 전설: 250 };
-// 장비 팔기 — 가방의 장비를 사는 값의 40% 에(일반 36 · 고급 52 · 희귀 72 · 전설 100). 어디서든 장비 창에서
+// 장비 팔기 — 얻은 장비를 끼지 않고 팔 때 · 찬 칸에 바꿔 낄 때 낀 것이 사는 값의 40% 에(일반 36 · 고급 52 · 희귀 72 · 전설 100)
 export const EQUIP_SELL = 0.4;
 export const BOSS_EQUIP = [{ 전설: 1 }, { 전설: 1 }, { 전설: 1 }];   // 층 보스는 모두 전설(2026-10-04 사용자)   // 층마다 보스가 주는 등급
 export const SHOP_EQUIP = { 일반: 3, 고급: 3, 희귀: 2, 전설: 1 };

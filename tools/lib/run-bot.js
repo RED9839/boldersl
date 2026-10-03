@@ -43,8 +43,9 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
         const g = gearScore(id, k) - gearScore(old, k) - (old ? 0 : -1);
         if (g > gain) { gain = g; best = k; }
       }
+      // 가방이 없다(2026-10 사용자) — 낄 사도가 없으면 판다. 생각 없는 봇도 남겨 두지 않는다
       if (best) R.equip(run, best, id, { replace: true });
-      else if (smart) R.sellEquip(run, id);
+      else R.sellEquip(run, id);
     }
   }
 

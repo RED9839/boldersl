@@ -223,7 +223,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
 
   // ── 교주 카드 · 장비 도감 ──────────────────────────────────────────────
   // 사도 도감과 같은 틀 — 왼쪽 레일(교주 카드는 등급, 장비는 칸) · 오른쪽 거르개 · 머리 · 격자.
-  // 그림은 이미 있는 것을 그대로 쓴다 — 카드는 bigCard(상점 · 더미 창과 같은 카드), 장비는 equipCard(상점 · 가방과 같은 장비 칸)
+  // 그림은 이미 있는 것을 그대로 쓴다 — 카드는 bigCard(상점 · 더미 창과 같은 카드), 장비는 equipCard(상점 · 끼기 or 팔기 창과 같은 장비 칸)
   function bookBody() {
     const isCard = dexTab === "교주 카드";
     const body = el("div", "dbody");

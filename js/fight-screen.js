@@ -20,14 +20,13 @@ import { loadFx, preloadUltFx, playUltFx, ultImpactMs, ultLagMs, playFx, preload
 import { speak } from "./voice.js";
 import * as SP from "./speed.js";
 import { cardMotion } from "./data/card-motion.js";
-import { HERO, TINT, NTINT, el, kwNote, hint, screen, TMARK, TKIND, goldIcon, mistletoeIcon, openHelp, img, withKeywords, kwText, showCard, showPiles, natureClass, bigCard, effectBox, setStageBg, withNumbers, statText, equipIcon, emptySlotIcon, showEquip } from "./ui-common.js";
+import { HERO, TINT, NTINT, el, kwNote, hint, screen, TMARK, TKIND, goldIcon, mistletoeIcon, MISTLETOE, openHelp, img, withKeywords, kwText, showCard, showPiles, natureClass, bigCard, effectBox, setStageBg, withNumbers, statText, equipIcon, emptySlotIcon, showEquip } from "./ui-common.js";
 
 // 효과음 자리 — 전투 화면이 맞는 순간 · 고학년 · 카드 동작에 부른다. 효과음 모듈이 메서드를 갈아 끼운다(안 끼우면 조용하다).
 //   hit(kind, heavy, crit)  맞는 순간마다 — kind 는 타격 갈래(slash 베기 · shot 쏘기 · magic 마법 · blunt 둔기), 받는 쪽은 kind 앞에 "ally:"
 //   ult(heroKey, phase)     고학년 — "cast"(SD 동작 시작) · "impact"(첫 타격)
 //   card(heroKey, anim)     카드 · 적의 수가 동작을 시작할 때 — anim 은 attack · skill
 import { sfx as SFX } from "./sfx.js";
-import { josa } from "./ko.js";
 import { fxIcon, kwToken } from "./fx-icons.js";
 // 효과음(js/sfx.js) — 맞는 소리는 land 가 SFX.land 로 직접 낸다(맞은 쪽 · 때린 쪽 · 고학년 · 크게 맞음을 다 안다).
 // 사도 동작의 소리(카드 · 고학년)는 playBeats 가 SFX.action 으로 — 스파인 SFX 이벤트 시각에, 안 맞으면 시작 + 터지는 소리를 맞는 순간에 맞춰.
@@ -219,7 +218,6 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   s.appendChild(lootBox);
   let lootGold = 0, goldRow = null;
   const ground = [];                        // 바닥에 떨어진 금화 · 장비 { node, x, y, gold, equip?, taken }
-  let gotEquip = null;                      // 이기고 주운 장비 — 다 주우면 장비 창을 띄운다
   // 금화는 몸통(body)에 붙어서 화면을 갈아도 남는다 — 지거나 메인화면으로 나가거나 이어하기로 다시 열 때 걷는다
   const clearGround = () => { for (const c of ground) c.node.remove(); ground.length = 0; };
   if (typeof document === "object" && document.querySelectorAll) document.querySelectorAll(".groundcoin").forEach((n) => n.remove());
@@ -286,7 +284,6 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       fly.classList.add("dropequip");
       flyTo(fly, { x: c.x, y: c.y });
       dropEquip(c.equip);
-      gotEquip = c.equip;
       return;
     }
     const fly = goldIcon("dropcoin");
@@ -349,12 +346,13 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   }
   function dropEquip(id) {
     const e = EQUIP[id];
-    const row = pill("lteq", equipIcon(e, 34), e.ko, `${e.slot} · ${e.grade} · 눌러서 장착`);
-    // 누르면 곧장 장비 창 — 가방에 먼저 넣고(이기면 넣던 것을 앞당긴다) 누구에게 낄지 고른다.
-    // 바뀐 장비는 다음 전투부터 — 이 싸움의 능력치는 싸움을 열 때 정해졌다
+    const row = pill("lteq", equipIcon(e, 34), e.ko, `${e.slot} · ${e.grade} · 눌러서 끼기 · 팔기`);
+    // 누르면 곧장 끼기 or 팔기 창(ui.js settleGear) — 받는 것을(이기면 받던 것을) 앞당긴다. 가방은 없다(2026-10 사용자).
+    // 바뀐 장비는 다음 전투부터 — 이 싸움의 능력치는 싸움을 열 때 정해졌다. 싸우는 중이면 싸움까지 같이 적는다
     row.onclick = () => {
       if (loot && !loot.equipTaken) { R.takeEquip(run, id); if (!st.over) writeSave(run, st); }
-      import("./ui.js").then((ui) => ui.openGearModal(run, { sub: "떨어진 장비는 가방에 들어갔습니다 · 누구에게 낄지 고르세요 — 바꾼 장비는 다음 전투부터 힘을 씁니다" }));
+      if (!run.bag.length) return hint(`「${e.ko}」 — 이미 정했습니다`);
+      import("./ui.js").then((ui) => ui.settleGear(run, null, { save: () => (st.over ? writeSave(run) : writeSave(run, st)) }));
     };
     addLoot(row);
   }
@@ -3439,11 +3437,33 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     SP.after(typeof window === "object" ? 1700 : 0, () => back.remove());
   }
   function openEpiphany(cardId, g, done) {
-    const back = el("div", "bmodal epimodal" + (g.kind === "card" && g.options.some((o) => o.shin) ? " divine" : ""));
+    const div = g.kind === "card" && g.options.some((o) => o.shin);
+    const back = el("div", "bmodal epimodal" + (div ? " divine" : ""));
+    // 신 번뜩임 — 손패에서는 여느 신탁과 같고, 터지는 순간만 다르다(카제나: 신이 내려와 번뜩임을 준다 — 2026-10 사용자).
+    // 우리는 겨우살이가 빛살 속에 내려와 「신 번뜩임」 을 찍고, 그 뒤에 선택지가 뜬다. 누르면 건너뛴다 · 움직임 줄이기면 없다
     const box = el("div", "epibox");
+    if (div) {
+      back.appendChild(el("div", "epirays"));
+      if (!calmNow()) {
+        const intro = el("div", "divintro");
+        const god = el("div", "divgod");
+        const im = document.createElement("img"); im.src = MISTLETOE.still; im.alt = "겨우살이";
+        god.appendChild(im);
+        intro.appendChild(god);
+        intro.appendChild(el("div", "epititle divtitle", "신 번뜩임"));
+        intro.appendChild(el("p", "episub", "겨우살이가 축복을 내립니다"));
+        back.appendChild(intro);
+        box.classList.add("waiting");
+        let shown = false;
+        const show = () => { if (shown) return; shown = true; intro.classList.add("gone"); box.classList.remove("waiting"); later(400, () => intro.remove()); };
+        intro.onclick = (e) => { e.stopPropagation(); show(); };
+        later(1700, show);
+        try { SFX.play("flash"); } catch { /* 소리 */ }
+      }
+    }
     back.appendChild(box);
     const base = CARDS[cardId];
-    box.appendChild(el("div", "epititle", g.kind === "hero" ? "은총!" : "신탁!"));
+    box.appendChild(el("div", "epititle" + (div ? " divtitle" : ""), g.kind === "hero" ? "은총!" : div ? "신 번뜩임!" : "신탁!"));
     box.appendChild(el("p", "episub", g.kind === "hero"
       ? `${HERO(g.hero).ko}에게 신탁 — 고유 카드 하나를 얻습니다. 이번 턴에는 코스트 0`
       : `「${base.name}」에 신탁 — 하나를 고르면 카드가 바뀌고, 이번에는 코스트 0`));
@@ -3465,6 +3485,9 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
           cell.classList.add("shin");
           const tag = el("span", "epishin"); tag.appendChild(mistletoeIcon()); tag.appendChild(document.createTextNode(`겨우살이의 축복 · ${RULES.shinLabel(base, opt.shin)}`));
           cell.appendChild(tag);
+          // 카제나처럼 코스트 밑에 깃발 — 셋 가운데 어느 것이 신 번뜩임인지 카드만 봐도 안다
+          const flag = el("span", "epiflag"); flag.title = "신 번뜩임 — 겨우살이의 축복"; flag.appendChild(mistletoeIcon());
+          card.appendChild(flag);
         }
       }
       card.onclick = null; card.title = "";
@@ -3705,7 +3728,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       return;
     }
     if (loot) {
-      // 떨어진 것을 챙긴다 — 장비는 가방으로. 아직 못 떨궜으면(마지막 한 방에 여럿) 여기서
+      // 떨어진 것을 챙긴다 — 장비는 「정할 차례」 로(다 주운 뒤 끼기 or 팔기 창). 아직 못 떨궜으면(마지막 한 방에 여럿) 여기서
       dropItems({ x: (innerWidth || 1600) * 0.7, y: (innerHeight || 900) * 0.4 });
       if (loot.equip && loot.equip.length && !loot.equipTaken) R.takeEquip(run, loot.equip[0]);
       R.takeReward(run, null);                 // 골드 — 판에는 바로 들어간다. 화면은 사도들이 주우며 올린다
@@ -3729,13 +3752,11 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         if (!lootList.children.length) lootList.appendChild(el("p", "ltnone", "이번에는 떨어진 것이 없습니다"));
       }
       const next = () => { clearGround(); onDone(st.over); };
-      // 장비를 주웠으면 장비 창 — 누구에게 낄지 고르고 닫으면 다음 칸으로(가방에는 이미 들어 있다)
+      // 장비를 받았으면 끼기 or 팔기 창 — 둘 중 하나를 정해야 다음 칸으로(2026-10 사용자: 가방이 없다, ui.js settleGear).
+      // 자리를 잴 수 없는 화면(시험)은 건너뛴다 — 정할 장비는 판에 남아 지도에 들어가면 묻는다
       const gear = () => {
-        if (gotEquip && groundOk) {
-          SP.after(700, () => import("./ui.js").then((ui) => ui.openGearModal(run, {
-            sub: `「${EQUIP[gotEquip].ko}」 ${josa(EQUIP[gotEquip].ko, "을를")} 주웠습니다 — 누구에게 낄지 고르세요 · 닫으면 다음 칸으로`,
-            onClose: next,
-          })).catch(next));
+        if (run.bag.length && groundOk) {
+          SP.after(700, () => import("./ui.js").then((ui) => ui.settleGear(run, next)).catch(next));
           return;
         }
         SP.after(loot ? 1300 : 500, next);

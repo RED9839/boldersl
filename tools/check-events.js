@@ -140,7 +140,7 @@ console.log("결과가 적용되는가");
   run.event = { key: "t", choices: [], id: "C1", phase: "result", log: [], pending: [] };
   EV.apply(run, EV.parseOut("골드 -120 · 장비 (희귀) · HP -10% · 최대 HP +4 · 골칫거리 「밀린 잡일」"));
   check(run.gold === g0 - 120, `골드 -120 (${g0} → ${run.gold})`);
-  check(run.bag.length === 1, `장비가 가방에 (${run.bag.length})`);
+  check(run.bag.length === 1, `받은 장비가 끼기 or 팔기를 기다린다 (${run.bag.length})`);
   check(run.deck.length === d0 + 1 && run.deck.includes("골칫거리_밀린잡일"), "골칫거리가 덱에");
   const cur = CARDS["골칫거리_밀린잡일"];
   check(hasTag(cur, "소멸") && !cur.fx.length, "골칫거리는 효과 없이 소멸한다");

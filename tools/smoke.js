@@ -703,13 +703,13 @@ console.log("\n장비");
   check(price === Math.round(RULES.EQUIP_PRICE[e.grade] * RULES.EQUIP_SELL), `파는 값은 사는 값의 ${RULES.EQUIP_SELL * 100}% (${e.grade} ${price})`);
   const gw = r.gold;
   check(R.equip(r, k, same, { replace: true }) === null && R.gearOf(r, k)[e.slot] === same && !r.bag.includes(hpItem) && r.gold === gw + price,
-    `바꿔 끼면 낀 것은 팔린다 — 가방으로 안 가고 +${price} 골드`);
+    `바꿔 끼면 낀 것은 팔린다 — 어디에도 남지 않고 +${price} 골드`);
   check(r.partyMaxHp === mh + EQUIP[same].stats.hp, "바꾸면 파티 최대 HP 도 따라 바뀐다");
-  // 빼기는 없다 · 팔기는 가방의 것만
+  // 빼기는 없다 · 팔기는 받고 아직 정하지 않은 것만(가방은 없다 — run.bag 은 「정할 차례」 줄)
   check(typeof R.unequip === "undefined", "빼기는 없다 — 한 번 낀 장비는 바꿔 낄 때 팔릴 뿐");
   r.bag.push(hpItem);
   const g0 = r.gold;
-  check(R.sellEquip(r, hpItem) === null && r.gold === g0 + price && !r.bag.includes(hpItem), "가방의 장비를 팔면 골드가 들어오고 가방에서 빠진다");
+  check(R.sellEquip(r, hpItem) === null && r.gold === g0 + price && !r.bag.includes(hpItem), "받은 장비를 팔면 골드가 들어오고 정할 줄에서 빠진다");
   check(!!R.sellEquip(r, same) && R.gearOf(r, k)[e.slot] === same, "끼고 있는 장비는 팔기로 못 판다");
   // 전투에 스탯이 들어간다
   const atkItem = ids.find((id) => EQUIP[id].stats.atk > 0 && EQUIP[id].slot !== e.slot && EQUIP[id].affinity !== k);
@@ -727,7 +727,7 @@ console.log("\n장비");
   r.node = 3; r.floor = 0; R.rollReward(r);
   check(r.reward.equip && r.reward.equip.length === 1, "보스는 장비 하나를 떨군다");
   const pick = r.reward.equip[0];
-  check(R.takeEquip(r, pick) === null && r.bag.includes(pick) && R.takeEquip(r, r.reward.equip[1]) !== null, "하나만 가방에 넣는다");
+  check(R.takeEquip(r, pick) === null && r.bag.includes(pick) && R.takeEquip(r, r.reward.equip[1]) !== null, "하나만 받는다(받으면 끼기 or 팔기를 기다린다)");
   r.floor = 2; r.node = 4; R.rollReward(r);
   check(!r.reward.equip, "마지막 싸움(뿌리 깊은 곳의 우로스)은 장비를 안 준다(판이 끝난다)");
   // 보상 화면 · 캠프 화면 · 상점
@@ -774,29 +774,52 @@ console.log("\n장비");
     }
   }
   R.enterCamp(r, "campshop");
+  const gearPick = () => document.body.children.find((n) => n.classList.contains("gearpick"));
+  check(r.bag.length === 1 && r.bag[0] === pick, "보상에서 받은 장비가 아직 정할 차례에 있다(창을 보다 새로고침 · 옛 판의 가방과 같은 자리)");
   const cs = ui.campScreen(r, true, () => {}, () => {});
+  {
+    // 정하지 않은 장비가 있으면 캠프에 들어오자마자 끼기 or 팔기를 묻는다 — 팔기를 골라 정한다
+    const pk = gearPick();
+    check(!!pk && pk.textContent.includes(`「${EQUIP[pick].ko}」`), "정하지 않은 장비가 있으면 캠프에 들어오자마자 끼기 or 팔기 창");
+    const g0 = r.gold;
+    clickAll(pk, (n) => n.classList.contains("gpk-sellopt"))[0].onclick();
+    clickAll(pk, (n) => n.classList.contains("bmuse"))[0].onclick();
+    check(!r.bag.length && r.gold === g0 + R.sellPrice(pick) && !gearPick(), `팔기 — +${R.sellPrice(pick)} 골드 · 창이 닫힌다`);
+  }
   clickAll(cs, (n) => n.classList.contains("cp-gear"))[0].onclick();
   check(count(cs, "cp-gearmodal") === 1 && count(cs, "grow") === 3 && count(cs, "gslot") === 9, "캠프의 장비 창에서 사도 셋 × 세 칸을 본다");
   check(count(cs, "gout") === 0 && !clickAll(cs, (n) => n.tagName === "BUTTON" && /빼기/.test(n.textContent)).length, "장비 창에 「빼기」 단추가 없다");
+  check(count(cs, "gtobtn") === 0 && count(cs, "gsell") === 0 && !/가방/.test(cs.textContent), "장비 창은 낀 장비 보기만 — 가방 · 끼기 · 팔기 칸이 없다");
   {
     // 낀 장비를 누르면 자세히 — 스탯 · 파는 값이 보인다
     const full = clickAll(cs, (n) => n.classList.contains("gslot") && n.classList.contains("full"));
     full[0].onclick();
     const pop = document.body.children.find((n) => n.classList.contains("eqpop"));
     check(!!pop && /팔면 \+\d+ 골드/.test(pop.textContent) && /공격력|방어력|체력|치명/.test(pop.textContent) && !/빼기/.test(pop.textContent), "낀 장비를 누르면 자세히(스탯 · 파는 값) — 빼기 단추는 없다");
-    // 가방의 장비를 찬 칸에 끼면 — 판다고 묻고, 「팔고 낍니다」 로 바꿔 낀다
+    // 장비를 얻으면 끼기 or 팔기 창(ui.js settleGear) — 닫기 · 나중에가 없다. 찬 칸을 고르면 무엇이 몇 골드에 팔리는지 보이고, 정해야 바뀐다
     const ck = k, cslot = e.slot, oldId = R.gearOf(r, ck)[cslot];
-    const hko = (await import("../js/cardbook.js")).HERO_DATA[ck].ko;
     const nu = ids.find((id) => EQUIP[id].slot === cslot && id !== oldId);
-    r.bag.push(nu); clickAll(cs, (n) => n.classList.contains("cp-gear"))[0].onclick();
-    const tob = clickAll(cs, (n) => n.classList.contains("gtobtn") && n.textContent.startsWith(hko) && /바꾸기/.test(n.textContent));
-    tob[tob.length - 1].onclick();
-    const ask = document.body.children.find((n) => n.classList.contains("eqconfirm"));
-    check(!!ask && ask.textContent.includes(`「${EQUIP[oldId].ko}」`) && /팔고\(\+\d+골드\)/.test(ask.textContent) && ask.textContent.includes(`「${EQUIP[nu].ko}」`), "찬 칸에 끼면 「옛 장비 를 팔고(+N골드) 새 장비 를 낍니다」 를 묻는다");
-    check(R.gearOf(r, ck)[cslot] === oldId && r.bag.includes(nu), "묻는 동안은 아무것도 안 바뀐다");
+    const nu2 = ids.find((id) => EQUIP[id].slot !== cslot);
+    R.gainEquip(r, nu); R.gainEquip(r, nu2);
+    let settled = 0;
+    ui.settleGear(r, () => settled++);
+    const pk = gearPick();
+    check(!!pk && pk.textContent.includes(`「${EQUIP[nu].ko}」`) && count(pk, "gpk-opt") === r.party.length + 1 && /2점/.test(pk.textContent), "끼기 or 팔기 창 — 사도 셋 + 팔기, 여럿이면 몇 점 남았는지");
+    check(!pk.onclick && !clickAll(pk, (n) => n.classList.contains("bmclose")).length && !/닫기|나중에/.test(pk.textContent), "닫기 · 바깥 누르기 · 나중에가 없다");
+    const opt = clickAll(pk, (n) => n.classList.contains("gpk-opt"))[r.party.indexOf(ck)];
+    check(/바꾸면 팔림 \+\d+/.test(opt.textContent) && opt.textContent.includes(EQUIP[oldId].ko) && count(opt, "gpk-delta") === 1, "사도마다 지금 그 칸에 낀 것 · 팔리는 값 · 바뀌는 스탯");
+    opt.onclick();
+    const go = clickAll(pk, (n) => n.classList.contains("bmuse"))[0];
+    check(go.textContent.includes(`「${EQUIP[oldId].ko}」`) && go.textContent.includes(`+${R.sellPrice(oldId)}`), "정하는 단추에 무엇이 몇 골드에 팔리는지");
+    check(R.gearOf(r, ck)[cslot] === oldId && r.bag.includes(nu), "고르기만 해서는 아무것도 안 바뀐다");
     const gb = r.gold;
-    clickAll(ask, (n) => n.classList.contains("bmuse"))[0].onclick();
-    check(R.gearOf(r, ck)[cslot] === nu && !r.bag.includes(oldId) && r.gold === gb + R.sellPrice(oldId), "「팔고 낍니다」 — 새 장비를 끼고 옛 장비 값이 들어온다");
+    go.onclick();
+    check(R.gearOf(r, ck)[cslot] === nu && !r.bag.includes(nu) && r.gold === gb + R.sellPrice(oldId), "정하면 새 장비를 끼고 옛 장비 값이 들어온다");
+    const pk2 = gearPick();
+    check(!!pk2 && pk2.textContent.includes(`「${EQUIP[nu2].ko}」`) && !settled, "여럿이면 다음 것을 차례로 묻는다");
+    clickAll(pk2, (n) => n.classList.contains("gpk-sellopt"))[0].onclick();
+    clickAll(pk2, (n) => n.classList.contains("bmuse"))[0].onclick();
+    check(!r.bag.length && !gearPick() && settled === 1, "다 정하면 창이 닫히고 다음으로");
   }
   check(!/아직 안 돕니다/.test(cs.textContent), "장비 효과는 다 돈다 — 「아직 안 돕니다」 가 없다");
   // 장비 효과 — 낀 사도의 패시브로 붙고, 전투에서 터진다
@@ -817,15 +840,24 @@ console.log("\n장비");
   r.gold = 5000; r.shop = null; r.shopSeen = {};
   const sp = ui.shopScreen(r, () => {});
   check(r.shop.items.filter((it) => it.kind === "equip").length === 3, "골디의 상점에 장비 세 점");
-  const before = r.bag.length;
-  const idx = r.shop.items.findIndex((it) => it.kind === "equip");
-  R.buy(r, idx);
-  check(r.bag.length === before + 1, "장비를 사면 가방에 들어간다");
+  check(count(sp, "sh-bag") === 0 && !/가방/.test(sp.textContent), "상점에 「가방」 이 없다");
+  {
+    // 사면 그 자리에서 끼기 or 팔기 창 — 상점 밖으로 나가지 않고 판다(2026-10 사용자)
+    const idx = r.shop.items.findIndex((it) => it.kind === "equip");
+    const it = r.shop.items[idx], nN = r.shop.items.filter((x) => x.kind === "neutral").length;
+    const g0 = r.gold;
+    clickAll(sp, (n) => n.classList.contains("sh-buy"))[nN].onclick();
+    const pk = gearPick();
+    check(it.sold && r.gold === g0 - it.price && r.bag.length === 1 && !!pk && pk.textContent.includes(`「${EQUIP[it.id].ko}」`), "장비를 사면 곧장 끼기 or 팔기 창이 뜬다");
+    clickAll(pk, (n) => n.classList.contains("gpk-sellopt"))[0].onclick();
+    clickAll(pk, (n) => n.classList.contains("bmuse"))[0].onclick();
+    check(!r.bag.length && r.gold === g0 - it.price + R.sellPrice(it.id) && !gearPick(), "상점 안에서 바로 판다 — 판 값이 곧장 들어온다");
+  }
   // 사도가 나가면 장비는 가방으로
   const outK = r.party[0], nGear = Object.keys(R.gearOf(r, outK)).length, bagN = r.bag.length;
   const inK = r.bench[0];
   R.swapHero(r, outK, inK);
-  check(r.bag.length === bagN + nGear && !r.gear[outK], `나가는 사도의 장비는 가방으로 (${nGear}개)`);
+  check(r.bag.length === bagN + nGear && !r.gear[outK], `나가는 사도의 장비는 다시 정할 차례로 (${nGear}개)`);
 }
 
 const e1 = ui.endScreen("lose", run, () => {});

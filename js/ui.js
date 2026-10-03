@@ -17,7 +17,7 @@ import { getZoom } from "./stage.js";
 import { settingsPanel } from "./settings-panel.js";
 import { sfx } from "./sfx.js";
 import { writeSave, saveOk } from "./save.js";
-import { HERO, TINT, el, hint, screen, NTINT, goldIcon, goldLabel, mistletoeIcon, MISTLETOE, openHelp, fsButton, img, withKeywords, kwText, showCard, showPiles, bigCard, setStageBg, BATTLE_BG, statText, equipIcon, emptySlotIcon, equipCard, showEquip, confirmPop, deckSections, deckSecHead, runCard } from "./ui-common.js";
+import { HERO, TINT, el, hint, screen, NTINT, goldIcon, goldLabel, mistletoeIcon, MISTLETOE, openHelp, fsButton, img, withKeywords, kwText, showCard, showPiles, bigCard, setStageBg, BATTLE_BG, statText, equipIcon, emptySlotIcon, equipCard, showEquip, deckSections, deckSecHead, runCard } from "./ui-common.js";
 
 // 다른 파일로 옮긴 것도 ui.js 에서 그대로 꺼내 쓴다(main.js · tools/smoke.js)
 export { hint, openHelp, equipIcon } from "./ui-common.js";
@@ -145,9 +145,9 @@ export function mapScreen(run, onEnter, onQuit) {
     party.appendChild(cell);
   }
   head.appendChild(party);
-  // 장비 — 사도마다 무기 · 방어구 · 장신구. 전투 밖이면 지도에서도 끼고 바꿔 낀다(빼기는 없다 — 바꿔 끼면 낀 것은 팔린다)
+  // 장비 — 사도마다 무기 · 방어구 · 장신구. 낀 장비 보기만(가방은 없다 — 새 장비는 얻을 때 끼거나 판다, settleGear)
   const openGear = () => openGearModal(run, { onClose: () => mapScreen(run, onEnter, onQuit) });
-  const gearBtn = el("button", "mdeck", `장비${run.bag.length ? ` · 가방 ${run.bag.length}` : ""}`);
+  const gearBtn = el("button", "mdeck", "장비");
   gearBtn.onclick = openGear;
   const gold = goldLabel("span", "mgold", `${run.gold} 골드`);
   head.appendChild(gold);
@@ -280,6 +280,8 @@ export function mapScreen(run, onEnter, onQuit) {
   // 처음 열면 지금 칸이 왼쪽 1/3 쯤에 오게
   if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => { board.scrollLeft = Math.max(0, posOf(here).x - board.clientWidth * 0.3); });
   s.enterNode = (id) => { const b = [...strip.children].find((c) => c.dataset && c.dataset.id === id); if (b) b.onclick(); };  // tools/smoke.js 가 쓴다
+  // 정하지 않은 장비가 남았으면(고르다 새로고침 · 옛 판의 가방) 지도에 들어오자마자 하나씩 묻는다 — 다 정하면 골드 · 장비 줄을 새로 그린다
+  if (run.bag.length) settleGear(run, () => mapScreen(run, onEnter, onQuit));
   return s;
 }
 
@@ -572,18 +574,18 @@ export function rewardScreen(run, onPick) {
   s.appendChild(body);
 
   const got = run.reward || R.rollReward(run);
-  // ⓪ 장비 — 보스만. 셋 중 하나를 가방에 넣고, 빈 칸이면 바로 낀다
+  // ⓪ 장비 — 떨어진 하나. 받으면 곧장 끼기 or 팔기 창(settleGear) — 가방은 없다
   if (got.equip && got.equip.length) {
     const eqBox = el("div");
     body.appendChild(eqBox);
     const drawEq = () => {
       eqBox.innerHTML = "";
-      eqBox.appendChild(sec("장비", got.equipTaken ? "가방에 넣었습니다" : `${run.elite ? "엘리트" : "보스"}가 남긴 장비 — 셋 중 하나`));
+      eqBox.appendChild(sec("장비", got.equipTaken ? "받았습니다" : "떨어진 장비 — 받으면 사도에게 끼거나 팝니다"));
       if (!got.equipTaken) {
         const row = el("div", "rrow");
         for (const id of got.equip) {
           const b = el("button", "sprice", "이걸 가집니다");
-          const take = () => { R.takeEquip(run, id); writeSave(run); sfx.play("reward.card"); drawEq(); };
+          const take = () => { R.takeEquip(run, id); writeSave(run); sfx.play("reward.card"); settleGear(run, drawEq); };
           b.onclick = take;
           const card = equipCard(id, b);
           card.classList.add("eqtap");
@@ -591,7 +593,7 @@ export function rewardScreen(run, onPick) {
           row.appendChild(card);
         }
         eqBox.appendChild(row);
-      } else eqBox.appendChild(gearPanel(run, "empty", null, hint));
+      } else eqBox.appendChild(gearPanel(run));
     };
     drawEq();
   }
@@ -797,21 +799,120 @@ function flashTarget(c, id, run) {
   return box;
 }
 
-// 장비 창 — 지도의 「장비」 단추 · 전투 중 떨어진 장비 띠(fight-screen)가 같이 쓴다
+// 장비 창 — 지도의 「장비」 단추. 낀 장비 보기만(새 장비는 얻을 때 settleGear 가 묻는다)
 export function openGearModal(run, { sub, onClose } = {}) {
   const box = centerModal("gearmodal", onClose);
   const body = el("div", "bmbody");
   body.appendChild(el("h3", "bmname", "장비"));
-  body.appendChild(el("span", "bmkind", sub || "전투 밖이면 언제든 끼고 바꿀 수 있습니다"));
-  const redraw = () => { const old = body.querySelector(".gearpanel"); const gp = gearPanel(run, "empty", () => { redraw(); }, hint); if (old) old.replaceWith(gp); else body.appendChild(gp); };
-  redraw();
+  body.appendChild(el("span", "bmkind", sub || "사도마다 낀 장비 — 새 장비는 얻을 때 끼거나 팝니다"));
+  body.appendChild(gearPanel(run));
   const x = el("button", "bmclose", "닫기");
   x.onclick = () => closeCenter();
   const row = el("div", "bmbtns"); row.appendChild(x); body.appendChild(row);
   box.appendChild(body);
 }
 
-function gearPanel(run, mode, onChange, say) {
+// ── 받은 장비 — 끼기 or 팔기 ────────────────────────────────────────────
+// (2026-10 사용자: 장비를 얻으면 무조건 장착 or 판매 밖에 선택지 없게 하자) 가방이 없다. 장비를 얻으면 이 창이 떠서 둘 중 하나를 고른다 —
+// 닫기 · 바깥 누르기 · Esc · 나중에가 없다. 얻은 장비는 run.bag(「정할 차례」 줄, run.js gainEquip)에 섰다가 여기서 하나씩 빠진다.
+// 여럿이면 차례로 묻는다. 사도마다 그 칸에 지금 낀 것과 바꾸면 스탯이 어떻게 되는지, 찬 칸이면 무엇이 몇 골드에 팔리는지 보인다.
+// 눌러 고르고 아래 단추로 정한다(되돌릴 수 없으니 한 번 눌러 바로 정해지지 않게 — 보스 카드 복제와 같은 결).
+// save — 무엇으로 적나(전투 중이면 싸움까지 같이 적어야 한다, fight-screen.js). then — 다 정하면
+const DELTA_KO = { atk: "공격력", def: "방어력", hp: "HP", crit: "치명" };
+export function settleGear(run, then, { save = () => writeSave(run) } = {}) {
+  while (run.bag.length && !EQUIP[run.bag[0]]) run.bag.shift();   // 데이터에서 사라진 장비는 조용히 버린다
+  if (!run.bag.length) { if (then) then(); return; }
+  const id = run.bag[0], e = EQUIP[id], price = R.sellPrice(id);
+  const box = centerModal("gearmodal gearpick", then || null);
+  const back = box.parentNode;
+  if (back) back.onclick = null;                  // 바깥을 눌러도 안 닫힌다
+  if (typeof removeEventListener === "function") removeEventListener("keydown", escCenter);   // Esc 로도
+
+  const left = el("div", "gpk-item");
+  const card = equipCard(id);
+  card.classList.add("eqtap");
+  card.onclick = () => showEquip(id);
+  left.appendChild(card);
+  box.appendChild(left);
+
+  const body = el("div", "bmbody");
+  body.appendChild(el("span", "bmkind", `장비를 얻었습니다${run.bag.length > 1 ? ` · 정할 장비 ${run.bag.length}점 — 하나씩 묻습니다` : ""}`));
+  body.appendChild(el("h3", "bmname", `「${e.ko}」 — 낄까요, 팔까요?`));
+  body.appendChild(el("p", "gbagh", `사도 하나에게 끼거나 ${price} 골드에 팝니다 · 찬 칸에 끼면 낀 것은 팔립니다 · 넣어 둘 가방은 없습니다`));
+
+  let pick = null;                                  // 사도 key 또는 "sell"
+  const go = el("button", "bmuse", "낄 사도나 팔기를 고르세요");
+  go.disabled = true;
+  const opts = el("div", "gpk-opts");
+  const choose = (cell, what, label) => {
+    pick = what;
+    for (const n of opts.children) n.classList.toggle("on", n === cell);
+    go.disabled = false; go.textContent = label;
+    sfx.play("ui.select");
+  };
+  for (const k of run.party) {
+    const h = HERO_DATA[k] || HERO(k);
+    const old = R.gearOf(run, k)[e.slot];
+    const nu = R.statsOf(id, k), was = old ? R.statsOf(old, k) : {};
+    const cell = el("div", "gpk-opt" + (e.affinity === k ? " aff" : ""));
+    const who = el("div", "gwho");
+    who.appendChild(art.portrait(k, { ko: h.ko, tint: TINT(k), size: 28, slot: "battle", still: true }));
+    who.classList.add("canzoom"); who.title = `${h.ko} — 눌러서 사도 정보`;
+    who.onclick = (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); heroSheet(run, k); };
+    who.appendChild(el("b", null, h.ko + (e.affinity === k ? " ♥" : "")));
+    cell.appendChild(who);
+    // 지금 그 칸 — 누르면 낀 것 자세히
+    const now = el("div", "gpk-now");
+    now.appendChild(old ? equipIcon(EQUIP[old], 34) : emptySlotIcon(e.slot, 34));
+    const nt = el("div");
+    nt.appendChild(el("span", "gsl", `지금 ${e.slot}`));
+    nt.appendChild(el("b", null, old ? EQUIP[old].ko : "비어 있음"));
+    if (old) nt.appendChild(goldLabel("span", "gpk-sold", `바꾸면 팔림 +${R.sellPrice(old)}`));
+    now.appendChild(nt);
+    if (old) { now.classList.add("eqtap"); now.onclick = (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); showEquip(old, { heroKey: k }); }; }
+    cell.appendChild(now);
+    // 바뀌는 스탯 — 오르면 초록, 내리면 빨강(그 사도 기준 — 애착 Lv.3 스탯까지)
+    const dl = el("div", "gpk-delta");
+    for (const x of ["atk", "def", "hp", "crit"]) {
+      const d = (nu[x] || 0) - (was[x] || 0);
+      if (!d) continue;
+      dl.appendChild(el("span", d > 0 ? "up" : "down", `${DELTA_KO[x]} ${d > 0 ? "+" : "−"}${Math.abs(d)}${x === "crit" ? "%" : ""}`));
+    }
+    if (!dl.children.length) dl.appendChild(el("span", "same", "스탯 그대로"));
+    if (e.affinity === k) dl.appendChild(el("span", "affon", "♥ 애착"));
+    cell.appendChild(dl);
+    const label = old ? `「${EQUIP[old].ko}」 팔고(+${R.sellPrice(old)}) ${h.ko}에게 낍니다` : `${h.ko}에게 낍니다`;
+    cell.onclick = () => choose(cell, k, label);
+    opts.appendChild(cell);
+  }
+  const sell = el("div", "gpk-opt gpk-sellopt");
+  sell.appendChild(goldIcon());
+  const st = el("div");
+  st.appendChild(el("b", null, `팔기 +${price} 골드`));
+  st.appendChild(el("span", "gsl", `아무에게도 끼지 않고 사는 값의 ${Math.round(RULES.EQUIP_SELL * 100)}% 에 팝니다`));
+  sell.appendChild(st);
+  sell.onclick = () => choose(sell, "sell", `팝니다 +${price} 골드`);
+  opts.appendChild(sell);
+  body.appendChild(opts);
+
+  go.onclick = () => {
+    if (!pick) return;
+    const sold = pick === "sell" || !!R.gearOf(run, pick)[e.slot];
+    const why = pick === "sell" ? R.sellEquip(run, id) : R.equip(run, pick, id, { replace: true });
+    save();
+    if (why) { hint(why); return; }
+    sfx.play(sold ? "shop.sell" : "reward.card");
+    if (run.bag.length) return settleGear(run, then, { save });
+    closeCenter();
+  };
+  const btns = el("div", "bmbtns");
+  btns.appendChild(go);
+  body.appendChild(btns);
+  box.appendChild(body);
+}
+
+// 낀 장비 보기 — 사도별 세 칸. 가방 · 끼기 · 팔기는 없다(2026-10 사용자: 얻으면 무조건 장착 or 판매 — settleGear)
+function gearPanel(run) {
   const box = el("div", "gearpanel");
   const draw = () => {
     box.innerHTML = "";
@@ -853,88 +954,7 @@ function gearPanel(run, mode, onChange, say) {
       rows.appendChild(r);
     }
     box.appendChild(rows);
-    box.appendChild(el("p", "gbagh", `낀 장비는 뺄 수 없고, 바꿔 끼면 ${Math.round(RULES.EQUIP_SELL * 100)}% 값에 팔립니다 · 누르면 자세히`));
-    // 끼기 — 빈 칸이면 바로, 찬 칸이면 옛 장비를 판다고 묻고 나서
-    const wear = (k, id) => {
-      const e = EQUIP[id], h = HERO_DATA[k] || HERO(k);
-      const old = R.gearOf(run, k)[e.slot];
-      const go = () => {
-        const price = old ? R.sellPrice(old) : 0;
-        const why = R.equip(run, k, id, { replace: !!old }); writeSave(run);
-        if (why) { if (say) say(why); return; }
-        if (old) { sfx.play("shop.sell"); if (say) say(`「${EQUIP[old].ko}」 ${josa(EQUIP[old].ko, "을를")} ${price} 골드에 팔고 ${h.ko}에게 「${e.ko}」 ${josa(e.ko, "을를")} 끼웠습니다`); }
-        else if (say) say(`${h.ko}에게 「${e.ko}」 ${josa(e.ko, "을를")} 끼웠습니다`);
-        draw(); onChange && onChange();
-      };
-      if (!old) return go();
-      const o = EQUIP[old];
-      confirmPop({
-        title: `${h.ko}의 ${e.slot} 바꿔 끼기`,
-        text: `「${o.ko}」 ${josa(o.ko, "을를")} 팔고(+${R.sellPrice(old)}골드) 「${e.ko}」 ${josa(e.ko, "을를")} 낍니다. 판 장비는 돌아오지 않습니다.`,
-        ok: `팔고 낍니다 +${R.sellPrice(old)}`,
-        onOk: go,
-      });
-    };
-    // 가방
-    if (run.bag.length) {
-      box.appendChild(el("p", "gbagh", "가방 — 누구에게 낄지 고르세요"));
-      const bag = el("div", "rrow gbag");
-      for (const id of run.bag.slice()) {
-        const e = EQUIP[id];
-        const btns = el("div", "gto");
-        const label = (k) => {
-          const old = R.gearOf(run, k)[e.slot];
-          return `${(HERO_DATA[k] || HERO(k)).ko}${old ? ` (바꾸기 +${R.sellPrice(old)})` : ""}${e.affinity === k ? " ♥" : ""}`;
-        };
-        for (const k of run.party) {
-          const b = el("button", "gtobtn" + (e.affinity === k ? " aff" : ""), label(k));
-          b.onclick = () => wear(k, id);
-          btns.appendChild(b);
-        }
-        // 팔기 — 되돌릴 수 없으니 두 번 눌러야 판다(한 번 누르면 「한 번 더 누르면 판매」)
-        const price = R.sellPrice(id);
-        const sell = el("button", "gsell");
-        sell.appendChild(goldIcon());
-        sell.appendChild(document.createTextNode(`팔기 +${price}`));
-        let armed = null;
-        sell.onclick = () => {
-          if (!armed) {
-            sell.classList.add("armed");
-            sell.lastChild.textContent = `한 번 더 누르면 판매 +${price}`;
-            armed = setTimeout(() => { armed = null; sell.classList.remove("armed"); sell.lastChild.textContent = `팔기 +${price}`; }, 2600);
-            return;
-          }
-          clearTimeout(armed); armed = null;
-          const why = R.sellEquip(run, id); writeSave(run);
-          if (why && say) say(why);
-          else { sfx.play("shop.sell"); if (say) say(`「${e.ko}」 ${josa(e.ko, "을를")} ${price} 골드에 팔았습니다`); }
-          draw(); onChange && onChange();
-        };
-        btns.appendChild(sell);
-        const card = equipCard(id, btns);
-        card.classList.add("eqtap");
-        card.onclick = (ev) => {
-          if (onButton(ev)) return;
-          showEquip(id, {
-            note: "가방에 있습니다 — 낄 사도를 고르거나 팝니다",
-            acts: [
-              ...run.party.map((k) => ({ label: label(k), cls: "bmuse" + (e.affinity === k ? " aff" : ""), run: () => wear(k, id) })),
-              { label: `팔기 +${price}`, cls: "bmsell", run: () => confirmPop({
-                title: "팔기", text: `「${e.ko}」 ${josa(e.ko, "을를")} 팔고 ${price} 골드를 받습니다. 판 장비는 돌아오지 않습니다.`, ok: `팝니다 +${price}`,
-                onOk: () => {
-                  const why = R.sellEquip(run, id); writeSave(run);
-                  if (why) { if (say) say(why); return; }
-                  sfx.play("shop.sell"); if (say) say(`「${e.ko}」 ${josa(e.ko, "을를")} ${price} 골드에 팔았습니다`);
-                  draw(); onChange && onChange();
-                },
-              }) },
-            ],
-          });
-        };
-        bag.appendChild(card);
-      }
-      box.appendChild(bag);
-    } else box.appendChild(el("p", "rnone", "가방이 비었습니다."));
+    box.appendChild(el("p", "gbagh", `낀 장비는 뺄 수 없습니다 — 새 장비를 얻으면 사도에게 끼거나 팔고, 찬 칸에 끼면 낀 것은 ${Math.round(RULES.EQUIP_SELL * 100)}% 값에 팔립니다 · 누르면 자세히`));
   };
   draw();
   return box;
@@ -1146,8 +1166,7 @@ export function campScreen(run, withShop, onDone, onShop) {
       const f = (CARDS[offer.cardId].flash || [])[run.flash[offer.cardId] - 1];
       train.sub.textContent = `「${CARDS[offer.cardId].name}」에 신탁 ${을를(`「${f ? f.ko : ""}」`)} 붙였습니다`;
     }
-    gsub.textContent = run.bag.length ? `가방에 ${run.bag.length}점 · 끼기 · 바꿔 끼기 · 팔기` : "낀 장비 보기";
-    gearB.classList.toggle("new", run.bag.length > 0);
+    gsub.textContent = "낀 장비 보기";
     goldN.textContent = String(run.gold);
   }
 
@@ -1209,14 +1228,15 @@ export function campScreen(run, withShop, onDone, onShop) {
 
   function openGear() {
     const wrap = el("div", "cp-gearbody");
-    wrap.appendChild(gearPanel(run, "camp", refresh, say));
-    openSheet("cp-gearmodal", "장비", "끼기 · 바꿔 끼기(낀 것은 팔림) · 팔기 — 캠프 선택을 쓰지 않습니다", wrap);
+    wrap.appendChild(gearPanel(run));
+    openSheet("cp-gearmodal", "장비", "낀 장비 — 새 장비는 얻을 때 끼거나 팝니다 · 캠프 선택을 쓰지 않습니다", wrap);
   }
 
   say(st.used ? "불이 잦아듭니다. 떠날 채비를 합니다."
     : (nearBoss ? "보스가 코앞입니다. 불을 쬐며 채비를 합니다." : "모닥불이 탁탁 튑니다. 쉬어 갈까요, 손을 익힐까요?")
       + (withShop ? " 골디가 옆에 좌판을 폈습니다." : ""));
   refresh();
+  if (run.bag.length) settleGear(run, refresh);     // 정하지 않은 장비(새로고침 · 옛 판의 가방) — 들어오자마자 묻는다
   return s;
 }
 
@@ -1228,7 +1248,7 @@ export function campScreen(run, withShop, onDone, onShop) {
 const GOLDY = {
   hello: "어서 오세요, 고객님! 오늘 들어온 물건은 전부 정품이에요.",
   buy: ["탁월한 선택이세요!", "센스가 좋으시네요!", "좋은 물건은 주인을 알아보는 법이죠!"],
-  equip: "장인의 손길이 닿은 정품이에요! 가방에 넣어 드렸어요. …와작.",
+  equip: "장인의 손길이 닿은 정품이에요! 누구에게 끼워 드릴까요? …와작.",
   delivery: "슈팡 씨가 맡기고 간 택배예요. 값은 벌써 치르셨답니다!",
   poor: "좋은 물건에는 그만한 값이 있는 법이죠. 조금 더 모아 오세요!",
   // 첫 줄은 늘 같다 — 할인은 안 된다는 말부터
@@ -1280,7 +1300,7 @@ const GOLDY_ANIM = {
 };
 
 // 「골디 + 진열대」 — 왼쪽에 골디가 서서 말하고, 오른쪽 한 화면에 진열 여섯 칸 + 제거 · 새로고침 · 흥정.
-// 1600×900 에서 넘치지 않는다. 덱에서 빼기 · 가방은 위에 뜨는 창으로 — 배치를 밀지 않게.
+// 1600×900 에서 넘치지 않는다. 덱에서 빼기는 위에 뜨는 창으로 — 배치를 밀지 않게(산 장비는 그 자리에서 끼거나 판다 — settleGear).
 export function shopScreen(run, onDone, opts = {}) {
   const s = screen();
   s.className = "shopscreen2";
@@ -1375,7 +1395,6 @@ export function shopScreen(run, onDone, opts = {}) {
   let haggles = 0;
   let fresh = true;                // 진열이 새로 깔렸으면 한 칸씩 올라온다(처음 · 새로고침)
   let lastGold = run.gold;
-  let bagNew = false;
 
   function draw() {
     // 골드 — 쓰면 빠진 만큼 떠올랐다 사라진다
@@ -1391,7 +1410,7 @@ export function shopScreen(run, onDone, opts = {}) {
     fresh = false;
     const rows = [
       ["neutral", "교주 카드", "교주님이 직접 쓰는 카드입니다 — 어느 사도의 것도 아닙니다 · 사도 스탯을 빌리지 않고 AP · 드로우 · 즉시 행동 · 정해진 % 버프와 디버프로 돕니다"],
-      ["equip", "장비", "사면 가방에 들어갑니다 · 빈 칸이면 바로 낄 수 있습니다"],
+      ["equip", "장비", "사면 바로 사도에게 끼거나 팝니다 · 찬 칸에 끼면 낀 것은 팔립니다"],
     ];
     let n = 0;
     for (const [kind, label, why] of rows) {
@@ -1412,7 +1431,7 @@ export function shopScreen(run, onDone, opts = {}) {
       shelf.appendChild(row);
     }
 
-    // 할 일 — 카드 제거 · 새로고침 · (가방) · 깎아 주세요
+    // 할 일 — 카드 제거 · 새로고침 · 깎아 주세요(가방은 없다 — 산 장비는 그 자리에서 끼거나 판다)
     acts.innerHTML = "";
     const rmPrice = R.removePrice(run);
     const rm = actBtn("sh-remove", "카드 제거", shop.removeUsed ? "이번에는 이미 한 장 뺐습니다" : "덱에서 한 장 · 쓸수록 오릅니다", shop.removeUsed ? "끝" : rmPrice);
@@ -1431,12 +1450,6 @@ export function shopScreen(run, onDone, opts = {}) {
       fresh = true; draw();
     };
     acts.appendChild(rr);
-
-    if (run.bag.length) {
-      const bag = actBtn("sh-bag" + (bagNew ? " new" : ""), "가방", "사 둔 장비를 낍니다 · 바꿔 끼면 낀 것은 팔림", `${run.bag.length}점`);
-      bag.onclick = () => { bagNew = false; openBag(); };
-      acts.appendChild(bag);
-    }
 
     const hg = actBtn("sh-haggle", "깎아 주세요", "…혹시 될까요?", "흥정");
     hg.onclick = () => { say(GOLDY.haggle[haggles++ % GOLDY.haggle.length]); act("haggle"); };
@@ -1462,10 +1475,12 @@ export function shopScreen(run, onDone, opts = {}) {
       const why = R.buy(run, i); writeSave(run);
       if (why) return why === "골드가 모자랍니다" ? poor() : say(why);
       sfx.play("shop.buy");
-      if (it.kind === "equip") { bagNew = true; say(it.delivery ? GOLDY.delivery : GOLDY.equip); }
+      if (it.kind === "equip") say(it.delivery ? GOLDY.delivery : GOLDY.equip);
       else say(pick(GOLDY.buy));
       act("buy");
       draw();
+      // 산 장비는 그 자리에서 끼거나 판다(2026-10 사용자: 상점 밖으로 나가서 팔아야 했다) — 판 골드로 바로 또 산다
+      if (it.kind === "equip") settleGear(run, draw);
     };
     return b;
   }
@@ -1497,7 +1512,7 @@ export function shopScreen(run, onDone, opts = {}) {
     card.classList.add("eqtap");
     card.onclick = (ev) => {
       if (onButton(ev)) return;
-      showEquip(it.id, { note: it.sold ? "팔렸습니다" : `골디의 값 ${it.price} 골드 — 사면 가방에 들어갑니다`, acts: it.sold ? [] : [{ label: it.delivery ? "택배 받기" : `${it.price} 골드로 삽니다`, run: () => buy.onclick() }] });
+      showEquip(it.id, { note: it.sold ? "팔렸습니다" : `골디의 값 ${it.price} 골드 — 사면 바로 사도에게 끼거나 팝니다`, acts: it.sold ? [] : [{ label: it.delivery ? "택배 받기" : `${it.price} 골드로 삽니다`, run: () => buy.onclick() }] });
     };
     slot.appendChild(card);
     slot.appendChild(buy);
@@ -1505,7 +1520,7 @@ export function shopScreen(run, onDone, opts = {}) {
     return slot;
   }
 
-  // ④ 위에 뜨는 창 — 덱에서 빼기 · 가방. 바깥 · Esc · 닫기로 닫는다
+  // ④ 위에 뜨는 창 — 덱에서 빼기. 바깥 · Esc · 닫기로 닫는다
   let sheet = null;
   const esc = (e) => { if (e.key === "Escape") closeSheet(); };
   function closeSheet() {
@@ -1563,13 +1578,8 @@ export function shopScreen(run, onDone, opts = {}) {
     openSheet("sh-deckmodal", "뺄 카드를 고릅니다", `${price} 골드 · 이번 상점에서 한 장 · 덱 ${run.deck.length}장`, wrap);
   }
 
-  function openBag() {
-    const wrap = el("div", "sh-bagbody");
-    wrap.appendChild(gearPanel(run, "empty", draw, say));
-    openSheet("sh-bagmodal", "가방", "끼기 · 바꿔 끼기(낀 것은 팔림) · 팔기 — 전투 밖이면 어디서든", wrap);
-  }
-
   draw();
+  if (run.bag.length) settleGear(run, draw);        // 정하지 않은 장비(새로고침 · 옛 판의 가방) — 들어오자마자 묻는다
   return s;
 }
 
@@ -1797,6 +1807,8 @@ export function eventScreen(run, onDone, onFight) {
     if (!E.log.length && !E.pending.length) logs.appendChild(el("span", "ev2-log", "아무 일도 없었습니다."));
     res.appendChild(logs);
     panel.appendChild(res);
+    // 장비를 받았으면(events.js equip) 끼기 or 팔기를 먼저 — 다 정하면 다시 그려 남은 고를 것을 연다
+    if (run.bag.length) return settleGear(run, draw);
     const p = E.pending[0];
     if (p) {
       const again = el("button", "ev2-again", "고를 것이 남았습니다 — 다시 열기");

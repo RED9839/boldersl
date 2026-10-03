@@ -20,7 +20,7 @@ export function newRun(partyKeys, rows, seed = Date.now()) {
     traits: [],                   // 옛 신탁 체계 — 지금은 안 쓴다(tools/sim.js 가 아직 잰다)
     flash: {},                    // 카드 id → 신탁 번호(1~5). 카드마다 하나만.
     reward: null,                 // 이번 보상에서 굴린 것 — 다시 그려도 안 바뀐다
-    bag: [],                      // 얻었지만 안 낀 장비 id
+    bag: [],                      // 받았지만 끼기 · 팔기를 아직 정하지 않은 장비 id — 가방이 아니다(gainEquip · ui.js settleGear)
     gauge: 0,                     // 고학년 게이지 — 전투가 끝나도 남은 만큼 다음 전투로 넘어간다
     gear: {},                     // { 사도키: { 무기: id, 방어구: id, 장신구: id } }
     gold: R.GOLD_START,
@@ -340,7 +340,7 @@ export function buy(run, idx) {
   if (run.gold < it.price) return "골드가 모자랍니다";
   run.gold -= it.price;
   it.sold = true;
-  if (it.kind === "equip") run.bag.push(it.id); else run.deck.push(it.id);
+  if (it.kind === "equip") gainEquip(run, it.id); else run.deck.push(it.id);
   return null;
 }
 
@@ -444,6 +444,15 @@ export function shiftHp(run, k, d) {
   run.partyHp = Math.max(1, Math.min(run.partyMaxHp, (run.partyHp || 0) + Math.max(0, d)));
 }
 
+// 장비를 얻는다 — 드랍 · 상점 · 이벤트가 모두 이리로. 가방은 없다(2026-10 사용자: 장비를 얻으면 무조건 장착 or 판매 밖에 선택지 없게 하자).
+// 얻은 장비는 run.bag(「정할 차례」 줄)에 섰다가 화면이 곧장 띄우는 창(ui.js settleGear)에서 끼거나 팔려 빠진다.
+// 줄에 세워 두는 까닭 — 창을 보다 새로고침해도 산 장비가 사라지지 않고 다음 화면에서 다시 묻게(옛 판의 가방도 같은 줄로 처리된다)
+export function gainEquip(run, equipId) {
+  if (!EQUIP[equipId]) return "그런 장비가 없습니다";
+  run.bag.push(equipId);
+  return null;
+}
+
 // 낀다 — 한 번 끼면 빼지 못한다(뺄 길이 없다). replace 가 아니면 빈 칸에만.
 // replace 면 그 칸에 낀 것을 판다(sellPrice 만큼 골드) — 바꿔 끼기 = 옛 장비 팔기
 export function equip(run, heroKey, equipId, { replace = false } = {}) {
@@ -451,7 +460,7 @@ export function equip(run, heroKey, equipId, { replace = false } = {}) {
   if (!e) return "그런 장비가 없습니다";
   if (!run.party.includes(heroKey)) return "파티에 없는 사도입니다";
   const i = run.bag.indexOf(equipId);
-  if (i < 0) return "가방에 없는 장비입니다";
+  if (i < 0) return "받은 장비가 아닙니다";
   const g = (run.gear[heroKey] = run.gear[heroKey] || {});
   const old = g[e.slot];
   if (old && !replace) return `${e.slot} 칸이 차 있습니다 — 바꿔 끼면 낀 것은 팔립니다`;
@@ -462,11 +471,11 @@ export function equip(run, heroKey, equipId, { replace = false } = {}) {
   return null;
 }
 
-// 판다 — 가방의 장비만. 낀 것은 바꿔 낄 때 저절로 팔린다. 사는 값의 EQUIP_SELL 만큼 골드
+// 판다 — 받고 아직 정하지 않은 장비만. 낀 것은 바꿔 낄 때 저절로 팔린다. 사는 값의 EQUIP_SELL 만큼 골드
 export const sellPrice = (equipId) => { const e = EQUIP[equipId]; return e ? Math.round((R.EQUIP_PRICE[e.grade] || 0) * R.EQUIP_SELL) : 0; };
 export function sellEquip(run, equipId) {
   const i = run.bag.indexOf(equipId);
-  if (i < 0) return "가방에 없는 장비입니다 — 낀 장비는 바꿔 낄 때 팔립니다";
+  if (i < 0) return "받은 장비가 아닙니다 — 낀 장비는 바꿔 낄 때 팔립니다";
   run.bag.splice(i, 1);
   run.gold += sellPrice(equipId);
   return null;
@@ -494,11 +503,11 @@ export function offerEquipSlot(run, grade, slot) {
   return pool.length ? [pool[Math.floor(run.rng() * pool.length)]] : [];
 }
 
-// 보스 보상의 장비 — 셋 중 하나를 가방에 넣는다(보상 화면이 빈 칸에 바로 끼게 해 준다)
+// 싸움이 떨군 장비 — 하나(rollReward 가 하나만 굴린다)를 받는다. 받자마자 끼기 or 팔기 창(gainEquip)
 export function takeEquip(run, equipId) {
   const rw = run.reward;
   if (!rw || !rw.equip || !rw.equip.includes(equipId) || rw.equipTaken) return "고를 수 없습니다";
-  run.bag.push(equipId);
+  gainEquip(run, equipId);
   rw.equipTaken = equipId;
   return null;
 }
@@ -580,7 +589,7 @@ export const FLOOR_REST = 10;
 export function swapHero(run, outKey, inKey) {
   if (!run.party.includes(outKey) || run.party.includes(inKey)) return false;
   run.party[run.party.indexOf(outKey)] = inKey;
-  // 나가는 사도의 장비는 가방으로 돌아온다
+  // 나가는 사도의 장비는 다시 「정할 차례」 로 — 남은 사도에게 끼거나 판다(사도 교체는 지금 판에 없다)
   const gearHp = Object.values(gearOf(run, outKey)).reduce((x, id) => x + statsOf(id, outKey).hp, 0);
   for (const id of Object.values(gearOf(run, outKey))) run.bag.push(id);
   delete run.gear[outKey];
@@ -592,7 +601,7 @@ export function swapHero(run, outKey, inKey) {
   run.rows[inKey] = base(inKey).row;
   delete run.rows[outKey];
   for (const id of Object.keys(run.flash || {})) if (CARDS[id] && CARDS[id].hero === outKey) delete run.flash[id];
-  // 파티 최대 HP — 나간 사도 몫(기본 HP)을 빼고 들어온 사도 몫을 더한다(장비 HP 는 가방으로 돌아갈 때 위에서 뺐다)
+  // 파티 최대 HP — 나간 사도 몫(기본 HP)을 빼고 들어온 사도 몫을 더한다(장비 HP 는 「정할 차례」 로 돌아갈 때 위에서 뺐다)
   shiftHp(run, inKey, base(inKey).hp - base(outKey).hp);
   return true;
 }
@@ -608,6 +617,8 @@ export function migrateRun(run) {
     for (const id of run.spent || []) if (typeof id === "string" && !(run.deck || []).includes(id)) (run.deck = run.deck || []).push(id);
     delete run.spent; delete run.boons;
   }
+  // 옛 판의 가방 — 버리지 않는다. 그대로 「정할 차례」 줄이 되어 지도 · 캠프 · 상점에 들어오면 하나씩 끼기 or 팔기로 묻는다(ui.js settleGear)
+  if (!Array.isArray(run.bag)) run.bag = [];
   if (run.partyMaxHp != null) return run;
   const hp = run.hp || {}, max = run.maxHp || {};
   run.partyMaxHp = Math.max(1, run.party.reduce((a, k) => a + (max[k] || base(k).hp || 0), 0));
