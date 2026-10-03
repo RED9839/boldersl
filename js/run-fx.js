@@ -245,7 +245,8 @@ export function runFx(s, fxList, ctx, api) {
         if (kw && kw.carrier !== "self") {
           // 적에게 거는 표식 · 아군에게 씌우는 것 — 대상 말이 없으면 고른 적(아군)에게
           // 대상 말이 없으면(auto) 적 표식은 고른 적에게, 아군 것은 고른 아군에게. 「자신에게」 면 자신에게
-          let tg = f.target && f.target !== "auto" ? f.target : kw.carrier === "enemy" ? "oneEnemy" : "oneAlly";
+          // 아군 표식은 파티에 하나(파티 층 상태) — 대상 말이 없으면 파티에. 카드에 「파티」 를 붙이지 않는다(2026-10 사용자: 「파티 「은총」」 이 지저분)
+          let tg = f.target && f.target !== "auto" ? f.target : kw.carrier === "enemy" ? "oneEnemy" : "party";
           // 문장 앞쪽의 적 말을 물고 오는 수가 있다 — 아군 것은 적에게, 적 표식은 아군에게 가지 않는다
           const FOE = ["oneEnemy", "allEnemies", "randomEnemy"];
           if (kw.carrier === "ally" && FOE.includes(tg)) tg = "self";

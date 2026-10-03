@@ -86,7 +86,7 @@ export function afterFight(run, combat) {
   // 싸움 기록 — 판 기록 파일(recordOf)에 들어간다. 어디서 · 누구와 · 몇 턴 · 파티 HP 얼마에서 얼마로
   const kind = run.eventFight ? "event" : isFinal(run) ? "final" : isBoss(run) ? "boss" : run.elite ? "elite" : "fight";
   (run.hist = run.hist || []).push({
-    floor: run.floor + 1, node: run.node, kind, foes: (currentEnemies(run) || []).slice(), result: combat.over || null,
+    floor: run.floor + 1, node: run.node, kind, foes: FLOORS[run.floor] ? (currentEnemies(run) || []).slice() : [],   // 시험 도구의 가짜 판(층 없음)에서도 멈추지 않게 result: combat.over || null,
     turns: combat.turn || 0, hp: [run.partyHp, combat.pool ? Math.max(0, combat.pool.hp) : run.partyHp, run.partyMaxHp],
     got: { cards: g.cards.slice(), flash: g.flash.map((f) => [f.cardId, f.n]) },
   });
