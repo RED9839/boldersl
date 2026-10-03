@@ -524,6 +524,16 @@ body:has(#screen.battle) #hint:not(:empty) { font-size: 16px; }
 }
 .bmface img, .bmface .art { width: 100% !important; height: 100% !important; object-fit: cover; border-radius: 50%; display: block; border: 3px solid #120f1c; }
 .bmcard { flex: none; width: 250px; cursor: default !important; }
+/* 층 보스의 카드 복제 — 셋 가운데 하나(ui.js bossCopyPick) */
+.copypick .bmbox { width: min(900px, 100%); }
+.copypick .cprow { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin: 6px 0; }
+.copypick .cpcell { flex: 0 1 230px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px; border-radius: 14px; background: none; border: 2px solid transparent; cursor: pointer; transition: border-color .12s, transform .12s; }
+.copypick .cpcell:hover { transform: translateY(-3px); }
+.copypick .cpcell.on { border-color: #f6d58e; box-shadow: 0 0 24px #f6d58e55; }
+.copypick .cpcell .gcard { width: 100%; pointer-events: none; }
+.copypick .cpwho { font-size: 12.5px; color: #cfc7ea; }
+.copypick .bmuse:disabled { opacity: .5; cursor: default; }
+.phone .copypick .cpcell { flex-basis: 30%; padding: 4px; }
 .bmcard:hover { transform: none !important; }
 .bmbody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .bmkind { font-size: 13px; font-weight: 700; letter-spacing: .04em; color: #b9b2d6; }

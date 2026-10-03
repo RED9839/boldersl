@@ -284,6 +284,7 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
         if (!fight(run, P, out)) return out;
         run.elite = false;
         if (!R.isBoss(run)) continue;
+        { const off = R.bossCopyOffer(run); if (off.length) R.bossCopy(run, off[0]); }   // 층 보스의 몫 — 셋 중 첫째
         const next = R.advance(run);
         if (run.done === "clear") break;
         if (next.final) {

@@ -329,30 +329,42 @@ export function saveRecord(run, stage) {
   } catch (e) { console.warn("기록 저장 실패", e); }
 }
 
-// 층 보스의 몫 — 복제된 고유 카드를 가운데 창으로 보여 준다(run.js bossCopy).
-// 전에는 지도 밑 안내 한 줄뿐이라 못 보고 지나갔다(2026-10 사용자)
-export function bossCopyNote(run, id) {
-  const c0 = CARDS[id];
-  if (!c0) return;
-  const c = flashed(c0, (run.flash || {})[id]);
-  const box = centerModal("cardmodal");
-  const big = bigCard(c, CARDART.pic[id] || null);
-  big.onclick = null; big.title = "";
-  big.classList.add("bmcard");
-  box.appendChild(big);
+// 층 보스의 몫 — 보스를 잡은 화면 위에서, 가진 고유 카드 셋 가운데 하나를 골라 한 장 더(run.js bossCopyOffer · main.js reward).
+// 눌러 고르고 「복제합니다」 로 정한다. 바깥을 눌러도 닫히지 않는다 — 고르지 않고 넘어가면 몫을 잃는다
+export function bossCopyPick(run, ids, onPick) {
+  const box = centerModal("cardmodal copypick");
+  const back = box.parentNode;
+  if (back) back.onclick = null;
+  removeEventListener?.("keydown", escCenter);
   const body = el("div", "bmbody");
   body.appendChild(el("span", "bmkind", "보스를 넘었습니다 — 카드 복제"));
-  body.appendChild(el("h3", "bmname", c.name));
-  body.appendChild(el("p", "bmtext", `${HERO(c.hero).ko}의 고유 카드 「${c.name}」 한 장이 덱에 더 들어갔습니다. 신탁이 붙어 있었다면 그대로 따라옵니다.`));
-  const { action } = cardParts(c, c.hero);
-  body.appendChild(withKeywords(el("p", "bmtext"), action, c.hero));
-  const row = el("div", "bmbtns");
-  const ok = el("button", "bmuse", "확인");
-  ok.onclick = closeCenter;
-  row.appendChild(ok);
+  body.appendChild(el("h3", "bmname", "고유 카드 한 장을 복제합니다"));
+  body.appendChild(el("p", "bmtext", "가진 고유 카드 가운데 셋 — 하나를 골라 덱에 한 장 더 넣습니다. 신탁 · 기적이 붙어 있으면 그대로 따라옵니다."));
+  const row = el("div", "cprow");
+  let pick = null;
+  const go = el("button", "bmuse", "카드를 고르세요");
+  go.disabled = true;
+  for (const id of ids) {
+    const c = flashed(CARDS[id], (run.flash || {})[id]);
+    const cell = el("button", "cpcell");
+    const big = bigCard(c, CARDART.pic[id] || null);
+    big.onclick = null; big.title = "";
+    cell.appendChild(big);
+    cell.appendChild(el("span", "cpwho", `${HERO(c.hero).ko} · 덱에 ${run.deck.filter((x) => x === id).length}장`));
+    cell.onclick = () => {
+      pick = id;
+      for (const n of row.children) n.classList.toggle("on", n === cell);
+      go.disabled = false; go.textContent = `「${c.name}」 복제합니다`;
+      sfx.play("ui.select");
+    };
+    row.appendChild(cell);
+  }
   body.appendChild(row);
+  const btns = el("div", "bmbtns");
+  go.onclick = () => { if (!pick) return; const id = pick; outClose = null; closeCenter(); sfx.play("reward.card"); onPick(id); };
+  btns.appendChild(go);
+  body.appendChild(btns);
   box.appendChild(body);
-  sfx.play("reward.card");
 }
 
 // ── 보상 ───────────────────────────────────────────────────────────────

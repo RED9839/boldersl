@@ -113,15 +113,18 @@ function reward() {
   run.elite = false;                       // 엘리트 보상은 한 번
   // 보스를 넘었을 때만 층이 바뀐다(run.js 의 advance). 그 밖의 싸움은 지도로 돌아간다
   if (!R.isBoss(run)) return mapStep();
+  // 층 보스의 몫 — 보스를 잡은 화면 위에서 가진 고유 카드 셋 중 하나를 골라 복제한다(run.js bossCopyOffer).
+  // 다음 층으로 넘어간 뒤 알리던 것을 바꿨다(2026-10 사용자). 고르고 나서야 층을 넘는다
+  const offer = R.bossCopyOffer(run);
+  if (offer.length) { S.writeSave(run); return ui.bossCopyPick(run, offer, (id) => { R.bossCopy(run, id); nextFloor(); }); }
+  nextFloor();
+}
+function nextFloor() {
   const next = R.advance(run);             // 층이 바뀐다 — 사도 교체는 없다
   if (run.done === "clear") return end("clear");
-  // 층 보스의 몫 — 가진 고유 카드 한 장이 복제됐다(run.js bossCopy) — 화면을 세운 뒤에 알린다
-  // 안내 한 줄은 못 보고 지나갔다 — 카드를 가운데 창으로 보여 준다(ui.js bossCopyNote)
-  const note = () => { if (next.copied && CARDS[next.copied]) ui.bossCopyNote(run, next.copied); };
   // 마지막 층의 보스를 넘으면 뿌리 깊은 곳 — 상점 없이 캠프 한 번, 떠나면 곧장 마지막 싸움(우로스). 그것을 이겨야 판을 깬다
-  if (next.final) { camp("final"); return note(); }
+  if (next.final) return camp("final");
   mapStep();
-  note();
 }
 
 // 지도 — 칸을 마칠 때마다 여기로 돌아와 다음 칸을 고른다(js/map.js · docs/10-지도.md).

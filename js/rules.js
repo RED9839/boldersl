@@ -84,7 +84,8 @@ export const FLASH_CHANCE = 0.35;        // 옛 규칙(보상 신탁) — 이제
 // 한 사도당 확률. 카드 신탁은 사도마다 + 교주 카드 몫 하나를 따로 굴린다.
 // EPI_SURE — 그 칸에서 아무도 안 빛났으면 하나는 반드시(엘리트 · 보스의 몫을 지킨다)
 // 일반 전투도 은총 하나는 반드시(2026-10 사용자 — 고유 카드 얻기가 드물었다). 사도당 확률 일반 20→25% · 이벤트 15→20%
-export const EPI_HERO = { fight: 0.25, elite: 0.5, boss: 0.6, event: 0.2 };
+// 2026-10-04 사용자 「은총 확률 조금 올리자」 — 일반 25→30 · 엘리트 50→60 · 보스 60→70 · 이벤트 20→25%
+export const EPI_HERO = { fight: 0.3, elite: 0.6, boss: 0.7, event: 0.25 };
 export const EPI_CARD = { fight: 0.15, elite: 0.4, boss: 0.3, event: 0.1 };
 export const EPI_SURE = { hero: ["fight", "elite", "boss"], card: ["elite"] };
 export const DIVINE = 0.1;
@@ -122,8 +123,9 @@ export const SHIN_CHANCE = 0.05;
 // 기획서는 교주 카드 값만 적었다(원작 코인 ×10 — 일반 70~90 · 전설 50~490).
 // 버는 쪽과 서비스 값은 **우리가 정했다.** 한 층(싸움 셋)이면 상점에서 교주 카드 한두 장을 산다.
 export const GOLD_START = 99;
-export const GOLD_FIGHT = [15, 25];      // 보통 싸움 — 층이 오를수록 +5씩
-export const GOLD_BOSS = 75;
+// 2026-10-04 사용자 「골드 수급 조금 올려」 — 한 층이 열 칸으로 줄어 싸움이 줄었다. 보통 15~25 → 20~30, 보스 75 → 95
+export const GOLD_FIGHT = [20, 30];      // 보통 싸움 — 층이 오를수록 +5씩
+export const GOLD_BOSS = 95;
 // 엘리트 칸(docs/10-지도.md) — 한 단계 센 싸움을 체력 ×1.5 로. 이기면 장비 하나 · 신탁 · 골드 ×1.5
 export const ELITE_HP = 1.5;
 export const ELITE_GOLD = 1.5;

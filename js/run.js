@@ -491,8 +491,8 @@ export function takeEquip(run, equipId) {
 export function advance(run) {
   const wasBoss = isBoss(run);
   if (!wasBoss) { run.node++; return { swap: false }; }
-  // 층 보스의 몫 — 가진 고유 카드 하나를 한 장 더(마지막 싸움은 판이 끝나니 빼고)
-  const copied = isFinal(run) ? null : bossCopy(run);
+  // 층 보스의 몫(고유 카드 복제)은 층을 넘기 전에 보스를 잡은 화면에서 셋 중 하나를 고른다(main.js reward · bossCopyOffer). 여기서는 안 한다
+  const copied = null;
   // 마지막 층의 보스 뒤에 마지막 싸움이 있으면 층을 넘지 않고 그리로(node 4) — 캠프 한 번을 거친다(main.js finalCamp)
   if (!isFinal(run) && run.floor === FLOORS.length - 1 && FLOORS[run.floor].final) { run.node = 4; return { swap: false, final: true, copied }; }
   run.floor++; run.node = 0;
@@ -502,16 +502,29 @@ export function advance(run) {
   return { swap: false, copied };
 }
 
-// 층 보스 보상 — 덱에 **가진** 사도 고유 카드 가운데 무작위 한 장을 복제한다. 강화 카드(한 장만 — 신탁으로 강화가 된 것 포함)는 뺀다.
-// 가진 고유 카드가 없으면 아무것도 안 한다. 복제한 카드 id 를 돌려준다(main.js 가 알린다)
-export function bossCopy(run) {
-  const owned = [...new Set(run.deck)].filter((id) => {
-    const c = CARDS[id];
-    if (!c || !c.unique || !c.hero) return false;
-    return !R.isOnly(flashed(c, (run.flash || {})[id]));      // 유일(강화 카드 포함)은 복제하지 않는다
-  });
-  if (!owned.length) return null;
-  const id = owned[Math.floor(run.rng() * owned.length)];
+// 층 보스 보상 — 덱에 **가진** 사도 고유 카드 가운데 셋을 내놓고 하나를 고르게 한다(2026-10 사용자: 무작위 한 장 → 셋 중 하나, 보스를 잡은 화면에서).
+// 유일(강화 카드 — 신탁으로 강화가 된 것 포함)은 뺀다. 고를 것이 없으면 빈 배열.
+// 내놓은 셋은 판에 적어 둔다(run.copyOffer) — 고르다 새로고침해도 같은 셋이다
+const copyable = (run) => [...new Set(run.deck)].filter((id) => {
+  const c = CARDS[id];
+  if (!c || !c.unique || !c.hero) return false;
+  return !R.isOnly(flashed(c, (run.flash || {})[id]));
+});
+export function bossCopyOffer(run) {
+  if (isFinal(run)) return [];
+  const at = `${run.floor}`;
+  if (run.copyOffer && run.copyOffer.at === at) return run.copyOffer.ids.slice();
+  const pool = copyable(run), ids = [];
+  while (ids.length < 3 && pool.length) ids.push(...pool.splice(Math.floor(run.rng() * pool.length), 1));
+  run.copyOffer = { at, ids };
+  return ids.slice();
+}
+// 고른 카드를 한 장 더 넣는다. id 를 안 주면(옛 길 · 시험) 가진 것 가운데 무작위. 복제한 카드 id(없으면 null)
+export function bossCopy(run, id) {
+  const pool = copyable(run);
+  if (id == null) id = pool.length ? pool[Math.floor(run.rng() * pool.length)] : null;
+  run.copyOffer = null;
+  if (!id || !pool.includes(id)) return null;
   run.deck.push(id);
   return id;
 }

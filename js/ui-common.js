@@ -468,8 +468,7 @@ export function showPiles(piles, pick, cardFor, onDetail, numFor) {
       if (onDetail) card.classList.add("canzoom");
       if (c.flashOn) card.appendChild(el("span", "pflash", c.flashKind || c.flashKo || "신탁"));
       cell.appendChild(card);
-      // 카드에는 줄여서 앉혔으니, 아래에 전문을 붙인다
-      cell.appendChild(withKeywords(el("p", "pfull"), c.text, c.hero));
+      // 카드 밑에 전문을 한 번 더 붙이던 것은 뺐다 — 카드 글과 거의 같아 겹쳐 보였다(2026-10 사용자). 자세히는 카드를 누르면 본다
       grid.appendChild(cell);
     }
     if (!pl.ids.length) grid.appendChild(el("p", "pwhy", "비어 있습니다."));
