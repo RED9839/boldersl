@@ -1999,6 +1999,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     else if (selHint) hint("");
     selHint = lifted;
     s.classList.toggle("lifted", lifted);
+    later(0, paintLiftTips);                // 손패가 펼쳐진(부채꼴) 뒤 자리를 잰다
     runFx(fxq);
     // 새로 들어온 카드 — 적이 움직이는 동안(턴이 넘어간 때)은 그 몸짓이 끝난 뒤에
     if (fresh.length && !st.over) dealIn(fresh, Math.max(0, fxEnd - performance.now() - 150));
@@ -2781,33 +2782,88 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     box.appendChild(body);
   }
 
+  // 카드 크게 보기(카제나식, 2026-10) — 왼쪽에 카드를 크게, 오른쪽에 그 카드에 나오는 낱말 풀이를 전부 쌓아 자동으로.
+  // 신탁 · 겨우살이의 축복이 붙었으면 그것도 맨 위에. 낱말은 카드 안과 풀이 머리가 같은 빛깔(.kw · .ktip b).
+  // 길게 누르기 · 오른쪽 클릭으로 연다. 아무 데나 누르면 닫힌다(손 · 싸움터를 오래 가리지 않게)
+  function cardTips(id, c) {
+    const tips = [];
+    const n = st.flash && st.flash[id];
+    if (n && c.flashKo) tips.push({ ko: `신탁 · ${c.flashKo}`, text: "이 판에서 붙은 신탁 — 카드 글이 바뀐 모습입니다", kind: "flash" });
+    const sh = st.shin && st.shin[id];
+    if (sh) {
+      const [nm, eff] = (RULES.shinLabel(CARDS[id], sh) || "").split(" — ");
+      tips.push({ ko: `✦ ${nm || "겨우살이의 축복"}`, text: eff || "", kind: "bless" });
+    }
+    // 카드 글에 실제로 나오는 낱말만 — 풀이 속 낱말(「방어」 풀이의 「소멸」)까지 끌려 나오면 카드에 없는 말이 섞였다
+    const { action, terms } = cardParts(c, c.hero);
+    for (const t of terms) if (action.includes(t.ko) || (c.tags || []).includes(t.ko)) tips.push({ ko: t.ko, text: kwBriefText(t.text) || "풀이가 아직 없습니다.", kind: "kw" });
+    const why = st.hand.includes(id) ? C.canPlay(st, id) : null;
+    if (why) tips.push({ ko: "지금은 못 냅니다", text: why, kind: "no" });
+    return tips;
+  }
+  // 낱말 풀이 한 줄 — 꾸밈말(「 — 」 앞)을 떼고 규칙만 짧게
+  function kwBriefText(t) {
+    const raw = String(t || "");
+    const d = raw.indexOf(" — ");
+    return shortText((d > 0 && d < 60 ? raw.slice(d + 3) : raw).trim());
+  }
+  function tipBox(tips) {
+    const box = el("div", "ktips");
+    for (const t of tips) {
+      const b = el("div", "ktip k-" + t.kind);
+      b.appendChild(el("b", null, t.ko));
+      if (t.text) b.appendChild(el("p", null, t.text));
+      box.appendChild(b);
+    }
+    return box;
+  }
   function openCard(id) {
     const c = C.cardOf(st, id);
     if (!c) return;
-    const box = openModal("cardmodal");
+    closeModal();
+    const back = el("div", "cardinspect");
     const calc = cardCalc(id);
     const big = bigCard({ ...c, cost: C.costOf(st, id) }, CARDART.pic[id] || null, calc);
     big.onclick = null; big.title = "";
-    big.classList.add("bmcard");
-    box.appendChild(big);
-    const body = el("div", "bmbody");
-    body.appendChild(el("span", "bmkind", c.hero ? `${HERO(c.hero).ko}의 카드 · ${c.type}` : `공용 카드 · ${c.type}`));
-    body.appendChild(el("h3", "bmname", c.name));
-    const meter = el("div", "bmmeter");
-    meter.appendChild(el("span", null, c.xcost ? "비용 X — 남은 AP 를 모두 씁니다" : `비용 ${C.costOf(st, id)} AP`));
-    body.appendChild(meter);
-    const { action, terms } = cardParts(c, c.hero);
-    body.appendChild(withNumbers(el("p", "bmtext"), action, c.hero, calc));
-    if (terms.length) body.appendChild(termList(terms));
-    // 낼 수 없는 까닭은 손에 든 카드일 때만 — 더미에서 연 카드는 원래 못 낸다
-    const why = st.hand.includes(id) ? C.canPlay(st, id) : null;
-    if (why) body.appendChild(el("p", "bmwhy", why));
-    const row = el("div", "bmbtns");
-    const x = el("button", "bmclose", "닫기");
-    x.onclick = closeModal;
-    row.appendChild(x);
-    body.appendChild(row);
-    box.appendChild(body);
+    big.classList.add("cibig");
+    back.appendChild(big);
+    const side = el("div", "ciside");
+    const who = el("div", "ciwho");
+    who.appendChild(el("span", null, c.hero ? `${HERO(c.hero).ko}의 카드` : "공용 카드"));
+    if (c.xcost) who.appendChild(el("span", null, "남은 AP 를 모두 씁니다"));
+    side.appendChild(who);
+    const tips = cardTips(id, c);
+    if (tips.length) side.appendChild(tipBox(tips));
+    else side.appendChild(el("p", "cinone", "따로 풀이할 낱말이 없는 카드입니다"));
+    side.appendChild(el("small", "cihint", "아무 데나 누르면 닫힙니다"));
+    back.appendChild(side);
+    const close = () => { back.remove(); if (modal === back) modal = null; document.removeEventListener?.("keydown", esc); };
+    const esc = (e) => { if (e.key === "Escape") close(); };
+    back.onclick = close;
+    document.addEventListener?.("keydown", esc);
+    document.body.appendChild(back);
+    modal = back;
+  }
+  // 든 카드의 낱말 풀이 — 카드를 눌러 들어 올리면 그 카드 위에 작게 뜬다(누르는 것은 막지 않는다). 내려놓거나 내면 사라진다
+  let liftTips = null;
+  function paintLiftTips() {
+    if (liftTips) { liftTips.remove(); liftTips = null; }
+    if (selCard < 0 || st.over || !groundOk) return;
+    const id = st.hand[selCard], c = id && C.cardOf(st, id);
+    const src = hand.querySelector && hand.querySelector(`.card[data-i="${selCard}"]`);
+    if (!c || !src || !src.getBoundingClientRect || !field.getBoundingClientRect) return;
+    const tips = cardTips(id, c).filter((t) => t.kind !== "no");
+    if (!tips.length) return;
+    const box = tipBox(tips);
+    box.classList.add("liftips");
+    const r = src.getBoundingClientRect(), z = zNow();
+    box.style.left = ((r.right + 8) / z) + "px";
+    box.style.bottom = ((innerHeight - r.top - 10) / z) + "px";
+    document.body.appendChild(box);
+    // 화면 오른쪽을 넘으면 카드 왼쪽으로
+    const br = box.getBoundingClientRect();
+    if (br.right > innerWidth - 8) box.style.left = ((r.left - 8 - br.width) / z) + "px";
+    liftTips = box;
   }
 
   // ── 신탁 — 빛나는 카드를 내는 순간 ──────────────────────────────────
@@ -3058,6 +3114,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   };
 
   function finish() {
+    if (liftTips) { liftTips.remove(); liftTips = null; }
     endBtn.disabled = true;
     hand.querySelectorAll("button").forEach((b) => (b.disabled = true));
     R.afterFight(run, st);

@@ -350,3 +350,36 @@ html.rv-nojua { --rv-w: 800; }
 .bmodal .bsgear { font-style: normal; color: #ffcf3f; margin-left: 3px; font-size: .9em; }
 .bmodal .bmstats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; }
 .bmodal .bmstat { min-width: 0; }
+
+/* ═══ ⑦ 카드 크게 보기 · 든 카드의 낱말 풀이 (카제나식) ════════════════════════════════════ */
+.cardinspect {
+  position: fixed; inset: 0; z-index: 85; display: flex; align-items: center; justify-content: center; gap: 22px; padding: 24px;
+  background: #07051099; backdrop-filter: blur(3px); animation: bmfade .14s ease-out; cursor: pointer;
+}
+.cardinspect .cibig { width: min(300px, 38vw); flex: none; cursor: pointer; transform: none !important; box-shadow: 0 0 0 3px var(--rv-line), 0 8px 0 var(--rv-shadow), 0 30px 60px #000c; animation: cipop .18s cubic-bezier(.2, .9, .3, 1.2); }
+.cardinspect .cibig .gtext { font-size: 16px; line-height: 1.5; -webkit-line-clamp: unset; }
+.cardinspect .cibig .gtitle b { font-size: 20px; }
+@keyframes cipop { from { transform: scale(.85) !important; opacity: 0; } }
+.ciside { display: flex; flex-direction: column; gap: 10px; width: min(360px, 44vw); max-height: 86vh; overflow: auto; }
+.ciwho { display: flex; flex-wrap: wrap; gap: 6px; }
+.ciwho span { font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 14px; color: var(--rv-text); background: var(--rv-paper); border: 2px solid var(--rv-line); border-radius: 99px; padding: 1px 12px; }
+.cinone, .cihint { margin: 0; color: var(--rv-ink2); font-size: 13px; }
+/* 풀이 칸 — 카제나처럼 머리는 낱말 빛깔(카드 안 밑줄 낱말과 같은 주황), 아래는 한두 줄 규칙 */
+.ktips { display: flex; flex-direction: column; gap: 8px; }
+.ktip { padding: 10px 14px 11px; border-radius: 14px; background: #120d1cf2; border: 2px solid var(--rv-line); border-top: 3px solid #ffb347; box-shadow: 0 4px 0 var(--rv-shadow); }
+.ktip b { display: block; font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 17px; color: #ffb347; margin-bottom: 2px; }
+.ktip p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--rv-text); word-break: keep-all; }
+.ktip.k-bless { border-top-color: #ffd23f; } .ktip.k-bless b { color: #ffd23f; }
+.ktip.k-flash { border-top-color: #b79cff; } .ktip.k-flash b { color: #c7b2ff; }
+.ktip.k-no { border-top-color: #ff7a8a; } .ktip.k-no b { color: #ff9aa6; }
+/* 카드 안 낱말도 같은 주황 — 풀이 머리와 짝이 맞게 */
+.battle .hand .card .kw, .cardinspect .kw { color: #ffb347; text-decoration-color: #ffb34799; }
+/* 든 카드 위 — 작게, 누르는 것을 막지 않는다 */
+.ktips.liftips { position: fixed; z-index: 60; width: 250px; pointer-events: none; animation: liftips .16s ease-out; }
+.ktips.liftips .ktip { padding: 7px 11px 8px; }
+.ktips.liftips .ktip b { font-size: 15px; }
+.ktips.liftips .ktip p { font-size: 12.5px; }
+@keyframes liftips { from { opacity: 0; transform: translateY(6px); } }
+.phone .cardinspect { gap: 12px; padding: 12px; }
+.phone .ktips.liftips { width: 200px; }
+@media (prefers-reduced-motion: reduce) { .cardinspect, .cardinspect .cibig, .ktips.liftips { animation: none; } }
