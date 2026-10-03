@@ -2363,6 +2363,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       b.appendChild(cbody);
       // 신탁이 붙은 카드 — 금빛 꼬리표(ui-common bigCard 와 같다)
       if (c.flashOn) { b.classList.add("oracle"); cart.appendChild(el("span", "pflash", c.flashKind || c.flashKo || "신탁")); }
+      if (c.copy) { b.classList.add("copied"); cart.appendChild(el("span", "pcopy", "복제")); }   // 복제본 — 그림 뒤집기
       // 겨우살이의 축복 — 초록 꼬리표(ui-common bigCard 와 같다)
       { const sh = st.shin && st.shin[id]; if (sh) { const [ko, line] = (RULES.shinLabel(CARDS[id], sh) || "겨우살이의 축복").split(" — "); const t = el("span", "pshin", ko); t.title = line || ""; cart.appendChild(t); } }
 
@@ -2625,7 +2626,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (!drag.on) {
       if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 10) return;
       clearTimeout(drag.hold);
-      // 못 내는 카드는 끌지 않는다. 고학년은 까닭(게이지 · 같은 사도 연속)을 말한다
+      // 못 내는 카드는 끌지 않는다. 고학년은 까닭(게이지 · 쓰러짐)을 말한다
       if (drag.locked) {
         const why = drag.ult ? drag.locked : null, card = drag.card;
         stopDrag(true);
@@ -3703,14 +3704,23 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       }
       const next = () => { clearGround(); onDone(st.over); };
       // 장비를 주웠으면 장비 창 — 누구에게 낄지 고르고 닫으면 다음 칸으로(가방에는 이미 들어 있다)
-      if (gotEquip && groundOk) {
-        setTimeout(() => import("./ui.js").then((ui) => ui.openGearModal(run, {
-          sub: `「${EQUIP[gotEquip].ko}」 ${josa(EQUIP[gotEquip].ko, "을를")} 주웠습니다 — 누구에게 낄지 고르세요 · 닫으면 다음 칸으로`,
-          onClose: next,
-        })).catch(next), 700);
+      const gear = () => {
+        if (gotEquip && groundOk) {
+          setTimeout(() => import("./ui.js").then((ui) => ui.openGearModal(run, {
+            sub: `「${EQUIP[gotEquip].ko}」 ${josa(EQUIP[gotEquip].ko, "을를")} 주웠습니다 — 누구에게 낄지 고르세요 · 닫으면 다음 칸으로`,
+            onClose: next,
+          })).catch(next), 700);
+          return;
+        }
+        setTimeout(next, loot ? 1300 : 500);
+      };
+      // 쓰지 못한 신탁 — 빛났지만 안 낸 카드가 남았으면 장비 창 앞에 하나씩 묻는다(2026-10 사용자, ui.js leftoverGlows)
+      const left = Object.entries(st.glow || {}).filter(([, g]) => g && g.options && g.options.length).map(([cardId, g]) => ({ cardId, g }));
+      if (left.length && groundOk) {
+        setTimeout(() => import("./ui.js").then((ui) => ui.leftoverGlows(run, left, gear)).catch(gear), 600);
         return;
       }
-      setTimeout(next, loot ? 1300 : 500);
+      gear();
     }));
   }
 

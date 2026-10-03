@@ -4008,3 +4008,20 @@ body { word-break: keep-all; overflow-wrap: break-word; }
   width: min(420px, 80%); border-color: #9be7a466;
 }
 .phone .cp-plate.cp-party { top: 2px; bottom: auto; left: 2%; transform: none; width: min(240px, 34%); }
+
+/* 사도 정보(전투 밖, ui.js heroSheet) — 장비 창 위에 뜬다 */
+.heroSheet { z-index: 98; }
+.heroSheet .pilebox { width: min(620px, 100%); }
+.heroSheet .hsTitle { display: flex; flex-direction: column; gap: 2px; }
+.heroSheet .hsTitle b { font-size: 20px; }
+.heroSheet .hsTitle span { font-size: 12.5px; color: #b9b2d6; }
+.heroSheet .hsBody { padding: 14px 18px 18px; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.heroSheet .hsStats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.heroSheet .hsStat { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 10px; background: #ffffff0d; }
+.heroSheet .hsStat span { font-size: 11.5px; color: #b9b2d6; }
+.heroSheet .hsStat b { font-size: 18px; }
+.heroSheet .hsStat i { font-size: 11px; font-style: normal; color: #ffcf6b; }
+.heroSheet .hsSec h4 { margin: 0 0 4px; font-size: 13px; color: #ffe08a; }
+.heroSheet .hsSec p, .heroSheet .hsSec div { margin: 0; font-size: 13px; line-height: 1.6; color: #e8e3ff; }
+.gwho.canzoom { cursor: pointer; }
+.gwho.canzoom:hover { filter: brightness(1.15); }

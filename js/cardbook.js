@@ -97,15 +97,20 @@ for (const [id, c] of Object.entries(OLD)) {
 // 신탁 · 기적은 카드 id 에 걸리니, 만든 카드는 id 뒤에 PLAIN 을 붙인 따로 된 카드로 든다. 처음 찾을 때 원래 카드를 베껴 둔다 —
 // 목록(Object.keys)에는 안 나오게(보상 · 상점 · 도감이 집지 않게), 그림도 원래 카드의 것을 쓴다
 export const PLAIN = "~";
-export const baseId = (id) => (typeof id === "string" && id.endsWith(PLAIN) ? id.slice(0, -1) : id);
+// 복제 카드 — 이벤트 · 층 보스의 카드 복제로 덱에 든 한 장(2026-10 사용자: 카제나처럼 그림을 뒤집어 복제본임을 보인다).
+// id 뒤에 COPY 를 붙인 따로 된 카드다 — 복제할 때 원본의 신탁 · 축복을 옮겨 받고(run.js addCopy), 그 뒤로는 빛나지 않는다(새 신탁 · 축복 없음)
+export const COPY = "^";
+const TAILS = [PLAIN, COPY];
+export const baseId = (id) => (typeof id === "string" && TAILS.some((x) => id.endsWith(x)) ? id.slice(0, -1) : id);
+export const isCopy = (id) => typeof id === "string" && id.endsWith(COPY);
 const plainGet = (make) => (t, k) => {
-  if (typeof k === "string" && !(k in t) && k.endsWith(PLAIN) && k.length > 1) {
+  if (typeof k === "string" && !(k in t) && k.length > 1 && TAILS.includes(k.slice(-1))) {
     const b = t[k.slice(0, -1)];
     if (b !== undefined) Object.defineProperty(t, k, { value: make(b, k), enumerable: false, configurable: true });
   }
   return t[k];
 };
-export const CARDS = new Proxy(book, { get: plainGet((c, k) => ({ ...c, id: k, plain: true })) });
+export const CARDS = new Proxy(book, { get: plainGet((c, k) => ({ ...c, id: k, ...(k.endsWith(COPY) ? { copy: true } : { plain: true }) })) });
 if (CARDART && CARDART.pic) CARDART.pic = new Proxy(CARDART.pic, { get: plainGet((src) => src) });
 
 // 그 사도의 시작 덱 — 기획서에 있으면 기획서, 없으면 옛 것

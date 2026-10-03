@@ -8,9 +8,9 @@
 import { EVENTS, CURSES, GIFTS } from "./data/events.js";
 import { parseEffect } from "./effects.js";
 import { 은는, 을를, josa } from "./ko.js";
-import { CARDS, NEUTRAL_IDS, EQUIP, HERO_DATA, flashed } from "./cardbook.js";
+import { CARDS, NEUTRAL_IDS, EQUIP, HERO_DATA, flashed, isCopy } from "./cardbook.js";
 import * as R from "./rules.js";
-import { rewardCards, offerFlash, offerEquip, offerEquipSlot, forgetCard, divineKindsFor, powerWhy, powerCard, flashOk } from "./run.js";
+import { rewardCards, offerFlash, offerEquip, offerEquipSlot, forgetCard, divineKindsFor, powerWhy, powerCard, flashOk, addCopy } from "./run.js";
 
 export { EVENTS };
 const koOf = (k) => (HERO_DATA[k] || {}).ko || k;
@@ -322,7 +322,7 @@ export function apply(run, ops) {
         break;
       }
       case "shinNow": {
-        const ids = Object.keys(run.flash || {}).filter((id) => CARDS[id] && !(run.shin || {})[id]);
+        const ids = Object.keys(run.flash || {}).filter((id) => CARDS[id] && !isCopy(id) && run.deck.includes(id) && !(run.shin || {})[id]);
         if (ids.length) { const id = ids[Math.floor(run.rng() * ids.length)]; run.shin = run.shin || {}; run.shin[id] = ownRandom(run, CARDS[id]) || true; E.log.push(`겨우살이의 축복! 「${CARDS[id].name}」 — ${R.shinLabel(CARDS[id], run.shin[id])}`); }
         else { E.shinChance = 1; E.log.push("축복을 얹을 신탁이 아직 없습니다 — 이번에 고르는 신탁에 얹힙니다"); }
         break;
@@ -425,8 +425,8 @@ export function resolve(run, value) {
         if ((run.gold || 0) < extra) return `신탁 · 기적이 붙은 카드는 복제에 골드 ${extra} ${josa(String(extra), "이가")} 더 듭니다 (지금 ${run.gold || 0})`;
         run.gold -= extra; E.log.push(`신탁 · 기적까지 옮겨 적느라 골드 -${extra}`);
       }
-      run.deck.push(value);
-      E.log.push(`「${CARDS[value].name}」 — 한 장 더`);
+      addCopy(run, value);                       // 복제본 — 그림이 뒤집히고 다시는 빛나지 않는다(run.js addCopy)
+      E.log.push(`「${CARDS[value].name}」 — 복제본 한 장 더`);
       break;
     }
     case "card": {
@@ -483,7 +483,7 @@ export function afterEventFight(run, won) {
 // 카드 복제 — 고를 수 있는가 · 웃돈. 신탁 · 기적은 카드 종류(id)에 붙어 있어 복제본도 그대로 가진다
 // 기적을 얹을 수 있는 카드 — 덱의 카드 종류 중 기적이 아직 없는 것. 「비용 -1」 은 1코 이상만. 골칫거리는 뺀다
 export function shinAble(run, kind) {
-  const ids = [...new Set(run.deck)].filter((id) => CARDS[id] && !CARDS[id].curse && !(run.shin || {})[id]);
+  const ids = [...new Set(run.deck)].filter((id) => CARDS[id] && !CARDS[id].curse && !isCopy(id) && !(run.shin || {})[id]);   // 복제본에는 축복이 안 붙는다
   if (kind === "cost") return ids.filter((id) => typeof CARDS[id].cost === "number" && CARDS[id].cost >= 1);
   return kind ? ids : ids.filter((id) => divineKindsFor(CARDS[id]).length);
 }

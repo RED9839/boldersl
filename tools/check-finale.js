@@ -53,12 +53,17 @@ console.log("층 보스 — 가진 고유 카드 하나를 복제");
   check(offer.length === 3 && offer.every((id) => uq.includes(id)), `가진 고유 카드 셋을 내놓는다 — 강화 카드는 빼고 (${offer.map((id) => CARDS[id].name).join(" · ")})`);
   check(JSON.stringify(R.bossCopyOffer(run)) === JSON.stringify(offer), "다시 물어도(새로고침) 같은 셋");
   const got = R.bossCopy(run, offer[1]);
-  check(got === offer[1] && run.deck.length === before + 1 && run.deck.filter((x) => x === offer[1]).length === 2, "고른 카드가 덱에 한 장 더");
+  check(got === offer[1] + "^" && run.deck.length === before + 1 && run.deck.includes(got) && CARDS[got].copy, `고른 카드의 복제본이 덱에 한 장 더 (${got})`);
+  // 복제본은 원본의 신탁을 옮겨 받고, 다시는 빛나지 않는다
+  run.flash[offer[2]] = 2;
+  const got2 = R.bossCopy(run, offer[2]);
+  check(run.flash[got2] === 2 && !R.flashTargets(run).includes(got2), "복제본은 원본의 신탁을 받고, 신탁 대상(빛남)에서 빠진다");
   check(R.bossCopy(run, pw ? pw.id : "없는카드") === null, "셋 밖의 카드(강화 카드)는 복제하지 않는다");
   const run2 = R.newRun(party, {});
   check(R.bossCopyOffer(run2).length === 0 && R.bossCopy(run2) === null, "고유 카드가 없으면 아무것도 안 한다");
+  const n0 = run.deck.length;
   run.node = 3; R.advance(run);
-  check(run.deck.length === before + 1, "층을 넘을 때는 따로 복제하지 않는다(고른 것만)");
+  check(run.deck.length === n0, "층을 넘을 때는 따로 복제하지 않는다(고른 것만)");
 }
 console.log(bad ? `실패 ${bad}개` : "주도 · 종극 · 보스 복제가 돈다");
 process.exit(bad ? 1 : 0);

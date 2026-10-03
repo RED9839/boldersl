@@ -5,7 +5,7 @@ import { HERO_DATA } from "./cardbook.js";
 // 스탯은 기획서가 원본이다. 기획서에 없는 사도만 옛 heroes.js 를 본다.
 const base = (k) => HERO_DATA[k] || HEROES[k] || { hp: 50, row: "mid" };
 import { CARDS as OLD_CARDS, EXTRA } from "./data/cards.js";
-import { CARDS, NEUTRAL_IDS, EQUIP, flashed } from "./cardbook.js";
+import { CARDS, NEUTRAL_IDS, EQUIP, flashed, COPY, baseId, isCopy } from "./cardbook.js";
 import { FLOORS } from "./data/enemies.js";
 import * as R from "./rules.js";
 import { buildDeck, makeRng, newCombat } from "./combat.js";
@@ -118,7 +118,7 @@ export function rollEpiphany(run) {
   const heroes = run.party.filter((k) => uniquesLeft(run, k).length
     && run.deck.some((id) => CARDS[id] && CARDS[id].hero === k && !CARDS[id].unique));
   const grace = (k) => {
-    const base = run.deck.filter((id) => CARDS[id] && CARDS[id].hero === k && !CARDS[id].unique);
+    const base = run.deck.filter((id) => CARDS[id] && CARDS[id].hero === k && !CARDS[id].unique && !isCopy(id));
     // 고르지 않는다 — 그 사도의 고유 카드 넷 가운데 아직 없는 것에서 무작위 하나
     glow[pick(base)] = { kind: "hero", hero: k, options: [pick(uniquesLeft(run, k))] };
   };
@@ -202,6 +202,22 @@ export function flashOk(run, cardId, n) {
 export const onlyCard = (run, cardId) => !!CARDS[cardId] && R.isOnly(flashed(CARDS[cardId], (run.flash || {})[cardId]));
 export function powerWhy(run, cardId) {
   if (onlyCard(run, cardId) && run.deck.includes(cardId)) return "유일 — 덱에 한 장만 넣을 수 있습니다";
+  return null;
+}
+
+// 쓰지 못한 신탁 — 빛났지만 그 카드를 안 내고 전투가 끝났다. 전투 뒤 창에서 하나를 골라 받는다(2026-10 사용자, fight-screen.js finish).
+// g 는 그 전투의 빛(combat s.glow[cardId]) — 은총(hero)이면 고유 카드 하나를 덱에, 카드 신탁(card)이면 그 신탁(· 축복)을 붙인다. 까닭(못 받으면) 또는 null
+export function claimGlow(run, cardId, g, choice) {
+  const o = g && g.options && g.options[choice];
+  if (o == null) return "고를 수 없습니다";
+  if (g.kind === "hero") {
+    if (powerWhy(run, o)) return powerWhy(run, o);
+    run.deck.push(o);
+    return null;
+  }
+  if (!flashOk(run, cardId, o.n)) return "강화 카드가 되는 신탁은 덱에 한 장일 때만 붙습니다";
+  run.flash[cardId] = o.n;
+  if (o.shin) (run.shin = run.shin || {})[cardId] = o.shin;
   return null;
 }
 
@@ -349,7 +365,7 @@ export function removeCard(run, cardId) {
 // 한 카드에 하나만 붙는다 — 이미 붙은 카드는 다시 안 나온다.
 export function flashTargets(run) {
   return run.deck.filter((id, i) => run.deck.indexOf(id) === i)
-    .filter((id) => CARDS[id] && (CARDS[id].unique || CARDS[id].neutral) && (CARDS[id].flash || []).length === 5 && !run.flash[id] && !R.isTaboo(CARDS[id]));   // 금기는 신탁이 안 붙는다
+    .filter((id) => CARDS[id] && !isCopy(id) && (CARDS[id].unique || CARDS[id].neutral) && (CARDS[id].flash || []).length === 5 && !run.flash[id] && !R.isTaboo(CARDS[id]));   // 복제본은 빛나지 않는다   // 금기는 신탁이 안 붙는다
 }
 
 // 이 카드에 쓸모 있는 축복 — 피해가 없으면 피해 쪽을, 회복이 없으면 회복 쪽을 빼고, 비용 -1 은 1코 이상만
@@ -525,8 +541,20 @@ export function bossCopy(run, id) {
   if (id == null) id = pool.length ? pool[Math.floor(run.rng() * pool.length)] : null;
   run.copyOffer = null;
   if (!id || !pool.includes(id)) return null;
-  run.deck.push(id);
-  return id;
+  return addCopy(run, id);
+}
+
+// 복제본을 덱에 — 원본(id)의 신탁 · 축복을 그대로 옮겨 받은 따로 된 카드(id + COPY, cardbook). 그림이 뒤집혀 보이고 다시는 빛나지 않는다.
+// 복제본을 또 복제하면 같은 복제본이 한 장 더. 이미 다른 신탁의 복제본이 있으면 그것을 따른다(신탁은 카드 id 에 걸린다). 넣은 id
+export function addCopy(run, id) {
+  const cid = isCopy(id) ? id : baseId(id) + COPY;
+  if (!run.deck.includes(cid)) {
+    const f = (run.flash || {})[id], sh = (run.shin || {})[id];
+    if (f) run.flash[cid] = f; else delete run.flash[cid];
+    if (sh) (run.shin = run.shin || {})[cid] = sh; else if (run.shin) delete run.shin[cid];
+  }
+  run.deck.push(cid);
+  return cid;
 }
 
 // 판 기록 — 우로스 앞에서 저장하겠냐고 묻는다(main.js). 내려받은 파일을 모아 밸런스를 잰다(tools/records.js).

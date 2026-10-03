@@ -960,6 +960,8 @@ body:has(#screen.battle) .bottom { top: 84px; }
 .gcard:not(.full) .gart:after { background: none !important; }
 /* 기절 판 — 격파 · 기절 · 봉인으로 다음 차례에 못 움직이는 적. 예고하던 수 대신 금빛 「기절」(2026-10 사용자) */
 #screen.battle .foe .intent.i-stun { border-color: #ffcf3faa !important; }
-#screen.battle .foe .intent.i-stun .igem { background: linear-gradient(160deg, #ffe7a8, #e0a52a) !important; }
+/* 기절 — 다른 예고처럼 마름모(:before)에만 색을 칠한다. 상자에 칠하면 마름모 밖으로 네모가 삐져나왔다(2026-10 사용자) */
+#screen.battle .foe .intent.i-stun .igem { background: none !important; }
+#screen.battle .foe .intent.i-stun .igem:before { background: linear-gradient(135deg, #ffe7a8, #e0a52a) !important; border-color: #fff3c4 !important; }
 #screen.battle .foe .intent.i-stun .igem b { color: #fff8e0; -webkit-text-stroke: 3px #5a3c06; }
 #screen.battle .foe .intent.i-stun .iwhat b { color: #ffe7a8; }

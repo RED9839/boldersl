@@ -409,7 +409,7 @@ export function deckSections(run, ids) {
   const count = new Map(), rep = new Map();
   for (const id of ids) {
     const c = CARDS[id]; if (!c) continue;
-    const sig = [c.hero, c.name, c.cost, c.text, (run.flash || {})[id] || "", (run.shin || {})[id] || ""].join("|");   // 신탁 · 축복이 다르면 다른 카드
+    const sig = [c.hero, c.name, c.cost, c.text, (run.flash || {})[id] || "", (run.shin || {})[id] || "", c.copy ? "copy" : ""].join("|");   // 신탁 · 축복이 다르면 다른 카드
     if (!rep.has(sig)) rep.set(sig, id);
     const r = rep.get(sig);
     count.set(r, (count.get(r) || 0) + 1);
@@ -475,7 +475,7 @@ export function showPiles(piles, pick, cardFor, onDetail, numFor) {
     const first = new Map();
     for (const id of pl.ids) {
       const c = cardFor(id) || {};
-      const sig = [c.hero, c.name, c.cost, c.text, c.shinKo || ""].join("|");   // 축복이 다르면 다른 카드
+      const sig = [c.hero, c.name, c.cost, c.text, c.shinKo || "", c.copy ? "copy" : ""].join("|");   // 축복이 다르면 다른 카드
       if (!first.has(sig)) first.set(sig, id);
       const rep = first.get(sig);
       bag.set(rep, (bag.get(rep) || 0) + 1);
@@ -575,6 +575,8 @@ export function bigCard(c, pic, calc) {
   // 신탁이 붙은 카드 — 오른쪽 위에 금빛 꼬리표(신탁 이름). 그냥 카드와 갈라 보이게(2026-10 사용자)
   if (c.flashOn) { n.classList.add("oracle"); artBox.appendChild(el("span", "pflash", c.flashKind || c.flashKo || "신탁")); }
   // 겨우살이의 축복이 얹힌 카드 — 그림 칸 왼쪽 아래에 초록 꼬리표(축복 이름). 판의 카드(runCard)만 shinKo 를 든다
+  // 복제본 — 그림을 좌우로 뒤집고 「복제」 꼬리표(카제나처럼, 2026-10 사용자)
+  if (c.copy) { n.classList.add("copied"); artBox.appendChild(el("span", "pcopy", "복제")); }
   if (c.shinKo) { n.classList.add("blessed"); const t = el("span", "pshin", c.shinKo); t.title = c.shinLine || ""; artBox.appendChild(t); }
   n.onclick = () => showCard(c, c.hero);
   n.title = "눌러서 낱말 풀이 보기";

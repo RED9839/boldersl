@@ -326,6 +326,96 @@ export function saveRecord(run, stage) {
   } catch (e) { console.warn("기록 저장 실패", e); }
 }
 
+// 사도 정보 — 전투 밖(장비 창 등)에서 한 사도를 펼쳐 본다. 가운데 창(centerModal)을 갈아 끼우지 않게 따로 위에 뜬다
+export function heroSheet(run, k) {
+  const h = HERO_DATA[k];
+  if (!h) return;
+  const back = el("div", "pilemodal onepi heroSheet");
+  const box = el("div", "pilebox");
+  back.appendChild(box);
+  const close = () => back.remove();
+  back.onclick = (e) => { if (e.target === back) close(); };
+  const head = el("div", "pilehead");
+  head.appendChild(art.portrait(k, { ko: h.ko, tint: TINT(k), size: 40, slot: "battle", still: true }));
+  const t = el("div", "hsTitle");
+  t.appendChild(el("b", null, h.ko));
+  t.appendChild(el("span", null, [h.role, { front: "전열", mid: "중열", back: "후열" }[h.row] || "", h.nature, h.race].filter(Boolean).join(" · ")));
+  head.appendChild(t);
+  const x = el("button", "kwclose", "닫기"); x.onclick = close; head.appendChild(x);
+  box.appendChild(head);
+  const body = el("div", "hsBody");
+  const g = (R.gearStats(run)[k]) || { hp: 0, atk: 0, def: 0, crit: 0 };
+  const stats = el("div", "hsStats");
+  for (const [ko, key, unit] of [["HP", "hp", ""], ["공격력", "atk", ""], ["방어력", "def", ""], ["치명", "crit", "%"]]) {
+    const c = el("div", "hsStat");
+    c.appendChild(el("span", null, ko));
+    c.appendChild(el("b", null, `${(h[key] || 0) + (g[key] || 0)}${unit}`));
+    if (g[key]) c.appendChild(el("i", null, `장비 +${g[key]}${unit}`));
+    stats.appendChild(c);
+  }
+  body.appendChild(stats);
+  const sec = (ko, text) => { if (!text) return; const d = el("div", "hsSec"); d.appendChild(el("h4", null, ko)); d.appendChild(withKeywords(el("p"), text, k)); body.appendChild(d); };
+  sec("패시브", h.passive);
+  if (h.keyword) { const d = el("div", "hsSec"); d.appendChild(el("h4", null, `전용 키워드 「${h.keyword.ko}」`)); d.appendChild(kwText(el("div"), h.keyword.text)); body.appendChild(d); }
+  if (h.ult) sec(`고학년 스킬 「${h.ult.ko}」 · 게이지 ${h.ult.cost}%`, h.ult.text);
+  const gear = R.gearOf(run, k);
+  const gl = Object.entries(gear).map(([slot, id]) => `${slot} 「${(EQUIP[id] || {}).ko || id}」`).join(" · ");
+  sec("장비", gl || "아직 낀 장비가 없습니다");
+  box.appendChild(body);
+  document.body.appendChild(back);
+}
+
+// 쓰지 못한 신탁 — 빛났지만 안 낸 카드가 남은 채 이겼다. 하나씩 창을 띄워 받을지 고른다(run.js claimGlow).
+// items: [{ cardId, g }] (전투의 s.glow). 다 넘기면 done. 바깥을 누르면 그 하나는 받지 않고 다음으로
+export function leftoverGlows(run, items, done) {
+  const list = items.slice();
+  const nextOne = () => {
+    const it = list.shift();
+    if (!it) return done();
+    const { cardId, g } = it;
+    const base = CARDS[cardId];
+    if (!base) return nextOne();
+    let pick = null, sure = false;          // sure — 단추로 정했다(바깥을 눌러 닫으면 받지 않는다)
+    const box = centerModal("cardmodal copypick", () => {
+      if (sure && pick != null) { const why = R.claimGlow(run, cardId, g, pick); writeSave(run); if (!why) sfx.play("flash"); else hint(why); }
+      nextOne();
+    });
+    const body = el("div", "bmbody");
+    const hero = g.kind === "hero";
+    body.appendChild(el("span", "bmkind", "쓰지 못한 신탁 — 빛났지만 이번 전투에서 내지 않았습니다"));
+    body.appendChild(el("h3", "bmname", hero ? `은총 · ${HERO(g.hero).ko}` : `「${base.name}」 의 신탁`));
+    body.appendChild(el("p", "bmtext", hero ? "이 고유 카드를 덱에 넣을 수 있습니다." : "하나를 골라 이 카드에 붙일 수 있습니다. 이미 붙은 신탁이 있으면 바뀝니다."));
+    const row = el("div", "cprow");
+    const go = el("button", "bmuse", hero ? "덱에 넣습니다" : "신탁을 고르세요");
+    go.disabled = !hero; if (hero) pick = null;
+    g.options.forEach((o, i) => {
+      const card = hero ? CARDS[o] : flashed(base, o.n);
+      if (!card) return;
+      const cell = el("button", "cpcell");
+      if (!hero) cell.appendChild(el("span", "cpwho", (base.flash[o.n - 1] || {}).ko || ""));
+      const big = bigCard(o.shin ? { ...card, shinKo: (RULES.shinLabel(base, o.shin) || "").split(" — ")[0] } : card, CARDART.pic[hero ? o : cardId] || null);
+      big.onclick = null; big.title = "";
+      cell.appendChild(big);
+      cell.onclick = () => {
+        pick = i;
+        for (const n of row.children) n.classList.toggle("on", n === cell);
+        go.disabled = false; if (!hero) go.textContent = "이 신탁을 붙입니다";
+      };
+      if (hero) { pick = 0; cell.classList.add("on"); }
+      row.appendChild(cell);
+    });
+    body.appendChild(row);
+    const btns = el("div", "bmbtns");
+    go.onclick = () => { if (pick != null) { sure = true; closeCenter(); } };
+    const no = el("button", "bmclose", "받지 않습니다");
+    no.onclick = () => { pick = null; closeCenter(); };
+    btns.appendChild(go); btns.appendChild(no);
+    body.appendChild(btns);
+    box.appendChild(body);
+  };
+  nextOne();
+}
+
 // 층 보스의 몫 — 보스를 잡은 화면 위에서, 가진 고유 카드 셋 가운데 하나를 골라 한 장 더(run.js bossCopyOffer · main.js reward).
 // 눌러 고르고 「복제합니다」 로 정한다. 바깥을 눌러도 닫히지 않는다 — 고르지 않고 넘어가면 몫을 잃는다
 export function bossCopyPick(run, ids, onPick) {
@@ -640,6 +730,9 @@ function gearPanel(run, mode, onChange, say) {
       const r = el("div", "grow");
       const who = el("div", "gwho");
       who.appendChild(art.portrait(k, { ko: h.ko, tint: TINT(k), size: 28, slot: "battle", still: true }));
+      // 사도를 누르면 사도 정보(능력치 · 장비 · 패시브 · 고학년) — 장비 창 위에 뜬다(2026-10 사용자)
+      who.classList.add("canzoom"); who.title = `${h.ko} — 눌러서 사도 정보`;
+      who.onclick = (e) => { e.stopPropagation(); heroSheet(run, k); };
       who.appendChild(el("b", null, h.ko));
       r.appendChild(who);
       const slots = el("div", "gslots");

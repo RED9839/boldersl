@@ -1175,7 +1175,7 @@ export function draw(s, n, opts = {}) {
 }
 
 // ── 고학년 스킬 — 덱 밖에 따로 있고, 게이지를 비용만큼 써서 AP 없이 쓴다(기획서) ──────
-// 같은 사도의 고학년 스킬은 연속으로 쓸 수 없다. 전투가 끝나면 게이지는 0 이 된다.
+// 같은 사도도 게이지만 있으면 연달아 쓴다(2026-10). 남은 게이지는 다음 전투로 이어진다(run.gauge).
 // 기획서는 한글 이름을 키로 쓰고(에르핀·에르핀_왕도), 게임은 영문 키를 쓴다(erpin).
 // HEROES 의 ko 로 이어 준다 — 사도를 늘릴 때 손으로 표를 적지 않아도 되게.
 const DESIGN_KEY = {};
@@ -1196,7 +1196,7 @@ export function canUlt(s, heroKey) {
   if (!u || u.dead) return "나설 수 없습니다";
   const ult = ultOf(heroKey);
   if (!ult) return "고학년 스킬이 없습니다";
-  if (s.lastUlt === heroKey) return "같은 사도의 고학년 스킬은 연속으로 쓸 수 없습니다";
+  // 같은 사도도 게이지만 있으면 연달아 쓴다(2026-10 사용자 — 연속 금지를 없앴다). lastUlt 는 기록으로만 남는다
   if (s.gauge < ult.cost) return `게이지가 모자랍니다 (${s.gauge}% / ${ult.cost}%)`;
   return null;
 }
@@ -1470,7 +1470,7 @@ export function previewCard(s, handIdx, targetIdx) {
 
 
 // 고학년 스킬 미리보기 — 카드와 같은 모양(적 idx 마다 { hp, guard, kill, max }). 판을 복사해 실제로 써 본다.
-// 쓸 수 없으면(게이지 · 같은 사도 연속) null
+// 쓸 수 없으면(게이지 · 쓰러짐) null
 export function previewUlt(s, heroKey, targetIdx) {
   if (s.over || canUlt(s, heroKey)) return null;
   const ult = ultOf(heroKey);

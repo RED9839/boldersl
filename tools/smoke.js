@@ -404,8 +404,9 @@ console.log("전투 화면 얼개 (카제나 구성)");
   const g0 = s2.gauge;
   f2.dropUlt(uk, s2.enemies.find((e) => !e.dead).idx);
   check(s2.gauge === g0 - C.ultOf(uk).cost && s2.lastUlt === uk, `끌어 놓으면 쓴다 (게이지 ${g0} → ${s2.gauge}%)`);
-  f2.dropUlt(uk, 0);
-  check(s2.lastUlt === uk && s2.gauge === g0 - C.ultOf(uk).cost, "같은 사도를 연속으로 놓으면 안 쓴다");
+  s2.gauge = 300; const g1 = s2.gauge;
+  f2.dropUlt(uk, s2.enemies.find((e) => !e.dead).idx);
+  check(s2.gauge === g1 - C.ultOf(uk).cost, `같은 사도도 게이지만 있으면 연달아 쓴다 (${g1} → ${s2.gauge}%)`);
 }
 
 console.log("\n이후 화면");
