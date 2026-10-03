@@ -18,6 +18,26 @@ export const EVENT_FLOOR_SHARE = 0.7;
 // (스킬이 실제로 돌게 되자 같은 손이 69~100% 를 깼다 — 그래서 올렸다)
 export const ENEMY_HP = 1.3;
 
+// ── 층마다 적 세기(2026-10) — 난이도 손잡이 ─────────────────────────────
+// 기준: 사람만큼 하는 손(tools/run-sim.js --bot smart)이 한 판(3층 + 마지막 싸움)을 **20~30%** 완주하게.
+// 1층은 조심하는 사람이면 대개 넘고, 쓰러지는 곳은 2 · 3층과 보스에 몰리게. 옛 목표(role-sim 의 손으로 잰 완주율)는 버렸다.
+// 체력은 ENEMY_HP 위에 곱하고(보스 칸은 BOSS_HP 를, 엘리트는 ELITE_HP 를 더 곱한다),
+// 피해는 적의 치는 수(공격 · 뒷줄 · 연타 · 전체 · 가시)에 곱한다 — 적마다 e.dmgx 로 들고 다녀
+// 머리 위 숫자(intentHit) · 적 정보 창 · 봇의 셈이 같은 값을 본다. 즉시 행동 장수(intentRush)는 데이터의 값 그대로다.
+// 이 둘은 R.openFight 가 foeScale 로 한 번에 정한다. run-sim 의 --hp · --dmg 는 그 위에 더 곱한다.
+// 잰 값(--parties 20 --runs 3, 씨앗 0 · 1): 스마트 완주 24.7% · 24.7% — 쓰러진 층 1층 9 · 2층 42~45 · 3층 16~19 · 마지막 6,
+// 일반 싸움 6.2~7.2턴 · 보스 11.4~13.8턴. 아무 생각 없는 손(simple)은 0~0.3%. 고치기 전(층 배율 없음)은 스마트 98.3% · simple 71.2%.
+// 덱 · 장비가 자란 뒤층일수록 피해 배율을 크게 둔다 — 체력만 올리면 보스가 20턴을 넘는다.
+export const FLOOR_HP = { 1: 1.7, 2: 1.75, 3: 1.85, final: 1.4 };
+export const BOSS_HP = { 1: 0.7, 2: 0.65, 3: 0.6, final: 0.8 };
+export const FLOOR_DMG = { 1: 1.45, 2: 2.2, 3: 3.0, final: 3.5 };
+// floor — run.floor(0부터). final 이면 마지막 싸움(우로스)
+export function foeScale(floor, { boss = false, final = false, elite = false } = {}) {
+  const k = final ? "final" : floor + 1;
+  const hp = ENEMY_HP * (FLOOR_HP[k] ?? 1) * (boss || final ? BOSS_HP[k] ?? 1 : 1) * (elite ? ELITE_HP : 1);
+  return { hp, dmg: FLOOR_DMG[k] ?? 1 };
+}
+
 // 적의 즉시 행동 — 수가 예고된 뒤로 파티가 카드를 N장 내면 적이 그 수를 당겨서 하고 새 수를 예고한다.
 // N 은 수마다 다르다(combat.js intentRush): 수에 rush 를 적으면 그것, 아니면 수의 값어치 —
 // 작은 수(방어 · 회복 · 강화 · 방해 · 약화 · 피해 6 이하) 3장, 피해 12 이하 4장, 20 이하 5장, 그 위 6장, 힘 모으기 0(안 당겨짐).
@@ -124,6 +144,10 @@ export const DROP = {
 // 캠프에서는 하나만 고른다(슬더스 모닥불): 쉬기(HP 회복) 또는 수련(신탁).
 // 회복량은 우리가 정했다 — 기획서에 캠프가 없다.
 export const CAMP_HEAL = 0.3;            // 최대 HP 기준, 쓰러진 사도는 빼고
+// 쓰러진 사도(주말농장)는 전투에 나서지 않고 카드도 덱에서 빠진다. 돌아오는 길은 둘 —
+// 캠프 「쉬기」 면 최대 HP 의 30% 로, 보스를 이기면 20% 로 돌아온다(2026-10).
+export const CAMP_REVIVE = 0.3;
+export const BOSS_REVIVE = 0.2;
 
 // ── 고학년 게이지 ─────────────────────────────────────────────────────
 // 파티 공용 0~300%. 카드에 쓴 AP 1당 +10%. 0코 카드는 충전하지 않는다.

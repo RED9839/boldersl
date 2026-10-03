@@ -47,7 +47,8 @@ const addSt = (u, id, v) => { u.status[id] = Math.max(0, st(u, id) + v); if (!u.
 
 // ── 전투 시작 ──────────────────────────────────────────────────────────
 // gauge — 지난 전투에서 남은 고학년 게이지(run.gauge). 전투가 끝나도 이어진다
-export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noNature, traits, gear, gearFx, flash, enemyHp, next, shin, glow, gauge }) {
+// enemyHp · enemyDmg — 적 체력 · 피해 배율(run.js openFight 가 rules.js foeScale 로 층마다 정한다). 없으면 ENEMY_HP · 1
+export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noNature, traits, gear, gearFx, flash, enemyHp, enemyDmg, next, shin, glow, gauge }) {
   const rng = makeRng(seed);
   const party = partyKeys.map((key, i) => {
     // 스탯은 기획서가 원본이다. 기획서에 없는 사도만 옛 heroes.js 를 본다.
@@ -56,26 +57,31 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
     const baseHp = d ? d.hp : (HEROES[key] || {}).hp || 50;
     // 장비 스탯 줄 — 공격·방어·치명은 여기서 더한다(HP 는 한 판의 최대 HP 에 이미 들어 있다)
     const g = (gear && gear[key]) || { atk: 0, def: 0, crit: 0, heal: 0 };
+    const mhp = (maxHp && maxHp[key]) || baseHp;
+    const hp0 = hp && hp[key] != null ? hp[key] : mhp;
     return {
       key, side: "party",
       ko: base.ko || key, role: base.role || null,
       tint: (HEROES[key] || {}).tint || "#8a8a9a",
-      maxHp: (maxHp && maxHp[key]) || baseHp,
-      hp: hp && hp[key] != null ? hp[key] : (maxHp && maxHp[key]) || baseHp,
+      maxHp: mhp,
+      hp: Math.max(0, hp0),
       atk: (d ? d.atk : 10) + (g.atk || 0), def: (d ? d.def : 3) + (g.def || 0), crit: (d ? d.crit : 5) + (g.crit || 0),
       healPlus: g.heal || 0,                                           // 장비 스탯 줄의 「회복력 +N」(rules.js healStat extra)
       gearAdd: { atk: g.atk || 0, def: g.def || 0, crit: g.crit || 0, heal: g.heal || 0 },   // 장비가 더한 몫 — 정보 창의 「기본 + 장비」
       row: (rows && rows[key]) || base.row || "mid",
-      block: 0, shield: 0, status: {}, idx: i, dead: false,
+      // 주말농장에 간 사도(HP 0)는 쓰러진 채로 들어온다 — 전에는 HP 0 으로 살아 있어 카드를 내고 매를 맞았다
+      block: 0, shield: 0, status: {}, idx: i, dead: hp0 <= 0,
     };
   });
-  // 적 체력 — 난이도 배율(rules.js ENEMY_HP). 재는 도구는 enemyHp 로 바꿔 가며 잰다
+  // 적 체력 — 난이도 배율(rules.js ENEMY_HP · foeScale). 재는 도구는 enemyHp 로 바꿔 가며 잰다
+  // 피해 배율은 적마다 dmgx 로 든다 — 치는 수는 dealt · foeV 가 이것을 곱한다
   const hpx = enemyHp || R.ENEMY_HP || 1;
+  const dmgx = enemyDmg || 1;
   const enemies = enemyIds.map((id, i) => {
     const e = ENEMIES[id];
     const ehp = Math.round(e.hp * hpx);
     return { key: id, side: "enemy", ko: e.ko, tint: e.tint, maxHp: ehp, hp: ehp,
-      row: e.row, block: 0, status: {}, idx: i, dead: false, boss: !!e.boss, step: 0, intent: null };
+      row: e.row, block: 0, status: {}, idx: i, dead: false, boss: !!e.boss, step: 0, intent: null, dmgx };
   });
 
   const s = {
@@ -94,6 +100,8 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
   s.flash = { ...(flash || {}) };
   s.book = {};
   for (const [id, n] of Object.entries(s.flash)) if (CARDS[id]) s.book[id] = flashed(CARDS[id], n);
+  // 쓰러진 채 들어온 사도의 카드는 이번 전투의 덱에서 뺀다(사라진 카드로) — 낼 수 없는 카드가 손을 막지 않게
+  for (const u of party) if (u.dead) benchCards(s, u.key);
 
   // 위치는 기획서가 정한 제 자리로 고정이다. 옮길 수 없다 —
   // 기본 스탯이 위치에서 나오기 때문이다(전열 탱커 HP 90 · 후열 딜러 HP 55).
@@ -105,7 +113,7 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
   // 신탁 '눈치' — 첫 손패가 한 장 많다
   s.opening = tr(s, "opening");
   // 전투를 열며 한 명이 말한다
-  const opener = s.party[Math.floor(rng() * s.party.length)];
+  const opener = alive(s.party)[Math.floor(rng() * alive(s.party).length)];
   if (opener) speak(s, opener.key, "start");
 
   // 패시브와 키워드 — 기획서의 글을 js/passive.js 가 읽어 둔 것을 건다
@@ -411,7 +419,7 @@ function foePassives(s, ev, info = {}) {
       e.pUsed[k] = (e.pUsed[k] || 0) + 1;
       say(s, `${e.ko} · ${p.name}`);
       // 가시는 방어 · 실드에 막힌다 — 「가시엔 실드」 가 답이 되게(전에는 pure 라 다 뚫었다)
-      if (p.do.t === "thorns") { if (info.from && !info.from.dead && info.from.side === "party") hurt(s, info.from, p.do.v); }
+      if (p.do.t === "thorns") { if (info.from && !info.from.dead && info.from.side === "party") hurt(s, info.from, foeV(e, p.do)); }
       else if (p.do.t === "selfHeal") { const v = Math.min(p.do.v, e.maxHp - e.hp), h0 = e.hp; e.hp += v; healCue(s, e, h0); }
       else actEnemy(s, e, { say: p.name, ...p.do }, true);
       if (s.over) return;
@@ -494,6 +502,7 @@ function pickTarget(s, fromBack) {
 // 셋을 합친 뒤 바닥을 둔다 — 아무리 깎아도 절반 아래로는 안 내려간다.
 const CUT_FLOOR = 0.5;
 function dealt(from, v) {
+  if (from.dmgx && from.dmgx !== 1 && v > 0) v = Math.max(1, Math.round(v * from.dmgx));   // 층마다 적 피해(rules.js foeScale)
   let m = 1;
   if (st(from, "약화") > 0) m *= 1 - R.WEAK;
   if (st(from, "감전") > 0) m *= 0.9;
@@ -542,11 +551,35 @@ function hurt(s, u, v, { from, pure, crit } = {}) {
   }
 }
 
+// 적의 치는 수의 값 — 층마다 피해 배율(e.dmgx)을 곱한 것. 힘 · 약화는 빼고(그건 dealt 가 더한다). 적 정보 창 · 가시가 쓴다
+export const FOE_HITS = ["attack", "back", "multi", "attackAll", "thorns"];
+export function foeV(e, it) {
+  if (!it || !FOE_HITS.includes(it.t) || typeof it.v !== "number") return it && it.v;
+  const m = (e && e.dmgx) || 1;
+  return m !== 1 && it.v > 0 ? Math.max(1, Math.round(it.v * m)) : it.v;
+}
+
+// 쓰러진 사도의 카드를 손 · 뽑을 더미 · 버린 더미에서 사라진 카드로 옮긴다. 손에서 뺀 장수를 돌려준다
+function benchCards(s, key) {
+  const mine = (id) => (cardOf(s, id) || {}).hero === key;
+  let fromHand = 0, n = 0;
+  for (const pile of [s.hand, s.draw, s.discard]) {
+    for (let i = pile.length - 1; i >= 0; i--) if (mine(pile[i])) {
+      s.gone.push(...pile.splice(i, 1)); n++;
+      if (pile === s.hand) fromHand++;
+    }
+  }
+  if (n) say(s, `${HERO(key).ko}의 카드 ${n}장이 이번 전투에서 빠진다`);
+  return fromHand;
+}
+
 function kill(s, u, byPoison) {
   if (u.dead) return;
   // 엘리아스에는 죽음이 없다 — 쓰러진 사도는 주말농장에 간다(docs/03-세계관.md)
   u.hp = 0; u.dead = true;
   cue(s, "die", u);
+  // 쓰러진 사도의 카드는 이 전투에서 빠진다 — 손에 있던 만큼 새로 뽑는다(내 턴에 쓰러졌을 때만 손에 있다)
+  if (u.side === "party") { const n = benchCards(s, u.key); if (n && !s.over && alive(s.party).length) draw(s, n); }
   if (u.side === "party") speak(s, u.key, "down");
   say(s, u.side === "party" ? `${u.ko} 주말농장으로` : `${u.ko} 쓰러짐`);
   if (u.side === "party") emit(s, "allyDown", { who: u });
@@ -769,7 +802,7 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
     if (coffer) { s.ap += coffer; say(s, `곳간 — AP +${coffer}`); }
   }
 
-  if (c.temp || hasTag(c, "소멸")) s.gone.push(cardId); else s.discard.push(cardId);
+  if (c.temp || hasTag(c, "소멸") || (owner && owner.dead)) s.gone.push(cardId); else s.discard.push(cardId);
   // 겨우살이의 축복 — 낼 때 붙는 것(피해 · 회복 · 방어 · 맞은 적 상태는 run-fx 가 본다)
   if (sh === "draw") draw(s, 1);                 // 끝없는 이야기 — 내면 드로우 1
   if (sh === "ap") s.ap += 1;                     // 발맞추기 — 내면 AP +1(비용 1 이상 카드만 뜬다)

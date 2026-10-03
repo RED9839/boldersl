@@ -3,9 +3,10 @@
 //   node tools/run-sim.js                          편성 열 가지 × 파티 6 × 판 3 — 두 손 견주기
 //   node tools/run-sim.js --bot smart --parties 10 --runs 4
 //   node tools/run-sim.js --heroes 에르핀,네르,티그  그 사도가 든 파티만(사도마다 --parties 개)
-//   node tools/run-sim.js --hp 1.2 --dmg 1.15      적 체력 · 피해 배율을 이 프로세스 안에서만 바꿔 잰다(rules.js 는 그대로)
+//   node tools/run-sim.js --hp 1.2 --dmg 1.15      적 체력 · 피해를 rules.js 의 층마다 값(foeScale) 위에 더 곱해 잰다(rules.js 는 그대로)
 //   node tools/run-sim.js --log 에르핀 [--turns 3]  그 사도가 든 파티의 첫 싸움(--boss 면 1층 보스) 기록을 풀어 보인다
 //   --depth 2  한 수 더 내다본다(느리다)  · --jobs N 작업 스레드(기본 2) · --json
+//   --seed K   파티 · 판 씨앗을 다른 벌로(기본 0) — 고른 값이 우연이 아닌지 두 번째 벌로 다시 잰다
 // 결과는 스레드 수와 상관없이 같다(씨앗이 정해져 있다).
 import os from "node:os";
 import { fileURLToPath } from "node:url";
@@ -26,24 +27,10 @@ const argv = process.argv.slice(2);
 const opt = (name, d) => { const i = argv.indexOf(`--${name}`); return i >= 0 ? argv[i + 1] : d; };
 const BOTS = (opt("bot", "simple,smart")).split(",");
 const P = +opt("parties", 6), N = +opt("runs", 3), DEPTH = +opt("depth", 1);
-const HPX = opt("hp") ? +opt("hp") * RULES.ENEMY_HP : null;     // 「1.2」 = 지금 값(ENEMY_HP)의 1.2배
-const DMGX = +opt("dmg", 1);
+const HPX = +opt("hp", 1);       // 「1.2」 = 지금 값(rules.js foeScale)의 1.2배
+const DMGX = +opt("dmg", 1);     // 적의 치는 수 — 같은 자리(e.dmgx)에 더 곱한다. 즉시 행동 장수는 그대로
+const SEED = +opt("seed", 0);
 const HEROES = opt("heroes") ? opt("heroes").split(",") : null;
-
-// 적 피해 배율 — 이 프로세스의 적 데이터만 고친다(공격 수 · 공격 패시브 · 가시). 같은 수가 여러 곳에 걸려 있어 한 번씩만
-if (DMGX !== 1) {
-  const done = new Set();
-  const scale = (it) => {
-    if (!it || done.has(it)) return; done.add(it);
-    if (["attack", "back", "multi", "attackAll", "thorns"].includes(it.t) && typeof it.v === "number") it.v = Math.max(1, Math.round(it.v * DMGX));
-    if (it.next) scale(it.next);
-  };
-  for (const e of Object.values(ENEMIES)) {
-    for (const L of [e.intents, e.phase && e.phase.intents, e.phase2 && e.phase2.intents]) for (const it of L || []) scale(it);
-    scale(e.open);
-    for (const p of e.passives || []) scale(p.do);
-  }
-}
 
 const bots = makeBots({ C, B, R: RULES, ENEMIES });
 const runner = makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots });
@@ -64,13 +51,13 @@ function parties() {
   const out = [];
   if (HEROES) {
     for (const h of HEROES) {
-      const r = rng(777 + [...h].reduce((a, c) => a + c.charCodeAt(0), 0));
+      const r = rng(777 + SEED * 1009 + [...h].reduce((a, c) => a + c.charCodeAt(0), 0));
       for (let i = 0; i < P; i++) { const p = [h]; while (p.length < 3) { const k = heroes[Math.floor(r() * heroes.length)]; if (!p.includes(k)) p.push(k); } out.push({ party: p, tag: h }); }
     }
     return out;
   }
   for (const comp of ALL) {
-    const r = rng(4242 + comp.charCodeAt(0) * 7 + comp.charCodeAt(1) * 13 + comp.charCodeAt(2));
+    const r = rng(4242 + SEED * 1009 + comp.charCodeAt(0) * 7 + comp.charCodeAt(1) * 13 + comp.charCodeAt(2));
     for (let i = 0; i < P; i++) { const p = []; for (const l of comp) { let k; do k = POOL[l][Math.floor(r() * POOL[l].length)]; while (p.includes(k)); p.push(k); } out.push({ party: p, tag: comp }); }
   }
   return out;
@@ -78,7 +65,7 @@ function parties() {
 
 function job(j) {
   const t0 = Date.now();
-  const r = runner.runFull(j.party, j.seed, { ...CFG[j.bot], hpx: HPX });
+  const r = runner.runFull(j.party, j.seed, { ...CFG[j.bot], hpx: HPX, dmgx: DMGX });
   return { ...r, ms: Date.now() - t0 };
 }
 
@@ -91,7 +78,7 @@ if (isMainThread && opt("log")) {
   const run = R.newRun(party, Object.fromEntries(party.map((x) => [x, B.HERO_DATA[x].row])), 12345);
   if (argv.includes("--boss")) { run.node = 3; }
   else { M.mapOf(run); M.enterNode(run, M.reachable(run)[0]); }
-  const { st } = R.openFight(run);
+  const { st } = R.openFight(run, { hpx: HPX, dmgx: DMGX });
   const hp = (u) => `${u.ko} ${u.hp}/${u.maxHp}${u.block ? ` 방${u.block}` : ""}${u.shield ? ` 실${u.shield}` : ""}`;
   const intent = (e) => { const it = e.intent || {}; const n = C.rushOf(e); return `${e.ko} ${e.hp}/${e.maxHp} [${it.say || it.t || "-"}${C.intentHit(e) != null ? ` ${C.intentHit(e)}${it.t === "multi" ? "×" + it.n : ""}` : ""}${n ? ` · 즉시 ${e.rushCnt || 0}/${n}` : ""}]`; };
   console.log(`편성: ${party.map((x) => B.HERO_DATA[x].ko).join(" · ")}  적: ${st.enemies.map((e) => e.ko).join(" · ")}`);
@@ -125,7 +112,7 @@ if (!isMainThread) {
   const ps = parties();
   const jobs = [];
   for (const bot of BOTS) for (let pi = 0; pi < ps.length; pi++) for (let n = 0; n < N; n++)
-    jobs.push({ i: jobs.length, bot, pi, party: ps[pi].party, tag: ps[pi].tag, seed: 1000 + pi * 37 + n * 7919 });
+    jobs.push({ i: jobs.length, bot, pi, party: ps[pi].party, tag: ps[pi].tag, seed: 1000 + SEED * 104729 + pi * 37 + n * 7919 });
   const J = Math.max(1, Math.min(+opt("jobs", 2), jobs.length));
   const res = new Array(jobs.length);
   const t0 = Date.now();
@@ -143,7 +130,7 @@ if (!isMainThread) {
   const wall = (Date.now() - t0) / 1000;
 
   // ── 모으기 ──
-  const out = { hpx: HPX ? +(HPX / RULES.ENEMY_HP).toFixed(2) : 1, dmgx: DMGX, parties: ps.length, runs: N, bots: {} };
+  const out = { hpx: HPX, dmgx: DMGX, parties: ps.length, runs: N, bots: {} };
   for (const bot of BOTS) {
     const rs = jobs.filter((j) => j.bot === bot).map((j) => ({ ...res[j.i], tag: j.tag, comp: compOf(j.party) }));
     const n = rs.length, cl = rs.filter((r) => r.clear).length;
@@ -152,6 +139,8 @@ if (!isMainThread) {
     const where = {};
     for (const r of rs) if (!r.clear) where[r.where] = (where[r.where] || 0) + 1;
     const fights = rs.reduce((a, r) => a + r.fights, 0), turns = rs.reduce((a, r) => a + r.turns, 0);
+    const kinds = {};
+    for (const r of rs) for (const [k, v] of Object.entries(r.kinds || {})) { const a = (kinds[k] = kinds[k] || { n: 0, turns: 0, win: 0 }); a.n += v.n; a.turns += v.turns; a.win += v.win; }
     const byTag = {}, byComp = {};
     for (const r of rs) {
       (byTag[r.tag] = byTag[r.tag] || []).push(r.clear);
@@ -167,15 +156,18 @@ if (!isMainThread) {
       msPerRun: Math.round(rs.reduce((a, r) => a + r.ms, 0) / n),
       byTag: Object.fromEntries(Object.entries(byTag).map(([k, a]) => [k, pct(a)])),
       byComp: Object.fromEntries(Object.entries(byComp).map(([k, a]) => [k, pct(a)])),
+      // 칸 갈래마다(「2:boss」 = 2층 보스 · F = 마지막) 싸운 수 · 싸움당 턴 · 이긴 비율
+      kinds: Object.fromEntries(Object.entries(kinds).sort().map(([k, a]) => [k, { n: a.n, turns: +(a.turns / a.n).toFixed(2), win: +(a.win / a.n * 100).toFixed(1) }])),
     };
   }
   out.wall = +wall.toFixed(1);
   if (argv.includes("--json")) console.log(JSON.stringify(out));
   else {
-    console.log(`판 ${ps.length}파티 × ${N}판 · 적 체력 ×${out.hpx} · 피해 ×${DMGX} · ${wall.toFixed(0)}초`);
+    console.log(`판 ${ps.length}파티 × ${N}판${SEED ? ` · 씨앗 ${SEED}` : ""} · 적 체력 ×${out.hpx} · 피해 ×${DMGX} · ${wall.toFixed(0)}초`);
     for (const [bot, b] of Object.entries(out.bots)) {
       console.log(`\n[${bot}] 완주 ${b.clear}% (${b.n}판) · 판당 ${b.fightsPerRun}전 · 전투당 ${b.turnsPerFight}턴 · 판당 ${b.msPerRun}ms`);
       console.log(`  쓰러진 층  1층 ${b.deathFloor[0]}% · 2층 ${b.deathFloor[1]}% · 3층 ${b.deathFloor[2]}% · 마지막 ${b.deathFloor[3]}%   (칸: ${Object.entries(b.deathAt).map(([k, v]) => `${k} ${v}`).join(" · ")})`);
+      console.log(`  칸  ${Object.entries(b.kinds).map(([k, a]) => `${k} ${a.turns}턴·${a.win}%(${a.n})`).join(" · ")}`);
       console.log(`  ${HEROES ? "사도" : "편성"}  ${Object.entries(b.byTag).map(([k, v]) => `${HEROES ? (B.HERO_DATA[k] || {}).ko || k : k} ${v}%`).join(" · ")}`);
       if (HEROES) console.log(`  역할  ${Object.entries(b.byComp).sort().map(([k, v]) => `${k} ${v}%`).join(" · ")}`);
     }

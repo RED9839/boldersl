@@ -638,7 +638,7 @@ function gearPanel(run, mode, onChange, say) {
 
 // ── 캠프 ────────────────────────────────────────────────────────────────
 // 한 층에 두 번 — 가운데 캠프, 보스 앞 캠프 + 상점. 슬더스 모닥불처럼 **하나만** 고른다.
-//   쉬기  살아 있는 사도 HP 회복(최대 HP의 30%) — 쓰러진 사도는 주말농장에서 쉬는 중
+//   쉬기  살아 있는 사도 HP 회복(최대 HP의 30%) · 주말농장에 간 사도는 최대 HP의 30%로 돌아온다
 //   수련  가진 고유 카드 하나에 신탁(다섯 중 셋)
 // 캠프 + 상점이면 골디가 옆에 좌판을 폈다. 상점에 들르는 것은 캠프 선택을 쓰지 않는다.
 //
@@ -656,7 +656,8 @@ export function campScreen(run, withShop, onDone, onShop) {
   const nearBoss = bossNext(run);
   const heal = (k) => {
     const hp = run.hp[k] || 0, max = run.maxHp[k] || 1;
-    return hp <= 0 || st.used ? 0 : Math.min(max - hp, Math.round(max * RULES.CAMP_HEAL));
+    if (st.used) return 0;
+    return hp <= 0 ? Math.max(1, Math.round(max * RULES.CAMP_REVIVE)) : Math.min(max - hp, Math.round(max * RULES.CAMP_HEAL));
   };
 
   // ① 머리 — 이름 · 어디 · 골드 · 떠나기
@@ -732,11 +733,12 @@ export function campScreen(run, withShop, onDone, onShop) {
   side.appendChild(head);
 
   const choices = el("div", "cp-choices");
-  const rest = choiceBtn("cp-rest", "쉬기", "살아 있는 사도의 HP를 최대 HP의 30%만큼 채웁니다");
+  const rest = choiceBtn("cp-rest", "쉬기", `사도의 HP를 최대 HP의 ${Math.round(RULES.CAMP_HEAL * 100)}%만큼 채웁니다 — 주말농장에 간 사도도 ${Math.round(RULES.CAMP_REVIVE * 100)}%로 돌아옵니다`);
   const restGain = el("em", "cp-gain");
   rest.body.appendChild(restGain);
   rest.b.onclick = () => {
     const before = run.party.map((k) => run.hp[k] || 0);
+    const back = run.party.filter((k) => (run.hp[k] || 0) <= 0);
     const why = R.campRest(run); writeSave(run);
     if (why) return say(why);
     sfx.play("camp.rest");
@@ -746,7 +748,7 @@ export function campScreen(run, withShop, onDone, onShop) {
       const d = (run.hp[m.k] || 0) - before[i];
       if (d > 0) { const f = el("span", "cp-float", `+${d}`); m.n.appendChild(f); setTimeout(() => f.remove(), 1600); }
     });
-    say("모닥불 곁에서 푹 쉬었습니다. 다시 걸을 힘이 납니다.");
+    say(back.length ? `모닥불 곁에서 푹 쉬었습니다. ${back.map((k) => (HERO_DATA[k] || {}).ko || k).join(" · ")} 주말농장에서 돌아왔습니다.` : "모닥불 곁에서 푹 쉬었습니다. 다시 걸을 힘이 납니다.");
     refresh();
   };
   choices.appendChild(rest.b);
@@ -826,7 +828,7 @@ export function campScreen(run, withShop, onDone, onShop) {
       m.fill.style.width = `${(hp / max) * 100}%`;
       m.add.style.left = `${(hp / max) * 100}%`;
       m.add.style.width = `${(gain / max) * 100}%`;
-      m.num.textContent = down ? "주말농장에서 쉬는 중" : `${hp} / ${max}${gain ? `  +${gain}` : ""}`;
+      m.num.textContent = down ? `주말농장에서 쉬는 중${gain ? ` · 쉬면 +${gain}` : ""}` : `${hp} / ${max}${gain ? `  +${gain}` : ""}`;
     }
     headB.textContent = st.used ? (st.used === "rest" ? "푹 쉬었습니다" : "수련을 마쳤습니다") : "캠프에서 하나만 고릅니다";
     headS.textContent = st.used ? "이번 캠프에서는 이미 골랐습니다 — 장비는 아직 바꿀 수 있습니다" : "쉬기와 수련 중 하나 · 장비와 좌판은 선택을 쓰지 않습니다";

@@ -303,6 +303,54 @@ check(!!endBtn, "턴 넘기기 단추가 있다");
   check(s5.log.some((l) => l.includes("사라졌다")), "사라졌다고 기록에 남는다");
 }
 
+// 주말농장에 간 사도 — 쓰러진 채로 싸움에 들고, 카드는 덱에서 빠진다. 싸움 중에 쓰러지면 손의 그 카드만큼 새로 뽑는다
+{
+  const C = await import("../js/combat.js");
+  const r = R.newRun(started.party.slice(), { ...started.rows }, 77);
+  const [k0, kv, kw] = r.party;
+  r.hp[k0] = 0;
+  const { st } = R.openFight(r);
+  const u0 = st.party.find((x) => x.key === k0);
+  check(u0.dead && u0.hp === 0, "HP 0 인 사도는 쓰러진 채로 싸움에 든다");
+  const of = (k) => (id) => (C.cardOf(st, id) || {}).hero === k;
+  check(![...st.hand, ...st.draw, ...st.discard].some(of(k0)) && st.gone.some(of(k0)), "쓰러진 사도의 카드는 이번 싸움의 손 · 덱에서 빠진다");
+  // 내 턴에 쓰러지면 — 즉시 행동으로 맞아 쓰러지게 한다
+  const e = st.enemies[0];
+  e.hp = e.maxHp = 99999; e.intent = { t: "attack", v: 9999, say: "시험", rush: 3 }; e.rushCnt = 2; e.rushedTurn = false;
+  st.taunt = kv; st.ap = 10;
+  if (!st.hand.some(of(kw))) { const i = st.draw.findIndex(of(kw)); if (i >= 0) st.hand.push(...st.draw.splice(i, 1)); }
+  if (!st.hand.some(of(kv))) { const i = st.draw.findIndex(of(kv)); if (i >= 0) st.hand.push(...st.draw.splice(i, 1)); }   // 쓰러질 사도의 카드가 손에 있어야 다시 채우는 것을 본다
+  const pi = st.hand.findIndex((id) => of(kw)(id) && !C.canPlay(st, id));
+  const n0 = st.hand.length;
+  if (pi >= 0) {
+    C.playCard(st, pi, 0);
+    const uv = st.party.find((x) => x.key === kv);
+    check(uv.dead && !st.hand.some(of(kv)) && !st.draw.some(of(kv)) && !st.discard.some(of(kv)), "싸움 중에 쓰러진 사도의 카드도 빠진다");
+    check(st.hand.length === n0 - 1 && st.log.some((l) => l.includes("이번 전투에서 빠진다")), `빠진 만큼 손을 다시 채운다 (${n0} → ${st.hand.length})`);
+  } else check(false, "시험할 카드를 못 찾았다");
+}
+
+// 층마다 적 세기(rules.js foeScale) — 체력은 적을 만들 때, 피해는 머리 위 숫자(intentHit)까지 같은 값. 이벤트의 엘리트 싸움도 ×ELITE_HP
+{
+  const RULES = await import("../js/rules.js");
+  const { ENEMIES } = await import("../js/data/enemies.js");
+  const r = R.newRun(started.party.slice(), { ...started.rows }, 78);
+  r.floor = 1;
+  const ids = ["droneg_repair", "drones"];
+  r.eventFight = { name: "시험", enemies: ids, elite: true };
+  const el1 = R.openFight(r).st;
+  const fs = RULES.foeScale(1, { elite: true });
+  check(el1.enemies.every((e, i) => e.maxHp === Math.round(ENEMIES[ids[i]].hp * fs.hp)) && fs.hp === RULES.foeScale(1).hp * RULES.ELITE_HP,
+    `이벤트의 엘리트 싸움도 체력 ×${RULES.ELITE_HP} (${el1.enemies.map((e) => e.maxHp).join(" · ")})`);
+  r.eventFight = { name: "시험", enemies: ids, elite: false };
+  const ev1 = R.openFight(r).st;
+  check(ev1.enemies.every((e, i) => e.maxHp === Math.round(ENEMIES[ids[i]].hp * RULES.foeScale(1).hp)), "엘리트가 아닌 이벤트 싸움은 그 층의 체력 그대로");
+  const e = ev1.enemies[0];
+  e.intent = { t: "attack", v: 10, say: "시험" }; e.status = {};
+  check(C2.intentHit(e) === Math.max(1, Math.round(10 * RULES.foeScale(1).dmg)) && C2.foeV(e, e.intent) === C2.intentHit(e),
+    `적의 치는 수는 층마다 피해 배율을 곱한 값을 보인다 (10 → ${C2.intentHit(e)} · ×${RULES.foeScale(1).dmg})`);
+}
+
 // 그린 것이 없는 카드는 그 사도의 인게임 그림을 깐다 — 무늬만 있는 것보다 낫다
 check(count(f, "heroart") + count(f, "gpic") === count(f, "card"),
   `손패마다 그림이 있다 (사도 그림 ${count(f, "heroart")} · 그린 것 ${count(f, "gpic")} / ${count(f, "card")}장)`);
@@ -487,10 +535,16 @@ console.log("\n이후 화면");
   }
 }
 run.floor = 0; run.node = 3;
+run.hp[run.party[2]] = 0;                 // 보스 싸움에서 한 명이 주말농장에 갔다
 const hp0 = { ...run.hp };
 const adv = R.advance(run);
 check(adv.swap === false, "보스를 넘겨도 사도 교체는 없다 — 처음 고른 셋으로 끝까지");
-check(run.party.every((k) => run.hp[k] === Math.min(run.maxHp[k], hp0[k] + 10)), "층 사이에 HP +10 은 그대로");
+check(adv.revived && adv.revived.includes(run.party[2]) && adv.revived.length === run.party.filter((k) => hp0[k] <= 0).length && run.party.every((k) => run.hp[k] > 0),
+  `보스를 이기면 주말농장에 간 사도가 모두 돌아온다 (${(adv.revived || []).length}명)`);
+// 보스를 이기면 쓰러진 사도는 20% 로 돌아오고(rules.js BOSS_REVIVE), 그 위에 층 사이 +10
+const BOSS_REVIVE = (await import("../js/rules.js")).BOSS_REVIVE;
+const back0 = (k) => (hp0[k] > 0 ? hp0[k] : Math.max(1, Math.round(run.maxHp[k] * BOSS_REVIVE)));
+check(run.party.every((k) => run.hp[k] === Math.min(run.maxHp[k], back0(k) + 10)), "층 사이에 HP +10 은 그대로 · 쓰러진 사도는 보스 뒤 20% 로");
 check(typeof ui.swapScreen === "undefined", "사도 교체 화면은 없앴다");
 
 // 고학년 게이지 — 전투가 끝나도 남은 만큼 다음 전투로
@@ -598,7 +652,7 @@ console.log("\n캠프");
   check(/주말농장에서 쉬는 중/.test(cs.textContent), "쓰러진 사도는 주말농장에서 쉰다고 적는다");
   const rest = clickAll(cs, (n) => n.classList.contains("cp-rest"))[0];
   rest.onclick();
-  check(r.hp[k0] === 10 + Math.round(r.maxHp[k0] * 0.3) && r.hp[k1] === 0, `쉬면 살아 있는 사도만 30% (${r.hp[k0]}/${r.maxHp[k0]})`);
+  check(r.hp[k0] === 10 + Math.round(r.maxHp[k0] * 0.3) && r.hp[k1] === Math.round(r.maxHp[k1] * 0.3), `쉬면 30% · 주말농장에 간 사도도 30% 로 돌아온다 (${r.hp[k0]}/${r.maxHp[k0]} · ${r.hp[k1]}/${r.maxHp[k1]})`);
   const trained = clickAll(cs, (n) => n.classList.contains("cp-train"))[0];
   check(trained.disabled && /이번 캠프에서는 이미 골랐습니다/.test(trained.textContent), "쉬고 나면 수련은 막히고 까닭을 적는다");
   check(R.campRest(r) !== null && R.campTrain(r, { cardId: "x", n: 1 }) !== null, "캠프에서는 하나만 고른다");

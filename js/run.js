@@ -54,13 +54,17 @@ export function currentEnemies(run) {
 
 // 싸움을 연다 — 전투 상태와 전리품(골드 · 장비)을 이 자리에서 한 번 굴린다. 화면(fight-screen.js fightScreen)과 시험 도구가 같이 쓴다.
 // 굴리는 차례가 판의 난수를 정하니 바꾸지 않는다: 신탁(빛날 카드) → 전리품. 전투는 제 씨앗으로 따로 굴린다.
-export function openFight(run) {
+// 적 세기는 rules.js foeScale 한 곳에서 — 층 · 보스 · 엘리트. 이벤트가 연 싸움은 run.eventFight.elite 를 본다(전에는 엘리트 체력이 빠졌다). hpx · dmgx 는 재는 도구가 그 위에 더 곱는 것
+export function foeScaleOf(run) {
+  return R.foeScale(run.floor, { boss: isBoss(run) && !run.eventFight, final: isFinal(run) && !run.eventFight, elite: run.eventFight ? !!run.eventFight.elite : !!run.elite });
+}
+export function openFight(run, { hpx = 1, dmgx = 1 } = {}) {
   const next = run.nextFight || null;          // 이벤트가 걸어 둔 「다음 전투」 효과 — 여기서 한 번 가져간다(events.js takeNextFight 와 같다)
   run.nextFight = null;
   const st = newCombat({
     partyKeys: run.party, rows: run.rows, deck: run.deck.slice(),
     enemyIds: currentEnemies(run), hp: run.hp, maxHp: run.maxHp, traits: run.traits, gear: gearStats(run), gearFx: gearPassives(run), flash: run.flash,
-    enemyHp: run.elite && !run.eventFight ? R.ENEMY_HP * R.ELITE_HP : undefined,   // 엘리트 칸 — 체력 ×1.5
+    enemyHp: foeScaleOf(run).hp * hpx, enemyDmg: foeScaleOf(run).dmg * dmgx,   // 층마다 · 엘리트 칸(이벤트 엘리트도) 체력 ×1.5
     next, shin: run.shin, gauge: run.gauge || 0,   // 기적이 붙은 카드 · 고학년 게이지는 전투 사이에 이어진다
     glow: run.forceGlow || rollEpiphany(run),   // 신탁 — 이 전투에서 빛날 카드(카제나). forceGlow 는 시험 도구가 정해 넣는 것
     seed: (run.seed + run.floor * 101 + run.node * 7 + (run.step || 0) * 13 + (run.eventFight ? 555 : 0)) >>> 0,
@@ -208,12 +212,12 @@ export function enterCamp(run, kind) {
   return run.stops[key];
 }
 
-// 쉬기 — 살아 있는 사도만. 쓰러진 사도는 주말농장에서 쉬는 중이다
+// 쉬기 — 살아 있는 사도는 HP 를 채우고, 주말농장에 간 사도는 최대 HP 의 30% 로 돌아온다(rules.js CAMP_REVIVE)
 export function campRest(run) {
   const st = run.stops[run.camp && run.camp.key];
   if (!st || st.used) return "이번 캠프에서는 이미 골랐습니다";
   for (const k of run.party) {
-    if ((run.hp[k] || 0) <= 0) continue;
+    if ((run.hp[k] || 0) <= 0) { run.hp[k] = Math.max(1, Math.round(run.maxHp[k] * R.CAMP_REVIVE)); continue; }
     run.hp[k] = Math.min(run.maxHp[k], run.hp[k] + Math.round(run.maxHp[k] * R.CAMP_HEAL));
   }
   st.used = "rest";
@@ -459,19 +463,29 @@ export function takeEquip(run, equipId) {
   return null;
 }
 
-// 다음 칸으로. 층을 넘으면 사도를 한 명 바꿀 수 있다.
+// 다음 칸으로. 보스를 넘으면 층이 바뀐다(사도 교체는 없다).
+// revived — 보스를 이겨 주말농장에서 돌아온 사도 키(화면이 알린다 · main.js reward)
 export function advance(run) {
   const wasBoss = isBoss(run);
   if (!wasBoss) { run.node++; return { swap: false }; }
+  // 보스를 이기면 주말농장에 간 사도가 최대 HP 의 20% 로 돌아온다(rules.js BOSS_REVIVE)
+  const revived = reviveDown(run, R.BOSS_REVIVE);
   // 마지막 층의 보스 뒤에 마지막 싸움이 있으면 층을 넘지 않고 그리로(node 4) — 캠프 한 번을 거친다(main.js finalCamp)
-  if (!isFinal(run) && run.floor === FLOORS.length - 1 && FLOORS[run.floor].final) { run.node = 4; return { swap: false, final: true }; }
+  if (!isFinal(run) && run.floor === FLOORS.length - 1 && FLOORS[run.floor].final) { run.node = 4; return { swap: false, final: true, revived }; }
   run.floor++; run.node = 0;
-  if (run.floor >= FLOORS.length) { run.done = "clear"; return { swap: false }; }
+  if (run.floor >= FLOORS.length) { run.done = "clear"; return { swap: false, revived }; }
   // 층 사이에 조금 쉰다 — 몸도 마음도. 사도 교체는 없다(처음 고른 셋으로 끝까지 간다)
   for (const k of run.party) {
     run.hp[k] = Math.min(run.maxHp[k], run.hp[k] + 10);
   }
-  return { swap: false };
+  return { swap: false, revived };
+}
+
+// 쓰러진 사도를 최대 HP 의 ratio 로 돌려보낸다 — 돌아온 사도 키를 돌려준다
+export function reviveDown(run, ratio) {
+  const back = run.party.filter((k) => (run.hp[k] || 0) <= 0);
+  for (const k of back) run.hp[k] = Math.max(1, Math.round((run.maxHp[k] || 1) * ratio));
+  return back;
 }
 
 // 사도 교체 — 덱에서 그 사도의 카드를 빼고 새 사도의 기본 카드를 넣는다

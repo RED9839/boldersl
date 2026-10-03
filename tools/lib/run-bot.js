@@ -47,21 +47,12 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
   }
 
   // ── 전투 ──────────────────────────────────────────────────────────────
-  // hpx — 적 체력 배율을 바꿔 잴 때만(없으면 R.openFight 그대로)
-  function openFight(run, hpx) {
-    if (!hpx) return R.openFight(run);
-    const next = run.nextFight || null; run.nextFight = null;
-    const st = C.newCombat({
-      partyKeys: run.party, rows: run.rows, deck: run.deck.slice(),
-      enemyIds: R.currentEnemies(run), hp: run.hp, maxHp: run.maxHp, traits: run.traits, gear: R.gearStats(run), gearFx: R.gearPassives(run), flash: run.flash,
-      enemyHp: hpx * (run.elite && !run.eventFight ? RULES.ELITE_HP : 1),
-      next, shin: run.shin, gauge: run.gauge || 0, glow: run.forceGlow || R.rollEpiphany(run),
-      seed: (run.seed + run.floor * 101 + run.node * 7 + (run.step || 0) * 13 + (run.eventFight ? 555 : 0)) >>> 0,
-    });
-    return { st, loot: run.eventFight ? null : R.rollReward(run) };
-  }
+  // 싸움 칸의 갈래 — 갈래마다 턴을 따로 센다(run-sim 의 표)
+  const kindOf = (run) => (run.eventFight ? (run.eventFight.elite ? "eventElite" : "event") : R.isFinal(run) ? "final" : R.isBoss(run) ? "boss" : run.elite ? "elite" : "fight");
   function fight(run, P, out) {
-    const { st, loot } = openFight(run, P.hpx);
+    const kind = `${R.isFinal(run) ? "F" : run.floor + 1}:${kindOf(run)}`;
+    // hpx · dmgx — 적 체력 · 피해를 rules.js 의 층마다 값 위에 더 곱해 잴 때(run-sim --hp · --dmg)
+    const { st, loot } = R.openFight(run, { hpx: P.hpx || 1, dmgx: P.dmgx || 1 });
     const r = rngOf(run.seed * 31 + (run.step || 0));
     let t = 0;
     if (P.onFight) P.onFight(st, run);
@@ -71,6 +62,8 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
       if (!st.over) { if (P.trace) P.trace(st, null); C.endTurn(st); }
     }
     out.fights++; out.turns += st.turn;
+    const kk = ((out.kinds = out.kinds || {})[kind] = out.kinds[kind] || { n: 0, turns: 0, win: 0 });
+    kk.n++; kk.turns += st.turn; if (st.over === "win") kk.win++;
     R.afterFight(run, st);
     if (st.over !== "win") return false;
     if (loot) {
@@ -126,7 +119,9 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
       const h = hpRatio(run), lo = minRatio(run);
       const bossNext = kind === "final" || M.reachable(run).some((id) => (M.nodeById(M.mapOf(run), id) || {}).type === "boss");
       const tp = trainPick(run);
-      if (!tp || h < (bossNext ? 0.75 : 0.55) || lo < 0.35) R.campRest(run); else R.campTrain(run, tp);
+      // 주말농장에 간 사도가 있으면 쉰다 — 쉬기가 그 사도를 돌려보낸다(rules.js CAMP_REVIVE)
+      const down = alive(run).length < run.party.length;
+      if (!tp || down || h < (bossNext ? 0.75 : 0.55) || lo < 0.35) R.campRest(run); else R.campTrain(run, tp);
       manageGear(run, true);
     } else {
       R.campRest(run);
@@ -201,7 +196,7 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
   function optValue(run, opt) {
     if (EV.lockOf(run, opt)) return -1e9;
     if (opt.fight) {
-      const hpx = RULES.ENEMY_HP * (opt.fight.elite ? RULES.ELITE_HP : 1);
+      const hpx = RULES.foeScale(run.floor, { elite: !!opt.fight.elite }).hp;
       const foeHp = opt.fight.enemies.reduce((a, id) => a + ((ENEMIES[id] || {}).hp || 40) * hpx, 0);
       const win = opt.fight.winGamble ? opt.fight.winGamble.reduce((a, g) => a + g.p * opsValue(run, EV.parseOut(g.out)), 0) : opsValue(run, EV.parseOut(opt.fight.win || ""));
       const h = hpRatio(run);
@@ -279,8 +274,8 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
   }
 
   // ── 한 판 ─────────────────────────────────────────────────────────────
-  // P: { smartFight, smartOut, depth, width, hpx, trace }
-  // 돌려주는 것: { clear, floor(쓰러진 층 0~2, 3 은 마지막 싸움), node(쓰러진 칸 종류), fights, turns }
+  // P: { smartFight, smartOut, depth, width, hpx, dmgx, trace }
+  // 돌려주는 것: { clear, floor(쓰러진 층 0~2, 3 은 마지막 싸움), node(쓰러진 칸 종류), fights, turns, kinds({ "1:boss": { n, turns, win } }) }
   function runFull(party, seed, P) {
     const rows = {};
     for (const k of party) rows[k] = (HERO_DATA[k] || {}).row || "mid";

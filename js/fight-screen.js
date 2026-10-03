@@ -1121,11 +1121,11 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       // 마름모 옆은 아이콘 · 숫자만 — 말(「몸으로 민다」)은 올리면 뜨는 풀이와 적 정보 창으로 옮겼다(넷이면 서로 덮었다).
       // 치는 수는 마름모가 숫자라 옆에 아이콘(전체는 「전체」 까지), 아닌 수는 마름모가 아이콘이라 옆에 값
       const nx = it.next || {};
-      const side = it.t === "charge" ? `→${INTENT_ICON[nx.t] || ""}${nx.v != null ? nx.v : ""}`
+      const side = it.t === "charge" ? `→${INTENT_ICON[nx.t] || ""}${nx.v != null ? C.foeV(u, nx) : ""}`
         : hit ? (it.t === "attackAll" ? "✹전체" : icon) : it.v != null && it.v !== "" ? String(it.v) : "";
       if (side) tag.appendChild(el("span", "iside", side));
       const more = it.t === "attackAll" ? " · 전체" : it.t === "back" ? " · 뒷줄" : it.t === "guard" ? " · 적 전체"
-        : it.t === "charge" ? ` → 다음 턴 ${nx.say} ${nx.v}${nx.t === "attackAll" ? " 전체" : ""}`
+        : it.t === "charge" ? ` → 다음 턴 ${nx.say} ${C.foeV(u, nx)}${nx.t === "attackAll" ? " 전체" : ""}`
         : it.id && hit ? ` · ${it.id} ${it.n || 1}` : "";
       tag.title = `「${it.say}」${more}\n${INTENT_HELP[it.t] || ""}`;
       // 즉시 행동 — 이 수가 예고된 뒤로 카드를 N장 내면 당겨서 한다(수마다 N 이 다르다). 다음 한 장이면 붉게
@@ -1586,7 +1586,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const piles = () => [
       { key: "draw", label: "뽑을 더미", ids: st.draw, why: "차례는 안 보여 줍니다 — 섞여 있습니다." },
       { key: "disc", label: "버린 더미", ids: st.discard, why: "덱이 바닥나면 섞여서 뽑을 더미로 돌아갑니다." },
-      { key: "gone", label: "사라진 카드", ids: st.gone, why: "소멸했거나 손이 넘쳐 사라진 카드 — 이 판에서 다시 안 나옵니다." },
+      { key: "gone", label: "사라진 카드", ids: st.gone, why: "소멸했거나 손이 넘쳤거나 주인이 쓰러져 빠진 카드 — 이 전투에서 다시 안 나옵니다." },
       { key: "all", label: "덱 전체", ids: run.deck, why: "이 판의 덱. 신탁이 붙은 카드는 바뀐 모습으로 보입니다." },
     ];
     const cardFor = (id) => C.cardOf(st, id);
@@ -2182,10 +2182,11 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     return p;
   };
   // 모으기는 다음 턴의 큰 수까지 한 줄로 — ⏳ 모으기 → ✹ 공격 24 전체
-  const moveKeys = (it, v) => {
+  // u — 그 적. 치는 수의 값에 층마다 피해 배율을 곱해 보인다(combat.js foeV)
+  const moveKeys = (it, v, u) => {
     const k = el("span", "fkeys");
-    k.appendChild(movePill(it, v));
-    if (it.t === "charge" && it.next) { k.appendChild(el("span", "farrow", "→")); k.appendChild(movePill(it.next)); }
+    k.appendChild(movePill(it, v != null ? v : C.foeV(u, it)));
+    if (it.t === "charge" && it.next) { k.appendChild(el("span", "farrow", "→")); k.appendChild(movePill(it.next, C.foeV(u, it.next))); }
     return k;
   };
   const rushTag = (rn) => {
@@ -2211,7 +2212,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     // 머리 — 갈래 · 성격 · 줄 · 이름 · 체력(판이 바뀌는 자리에 눈금) · 걸린 것
     const tags = el("div", "ftags");
     if (u.boss) tags.appendChild(el("span", "ftag boss", "보스"));
-    else if (run.elite && !run.eventFight) tags.appendChild(el("span", "ftag elite", "엘리트"));
+    else if (run.eventFight ? run.eventFight.elite : run.elite) tags.appendChild(el("span", "ftag elite", "엘리트"));
     if (nat) tags.appendChild(el("span", "ftag n" + nat, nat));
     tags.appendChild(el("span", "ftag", (u.row || E.row) === "back" ? "뒷줄" : "앞줄"));
     body.appendChild(tags);
@@ -2247,7 +2248,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       const it = u.intent, hit = C.intentHit(u), rn = C.rushOf(u), k = u.rushCnt || 0;
       body.appendChild(el("span", "bmsub", "지금 할 일"));
       const now = el("div", "fnow");
-      now.appendChild(moveKeys(it, hit != null ? hit : it.v));
+      now.appendChild(moveKeys(it, hit != null ? hit : it.v, u));
       const r = el("span", "frush big" + (!rn || u.sealed || u.rushedTurn ? " no" : k === rn - 1 ? " hot" : ""),
         u.sealed ? "봉인됨" : !rn ? "⚡ 안 당겨짐" : u.rushedTurn ? "⚡ 이번 턴 끝" : `⚡${k}/${rn} · ${rn - k}장 뒤 즉시`);
       r.title = "즉시 행동 — 이 수가 예고된 뒤 카드를 그 장수만큼 내면 당겨서 하고 새 수를 예고합니다. 턴마다 0장부터, 한 적은 내 턴에 한 번만";
@@ -2264,7 +2265,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         seen.add(it.say);
         const r = el("div", "fmove" + (u.intent === it && !u.dead ? " on" : ""));
         r.appendChild(rushTag(C.intentRush(it, E)));      // ⚡ 장수를 앞에 — 줄마다 같은 자리
-        r.appendChild(moveKeys(it));
+        r.appendChild(moveKeys(it, null, u));
         r.appendChild(el("span", "fsay", (it === open ? "첫 턴 · " : "") + it.say));
         list.appendChild(r);
       }
@@ -2302,7 +2303,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         r.appendChild(el("b", "fpname", p.name));
         r.appendChild(el("span", "fpon", FOE_ON(p)));
         r.appendChild(el("span", "farrow", "→"));
-        r.appendChild(moveKeys(p.do));
+        r.appendChild(moveKeys(p.do, null, u));
         const lim = FOE_LIMIT(p);
         if (lim) r.appendChild(el("span", "fplim", lim));
         pl.appendChild(r);

@@ -79,6 +79,7 @@ export function makeBots({ C, B, R, ENEMIES }) {
   // 엔진의 dealt · 받는 쪽 증감과 같은 셈 — 적의 차례에 아군이 실제로 받을 피해를 미리 센다
   const st = (u, id) => (u.status && u.status[id]) || 0;
   function dealtBy(e, v) {
+    if (e.dmgx && e.dmgx !== 1 && v > 0) v = Math.max(1, Math.round(v * e.dmgx));   // 층마다 적 피해(rules.js foeScale)
     let m = 1;
     if (st(e, "약화") > 0) m *= 1 - R.WEAK;
     if (st(e, "감전") > 0) m *= 0.9;
@@ -123,7 +124,7 @@ export function makeBots({ C, B, R, ENEMIES }) {
       if (it.t === "attack" || it.t === "back") { const t = pickT(s, live(), it.t === "back"); if (t) hit(e, t, dealtBy(e, it.v)); }
       else if (it.t === "multi") { const d = dealtBy(e, it.v); for (let k = 0; k < (it.n || 1); k++) { const t = pickT(s, live(), false); if (!t) break; hit(e, t, d); } }
       else if (it.t === "attackAll") { const d = dealtBy(e, it.v); for (const t of live()) hit(e, t, d); }
-      else if (it.t === "charge") later += hitOf(it.next);
+      else if (it.t === "charge") later += hitOf(it.next) * (e.dmgx || 1);
       else if (it.t === "jam") misc += 5 * (it.v || 1);
       else if (it.t === "buff") misc += 2 * (it.v || 1);
       else if (it.t === "debuff") misc += 3 * (it.v || 1);
