@@ -202,7 +202,7 @@ for (const file of files) {
           if (auto && typeof u.cost === "number" && typeof c === "number" && c > u.cost) errs.push(`「${u.ko}」 ${nm} — ${auto.id} 카드는 코스트를 올리는 신탁을 두지 않는다(비용 없이 나간다)`);
         });
         // 신탁은 기본보다 나아야 한다 — 손해 · 하나 마나 · 소멸 남발 금지(tools/lib/card-value.js oracleRules · docs/12-신탁.md)
-        for (const e of oracleRules({ fx, cost: u.cost, tags: [...u.tags, ...tagsOf(fx)] }, u.flash.map((f) => ({ fx: pe(f.text), at: `「${u.ko}」 ${f.kind || `「${f.ko}」`}` }))))
+        for (const e of oracleRules({ fx, cost: u.cost, tags: [...u.tags, ...tagsOf(fx)] }, u.flash.map((f) => ({ fx: pe(f.text), at: `「${u.ko}」 ${f.kind || `「${f.ko}」`}` })), { selfKw: kw && kw.carrier === "self" ? [kwName] : [] }))
           errs.push(e.startsWith("「") ? e : `「${u.ko}」 ${e}`);
       });
       // 엘다인 — 세계수의 힘을 받은 사도. 원작에서도 기본 스펙이 높다. 고유 카드가 코스트 값어치의 평균 1.1배는 된다
@@ -331,6 +331,8 @@ function effCount(fx) {
   for (let i = 0; i < (fx || []).length; i++) {
     const f = fx[i];
     if (["tag", "costSet", "costDelta", "scope", "perStack"].includes(f.k)) continue;
+    // 잔불 · 잔광 한 겹은 옛 카드 태그 「잔불.」 · 「잔광.」 의 자리다(v6 — 상태가 됐다) — 태그처럼 효과 수에 안 센다(docs/18 §4)
+    if (f.k === "status" && (f.id === "잔불" || f.id === "잔광") && (f.turns || 1) === 1) continue;
     if (f.k === "strip" && fx[i + 1] && fx[i + 1].k === "dmg") continue;
     if (f.k === "discard" && fx[i + 1] && fx[i + 1].k === "draw") continue;
     n++;

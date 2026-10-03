@@ -57,7 +57,7 @@ console.log("난수 — 상태를 옮기면 다음 수가 같다");
 // main.js 의 흐름을 그대로 따라 한 수씩 둔다. 손은 판 상태만 보고 정한다 — 같은 판이면 같은 수를 둔다.
 // 이 손은 생각 없이 낸다 — 층마다 세기(rules.js foeScale) 그대로면 1층에서 지고 이벤트 · 신탁 자리를 못 본다.
 // 적을 무르게(체력 · 피해에 더 곱하는 run-sim --hp · --dmg 와 같은 자리) 해서 판을 멀리 몬다. 되살린 판도 같은 값으로 연다
-const SOFT = { hpx: 0.6, dmgx: 0.5 };
+const SOFT = { hpx: 0.6, dmgx: 0.35 };   // 판을 끝까지 몰아 여러 자리를 보려고 적을 무르게(파티 HP 하나로 바꾸며 층 피해를 ×1.25~1.5 올려 0.5 → 0.35)
 function openFight(g) {
   g.run.where = { k: "fight" };
   g.st = R.openFight(g.run, SOFT).st;
@@ -75,7 +75,7 @@ function finishFight(g) {
 }
 function resolvePending(run) {
   const E = run.event, p = E.pending[0];
-  const alive = run.party.filter((k) => (run.hp[k] || 0) > 0);
+  const alive = run.party.slice();            // 파티 HP 하나 — 쓰러지는 사도가 없다
   const cands = {
     remove: run.deck.slice(0, 3), dupe: run.deck.filter(EV.dupeOk).slice(0, 3),
     shinPick: [EV.shinAble(run, p.kind)[0] ?? null], shinKind: [(p.options || [])[0]],
@@ -297,40 +297,54 @@ console.log("사도 135명 · 장비의 패시브가 적히는가");
   check(!badGear.length, badGear.length ? `${badGear.length}점: ${badGear.slice(0, 3).join(" · ")}` : `장비 ${Object.keys(EQUIP).length}점 모두`);
 }
 
-// ── 주말농장 · 층마다 세기 — 되살려도 그대로 ─────────────────────────────
-// 쓰러진 사도는 쓰러진 채로 싸움에 들고 카드가 빠진다 · 캠프에서 쉬면 30% · 보스를 이기면 20% 로 돌아온다 · 이벤트 엘리트도 체력 ×1.5
+// ── 파티 HP · 층마다 세기 — 되살려도 그대로 ─────────────────────────────
+// 파티 HP 하나(docs/16 §8) — 싸움 · 캠프 · 층 사이 쉼이 되살린 판에서도 같다. 옛 저장(사도마다 hp · maxHp)은 더해서 읽는다
 console.log("");
-console.log("주말농장 · 층마다 적 세기 — 되살려도 그대로");
+console.log("파티 HP · 층마다 적 세기 — 되살려도 그대로");
 {
   const party = PARTIES[0];
   const rows = Object.fromEntries(party.map((k) => [k, HERO_DATA[k].row]));
   const run = R.newRun(party, rows, 4242);
-  run.floor = 1; run.hp[party[0]] = 0;
+  run.floor = 1; run.partyHp = Math.round(run.partyMaxHp / 2);
   run.where = { k: "fight" };
   const { st } = R.openFight(run);
-  const mine = (id) => (C.cardOf(st, id) || {}).hero === party[0];
+  st.party[0].status["사기"] = 2; st.party[1].status["불굴"] = 1;
   const h = S.unpack(JSON.parse(JSON.stringify(S.pack(run, st))));
-  const u = h.combat.party.find((x) => x.key === party[0]);
-  check(u.dead && ![...h.combat.hand, ...h.combat.draw, ...h.combat.discard].some(mine) && h.combat.gone.some(mine),
-    "쓰러진 채로 연 싸움 — 되살려도 그 사도는 쓰러져 있고 카드는 빠져 있다");
+  check(h.combat.pool.hp === run.partyHp && h.combat.party.every((u) => u.hp === run.partyHp && u.maxHp === run.partyMaxHp && !u.dead),
+    `반쯤 다친 파티로 연 싸움 — 되살려도 파티 HP ${run.partyHp}/${run.partyMaxHp} 하나를 모두가 가리킨다`);
+  check(h.combat.party[0].status["사기"] === 2 && !h.combat.party[1].status["사기"] && h.combat.party[2].status["불굴"] === 1,
+    "되살려도 상태 두 층 그대로 — 사기는 그 사도에게만 · 불굴은 파티에");
   const fs = RULES.foeScale(1);
   check(h.combat.enemies.every((e) => e.dmgx === fs.dmg && e.maxHp === Math.round(ENEMIES[e.key].hp * fs.hp)),
     `되살린 적도 2층 세기 그대로 (체력 ×${fs.hp.toFixed(2)} · 피해 ×${fs.dmg})`);
   // 캠프 — 되살린 판에서 쉬어도 같은 HP 로 돌아온다
   const r2 = R.newRun(party, rows, 4243);
-  r2.hp[party[1]] = 0;
+  r2.partyHp = 20;
   R.enterCamp(r2, "camp"); r2.where = { k: "camp", kind: "camp" };
   const h2 = S.unpack(JSON.parse(JSON.stringify(S.pack(r2)))).run;
   R.campRest(r2); R.campRest(h2);
-  const want = Math.round(r2.maxHp[party[1]] * RULES.CAMP_REVIVE);
-  check(r2.hp[party[1]] === want && h2.hp[party[1]] === want, `캠프에서 쉬면 주말농장에 간 사도가 ${Math.round(RULES.CAMP_REVIVE * 100)}% 로 돌아온다 — 되살린 판도 (${want})`);
-  // 보스를 이기면 20%
+  const want = Math.min(r2.partyMaxHp, 20 + Math.round(r2.partyMaxHp * RULES.CAMP_HEAL));
+  check(r2.partyHp === want && h2.partyHp === want, `캠프에서 쉬면 파티 HP 가 ${Math.round(RULES.CAMP_HEAL * 100)}% 찬다 — 되살린 판도 (${want})`);
+  // 보스를 넘으면 층 사이 쉼 — 사도 한 명 몫 × 셋
   const r3 = R.newRun(party, rows, 4244);
-  r3.node = 3; r3.hp[party[2]] = 0;
+  r3.node = 3; r3.partyHp = 50;
   const h3 = S.unpack(JSON.parse(JSON.stringify(S.pack({ ...r3, where: { k: "map" } })))).run;
-  const a3 = R.advance(r3); R.advance(h3);
-  const w3 = Math.min(r3.maxHp[party[2]], Math.round(r3.maxHp[party[2]] * RULES.BOSS_REVIVE) + 10);
-  check(a3.revived.includes(party[2]) && r3.hp[party[2]] === w3 && h3.hp[party[2]] === w3, `보스를 이기면 ${Math.round(RULES.BOSS_REVIVE * 100)}% 로 돌아온다(층 사이 +10 까지 ${w3})`);
+  R.advance(r3); R.advance(h3);
+  const w3 = Math.min(r3.partyMaxHp, 50 + R.FLOOR_REST * party.length);
+  check(r3.partyHp === w3 && h3.partyHp === w3, `보스를 넘으면 층 사이 파티 HP +${R.FLOOR_REST * party.length} (${w3})`);
+  // 옛 저장 — 사도마다 hp · maxHp(쓰러진 사도 0)인 판 · 싸움을 읽으면 더해서 하나로
+  const old = S.pack({ ...R.newRun(party, rows, 4246), where: { k: "fight" } }, R.openFight(R.newRun(party, rows, 4246)).st);
+  const max = Object.fromEntries(party.map((k) => [k, HERO_DATA[k].hp])), hp = { [party[0]]: 10, [party[1]]: 0, [party[2]]: 30 };
+  delete old.run.partyHp; delete old.run.partyMaxHp; old.run.hp = hp; old.run.maxHp = max;
+  delete old.combat.pool;
+  old.combat.party.forEach((u) => { u.hp = hp[u.key]; u.maxHp = max[u.key]; u.dead = hp[u.key] <= 0; u.block = 2; u.shield = 0; u.status = { 불굴: u.key === party[2] ? 2 : 1, 사기: 1 }; delete u.pst; });
+  const mig = S.unpack(JSON.parse(JSON.stringify(old)));
+  const sumMax = party.reduce((a, k) => a + max[k], 0);
+  check(mig && mig.run.partyHp === 40 && mig.run.partyMaxHp === sumMax && mig.run.hp === undefined,
+    `옛 저장의 판 — 사도마다 HP 를 더해 파티 HP ${mig && mig.run.partyHp}/${mig && mig.run.partyMaxHp} (기대 40/${sumMax})`);
+  check(mig && mig.combat.pool.hp === 40 && mig.combat.pool.maxHp === sumMax && mig.combat.pool.block === 6 && mig.combat.pool.status["불굴"] === 2
+    && mig.combat.party.every((u) => u.hp === 40 && u.status["사기"] === 1) && !mig.combat.pool.status["사기"],
+    "옛 저장의 싸움 — HP · 방어는 더하고, 파티 층 상태는 큰 겹 · 사도 층(사기)은 그 사도에게");
   // 이벤트가 연 엘리트 싸움 — 체력 ×ELITE_HP 가 저장에도 실린다
   const r4 = R.newRun(party, rows, 4245);
   r4.eventFight = { name: "시험", enemies: ["droneg_repair", "drones"], elite: true, win: null, winGamble: null };

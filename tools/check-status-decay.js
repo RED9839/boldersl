@@ -9,7 +9,7 @@ const foe = Object.keys(ENEMIES).find((k) => !ENEMIES[k].boss && !(ENEMIES[k].pa
 const mk = () => C.newCombat({ partyKeys: ["에르핀", "네르", "티그"], deck: C.buildDeck(["에르핀", "네르", "티그"]), enemyIds: [foe], seed: 5 });
 const wk = (s) => s.party.filter((u) => !u.dead).map((u) => u.status["약화"] || 0);
 
-// 1) 적의 차례에 아군 전원 약화 1 — 턴이 지나도 남고, 그 사도가 피해 카드를 내면 1 줄어든다
+// 1) 적의 차례에 파티 약화 1 — 턴이 지나도 남고, 피해 카드를 내면 1 줄어든다
 {
   const s = mk();
   const e = s.enemies[0];
@@ -22,14 +22,14 @@ const wk = (s) => s.party.filter((u) => !u.dead).map((u) => u.status["약화"] |
   s.hand = [];
   C.endTurn(s);
   check(wk(s).every((n) => n === 1), `턴만 넘기면 안 준다 (${wk(s).join(" · ")})`);
-  // 에르핀 공격 카드 한 장 — 에르핀의 약화만 1 준다
+  // 에르핀 공격 카드 한 장 — 약화는 파티 층(적이 건 것, docs/16 §8)이라 파티의 약화가 1 준다(사도 모두가 같은 겹을 본다)
   const atk = s.hand.findIndex((id) => { const c = C.cardOf(s, id); return c.hero === "에르핀" && (c.fx || []).some((f) => f.k === "dmg"); });
   if (atk < 0) { s.hand.push(C.buildDeck(["에르핀"]).find((id) => (C.cardOf(s, id).fx || []).some((f) => f.k === "dmg"))); }
   const i = atk < 0 ? s.hand.length - 1 : atk;
   s.ap = 9;
   C.playCard(s, i, 0);
   const erpin = s.party.find((u) => u.key === "에르핀");
-  check((erpin.status["약화"] || 0) === 0 && s.party.filter((u) => u.key !== "에르핀").every((u) => (u.status["약화"] || 0) === 1), "피해 카드를 낸 사도의 약화만 1 준다");
+  check((erpin.status["약화"] || 0) === 0 && s.party.every((u) => (u.status["약화"] || 0) === 0) && (s.pool.status["약화"] || 0) === 0, "피해 카드 한 장 — 파티의 약화가 1 준다(파티 층)");
 }
 // 2) 내가 적에게 건 취약 1 — 적의 차례를 거쳐도 남고, 카드에 맞으면 준다
 {

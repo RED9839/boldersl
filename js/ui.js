@@ -114,21 +114,17 @@ export function mapScreen(run, onEnter, onQuit) {
   where.appendChild(el("span", null, `${floor.sub} · ${floor.n}-0 ~ ${floor.n}-${map.rows.length - 1} · 갈 곳을 고릅니다`));
   head.appendChild(where);
   const party = el("div", "mparty-hp");
+  // 파티 HP 하나(docs/16 §8) — 막대는 파티에 하나, 사도 칸은 얼굴 · 이름 · 장비
+  party.appendChild(partyHpCell(run, "mhero mpool"));
   for (const k of run.party) {
     const h = HERO(k);
-    const cell = el("div", "mhero" + ((run.hp[k] || 0) <= 0 ? " dead" : ""));
+    const cell = el("div", "mhero");
     const pic = CARDART.pic[k + "_ult"];
     const face = el("span", "mface");
     if (pic) face.appendChild(img(pic)); else face.appendChild(el("b", null, (h.ko || k).slice(0, 1)));
     cell.appendChild(face);
     const info = el("div", "minfo");
     info.appendChild(el("b", null, h.ko || k));
-    const bar = el("div", "bar");
-    const fill = el("i");
-    fill.style.width = Math.max(0, ((run.hp[k] || 0) / (run.maxHp[k] || 1)) * 100) + "%";
-    bar.appendChild(fill);
-    info.appendChild(bar);
-    info.appendChild(el("span", "mhp", (run.hp[k] || 0) <= 0 ? "주말농장" : `${run.hp[k]} / ${run.maxHp[k]}`));
     cell.appendChild(info);
     cell.appendChild(gearStrip(run, k, 22));
     cell.title = "눌러서 장비 보기" + (boonText(run, k) ? " · " + boonText(run, k) : "");
@@ -216,7 +212,6 @@ export function mapScreen(run, onEnter, onQuit) {
   let busy = false, dragged = false;
   const party3 = el("div", "mwalkers");
   for (const k of run.party) {
-    if ((run.hp[k] || 0) <= 0) continue;
     party3.appendChild(art.portrait(k, { ko: HERO(k).ko, tint: TINT(k), size: 96, slot: "map" }));
   }
   const here = M.currentNode(run) || map.rows[0][0];
@@ -472,6 +467,26 @@ export function rewardScreen(run, onPick) {
   return s;
 }
 
+// 파티 HP 한 칸 — 지도 · 이벤트 머리(docs/16 §8). 사도마다 HP 가 없다 — 셋이 함께 쓰는 막대 하나
+function partyHpCell(run, cls) {
+  const hp = run.partyHp || 0, max = run.partyMaxHp || 1;
+  const cell = el("div", cls + (hp <= max * 0.3 ? " danger" : ""));
+  const face = el("span", "mface ppool");
+  face.appendChild(el("b", null, "♥"));
+  cell.appendChild(face);
+  const info = el("div", "minfo");
+  info.appendChild(el("b", null, "파티 HP"));
+  const bar = el("div", "bar");
+  const fill = el("i");
+  fill.style.width = Math.max(0, (hp / max) * 100) + "%";
+  bar.appendChild(fill);
+  info.appendChild(bar);
+  info.appendChild(el("span", "mhp", `${hp} / ${max}`));
+  cell.appendChild(info);
+  cell.title = "파티 HP — 세 사도의 최대 HP(장비 포함)를 더한 것. 0 이 되면 판이 끝납니다";
+  return cell;
+}
+
 // ── 장비 칸 ─────────────────────────────────────────────────────────────
 // 스탯 줄 · 장비 아이콘 · 장비 카드는 ui-common.js 에 있다(편성 · 전투도 쓴다). 여기는 끼우고 빼는 쪽이다.
 // 장비 카드를 누르면 자세히 — 카드 안의 단추(끼기 · 사기 · 낱말)를 누른 것은 빼고
@@ -655,7 +670,7 @@ function gearPanel(run, mode, onChange, say) {
 
 // ── 캠프 ────────────────────────────────────────────────────────────────
 // 한 층에 두 번 — 가운데 캠프, 보스 앞 캠프 + 상점. 슬더스 모닥불처럼 **하나만** 고른다.
-//   쉬기  살아 있는 사도 HP 회복(최대 HP의 30%) · 주말농장에 간 사도는 최대 HP의 30%로 돌아온다
+//   쉬기  파티 HP 회복(파티 최대 HP의 30%)
 //   수련  가진 고유 카드 하나에 신탁(다섯 중 셋)
 // 캠프 + 상점이면 골디가 옆에 좌판을 폈다. 상점에 들르는 것은 캠프 선택을 쓰지 않는다.
 //
@@ -671,11 +686,8 @@ export function campScreen(run, withShop, onDone, onShop) {
   const offer = run.camp && run.camp.train;
   // 바로 다음이 보스인가 — 휴식(상점)은 길 가운데(1-4 ~ 1-9)에도 선다
   const nearBoss = bossNext(run);
-  const heal = (k) => {
-    const hp = run.hp[k] || 0, max = run.maxHp[k] || 1;
-    if (st.used) return 0;
-    return hp <= 0 ? Math.max(1, Math.round(max * RULES.CAMP_REVIVE)) : Math.min(max - hp, Math.round(max * RULES.CAMP_HEAL));
-  };
+  // 쉬면 찰 만큼 — 파티 HP 하나(docs/16 §8)
+  const heal = () => (st.used ? 0 : Math.max(0, R.campHealOf(run)));
 
   // ① 머리 — 이름 · 어디 · 골드 · 떠나기
   const top = el("div", "cp-top");
@@ -725,19 +737,25 @@ export function campScreen(run, withShop, onDone, onShop) {
     const plate = el("div", "cp-plate");
     const nm = el("div", "cp-name");
     nm.appendChild(el("b", null, h.ko));
-    const num = el("span", "cp-num");
-    nm.appendChild(num);
     plate.appendChild(nm);
-    const bar = el("div", "cp-hp");
-    const fill = el("i", "cp-fill");
-    const add = el("em", "cp-add");
-    bar.appendChild(fill);
-    bar.appendChild(add);
-    plate.appendChild(bar);
     n.appendChild(plate);
     stage.appendChild(n);
-    return { k, n, num, fill, add };
+    return { k, n };
   });
+  // 파티 HP — 셋이 함께 쓰는 막대 하나(모닥불 아래)
+  const pplate = el("div", "cp-plate cp-party");
+  const pnm = el("div", "cp-name");
+  pnm.appendChild(el("b", null, "파티"));
+  const pnum = el("span", "cp-num");
+  pnm.appendChild(pnum);
+  pplate.appendChild(pnm);
+  const pbar = el("div", "cp-hp");
+  const pfill = el("i", "cp-fill");
+  const padd = el("em", "cp-add");
+  pbar.appendChild(pfill);
+  pbar.appendChild(padd);
+  pplate.appendChild(pbar);
+  stage.appendChild(pplate);
   main.appendChild(stage);
 
   // ③ 오른쪽 — 하나만 고른다 · 장비 · 좌판
@@ -750,22 +768,19 @@ export function campScreen(run, withShop, onDone, onShop) {
   side.appendChild(head);
 
   const choices = el("div", "cp-choices");
-  const rest = choiceBtn("cp-rest", "쉬기", `사도의 HP를 최대 HP의 ${Math.round(RULES.CAMP_HEAL * 100)}%만큼 채웁니다 — 주말농장에 간 사도도 ${Math.round(RULES.CAMP_REVIVE * 100)}%로 돌아옵니다`);
+  const rest = choiceBtn("cp-rest", "쉬기", `파티 HP를 파티 최대 HP의 ${Math.round(RULES.CAMP_HEAL * 100)}%만큼 채웁니다`);
   const restGain = el("em", "cp-gain");
   rest.body.appendChild(restGain);
   rest.b.onclick = () => {
-    const before = run.party.map((k) => run.hp[k] || 0);
-    const back = run.party.filter((k) => (run.hp[k] || 0) <= 0);
+    const before = run.partyHp || 0;
     const why = R.campRest(run); writeSave(run);
     if (why) return say(why);
     sfx.play("camp.rest");
     // 불이 한 번 확 일고, 사도마다 찬 만큼 떠오른다
     fire.classList.remove("flare"); void fire.offsetWidth; fire.classList.add("flare");
-    members.forEach((m, i) => {
-      const d = (run.hp[m.k] || 0) - before[i];
-      if (d > 0) { const f = el("span", "cp-float", `+${d}`); m.n.appendChild(f); setTimeout(() => f.remove(), 1600); }
-    });
-    say(back.length ? `모닥불 곁에서 푹 쉬었습니다. ${back.map((k) => (HERO_DATA[k] || {}).ko || k).join(" · ")} 주말농장에서 돌아왔습니다.` : "모닥불 곁에서 푹 쉬었습니다. 다시 걸을 힘이 납니다.");
+    const d = (run.partyHp || 0) - before;
+    if (d > 0) { const f = el("span", "cp-float", `+${d}`); pplate.appendChild(f); setTimeout(() => f.remove(), 1600); }
+    say("모닥불 곁에서 푹 쉬었습니다. 다시 걸을 힘이 납니다.");
     refresh();
   };
   choices.appendChild(rest.b);
@@ -836,17 +851,12 @@ export function campScreen(run, withShop, onDone, onShop) {
 
   // 숫자 · 상태만 고친다 — 사도 그림(스파인)은 다시 세우지 않는다
   function refresh() {
-    let total = 0;
-    for (const m of members) {
-      const hp = run.hp[m.k] || 0, max = run.maxHp[m.k] || 1;
-      const down = hp <= 0, gain = heal(m.k);
-      total += gain;
-      m.n.classList.toggle("down", down);
-      m.fill.style.width = `${(hp / max) * 100}%`;
-      m.add.style.left = `${(hp / max) * 100}%`;
-      m.add.style.width = `${(gain / max) * 100}%`;
-      m.num.textContent = down ? `주말농장에서 쉬는 중${gain ? ` · 쉬면 +${gain}` : ""}` : `${hp} / ${max}${gain ? `  +${gain}` : ""}`;
-    }
+    const hp = run.partyHp || 0, max = run.partyMaxHp || 1, gain = heal();
+    const total = gain;
+    pfill.style.width = `${(hp / max) * 100}%`;
+    padd.style.left = `${(hp / max) * 100}%`;
+    padd.style.width = `${(gain / max) * 100}%`;
+    pnum.textContent = `${hp} / ${max}${gain ? `  +${gain}` : ""}`;
     headB.textContent = st.used ? (st.used === "rest" ? "푹 쉬었습니다" : "수련을 마쳤습니다") : "캠프에서 하나만 고릅니다";
     headS.textContent = st.used ? "이번 캠프에서는 이미 골랐습니다 — 장비는 아직 바꿀 수 있습니다" : "쉬기와 수련 중 하나 · 장비와 좌판은 선택을 쓰지 않습니다";
 
@@ -1302,8 +1312,6 @@ const pctTxt = (p) => `${Math.round(p * 100)}%`;
 // 이벤트의 npc 가 사도가 아닐 때 — 스탠딩 스파인(assets/spine/standing/<spine>)과 구워 둔 한 장(tools/bake-npc.py).
 // 겨우살이는 원작 폴더 noone(그 목소리가 「난 겨우살이야」). 정체는 말하지 않는다(docs/03)
 const NPC_ART = { 겨우살이: { spine: "noone", still: MISTLETOE.still, sub: "꿈속의 다정한 목소리" } };
-// C3 처럼 편지를 보낸 쪽이 그때그때 다른 이벤트 — 파티의 쓰러진 사도를 세운다
-const FALLEN_NPC = "쓰러진 사도";
 const stillImg = (src, alt) => {
   const box = el("div", "art art-event");
   const im = document.createElement("img"); im.src = src; im.alt = alt;
@@ -1315,8 +1323,8 @@ const stillImg = (src, alt) => {
 // 새 판(eventscreen2) — 상점 · 캠프와 같은 옷: 이 층의 이벤트 배경, 왼쪽에 나오는 사도의 스탠딩과 말풍선(장면), 오른쪽에 선택지.
 // 선택지 · 결과에서 고를 것(카드 · 신탁 · 사도)은 모두 두 단계(twoStep) — 눌러 고르고 단추로 정한다.
 export function eventScreen(run, onDone, onFight) {
-  // 「HP ±N%」 는 파티 전원 — draw() 가 먼저 불리므로 const 가 아니라 함수 선언으로(전에는 선언 전 접근으로 이벤트가 멈췄다)
-  function whoHp(t) { return String(t).replace(/(?<!최대 ?)HP ([+\-]\d+%)(?!\s*\()/g, "파티 전원 HP $1"); }
+  // 「HP ±N%」 는 파티 HP(docs/16 §8) — draw() 가 먼저 불리므로 const 가 아니라 함수 선언으로(전에는 선언 전 접근으로 이벤트가 멈췄다)
+  function whoHp(t) { return String(t).replace(/(?<!최대 ?)HP ([+\-]\d+%)(?!\s*\()/g, "파티 HP $1"); }
   const s = screen();
   s.className = "eventscreen2";
   sfx.play("event.open");
@@ -1360,14 +1368,13 @@ export function eventScreen(run, onDone, onFight) {
     if (npcView) { npcView.dispose && npcView.dispose(); npcView = null; }
     stand.innerHTML = ""; stand.className = "ev2-stand"; plate.innerHTML = "";
     const mine = id;
-    const down = ev && ev.npc === FALLEN_NPC ? run.party.find((k) => (run.hp[k] || 0) <= 0) : null;
-    const npc = down || (ev && ev.npc && heroKeyByKo(ev.npc));
+    const npc = ev && ev.npc && heroKeyByKo(ev.npc);
     const other = ev && ev.npc && NPC_ART[ev.npc];
     if (npc) {
       const ko = HERO(npc).ko;
       who.textContent = ko;
       plate.appendChild(el("b", null, ko));
-      plate.appendChild(el("span", null, down ? "주말농장에서 쉬는 중" : `${HERO(npc).race || ""} · ${HERO(npc).nature || ""}`));
+      plate.appendChild(el("span", null, `${HERO(npc).race || ""} · ${HERO(npc).nature || ""}`));
       spineView(stand, "standing", npc, { anim: "Idle_1", mix: 0.25 }).then((v) => {
         if (standFor !== mine) { v && v.dispose && v.dispose(); return; }
         if (!v) { stand.classList.add("still"); stand.appendChild(art.portrait(npc, { ko, tint: TINT(npc), size: 0, slot: "event", still: true })); return; }
@@ -1414,15 +1421,24 @@ export function eventScreen(run, onDone, onFight) {
     title.appendChild(el("span", null, ev ? `이벤트 · ${POOL_KO(ev.pool)} · ${ev.kind}` : "어느 쪽으로 갈지 고릅니다"));
     top.appendChild(title);
     const party = el("div", "ev2-party");
+    // 파티 HP 하나(docs/16 §8) — 막대는 파티에, 사도 칸은 얼굴 · 이름 · 공격력(판정에 쓴다)
+    {
+      const hp = run.partyHp || 0, max = run.partyMaxHp || 1;
+      const c = el("div", "ev2-mem ev2-pool");
+      const info = el("div");
+      info.appendChild(el("b", null, "파티 HP"));
+      const bar = el("i", "ev2-hp"); const fill = el("s"); fill.style.width = `${(hp / max) * 100}%`; bar.appendChild(fill);
+      info.appendChild(bar);
+      info.appendChild(el("small", null, `${hp} / ${max}`));
+      c.appendChild(info);
+      party.appendChild(c);
+    }
     for (const k of run.party) {
-      const hp = run.hp[k] || 0, max = run.maxHp[k] || 1;
-      const c = el("div", "ev2-mem" + (hp <= 0 ? " down" : ""));
+      const c = el("div", "ev2-mem");
       c.appendChild(art.portrait(k, { ko: HERO(k).ko, tint: TINT(k), size: 30, slot: "battle", still: true }));
       const info = el("div");
       info.appendChild(el("b", null, HERO(k).ko));
-      const bar = el("i", "ev2-hp"); const fill = el("s"); fill.style.width = `${(hp / max) * 100}%`; bar.appendChild(fill);
-      info.appendChild(bar);
-      info.appendChild(el("small", null, hp <= 0 ? "주말농장에서 쉬는 중" : `${hp} / ${max} · 공격 ${(HERO_DATA[k] || {}).atk || "?"}`));
+      info.appendChild(el("small", null, `공격 ${(HERO_DATA[k] || {}).atk || "?"}`));
       c.appendChild(info);
       party.appendChild(c);
     }
@@ -1520,14 +1536,14 @@ export function eventScreen(run, onDone, onFight) {
   }
 
   // 선택지가 무엇을 하는지 — 결과 낱말 그대로, 확률·판정은 숫자로
-  // 누구의 HP 인지 — 기획서 결과 글의 맨 「HP -15%」 는 살아 있는 파티 전원에 걸린다(events.js apply). 「(그 사도)」 따위가 붙은 것 · 최대 HP 는 그대로
+  // 누구의 HP 인지 — 결과 글의 「HP -15%」 는 파티 HP(events.js apply · docs/16 §8). 최대 HP 도 파티 최대 HP
   function describe(opt) {
     if (opt.fight) return `전투 (${opt.fight.name}) → 이기면 ${opt.fight.win || opt.fight.winGamble.map((g) => `${pctTxt(g.p)} ${g.out}`).join(" / ")}`;
     if (opt.gamble && opt.choose) return `골라서 받는다: ${opt.gamble.map((g) => g.out).join(" / ")}`;
     if (opt.gamble) return opt.gamble.map((g) => `${pctTxt(g.p)} ${g.out}`).join(" / ");
     if (opt.judge) {
       const j = EV.judgeOf(run, opt);
-      if (j.pick) return `사도 1명을 골라 겨룹니다 — HP ${opt.judge.at} 이상이면 ${opt.judge.pass}, 아니면 ${opt.judge.fail}`;
+      if (j.hp) return `파티 HP ${j.value}% → ${j.pass ? `성공: ${opt.judge.pass}` : `실패: ${opt.judge.fail}`} (파티 HP ${opt.judge.at}% 이상이면 성공)`;
       return `${HERO(j.who || "").ko || "?"} 공격 ${j.value} → ${j.pass ? `성공: ${opt.judge.pass}` : `실패: ${opt.judge.fail}`} (${opt.judge.at} 이상이면 성공)`;
     }
     const out = EV.outOf(run, opt);
@@ -1650,22 +1666,6 @@ export function eventScreen(run, onDone, onFight) {
       if (run.event.shinChance && !run.noShin) box.appendChild(el("p", "ev2-note", `고르면 ${pctTxt(run.event.shinChance)} 확률로 겨우살이의 축복(피해 ×1.3)이 얹힙니다`));
       ts.bar.appendChild(skipBtn());
       box.appendChild(ts.bar);
-    } else if (p.k === "pickHero" || p.k === "judgePick") {
-      const t = p.k === "judgePick" ? `팔씨름에 나설 사도 — HP ${p.judge.at} 이상이면 이긴다` : p.then.k === "hp" ? "HP 가 바뀔 사도" : `최대 HP +${p.then.v} ${josa(String(p.then.v), "을를")} 받을 사도`;
-      head("사도 1명", t);
-      ts = twoStep(commit, { verb: p.k === "judgePick" ? "이 사도가 나섭니다" : "이 사도로 합니다" });
-      const row = el("div", "ev2-heroes");
-      for (const k of run.party) {
-        if ((run.hp[k] || 0) <= 0) continue;
-        const b = el("button", "ev2-hero");
-        b.appendChild(art.portrait(k, { ko: HERO(k).ko, tint: TINT(k), size: 0, slot: "event", still: true }));
-        b.appendChild(el("b", null, HERO(k).ko));
-        b.appendChild(el("span", null, `HP ${run.hp[k]} / ${run.maxHp[k]}`));
-        b.onclick = () => ts.pick(b, k, HERO(k).ko);
-        row.appendChild(b);
-      }
-      box.appendChild(row);
-      box.appendChild(ts.bar);
     } else if (p.k === "gambleChoice") {
       head("골라서 받습니다", "아는 얼굴 앞이라 바로 읽어 줍니다");
       ts = twoStep(commit, { verb: "이것으로 받습니다" });
@@ -1707,17 +1707,16 @@ export function endScreen(kind, run, onRestart) {
   const body = el("div", "rbody");
   s.appendChild(body);
 
-  // 데려간 사도 — 누가 서 있고 누가 주말농장에 갔나
-  body.appendChild(sec2("데려간 사도", clear ? "" : "체력이 0이면 주말농장으로 갑니다"));
+  // 데려간 사도 — 파티 HP 하나(docs/16 §8). 0 이 되면 판이 끝난다
+  body.appendChild(sec2("데려간 사도", `파티 HP ${Math.max(0, run.partyHp || 0)} / ${run.partyMaxHp || 0}${clear ? "" : " — 파티 HP 가 0 이 되면 판이 끝납니다"}`));
   const who = el("div", "erow");
   for (const k of run.party) {
     const h = HERO_DATA[k] || HERO(k);
-    const down = (run.hp[k] || 0) <= 0;
-    const n = el("div", "ehero" + (down ? " down" : ""));
+    const n = el("div", "ehero");
     n.appendChild(art.portrait(k, { ko: h.ko, tint: NTINT[h.nature], size: 44, slot: "battle", still: true }));
     const t = el("div");
     t.appendChild(el("b", null, h.ko));
-    t.appendChild(el("span", "why", down ? "주말농장" : `${run.hp[k]} / ${run.maxHp[k]}`));
+    t.appendChild(el("span", "why", `${h.role || ""} · ${h.rowKo || ""}`));
     n.appendChild(t);
     who.appendChild(n);
   }

@@ -9,10 +9,10 @@
 //   - 패시브 규칙이 한 번이라도 발동하는가
 // 를 센다. 드문 조건(HP 50% 이하·아군이 쓰러지면)은 안 떠도 경고만 한다.
 import { STATUS_V } from "../js/rules.js";
-import { newCombat, endTurn, playCard, canPlay, useUlt, canUlt, cardOf, previewUlt, previewAllies } from "../js/combat.js";
+import { newCombat, endTurn, playCard, canPlay, useUlt, canUlt, cardOf, previewUlt, previewAllies, previewParty } from "../js/combat.js";
 import { CARDS, kitOf, HERO_DATA, NEUTRAL_IDS, EQUIP } from "../js/cardbook.js";
 import { statsOf } from "../js/run.js";
-import { healStat, HEAL_BONUS } from "../js/rules.js";
+import * as R6 from "../js/rules.js";
 import { parsePassive, statMod } from "../js/passive.js";
 import fs from "node:fs";
 import { DESIGN_DOC } from "./lib/paths.js";
@@ -88,17 +88,20 @@ console.log("본보기 — 네르 「기도」(셋이 차는 그 턴에 계시)"
   if (s.stacks && s.stacks["네르"]) s.stacks["네르"]["기도"] = 0;   // 시그니처의 「기도」 +N 이 셋을 채워 계시까지 내리지 않게
   play(s, sigId);
   check(give > 0 && morale(tig) - d1 === give, `「세계수의 계시」 — 아군 전원 사기 ${give} (티그 ${d1} → ${morale(tig)})`);
-  // 도발 — 적이 네르만 친다 · 무적은 적의 차례까지 막는다(「여왕님 앞은 못 지나가요」)
+  // 도발 — 적이 네르만 친다 · 피해 감소는 적의 차례까지 남아 그 수를 줄인다(「여왕님 앞은 못 지나가요」 — v6 에 무적을 피해 감소로 바꿨다)
   const s2 = fight(["에르핀", "네르", "티그"], ["fairymoblongrange"]); tough(s2);
   for (const u of s2.party) { u.maxHp = u.hp = 999; }
   const nerU = s2.party.find((u) => u.key === "네르");
   play(s2, idOf("네르", "여왕님 앞은 못 지나가요"));
   s2.enemies[0].intent = { t: "back", v: 30, say: "뒤로 파고든다" };
-  const hp0 = nerU.hp;
+  const hp0 = nerU.hp, dr0 = (s2.pool.status || {})["피해 감소"] || 0;
   endTurn(s2);
   const line = s2.log.find((l) => l.includes("뒤로 파고든다 →")) || "";
-  check(/→ 네르/.test(line), `도발 — 뒷줄을 노리던 적도 네르를 친다 (${line})`);
-  check(nerU.hp === hp0, `무적은 적의 차례까지 막는다 (${hp0} → ${nerU.hp})`);
+  // 파티 HP 하나 — 도발은 「끌어 맞기」 가 아니라 「막아 서기」(파티 불굴 +1 · rules.js TAUNT_FORT). 관통(back)도 파티를 친다
+  check(s2.log.some((l) => /네르: 도발/.test(l)) && /→ 파티/.test(line), `도발 — 네르가 앞을 막아 선다 · 관통도 파티를 친다 (${line})`);
+  const dr1 = (s2.pool.status || {})["피해 감소"] || 0;
+  // 30 → 도발(불굴 +1) -20% → 피해 감소 -15% = 20. 피해 감소는 1 쓰지만 「사제장의 무적권」(맞으면 파티 피해 감소 1)이 다시 채운다
+  check(dr0 >= 3 && dr1 >= dr0 - 1 && hp0 - nerU.hp === Math.round(30 * 0.8 * 0.85), `피해 감소는 적의 차례까지 남아 한 수를 줄인다 (피해 감소 ${dr0} → ${dr1} · HP ${hp0} → ${nerU.hp})`);
   // 「사제장의 무적권」 — 맞으면 조금 회복한다
   const s3 = fight(["에르핀", "네르", "티그"], ["fairymobcloserange"]); tough(s3);
   const n3 = s3.party.find((u) => u.key === "네르");
@@ -110,34 +113,34 @@ console.log("본보기 — 네르 「기도」(셋이 차는 그 턴에 계시)"
 }
 
 console.log("");
-console.log("본보기 — 나이아 「물총알」(넘친 회복을 모아 쏜다)");
+console.log("본보기 — 나이아 「물보라」(넘친 회복을 모아 쏜다 — v6 에 「물총알」 에서 이름을 바꿨다)");
 {
   const s = fight(["나이아", "네르", "티그"]); tough(s);
-  const splash = () => stackOf(s, "나이아", "물총알");
-  // 다 찬 파티를 씻기면 넘친다 — 회복 한 번 · 대상 하나에 「물총알」 +1
+  const splash = () => stackOf(s, "나이아", "물보라");
+  // 다 찬 파티를 씻기면 넘친다 — 회복 한 번 · 대상 하나에 「물보라」 +1
   const wash = idOf("나이아", "그게 씻은거야?");
   const heals = (CARDS[wash].fx || []).filter((f) => f.k === "heal").length;
   play(s, wash);
-  check(splash() === heals, `다 찬 아군을 씻기면 「회복량이 최대 HP를 초과하면」 — 회복 ${heals}번에 「물총알」 +${heals} (지금 ${splash()})`);
+  check(splash() === heals, `다 찬 아군을 씻기면 「회복량이 최대 HP를 초과하면」 — 회복 ${heals}번에 「물보라」 +${heals} (지금 ${splash()})`);
   check(s.log.some((l) => l.includes("나이아 · 퓨퓨~")), "발동하면 기록에 이름이 남는다");
   // 다친 파티면 넘치지 않는다
   const t = fight(["나이아", "네르", "티그"]); tough(t);
   for (const u of t.party) u.hp = 1;
   play(t, wash);
-  check(stackOf(t, "나이아", "물총알") === 0, `다친 아군을 채우면 넘치지 않는다 (${stackOf(t, "나이아", "물총알")})`);
+  check(stackOf(t, "나이아", "물보라") === 0, `다친 아군을 채우면 넘치지 않는다 (${stackOf(t, "나이아", "물보라")})`);
   // 남이 넘치게 채운 것은 세지 않는다 — 네르의 회복
   const u = fight(["나이아", "네르", "티그"]); tough(u);
   play(u, kitOf("네르").start.find((c) => c.fx.some((f) => f.k === "heal")).id, 0);
-  check(stackOf(u, "나이아", "물총알") === 0, "다른 사도의 넘친 회복은 나이아의 「물총알」 가 아니다");
+  check(stackOf(u, "나이아", "물보라") === 0, "다른 사도의 넘친 회복은 나이아의 「물보라」 가 아니다");
   // 다섯이 되면 물총 — 다 쓰고 적을 친다
-  s.stacks["나이아"]["물총알"] = 4;
+  s.stacks["나이아"]["물보라"] = 4;
   const hp0 = foeHp(s);
   play(s, wash);
-  check(splash() <= heals && foeHp(s) < hp0, `「물총알」 다섯 — 물총으로 쏘고 비운다 (남은 ${splash()} · 적 HP ${hp0} → ${foeHp(s)})`);
-  // 「얼굴에 물총」 — 모은 물총알를 탄알로
-  s.stacks["나이아"]["물총알"] = 3;
+  check(splash() <= heals && foeHp(s) < hp0, `「물보라」 다섯 — 물총으로 쏘고 비운다 (남은 ${splash()} · 적 HP ${hp0} → ${foeHp(s)})`);
+  // 「얼굴에 물총」 — 모은 물보라를 탄알로
+  s.stacks["나이아"]["물보라"] = 3;
   play(s, idOf("나이아", "얼굴에 물총"));
-  check(splash() === 0, `「얼굴에 물총」 — 「물총알」 를 전부 쏜다 (${splash()})`);
+  check(splash() === 0, `「얼굴에 물총」 — 「물보라」 를 전부 쏜다 (${splash()})`);
 }
 
 console.log("");
@@ -189,8 +192,8 @@ console.log("본보기 — 엘레나 「드론」(깔아 두면 턴 끝마다, �
   const s = fight(["엘레나", "에르핀", "네르"]); tough(s);
   for (const e of s.enemies) { e.intent = null; e.sealed = true; }
   const drone = () => stackOf(s, "엘레나", "드론");
-  play(s, idOf("엘레나", "냥이 드론 출격"));
-  check(drone() === 2, `「드론」 +2 (지금 ${drone()})`);
+  play(s, idOf("엘레나", "냥이 드론 출격")); play(s, idOf("엘레나", "냥이 드론 출격"));
+  check(drone() === 2, `「냥이 드론 출격」 두 번 — 「드론」 +1 씩 (지금 ${drone()})`);
   const hp0 = s.enemies.map((e) => e.hp);
   endTurn(s);
   check(s.enemies.every((e, i) => e.hp < hp0[i]) && s.log.some((l) => l.includes("엘레나 · 드론")), `턴 끝 — 드론마다 적 전체 펄스파 (${hp0} → ${s.enemies.map((e) => e.hp)})`);
@@ -212,7 +215,7 @@ console.log("고학년 스킬");
   check(pv && s.enemies.every((e, i) => pv[i] && pv[i].hp === Math.min(hp[i], hp[i] - Math.max(0, e.hp))), `고학년 스킬 피해 미리보기가 실제와 같다 (${pv && pv.map((x) => x && x.hp)} / ${s.enemies.map((e, i) => hp[i] - Math.max(0, e.hp))})`);
   check(r.ok, `에르핀 고학년 스킬을 쓴다 (${r.why || "ok"})`);
   check(s.enemies.every((e, i) => e.hp < hp[i]), "고학년 스킬이 적 전체를 친다 — 전에는 게이지만 먹었다");
-  check(s.party.find((u) => u.key === "에르핀").invuln === true, "고학년 스킬의 무적이 걸린다");
+  check(((s.pool.status || {})["피해 감소"] || 0) >= 3, `고학년 스킬의 파티 피해 감소가 걸린다 (${(s.pool.status || {})["피해 감소"] || 0} — v6 에 무적을 바꿨다)`);
 }
 
 console.log("");
@@ -248,56 +251,54 @@ console.log("카드 태그");
 }
 
 console.log("");
-console.log("회복력 — 회복은 공격력이 아니라 회복력(공격력 + 역할 몫)으로 센다");
+console.log("치유 — 방어력 기준(v6 카제나 「치유 = 방어력」, 회복력 · 온정은 없앴다)");
 {
-  check(healStat(8, "서포터") === 8 + HEAL_BONUS.서포터 && healStat(8, "탱커") === 8 + HEAL_BONUS.탱커 && healStat(13, "딜러") === 13,
-    `회복력 = 공격력 + 역할 몫 (서포터 +${HEAL_BONUS.서포터} · 탱커 +${HEAL_BONUS.탱커} · 딜러 0)`);
-  // 사도마다 「아군 1명 HP 회복」 한 줄짜리 카드를 내 본다 — 실제 회복 = 회복력 × 배율, 미리보기 = 실제
+  check(R6.healStat === undefined && R6.HEAL_BONUS === undefined && R6.STATUS_V.온정 === undefined, "옛 회복력(healStat · HEAL_BONUS) · 온정이 없다");
+  // 사도마다 「파티 HP 회복」 한 줄짜리 카드를 내 본다 — 실제 치유 = 방어력 × 배율, 미리보기 = 실제
   const keys = Object.keys(HERO_DATA);
   const dealer = keys.find((x) => HERO_DATA[x].role === "딜러");
   let n = 0;
   const off = [], pvOff = [];
   for (const k of keys) {
-    const c = [...kitOf(k).start, ...kitOf(k).unique].find((x) => x.fx.length === 1 && x.fx[0].k === "heal" && x.fx[0].target === "oneAlly");
+    const c = [...kitOf(k).start, ...kitOf(k).unique].find((x) => x.fx.length === 1 && x.fx[0].k === "heal" && x.fx[0].target === "party");
     if (!c || k === dealer) continue;
     const s = newCombat({ partyKeys: [k, dealer], rows: {}, deck: [k, dealer].flatMap(kit), enemyIds: ["gluttonbear"], seed: 3 });
     for (const u of s.party) u.hp = 1;
     s.hand.unshift(c.id); s.ap = 5;
     const o = s.party[0];
-    const want = Math.max(1, Math.round(healStat(Math.max(1, Math.round(o.atk * (1 + statMod(s, o, "atk")))), o.role) * c.fx[0].ratio));
-    const pv = previewAllies(s, 0, 1);
+    const want = Math.max(1, Math.round(Math.max(0, Math.round(o.def * (1 + statMod(s, o, "def")))) * c.fx[0].ratio));
+    const pv = previewParty(s, 0, 1);
     const h0 = s.party[1].hp;
     playCard(s, 0, 1);
     const real = s.party[1].hp - h0;
     n++;
     if (real !== want) off.push(`${HERO_DATA[k].ko} ${real}≠${want}`);
-    if (!pv || !pv[1] || pv[1].heal !== real) pvOff.push(`${HERO_DATA[k].ko} 미리보기 ${pv && pv[1] ? pv[1].heal : "-"} · 실제 ${real}`);
+    if (!pv || pv.heal !== real) pvOff.push(`${HERO_DATA[k].ko} 미리보기 ${pv ? pv.heal : "-"} · 실제 ${real}`);
   }
-  check(n >= 20 && !off.length, `회복 카드 ${n}장 — 실제 회복 = 회복력 × 배율${off.length ? " · 어긋남 " + off.slice(0, 4).join(", ") : ""}`);
-  check(n >= 20 && !pvOff.length, `회복 카드 ${n}장 — 미리보기 = 실제${pvOff.length ? " · 어긋남 " + pvOff.slice(0, 4).join(", ") : ""}`);
+  check(n >= 20 && !off.length, `치유 카드 ${n}장 — 실제 치유 = 방어력 × 배율${off.length ? " · 어긋남 " + off.slice(0, 4).join(", ") : ""}`);
+  check(n >= 20 && !pvOff.length, `치유 카드 ${n}장 — 미리보기 = 실제${pvOff.length ? " · 어긋남 " + pvOff.slice(0, 4).join(", ") : ""}`);
   // 교주 카드는 사도 스탯을 빌리지 않는다(2026-10) — 피해 · 방어 · 실드 · 회복 조각이 기본에도 신탁에도 없다
   const STATFX = ["dmg", "block", "shield", "heal"];
   const statty = NEUTRAL_IDS.filter((id) => [CARDS[id].fx, ...(CARDS[id].flash || []).map((f) => f.fx || [])].some((fx) => fx.some((f) => STATFX.includes(f.k))));
   check(NEUTRAL_IDS.length === 43 && !statty.length, `교주 카드 ${NEUTRAL_IDS.length}장 — 스탯 % 효과 없음${statty.length ? " · 남은 것 " + statty.map((id) => CARDS[id].name).join(", ") : ""}`);
-  // 「회복력 +N%」 교주 카드 — 사도의 회복이 그만큼 커진다. 「다음 카드 코스트 -1」 — 다음 카드가 1 싸진다
+  // 교주 「효율적인 회복」 — 다음 카드 코스트 -1 · 파티 면역(파티 층 — 한 번). v6 교주 재작성에서 결의가 면역으로 바뀌었다
   const nid = NEUTRAL_IDS.find((id) => CARDS[id].name === "효율적인 회복");
-  const sup = keys.find((x) => HERO_DATA[x].role === "서포터" && [...kitOf(x).start, ...kitOf(x).unique].some((c) => c.fx.length === 1 && c.fx[0].k === "heal" && c.fx[0].target === "oneAlly" && c.cost === 1));
+  const sup = keys.find((x) => HERO_DATA[x].role === "서포터" && [...kitOf(x).start, ...kitOf(x).unique].some((c) => c.fx.length === 1 && c.fx[0].k === "heal" && c.fx[0].target === "party" && c.cost === 1));
   if (nid && sup) {
-    const hc = [...kitOf(sup).start, ...kitOf(sup).unique].find((c) => c.fx.length === 1 && c.fx[0].k === "heal" && c.fx[0].target === "oneAlly" && c.cost === 1);
+    const hc = [...kitOf(sup).start, ...kitOf(sup).unique].find((c) => c.fx.length === 1 && c.fx[0].k === "heal" && c.fx[0].target === "party" && c.cost === 1);
     const s = newCombat({ partyKeys: [sup, dealer], rows: {}, deck: [sup, dealer].flatMap(kit), enemyIds: ["gluttonbear"], seed: 3 });
     for (const u of s.party) u.hp = 1;
+    s.pool.status = {};
     s.hand.unshift(nid, hc.id); s.ap = 5;
-    const o = s.party[0];
-    const before = Math.max(1, Math.round(healStat(Math.max(1, Math.round(o.atk * (1 + statMod(s, o, "atk")))), o.role) * hc.fx[0].ratio));
+    const fy = CARDS[nid].fx.find((f) => f.k === "status" && f.id === "면역");
     playCard(s, 0, 0);
     const ap1 = s.ap, h0 = s.party[1].hp;
     playCard(s, 0, 1);
-    const real = s.party[1].hp - h0;
-    check(ap1 - s.ap === 0 && real > before, `교주 「효율적인 회복」 — 다음 카드 0코(${ap1 - s.ap} AP) · 회복 ${before} → ${real}`);
+    check(ap1 - s.ap === 0 && s.party[1].hp > h0 && fy && s.pool.status.면역 === (fy.turns || fy.v), `교주 「효율적인 회복」 — 다음 카드 0코(${ap1 - s.ap} AP) · 파티 면역 ${s.pool.status.면역}(셋이 한 겹을 본다)`);
   } else fail("교주 「효율적인 회복」 · 1코 회복 카드 서포터를 못 찾았다");
-  // 장비 스탯 줄 「회복력 +N」 — 공격력은 그대로, 회복만 커진다
-  const healer = keys.find((x) => HERO_DATA[x].role === "서포터" && [...kitOf(x).start, ...kitOf(x).unique].some((c) => c.fx.length === 1 && c.fx[0].k === "heal" && c.fx[0].target === "oneAlly"));
-  const hc = [...kitOf(healer).start, ...kitOf(healer).unique].find((c) => c.fx.length === 1 && c.fx[0].k === "heal" && c.fx[0].target === "oneAlly");
+  // 장비 스탯 줄 「방어 +N」 — 치유가 방어력 기준이라 치유도 커진다(옛 「회복력 +N」 은 「방어 +3N」 으로 옮겼다). 공격력은 그대로
+  const healer = keys.find((x) => HERO_DATA[x].role === "서포터" && [...kitOf(x).start, ...kitOf(x).unique].some((c) => c.fx.length === 1 && c.fx[0].k === "heal" && c.fx[0].target === "party"));
+  const hc = [...kitOf(healer).start, ...kitOf(healer).unique].find((c) => c.fx.length === 1 && c.fx[0].k === "heal" && c.fx[0].target === "party");
   const healed = (gear) => {
     const s = newCombat({ partyKeys: [healer, dealer], rows: {}, deck: [healer, dealer].flatMap(kit), enemyIds: ["gluttonbear"], seed: 3, gear });
     for (const u of s.party) u.hp = 1;
@@ -305,22 +306,12 @@ console.log("회복력 — 회복은 공격력이 아니라 회복력(공격력 
     const h0 = s.party[1].hp; playCard(s, 0, 1);
     return { s, v: s.party[1].hp - h0 };
   };
-  const plain = healed(null), geared = healed({ [healer]: { atk: 0, def: 0, crit: 0, heal: 6 } });
+  const plain = healed(null), geared = healed({ [healer]: { atk: 0, def: 18, crit: 0 } });
   const o = geared.s.party[0];
-  const wantG = Math.max(1, Math.round(healStat(Math.max(1, Math.round(o.atk * (1 + statMod(geared.s, o, "atk")))), o.role, 6) * hc.fx[0].ratio));
-  check(geared.v === wantG && geared.v > plain.v && o.atk === plain.s.party[0].atk, `장비 회복력 +6 — ${HERO_DATA[healer].ko} 회복 ${plain.v} → ${geared.v} (기대 ${wantG}), 공격력은 그대로`);
+  const wantG = Math.max(1, Math.round(Math.max(0, Math.round(o.def * (1 + statMod(geared.s, o, "def")))) * hc.fx[0].ratio));
+  check(geared.v === wantG && geared.v > plain.v && o.atk === plain.s.party[0].atk, `장비 방어 +18 — ${HERO_DATA[healer].ko} 치유 ${plain.v} → ${geared.v} (기대 ${wantG}), 공격력은 그대로`);
   const pend = Object.keys(EQUIP).find((id) => EQUIP[id].ko === "치유의 펜던트");
-  check(pend && EQUIP[pend].stats.heal === 6 && statsOf(pend, healer).heal === 6, `「치유의 펜던트」 스탯 줄 회복력 +6 을 읽는다 (${pend && EQUIP[pend].stats.heal})`);
-  // 「회복력 +N%」 증감 — 교주 「효율적인 회복」(2턴간 아군 전원 회복력 +30%) 이 파티 전원에게 붙는다
-  const eid = NEUTRAL_IDS.find((id) => CARDS[id] && CARDS[id].name === "효율적인 회복");
-  if (eid) {
-    const s = newCombat({ partyKeys: [dealer, healer], rows: {}, deck: [dealer, healer].flatMap(kit), enemyIds: ["gluttonbear"], seed: 3 });
-    s.hand.unshift(eid); s.ap = 5;
-    // 옛 「2턴간 아군 전원 회복력 +30%」 → 「아군 전원 온정 N」(tools/convert-mods.js) — 온정 한 겹이 회복력 +20%(rules.js STATUS_V)
-    const hm = CARDS[eid].fx.find((f) => f.k === "status" && f.id === "온정");
-    playCard(s, 0, 0);
-    check(hm && s.party.every((u) => (u.status || {})["온정"] === hm.turns && Math.abs(statMod(s, u, "heal") - STATUS_V.온정) < 1e-9), `「효율적인 회복」 — 온정 ${hm && hm.turns} 이 아군 전원에게 붙는다(회복력 +${Math.round(STATUS_V.온정 * 100)}%)`);
-  } else fail("교주 「효율적인 회복」 을 못 찾았다");
+  check(pend && EQUIP[pend].stats.def > 0 && EQUIP[pend].stats.heal === undefined && statsOf(pend, healer).def === EQUIP[pend].stats.def, `「치유의 펜던트」 스탯 줄 — 회복력 없이 방어 +N (${pend && EQUIP[pend].stats.def})`);
 }
 
 console.log("");
@@ -351,7 +342,7 @@ console.log("장수 기준 — 그 사도 것만(「에르핀의 …」) · 파�
 console.log("");
 console.log("새 언제 · 조건 — 시험 장비 줄로 하나씩 켜 본다");
 {
-  // 시험 줄을 장비 효과(gearFx)로 붙인다 — 「자신 HP 회복(회복력 50%)」 이 됐는지로 켜짐을 본다. 적은 아무것도 못 한다
+  // 시험 줄을 장비 효과(gearFx)로 붙인다 — 「자신 HP 회복(방어력 50%)」 이 됐는지로 켜짐을 본다. 적은 아무것도 못 한다
   const who = "란", mate = "비비";
   const setup = (rule, prep) => {
     const s = newCombat({ partyKeys: [who, mate], rows: {}, deck: [who, mate].flatMap(kit), enemyIds: ["gluttonbear", "fairymobcloserange"], seed: 5, gearFx: { [who]: "시험: " + rule } });
@@ -362,7 +353,7 @@ console.log("새 언제 · 조건 — 시험 장비 줄로 하나씩 켜 본다"
     return { s, me };
   };
   const heals = (rule, prep, act) => { const { s, me } = setup(rule, prep); const h0 = me.hp; act(s, me); return me.hp > h0; };
-  const H = "자신 HP 회복(회복력 50%)";
+  const H = "자신 HP 회복(방어력 50%)";
   const endT = (s) => { for (const e of s.enemies) { e.intent = null; e.sealed = true; } endTurn(s); };
   const ranCard = kitOf(who).start.find((x) => x.type === "공격").id;
   const mateCard = kitOf(mate).start[0].id;
@@ -373,7 +364,8 @@ console.log("새 언제 · 조건 — 시험 장비 줄로 하나씩 켜 본다"
   const guardCard = kitOf(who).start.find((x) => x.fx.some((f) => f.k === "block"));
   check(heals(`방어나 실드를 얻으면 ${H} (턴당 1회)`, null, (s) => play(s, guardCard.id)) && !heals(`방어나 실드를 얻으면 ${H} (턴당 1회)`, null, (s) => play(s, ranCard)), "「방어나 실드를 얻으면」 — 방어가 붙을 때");
   const mateGuard = kitOf(mate).start.find((x) => x.fx.some((f) => f.k === "block"));
-  check(heals(`아군이 방어나 실드를 얻으면 ${H} (턴당 1회)`, null, (s) => play(s, mateGuard.id)) && !heals(`방어나 실드를 얻으면 ${H} (턴당 1회)`, null, (s) => play(s, mateGuard.id)), "「아군이 방어나 실드를 얻으면」 — 다른 아군에게 붙어도");
+  // 파티는 한 몸 — 방어 · 실드는 파티에 붙는다. 「아군이 …」 든 「…」 든 누가 얻게 했든 돈다(docs/16 §8)
+  check(heals(`아군이 방어나 실드를 얻으면 ${H} (턴당 1회)`, null, (s) => play(s, mateGuard.id)) && heals(`방어나 실드를 얻으면 ${H} (턴당 1회)`, null, (s) => play(s, mateGuard.id)), "「(아군이) 방어나 실드를 얻으면」 — 파티에 붙으면 누가 얻게 했든");
   // 이번 턴 자신의 카드를 내지 않았으면
   const own = `턴 종료 시 이번 턴 자신의 카드를 내지 않았으면 ${H}`;
   check(heals(own, null, (s) => { play(s, mateCard); endT(s); }) && !heals(own, null, (s) => { play(s, ranCard); endT(s); }), "「이번 턴 자신의 카드를 내지 않았으면」 — 다른 아군 카드는 안 센다");

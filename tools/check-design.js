@@ -43,7 +43,7 @@ console.log("");
 console.log("기획서의 규칙");
 
 // 기본 스탯 표 (태생 3성) — 성급·개성 보정이 있으니 범위로 본다
-const RANGE = { hp: [40, 120], atk: [5, 20], def: [1, 9], crit: [0, 30] };
+const RANGE = { hp: [300, 1300], atk: [40, 200], def: [15, 100], crit: [0, 30] };   // v6 카제나 눈금(옛 값 ×10 언저리 — docs/18 §2)
 for (const [k, [lo, hi]] of Object.entries(RANGE)) {
   const out = H.filter((h) => h[k] < lo || h[k] > hi);
   out.length ? fail(`${k} 가 ${lo}~${hi} 를 벗어난 사도 ${out.length}: ${out.slice(0, 3).map((h) => `${h.ko} ${h[k]}`).join(", ")}`)

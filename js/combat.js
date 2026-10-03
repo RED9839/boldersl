@@ -50,14 +50,28 @@ const BAD = R.BAD_ST;
 const st = (u, id) => (u.status && u.status[id]) || 0;
 // 겹은 더해진다(중첩). 고통 · 세기 상태는 최대가 있다(rules.js STATUS_V …Max) — 적의 세기 상태는 FOE_INT_MAX 까지
 const INT_SET = new Set(R.INTENSITY_ST);
+// 면역(v6 카제나 — 횟수) — 해로운 상태(rules.js BAD_ST · 표식)가 걸리려 하면 막고 면역 1 을 쓴다. 걸렸으면 true
 const addSt = (u, id, v) => {
   u.status = u.status || {};
+  if (v > 0 && id !== "면역" && R.isBadSt(id) && st(u, "면역") > 0) {
+    u.status.면역 = st(u, "면역") - 1; if (!u.status.면역) delete u.status.면역;
+    u.immuneHit = (u.immuneHit || 0) + 1;
+    return false;
+  }
   let n = Math.max(0, st(u, id) + v);
   let cap = R.STATUS_V[id + "Max"];
   if (u.side === "enemy" && INT_SET.has(id)) cap = Math.min(cap ?? Infinity, R.FOE_INT_MAX);
   if (cap != null && v > 0) n = Math.min(Math.max(cap, st(u, id)), n);
-  u.status[id] = n; if (!u.status[id]) delete u.status[id];
+  u.status[id] = n; if (!u.status[id]) { delete u.status[id]; if (u.dotU) delete u.dotU[id]; }
+  return true;
 };
+// 지속 피해 · 고정 피해 상태의 바탕(rules.js UNIT_ST) — 건 사람의 공격력(적이 건 것은 FOE_DOT × 층 피해 배율). 센 쪽을 남긴다
+const dotUnit = (u, id) => ((u.dotU || {})[id]) || R.FOE_DOT;
+function setUnit(u, id, unit) {
+  if (!R.UNIT_ST.includes(id) || !(unit > 0)) return;
+  u.dotU = u.dotU || {};
+  u.dotU[id] = Math.max(u.dotU[id] || 0, Math.round(unit));
+}
 // 횟수로 도는 상태(rules.js CHARGE_ST) — 한 번의 일(s.actSeq)에 한 번만 1 줄인다. 그 일 안의 다음 타격도 같은 효과를 받는다.
 // 돌았으면 true. u.stUse — 상태마다 마지막으로 쓴 일 번호(저장에 남아도 해가 없다). 세기 상태(INTENSITY_ST)는 줄지 않는다 — 걸려 있으면 true
 function charge(s, u, id) {
@@ -77,36 +91,133 @@ function gainAp(s, n) {
   if (s.foeTurn || s.ending) s.apCarry = (s.apCarry || 0) + n; else s.ap += n;
 }
 
+// ── 파티 — 한 몸(docs/16 §8, 2026-10 사용자) ─────────────────────────────
+// 파티 HP · 방어 · 실드 · 상태 · 무적은 s.pool 하나다. 사도(s.party[i])의 hp · maxHp · block · shield · status · invuln · dead …
+// 는 그 몸을 가리키는 손잡이라(읽기 · 쓰기 모두) 옛 코드가 「사도 u 의 hp」 를 고치면 파티 HP 가 바뀐다.
+// 손잡이는 열거되지 않는다 — 저장(JSON) · 복사(structuredClone)에는 s.pool 만 실리고, 받은 쪽이 linkParty 로 다시 건다.
+// 그래서 판을 복사하는 곳은 늘 cloneCombat 을 쓴다(미리보기 · 봇 · 저장 되살리기).
+// 사도마다 따로 남는 것: 공격력 · 방어력 · 치명 · 장비 · 줄 · 증감(mods — 「판 내내」) · 자기 키워드 주머니(s.stacks) · 카드
+export const POOL_KEYS = ["hp", "maxHp", "block", "shield", "invuln", "dead", "stUse", "ctrSeq", "dotU", "immuneHit"];
+// 상태는 두 층(카제나처럼, 2026-10 사용자 「공통버프 빼고 자기 자신한테 거는 공증 %는 개인버프」):
+//   파티 층 — 살아남는 것 · 적이 아군에게 거는 것: 불굴 · 결의 · 결정화 · 반격 · 고통 · 취약 · 약화 · 손상 · 아군 표식 … (s.pool.status 하나)
+//   사도 층 — 제 손의 힘을 바꾸는 것: 사기 하나(rules.js HERO_ST — 사도마다 u.pst, 겹 상한도 사도마다)
+// 사도의 u.status 는 두 층을 한데 보이는 창이다(읽기 · 쓰기 · 지우기 모두 제 층으로 간다) — 엔진 · 칩 · 패시브가 그대로 쓴다
+const HERO_ST = new Set(R.HERO_ST);
+function statusView(u, pool) {
+  const mine = (k) => typeof k === "string" && HERO_ST.has(k);
+  const getv = (k) => (mine(k) ? (u.pst || {})[k] : pool.status[k]);
+  return new Proxy({}, {
+    get: (_, k) => getv(k),
+    set: (_, k, v) => { if (mine(k)) (u.pst = u.pst || {})[k] = v; else pool.status[k] = v; return true; },
+    deleteProperty: (_, k) => { if (mine(k)) { if (u.pst) delete u.pst[k]; } else delete pool.status[k]; return true; },
+    has: (_, k) => (mine(k) ? !!u.pst && k in u.pst : k in pool.status),
+    ownKeys: () => [...Object.keys(pool.status).filter((k) => !HERO_ST.has(k)), ...Object.keys(u.pst || {})],
+    getOwnPropertyDescriptor: (_, k) => {
+      const has = mine(k) ? !!u.pst && Object.prototype.hasOwnProperty.call(u.pst, k) : Object.prototype.hasOwnProperty.call(pool.status, k) && !HERO_ST.has(k);
+      return has ? { value: getv(k), enumerable: true, configurable: true, writable: true } : undefined;
+    },
+  });
+}
+function newPool(hp, maxHp) {
+  return { key: "party", side: "party", ko: "파티", idx: -1, hp, maxHp, block: 0, shield: 0, status: {}, invuln: false, dead: hp <= 0 };
+}
+export function linkParty(s) {
+  if (!s || !s.party) return s;
+  // 옛 판(사도마다 HP · 상태) — 더해서 하나로. 파티 층 상태는 겹이 큰 쪽, 사도 층은 그 사도에게 남긴다. 방어 · 실드는 더한다
+  if (!s.pool) {
+    const ps = s.party;
+    const pool = newPool(ps.reduce((a, u) => a + Math.max(0, u.dead ? 0 : u.hp || 0), 0), ps.reduce((a, u) => a + (u.maxHp || 0), 0) || 1);
+    for (const u of ps) {
+      pool.block += u.block || 0; pool.shield += u.shield || 0;
+      for (const [id, v] of Object.entries(u.status || {})) {
+        if (HERO_ST.has(id)) (u.pst = u.pst || {})[id] = v;
+        else pool.status[id] = Math.max(pool.status[id] || 0, v);
+      }
+      if (u.share == null) u.share = u.maxHp || 0;
+    }
+    pool.dead = pool.hp <= 0;
+    s.pool = pool;
+  }
+  const pool = s.pool;
+  for (const u of s.party) {
+    for (const k of [...POOL_KEYS, "status"]) {
+      if (Object.prototype.hasOwnProperty.call(u, k)) { const d = Object.getOwnPropertyDescriptor(u, k); if (d && !d.get) delete u[k]; }
+    }
+    u.pst = u.pst || {};
+    for (const k of POOL_KEYS) Object.defineProperty(u, k, { get: () => pool[k], set: (v) => { pool[k] = v; }, enumerable: false, configurable: true });
+    const view = statusView(u, pool);
+    Object.defineProperty(u, "status", {
+      get: () => view,
+      // 바꾸면 두 층 모두 그것으로(파티 층은 파티 전체가 같이 바뀐다)
+      set: (v) => { if (v === view) return; u.pst = {}; pool.status = {}; for (const [k, n] of Object.entries(v || {})) view[k] = n; },
+      enumerable: false, configurable: true,
+    });
+  }
+  return s;
+}
+// 판 복사 — 난수 · 화면 쪽지는 빼고, 파티 손잡이를 다시 건다
+export function cloneCombat(s) {
+  const { rng, fx, ...rest } = s;
+  const sh = structuredClone(rest);
+  return linkParty(sh);
+}
+// 파티의 대표 — 파티에 거는 것(방어 · 실드 · 회복 · 상태)은 이 한 사람을 통해 한 번만 건다. 연출은 그 사도 자리에서
+const partyRep = (s, prefer) => (prefer && prefer.side === "party" && !prefer.dead ? prefer : alive(s.party)[0] || s.party[0]);
+// 파티의 방어력 — 방어력이 가장 높은 사도의 것(방어력 증감 포함). 반격 · 결정화가 쓴다(docs/16 §8)
+export function partyDef(s) {
+  let best = 0;
+  for (const u of s.party) best = Math.max(best, Math.round((u.def || 0) * (1 + P.statMod(s, u, "def"))));
+  return best;
+}
+// 사도의 지금 공격력 · 방어력(전용 키워드 1개당 · 판 내내 증감 포함)
+const atkNow = (s, u) => Math.max(1, Math.round((u.atk || 0) * (1 + P.statMod(s, u, "atk"))));
+const defNow = (s, u) => Math.max(0, Math.round((u.def || 0) * (1 + P.statMod(s, u, "def"))));
+// 파티의 막는 손 — 방어력이 가장 높은 사도. 반격(방어 기반 피해)은 이 사도의 「방어력 210% + 공격력 30%」 와 치명으로 친다(docs/18)
+export function partyGuard(s) {
+  let best = null;
+  for (const u of alive(s.party)) if (!best || defNow(s, u) > defNow(s, best)) best = u;
+  return best;
+}
+// 협공의 손 — but 를 뺀 사도 가운데 가장 높은 공격력. 혼자면 그 사도
+function partyAtk(s, but) {
+  let best = 0;
+  for (const u of alive(s.party)) if (u !== but) best = Math.max(best, atkNow(s, u));
+  return best || (but ? atkNow(s, but) : 1);
+}
+
 // ── 전투 시작 ──────────────────────────────────────────────────────────
 // gauge — 지난 전투에서 남은 고학년 게이지(run.gauge). 전투가 끝나도 이어진다
 // enemyHp · enemyDmg — 적 체력 · 피해 배율(run.js openFight 가 rules.js foeScale 로 층마다 정한다). 없으면 ENEMY_HP · 1
 // boons — 강화 카드가 남긴 「판 내내」 버프(run.boons: { 사도키: [{ stat, v, src }] }). 전투를 열 때 늘 걸린 증감으로 다시 건다
 // elite — 엘리트 칸(강인도 칸이 하나 더, rules.js TOUGH)
-export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noNature, traits, gear, gearFx, flash, enemyHp, enemyDmg, next, shin, glow, gauge, boons, elite }) {
+// partyHp · partyMaxHp — 한 판의 파티 HP(run.partyHp · run.partyMaxHp). 없으면(옛 도구) 사도마다 준 hp · maxHp 를 더하고,
+// 그것도 없으면 세 사도의 최대 HP(장비 HP 포함) 합으로 가득 찬 채 연다
+export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, partyHp, partyMaxHp, seed, noNature, traits, gear, gearFx, flash, enemyHp, enemyDmg, next, shin, glow, gauge, boons, elite }) {
   const rng = makeRng(seed);
   const party = partyKeys.map((key, i) => {
     // 스탯은 기획서가 원본이다. 기획서에 없는 사도만 옛 heroes.js 를 본다.
     const d = HERO_DATA[key] || null;
     const base = d || HEROES[key] || {};
-    const baseHp = d ? d.hp : (HEROES[key] || {}).hp || 50;
-    // 장비 스탯 줄 — 공격·방어·치명은 여기서 더한다(HP 는 한 판의 최대 HP 에 이미 들어 있다)
-    const g = (gear && gear[key]) || { atk: 0, def: 0, crit: 0, heal: 0 };
-    const mhp = (maxHp && maxHp[key]) || baseHp;
-    const hp0 = hp && hp[key] != null ? hp[key] : mhp;
+    // 장비 스탯 줄 — 공격·방어·치명은 여기서 더한다(HP 는 한 판의 파티 최대 HP 에 이미 들어 있다)
+    const g = (gear && gear[key]) || { atk: 0, def: 0, crit: 0 };
+    // 이 사도의 몫 — 파티 최대 HP 에 보탠 HP(기본 + 장비). 정보 창이 보이고, 옛 도구가 준 사도마다 HP 를 더할 때 쓴다
+    const share = (maxHp && maxHp[key]) || ((d ? d.hp : ((HEROES[key] || {}).hp || 50) * R.SCALE) + ((gear && gear[key] && gear[key].hp) || 0));
     return {
       key, side: "party",
       ko: base.ko || key, role: base.role || null,
       tint: (HEROES[key] || {}).tint || "#8a8a9a",
-      maxHp: mhp,
-      hp: Math.max(0, hp0),
-      atk: (d ? d.atk : 10) + (g.atk || 0), def: (d ? d.def : 3) + (g.def || 0), crit: (d ? d.crit : 5) + (g.crit || 0),
-      healPlus: g.heal || 0,                                           // 장비 스탯 줄의 「회복력 +N」(rules.js healStat extra)
-      gearAdd: { atk: g.atk || 0, def: g.def || 0, crit: g.crit || 0, heal: g.heal || 0 },   // 장비가 더한 몫 — 정보 창의 「기본 + 장비」
+      share,
+      atk: (d ? d.atk : 100) + (g.atk || 0), def: (d ? d.def : 30) + (g.def || 0), crit: (d ? d.crit : 5) + (g.crit || 0),
+      gearAdd: { atk: g.atk || 0, def: g.def || 0, crit: g.crit || 0 },   // 장비가 더한 몫 — 정보 창의 「기본 + 장비」
       row: (rows && rows[key]) || base.row || "mid",
-      // 주말농장에 간 사도(HP 0)는 쓰러진 채로 들어온다 — 전에는 HP 0 으로 살아 있어 카드를 내고 매를 맞았다
-      block: 0, shield: 0, status: {}, idx: i, dead: hp0 <= 0,
+      idx: i,
     };
   });
+  // 파티 HP 하나 · 방어 · 실드 · 상태 하나(docs/16 §8). 사도의 hp · block · status … 는 이 몸을 가리킨다(linkParty)
+  const sumMax = party.reduce((a, u) => a + u.share, 0);
+  const pMax = partyMaxHp || sumMax;
+  const pHp = partyHp != null ? partyHp : hp ? partyKeys.reduce((a, k) => a + Math.max(0, hp[k] != null ? hp[k] : (party.find((u) => u.key === k) || {}).share || 0), 0) : pMax;
+  const pool = newPool(Math.min(pMax, Math.max(0, pHp)), pMax);
   // 적 체력 — 난이도 배율(rules.js ENEMY_HP · foeScale). 재는 도구는 enemyHp 로 바꿔 가며 잰다
   // 피해 배율은 적마다 dmgx 로 든다 — 치는 수는 dealt · foeV 가 이것을 곱한다
   const hpx = enemyHp || R.ENEMY_HP || 1;
@@ -121,7 +232,7 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
   });
 
   const s = {
-    rng, party, enemies,
+    rng, party, enemies, pool,
     // AP — 파티 공용, 매 턴 3, **남으면 사라진다**(기획서).
     turn: 0, ap: 0, apPerTurn: R.AP_PER_TURN, apJam: 0, tentacles: 0,
     // 고학년 게이지 — 파티 공용 0~300%. 카드에 쓴 AP 1당 +10%. 0코는 충전 없음.
@@ -136,8 +247,7 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
   s.flash = { ...(flash || {}) };
   s.book = {};
   for (const [id, n] of Object.entries(s.flash)) if (CARDS[id]) s.book[id] = flashed(CARDS[id], n);
-  // 쓰러진 채 들어온 사도의 카드는 이번 전투의 덱에서 뺀다(사라진 카드로) — 낼 수 없는 카드가 손을 막지 않게
-  for (const u of party) if (u.dead) benchCards(s, u.key);
+  linkParty(s);
 
   // 위치는 기획서가 정한 제 자리로 고정이다. 옮길 수 없다 —
   // 기본 스탯이 위치에서 나오기 때문이다(전열 탱커 HP 90 · 후열 딜러 HP 55).
@@ -178,16 +288,33 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
     if (next.ap) { s.startSp += next.ap; say(s, `이벤트 — 첫 턴 AP ${next.ap > 0 ? "+" : ""}${next.ap}`); }
     if (next.gauge) { s.gauge = Math.min(R.GAUGE_MAX, s.gauge + next.gauge); say(s, `이벤트 — 고학년 게이지 +${next.gauge}%`); }
     if (next.hand) { s.opening = (s.opening || 0) + next.hand; say(s, `이벤트 — 첫 손패 +${next.hand}`); }
-    if (next.weak) { for (const u of s.party) if (!u.dead) addSt(u, "약화", next.weak); say(s, `이벤트 — 아군 전원 약화 ${next.weak}`); }
+    if (next.weak) { addSt(s.pool, "약화", next.weak); say(s, `이벤트 — 파티 약화 ${next.weak}`); }
+    for (const [id, v] of Object.entries(next.buff || {})) { addSt(s.pool, id, v); say(s, `이벤트 — 파티 ${id} ${v}`); }   // 한 번짜리 파티 버프(「다음 전투: 파티 불굴 2」)
     if (next.rush) { s.firstRushDown = next.rush; say(s, `이벤트 — 첫 턴 적 전체 즉시 행동 ${next.rush}장 늦춤`); }
     if (next.foeVuln) { for (const e of alive(s.enemies)) addSt(e, "취약", next.foeVuln); say(s, `이벤트 — 적 전체 취약 ${next.foeVuln}`); }
     if (next.quiet) { s.foeQuiet = next.quiet; say(s, `이벤트 — 적 패시브가 ${next.quiet}턴 동안 잠잠하다`); }
-    if (next.hpCut) { for (const u of s.party) if (!u.dead) u.hp = Math.max(1, u.hp - Math.round(u.maxHp * next.hpCut)); say(s, `이벤트 — 시작하자마자 오작동, 파티 전원 HP -${Math.round(next.hpCut * 100)}%`); }
+    if (next.hpCut) { s.pool.hp = Math.max(1, s.pool.hp - Math.round(s.pool.maxHp * next.hpCut)); say(s, `이벤트 — 시작하자마자 오작동, 파티 HP -${Math.round(next.hpCut * 100)}%`); }
   }
   emit(s, "fightStart", {});
   foePassives(s, "fightStart");
   beginTurn(s);
+  openingPlays(s);
   return s;
+}
+
+// 개막(v6 카제나) — 전투가 시작되면 덱(손 · 뽑을 더미)의 개막 카드가 AP 를 써서 저절로 나간다. AP 가 모자라면 안 한다
+function openingPlays(s) {
+  const ids = [...s.hand, ...s.draw.slice().reverse()].filter((id, i, a) => a.indexOf(id) === i && (hasTag(cardOf(s, id), "개막") || blessTag(s, id, "개막")));
+  for (const id of ids) {
+    if (s.over) return;
+    const c = cardOf(s, id);
+    if (costOf(s, id) > s.ap || canPlay(s, id)) { say(s, `개막 「${c.name}」 — AP 가 모자라 나가지 않는다`); continue; }
+    if (!s.hand.includes(id)) { s.draw.splice(s.draw.lastIndexOf(id), 1); s.hand.push(id); }
+    say(s, `개막! 「${c.name}」 — 저절로`);
+    const owner = c.hero ? s.party.find((u) => u.key === c.hero) : null;
+    cue(s, "auto", owner || alive(s.party)[0], { tag: "개막", label: "개막!", name: c.name, cost: c.cost, type: c.type, hero: c.hero || null, target: null });
+    playCard(s, s.hand.lastIndexOf(id), (alive(s.enemies)[0] || {}).idx ?? 0, { auto: true, opening: true });
+  }
 }
 
 // 화면이 칩에 쓰는 값 — 버프·「항상」 패시브·키워드 1개당을 합친 것
@@ -229,7 +356,7 @@ const say = (s, t) => s.log.push(t);
 // 판에는 아무 영향이 없다 — 저장(save.js)도 빼고 적는다. 화면 없는 도구(sim · check-*)에서는 s.fx 가 없어 아무것도 안 쌓인다
 const cue = (s, k, u, more) => { if (s.fx && u) s.fx.push({ k, side: u.side, idx: u.idx, ...more }); };
 // 체력이 찼으면(h0 → 지금) 연출 쪽지를 남긴다 · 방어 · 실드가 붙었으면 그만큼
-const healCue = (s, u, h0) => { if (u && u.hp > h0) cue(s, "heal", u, { v: u.hp - h0, from: h0, to: u.hp }); };
+const healCue = (s, u, h0, over = 0) => { if (u && (u.hp > h0 || over > 0)) cue(s, "heal", u, { v: u.hp - h0, from: h0, to: u.hp, ...(over > 0 ? { over } : {}) }); };
 const gainCue = (s, u, k, v) => { if (v > 0) cue(s, k, u, { v }); };
 // 능력치 증감의 이름 — 꼬리표 「공격력 +10%」 (fight-screen 의 칩과 같은 말)
 const MOD_KO = { dealt: "주는 피해", taken: "받는 피해", atk: "공격력", def: "방어력", crit: "치명", heal: "회복력" };
@@ -254,9 +381,15 @@ export const alive = (arr) => arr.filter((u) => !u.dead);
 function beginTurn(s) {
   s.turn++;
   // AP 는 **이월되지 않는다**(기획서). 매 턴 새로 받는다.
-  const gain = Math.max(0, s.apPerTurn - s.apJam)
+  let gain = Math.max(0, s.apPerTurn - s.apJam)
     + (s.turn === 1 ? s.startSp : 0) + (s.apCarry || 0);   // apCarry — 적의 차례에 격파해 얻은 AP(그때 주면 턴이 바뀌며 사라진다)
   s.apCarry = 0;
+  // 저장(v6 카제나 — 횟수) — 지난 턴에 남긴 AP 를 이번 턴으로 가져온다. 남긴 것이 있을 때만 1 쓴다
+  if (s.turn > 1 && (s.apLeft || 0) > 0 && st(s.pool, "저장") > 0) {
+    gain += s.apLeft; addSt(s.pool, "저장", -1);
+    say(s, `저장 — 남긴 AP ${s.apLeft} 을 가져온다`); cue(s, "status", partyRep(s), { id: `저장 AP +${s.apLeft}`, up: true });
+  }
+  s.apLeft = 0;
   if (s.apJam) say(s, `방해로 AP -${s.apJam}`);
   s.apJam = 0;
   s.ap = gain;
@@ -271,7 +404,12 @@ function beginTurn(s) {
   s.killPrev = s.killNow || {}; s.killNow = {};
   // 무적은 적의 차례까지 간다 — 전에는 적이 치기 전에 풀려서 아무것도 막지 못했다
   for (const u of s.party) u.invuln = false;
-  for (const u of alive(s.party)) u.block = 0;
+  // 방어는 턴이 바뀌면 사라진다 — 실드 유지(v6 카제나 — 횟수)가 있으면 반을 남기고 1 쓴다
+  if (!s.pool.dead && s.pool.block > 0 && st(s.pool, "실드 유지") > 0) {
+    const keep = Math.floor(s.pool.block * R.STATUS_V["실드 유지"]);
+    addSt(s.pool, "실드 유지", -1);
+    s.pool.block = keep; say(s, `실드 유지 — 방어 ${keep} 이 남는다`);
+  } else for (const u of alive(s.party)) u.block = 0;
   // 「이번 턴」 버프는 적의 차례까지 간다 — 막아 주는 버프가 적이 치기 전에 풀리면 안 된다.
   // 그래서 다음 내 턴이 시작될 때 줄인다(방어도 여기서 사라진다).
   if (s.turn > 1) { P.tickMods(s); P.decayKeywords(s); }   // 버프 시간 · 키워드 겹 — 적의 차례가 끝난 뒤에 줄인다
@@ -290,13 +428,29 @@ function beginTurn(s) {
   foePassives(s, "turnStart");
 
   // 신탁 '성급한 손' — SP 를 더 받는 대신 손패가 한 장 적다
-  draw(s, 5 + (s.turn === 1 ? (s.opening || 0) : 0) - tr(s, "handdown"));
+  draw(s, 5 + (s.turn === 1 ? (s.opening || 0) : 0) - tr(s, "handdown"), { ability: false });
   // 주도 — 턴 시작에 손에 든 주도 카드는 반반으로 이번 턴 비용 -1(그 턴 다른 카드를 먼저 내면 풀린다 · costOf)
   s.finaleLock = false;
   s.leadOn = {};
   for (const id of s.hand) if (hasTag(cardOf(s, id), "주도") || blessTag(s, id, "주도")) if (s.rng() < 0.5) s.leadOn[id] = true;
   emit(s, "turnStart", {});
   checkOver(s);
+  // 연쇄(v6 카제나) — 지난 턴에 낸 연쇄 카드의 효과가 이번 턴 시작에 한 번 더 돈다(비용 · 즉시 행동 셈 · 게이지 없이)
+  const echo = s.echo || []; s.echo = [];
+  for (const e of echo) {
+    if (s.over) break;
+    const c = cardOf(s, e.id); if (!c) continue;
+    const owner = c.hero ? s.party.find((u) => u.key === c.hero && !u.dead) : null;
+    if (c.hero && !owner) continue;
+    say(s, `연쇄 「${c.name}」 — 한 번 더`);
+    cue(s, "auto", owner || alive(s.party)[0], { tag: "연쇄", label: "연쇄!", name: c.name, cost: c.cost, type: c.type, hero: c.hero || null, target: null });
+    const prev = s.acting, src0 = s.modSrc, seq0 = s.actSeq;
+    s.acting = c.hero || null; s.modSrc = `「${c.name}」 연쇄`; s.actSeq = s.seqN = (s.seqN || 0) + 1;
+    const tgt = (s.enemies.find((x) => x.idx === e.target && !x.dead) || alive(s.enemies)[0] || {}).idx ?? 0;
+    try { runFx(s, c.fx, { owner, combo: null, targetIdx: tgt, tags: cardTags(s, e.id, c), card: true, type: c.type }, fxApi(s)); }
+    finally { s.acting = prev; s.modSrc = src0; s.actSeq = seq0; }
+    checkOver(s);
+  }
 }
 
 // 적의 다음 수를 고른다. 규칙은 data/enemies.js 머리말에 있다.
@@ -335,16 +489,19 @@ function rollIntent(s, e, fresh) {
   e.step++;
 }
 
+// 전체 공격은 파티를 한 번 친다 — 값 × FOE_ALL_X(rules.js). 머리 위 숫자 · 정보 창 · 실제 피해가 같은 셈을 쓴다
+const allX = (it) => (it.t === "attackAll" ? Math.round(it.v * R.FOE_ALL_X) : it.v);
 // 머리 위에 보여 줄 수치 — 힘·약화가 들어간 값. 화면이 날것의 v 를 보이면 실제와 달랐다.
 export function intentHit(e) {
   const it = e.intent;
   if (!it || !["attack", "back", "attackAll", "multi"].includes(it.t)) return null;
-  return dealt(e, it.v);
+  return dealt(e, allX(it));
 }
 
 export function endTurn(s) {
   s.freeTurn = {};                          // 은총으로 얻은 카드의 「그 턴 비용 0」은 여기까지
   if (s.over) return s;
+  s.apLeft = s.ap;                          // 남긴 AP — 저장(v6)이 다음 턴으로 가져간다
   s.ending = true;                          // 이제부터 얻는 AP 는 다음 턴으로(gainAp)
   emit(s, "turnEnd", {});
   P.tickTurnEnd(s, (t, v, o) => hurt(s, t, v, o), (t) => say(s, t));
@@ -388,7 +545,7 @@ export function endTurn(s) {
   // 걸린 뒤 내 턴을 한 번 거치고 나서 줄어든다. 적에게 건 것은 그대로(내 턴에 걸고 → 적의 차례를 거쳐 → 줄어든다)
   // 취약 · 약화는 턴으로 줄지 않는다 — 돌 때마다 1 씩(rules.js 겹 규칙 · charge)
   const TICK = ["감전", "침묵", "중독"];
-  const before = new Map(s.party.map((u) => [u, Object.fromEntries(TICK.map((id) => [id, st(u, id)]))]));
+  const before = new Map([[s.pool, Object.fromEntries(TICK.map((id) => [id, st(s.pool, id)]))]]);   // 파티는 한 몸 — 한 번만 센다
   s.foeTurn = true;                         // 적의 차례 — 이때 격파해 얻은 AP 는 다음 턴으로(apCarry)
   foePassives(s, "turnEnd");
   checkOver(s); if (s.over) { s.foeTurn = false; return s; }
@@ -399,7 +556,7 @@ export function endTurn(s) {
   // 도발은 정한 턴만큼 간다
   if (s.taunt && s.tauntLeft != null && --s.tauntLeft <= 0) { s.taunt = null; s.tauntLeft = null; }
 
-  for (const u of [...alive(s.party), ...alive(s.enemies)]) {
+  for (const u of [...(s.pool.dead ? [] : [s.pool]), ...alive(s.enemies)]) {
     const was = before.get(u);
     const fresh = (id) => was && st(u, id) > was[id];       // 방금 적이 건 것
     for (const id of ["감전", "침묵"]) if (st(u, id) > 0 && !fresh(id)) addSt(u, id, -1);
@@ -411,27 +568,49 @@ export function endTurn(s) {
   return s;
 }
 
-// 턴 끝의 상태(rules.js STATUS_V) — 내 턴이 끝날 때 아군 · 적 모두. 결정화는 실드(겹마다, 줄지 않는다), 고통은 고정 피해
+// 턴 끝의 상태(rules.js STATUS_V) — 내 턴이 끝날 때 아군 · 적 모두(v6 카제나).
+//   결정화 겹마다 방어력 20% 고정 실드(결의 · 손상을 안 탄다) · 고동(파티) 겹마다 모든 적에게 고정 피해 70%
+//   고통 겹의 50% 고정 지속 피해 → 겹 절반 · 균열 겹마다 지속 피해 40%(취약 · 불굴 · 피해 감소를 탄다) → 겹 절반 · 그을림은 사라진다
+// 지속 피해의 % 는 건 사람의 공격력(dotUnit). 지속 피해는 방어 · 실드를 뚫는다.
+// 파티는 한 몸이라 한 번만 돈다 — 결정화의 바탕은 방어력이 가장 높은 사도(partyDef)
 function statusTurnEnd(s) {
   const V = R.STATUS_V;
-  for (const u of [...alive(s.party), ...alive(s.enemies)]) {
+  const rep = alive(s.party).length ? [partyRep(s)] : [];
+  for (const u of [...rep, ...alive(s.enemies)]) {
+    if (u.dead) continue;
     s.actSeq = s.seqN = (s.seqN || 0) + 1;    // 사람마다 한 번의 일
-    const defOf = () => Math.max(0, Math.round((u.def || 0) * (1 + P.statMod(s, u, "def"))));
+    const who = u.side === "party" ? "파티" : u.ko;
+    const defOf = () => u.side === "party" ? partyDef(s) : Math.max(0, Math.round((u.def || 0) * (1 + P.statMod(s, u, "def"))));
     if (st(u, "결정화") > 0) {
-      const v = shieldGain(s, u, Math.max(1, Math.round(defOf() * R.stackEff("결정화", st(u, "결정화")))));
+      const v = Math.max(1, Math.round(defOf() * R.stackEff("결정화", st(u, "결정화"))));
       u.shield = (u.shield || 0) + v; gainCue(s, u, "shield", v);
-      say(s, `${u.ko}: 결정화 ${st(u, "결정화")} — 실드 +${v}`);
+      say(s, `${who}: 결정화 ${st(u, "결정화")} — 고정 실드 +${v}`);
+    }
+    if (u.side === "party" && st(u, "고동") > 0) {
+      const v = Math.max(1, Math.round(dotUnit(u, "고동") * R.stackEff("고동", st(u, "고동"))));
+      say(s, `파티: 고동 ${st(u, "고동")} — 적 전체 고정 피해 ${v}`);
+      for (const e of alive(s.enemies)) { hurt(s, e, v, { pure: true, dot: true }); if (s.over) return; }
     }
     if (st(u, "고통") > 0) {
-      const n = st(u, "고통"), v = Math.max(1, Math.round(n * V.고통));
-      say(s, `${u.ko}: 고통 ${n} — ${v} 피해`);
+      const n = st(u, "고통"), v = Math.max(1, Math.round(n * V.고통 * dotUnit(u, "고통")));
+      say(s, `${who}: 고통 ${n} — 고정 피해 ${v}`);
       addSt(u, "고통", -(n - Math.floor(n / 2)));
-      hurt(s, u, v, { pure: true });
+      hurt(s, u, v, { pure: true, dot: true });
       if (s.over) return;
+      if (u.dead) continue;
     }
+    if (st(u, "균열") > 0) {
+      const n = st(u, "균열"), v = Math.max(1, Math.round(n * V.균열 * dotUnit(u, "균열")));
+      say(s, `${who}: 균열 ${n} — 지속 피해 ${v}`);
+      addSt(u, "균열", -(n - Math.floor(n / 2)));
+      hurt(s, u, v, { dot: true });
+      if (s.over) return;
+      if (u.dead) continue;
+    }
+    if (st(u, "그을림") > 0) { delete u.status.그을림; if (u.dotU) delete u.dotU.그을림; }
   }
 }
-// 얻는 방어 · 실드 — 결의(세기 — 겹마다 +결의, 줄지 않는다) 를 더한 뒤 손상(횟수 — 한 번의 일에 1 씩, -50%)
+// 얻는 방어 · 실드 — 결의(세기 — 겹마다 +20, 줄지 않는다) 를 더한 뒤 손상(횟수 — 한 번의 일에 1 씩, -50%). 고정 실드는 여기를 거치지 않는다
 function shieldGain(s, u, v) {
   if (v > 0 && st(u, "결의") > 0) v += Math.round(R.stackEff("결의", st(u, "결의")));
   if (v > 0 && st(u, "손상") > 0 && charge(s, u, "손상")) return Math.max(0, Math.round(v * (1 - R.STATUS_V.손상)));
@@ -440,7 +619,9 @@ function shieldGain(s, u, v) {
 
 function enemyPhase(s) {
   for (const e of alive(s.enemies)) {
-    e.block = 0;
+    // 적의 방어도 그 적이 움직일 때 사라진다 — 실드 유지가 있으면 반을 남긴다
+    if (e.block > 0 && st(e, "실드 유지") > 0) { e.block = Math.floor(e.block * R.STATUS_V["실드 유지"]); addSt(e, "실드 유지", -1); }
+    else e.block = 0;
     if (e.sealed) {
       e.sealed = false;
       say(s, `${e.ko}: 봉인되어 움직이지 못한다${e.intent && e.intent.next ? " — 모은 힘이 흩어졌다" : ""}`);
@@ -469,7 +650,8 @@ export function intentRush(it, d = {}) {
     : it.t === "attackAll" ? it.v * 2.5
     : 0;                                   // 방어 · 회복 · 강화 · 방해 · 약화 — 작은 수
   if (!threat) return R.ENEMY_RUSH_SMALL || 3;
-  return threat <= 6 ? 3 : threat <= 12 ? 4 : threat <= 20 ? 5 : 6;
+  const K = R.SCALE || 1;                  // 문턱은 옛 눈금(피해 6 · 12 · 20)의 SCALE 배(v6)
+  return threat <= 6 * K ? 3 : threat <= 12 * K ? 4 : threat <= 20 * K ? 5 : 6;
 }
 export const rushOf = (e) => intentRush(e.intent, ENEMIES[e.key] || {});
 
@@ -482,6 +664,15 @@ function rushEnemies(s) {
     const n = rushOf(e);
     if (!n || e.sealed || !e.intent || e.rushedTurn) continue;
     e.rushCnt = (e.rushCnt || 0) + 1;
+    // 그을림(v6 카제나 — 횟수) — 행동 카운트가 1 줄 때마다(우리: 즉시 행동 셈이 1 오를 때마다) 지속 피해 80%, 1 쓴다
+    if (st(e, "그을림") > 0) {
+      const v = Math.max(1, Math.round(dotUnit(e, "그을림") * R.STATUS_V.그을림));
+      addSt(e, "그을림", -1);
+      say(s, `${e.ko}: 그을림 — 지속 피해 ${v}`);
+      hurt(s, e, v, { dot: true });
+      if (s.over) return;
+      if (e.dead) continue;
+    }
     if (e.rushCnt < n) continue;
     e.rushCnt = 0;
     e.rushedTurn = true;
@@ -517,6 +708,8 @@ function foePassives(s, ev, info = {}) {
       if (ev === "allyDown" && info.target === e) continue;
       if (ev === "lowHp" && !(info.before > p.at && info.after <= p.at)) continue;
       if (ev === "card" && ((p.type && info.type !== p.type) || (p.every && info.nth % p.every !== 0))) continue;
+      // phase — 그 판에서만 도는 성질(보스가 판마다 새 규칙을 쓴다). 0 앞판 · 1 둘째 판 · 2 셋째 판, 여럿이면 배열
+      if (p.phase != null && ![].concat(p.phase).includes(e.phased2 ? 2 : e.phased ? 1 : 0)) continue;
       e.pUsed = e.pUsed || {};
       const k = p.name, lim = FOE_ONCE.has(ev) ? 1 : (p.limit ?? 1);
       if (lim && (e.pUsed[k] || 0) >= lim) continue;
@@ -551,16 +744,17 @@ function actEnemy(s, e, it = e.intent, passive = false) {
   const seq0 = s.actSeq; s.actSeq = s.seqN = (s.seqN || 0) + 1;
   try { foeAct(s, e, it); } finally { s.actSeq = seq0; }
 }
-// 적이 사도에게 거는 상태 — 고통은 층 피해 배율(e.dmgx)을 곱한다: 방어를 뚫는 피해라 치는 수와 같은 눈금이어야 뒤층에서도 아프다
+// 적이 사도에게 거는 상태 — 지속 피해(고통 · 균열 …)의 바탕은 적의 「공격력」 FOE_DOT × 층 피해 배율(e.dmgx):
+// 방어를 뚫는 피해라 치는 수와 같은 눈금이어야 뒤층에서도 아프다(옛 「겹 × 배율」 을 바탕으로 옮겼다 — 겹 상한 20 이 막히지 않게)
 function foeStatus(s, e, t, id, n) {
   if (!t || t.dead || !id) return 0;
-  const v = id === "고통" && e.dmgx && e.dmgx !== 1 ? Math.max(1, Math.round(n * e.dmgx)) : n;
-  addSt(t, id, v); cue(s, "status", t, { id });
-  return v;
+  if (!addSt(t, id, n)) { say(s, `파티: 면역 — ${id} 를 막았다`); cue(s, "status", t, { id: "면역!", up: true }); return 0; }
+  setUnit(t, id, R.FOE_DOT * (e.dmgx || 1));
+  cue(s, "status", t, { id });
+  return n;
 }
-// 적이 얻는 방어 — 강건이면 겹마다 +20%(줄지 않는다), 결의 · 손상은 shieldGain. 사도가 적에게 건 손상이 적의 방어 수를 깎는다
+// 적이 얻는 방어 — 결의 · 손상은 shieldGain. 사도가 적에게 건 손상이 적의 방어 수를 깎는다
 function foeBlock(s, x, v) {
-  if (v > 0 && st(x, "강건") > 0) v = Math.round(v * (1 + R.stackEff("강건", st(x, "강건"))));
   v = shieldGain(s, x, v);
   x.block += v; gainCue(s, x, "block", v);
   return v;
@@ -576,16 +770,18 @@ function regainTough(s, x, n) {
 function foeAct(s, e, it) {
   // say · t · rush — 화면이 「무엇을 하는지」 를 적 머리 위에 잠깐 띄운다(fight-screen foeTell). 판에는 아무 영향 없다
   cue(s, "act", e, { anim: ["attack", "back", "attackAll", "multi"].includes(it.t) ? "attack" : "skill", say: it.say || null, t: it.t, rush: !!s.rushing });
+  // 적의 치는 수는 모두 파티 HP 를 친다(docs/16 §8). 맞는 사도(pickTarget)는 연출 자리일 뿐 — 앞줄 · 도발한 사도가 흔들린다
+  // back(관통) — 방어(턴 방어)를 뚫고 실드와 HP 를 친다. 실드가 답이다
   if (it.t === "attack" || it.t === "back") {
     const t = pickTarget(s, it.t === "back");
     if (t) {
-      const d = dealt(e, it.v); hurt(s, t, d, { from: e });
-      say(s, `${e.ko}: ${it.say} → ${t.ko} (${d})`);
-      // 맞은 사람에게 상태를 건다 — 「창끝으로 찌른다」 취약 따위
-      if (it.id && !t.dead) { const v = foeStatus(s, e, t, it.id, it.n || 1); say(s, `${t.ko}: ${it.id} +${v}`); }
+      const d = dealt(e, it.v); hurt(s, t, d, { from: e, pierce: it.t === "back" });
+      say(s, `${e.ko}: ${it.say} → 파티 (${d}${it.t === "back" ? " · 방어 관통" : ""})`);
+      // 상태를 건다 — 「창끝으로 찌른다」 취약 따위. 파티에 하나
+      if (it.id && !t.dead) { const v = foeStatus(s, e, t, it.id, it.n || 1); say(s, `파티: ${it.id} +${v}`); }
     }
   } else if (it.t === "multi") {
-    // 한 번마다 새로 고른다 — 앞사람이 쓰러지면 다음 사람에게 간다
+    // 한 대씩 — 방어가 먼저 벗겨진다. 연출은 한 번마다 새로 고른 사도
     const d = dealt(e, it.v);
     for (let k = 0; k < (it.n || 1); k++) { const t = pickTarget(s, false); if (!t) break; hurt(s, t, d, { from: e }); if (it.id) foeStatus(s, e, t, it.id, it.per || 1); }
     say(s, `${e.ko}: ${it.say} (${d}×${it.n})${it.id ? ` · ${it.id}` : ""}`);
@@ -598,10 +794,11 @@ function foeAct(s, e, it) {
     const x = alive(s.enemies).sort((p, q) => p.hp / p.maxHp - q.hp / q.maxHp)[0];
     if (x) { const v = Math.min(it.v, x.maxHp - x.hp), h0 = x.hp; x.hp += v; healCue(s, x, h0); say(s, `${e.ko}: ${it.say} (${x.ko} +${v})`); }
   } else if (it.t === "attackAll") {
-    for (const t of alive(s.party)) { const d = dealt(e, it.v); hurt(s, t, d, { from: e }); if (it.id) foeStatus(s, e, t, it.id, it.n || 1); }
-    say(s, `${e.ko}: ${it.say} (${it.v})${it.id ? ` · ${it.id} ${it.n || 1}` : ""}`);
+    // 전체 공격 — 파티를 한 번, 값 × FOE_ALL_X(셋을 따로 치던 것을 한 대로). 상태도 한 번
+    const t = pickTarget(s, false);
+    if (t) { const d = dealt(e, allX(it)); hurt(s, t, d, { from: e, all: true }); if (it.id && !t.dead) foeStatus(s, e, t, it.id, it.n || 1); say(s, `${e.ko}: ${it.say} → 파티 (${d})${it.id ? ` · ${it.id} ${it.n || 1}` : ""}`); }
   } else if (it.t === "block") { foeBlock(s, e, it.v); say(s, `${e.ko}: ${it.say}`); }
-  // all — 적 전체에 건다(사기 · 강건 · 불굴로 동료를 북돋운다)
+  // all — 적 전체에 건다(사기 · 결의 · 불굴로 동료를 북돋운다)
   else if (it.t === "buff") { for (const x of it.all ? alive(s.enemies) : [e]) { addSt(x, it.id, it.v); cue(s, "status", x, { id: it.id, up: true }); } say(s, `${e.ko}: ${it.say} (${it.all ? "적 전체 " : ""}${it.id} +${it.v})`); }
   else if (it.t === "jam") {
     // 원작의 감전이 공격·이동속도를 늦추듯, 방해는 SP 수급을 늦춘다
@@ -609,9 +806,9 @@ function foeAct(s, e, it) {
     say(s, `${e.ko}: ${it.say} (다음 턴 AP -${it.v})`);
   }
   else if (it.t === "debuff") {
-    let v = it.v;
-    for (const t of alive(s.party)) v = foeStatus(s, e, t, it.id, it.v);
-    say(s, `${e.ko}: ${it.say} (${it.id} +${v})`);
+    // 파티에 한 번(상태는 파티 하나)
+    const v = alive(s.party).length ? foeStatus(s, e, partyRep(s), it.id, it.v) : 0;
+    say(s, `${e.ko}: ${it.say} (파티 ${it.id} +${v})`);
   }
   // 상태 카드를 끼워 넣는다(카제나의 상태 카드) — to: draw(뽑을 더미에 섞는다) · discard(버린 더미) · hand(손, 가득 차면 버린 더미).
   // 이 전투에만 있다 — 판의 덱(run.deck)에는 안 들어간다(run.js afterFight 는 더미를 보지 않는다)
@@ -633,10 +830,8 @@ function foeAct(s, e, it) {
   if (FOE_HITS.includes(it.t) && st(e, "약화") > 0) charge(s, e, "약화");
 }
 
-// 앞줄이 먼저 맞는다. 뒤를 노리는 수(back)는 거꾸로 뒷줄부터.
-// 같은 열이면 **적 쪽에 선 사도가 먼저** 맞는다 — 편성에서 ⇄ 로 정한 자리(파티 순서가 뒤일수록 적 쪽).
-// 뒤를 노리는 수는 같은 열에서도 가장 안쪽(파티 순서가 앞)부터. 열이 주는 효과 · 조건은 자리와 상관없이 열만 본다.
-// 도발이 걸려 있으면 어느 쪽이든 그 사도가 맞는다.
+// 맞는 자리 — 피해는 늘 파티 HP 로 간다(hurt). 여기서 고르는 사도는 **연출 자리**다(흔들리는 몸 · 맞는 소리 · 「맞았다」 대사).
+// 앞줄이 먼저, 관통(back)은 뒷줄부터 — 같은 열이면 적 쪽(파티 순서가 뒤). 도발이 걸려 있으면 그 사도가 막아 선다.
 function pickTarget(s, fromBack) {
   const live = alive(s.party); if (!live.length) return null;
   if (s.taunt) { const t = live.find((u) => u.key === s.taunt); if (t) return t; }
@@ -672,66 +867,110 @@ function natureMod(s, from, to) {
   return 1;
 }
 // 맞는 쪽의 상태 — 취약 받는 피해 +50%(횟수 — 한 번의 일에 1 씩, charge) · 불굴 겹마다 -20%(세기 — 줄지 않는다, 불굴Cap 까지)
+// 도발(파티) — 그 턴 동안 불굴 TAUNT_FORT 겹을 더 받은 것처럼(겹에 쌓이지 않는다, 불굴Cap 안에서 · rules.js)
 function taken(s, to, v) {
   let m = 1;
   if (st(to, "취약") > 0 && charge(s, to, "취약")) m *= 1 + R.STATUS_V.취약;
-  m *= 1 - R.stackEff("불굴", st(to, "불굴"));
+  // 피해 감소(v6 카제나 — 횟수) — 받는 피해 -15%, 맞는 일 하나에 1
+  if (st(to, "피해 감소") > 0 && charge(s, to, "피해 감소")) m *= 1 - R.STATUS_V["피해 감소"];
+  const fort = st(to, "불굴") + (to.side === "party" && s.taunt ? R.TAUNT_FORT || 0 : 0);
+  m *= 1 - R.stackEff("불굴", fort);
   return Math.max(0, Math.round(v * m));
 }
+// 받는 피해 증감(mods) — 파티는 사도마다 걸린 것 가운데 좋은 쪽 하나(가장 큰 감소)와 나쁜 쪽 하나(가장 큰 증가)를 더한다
+// (「같은 종류끼리는 가장 큰 값 하나만」 — docs/01 전역 증감). 「아군 전원 받는 피해 -10%」 가 세 번 겹치지 않는다
+function takenMod(s, u) {
+  if (u.side !== "party") return P.statMod(s, u, "taken");
+  let up = 0, down = 0;
+  for (const h of s.party) { const v = P.statMod(s, h, "taken"); if (v > up) up = v; if (v < down) down = v; }
+  return up + down;
+}
 
-// tags — 카드의 키워드(분쇄 · 잔불 · 약점). 사도가 적을 칠 때 약점이면 상성 유리와 같은 +10%(rules.js NATURE_DMG)
+// tags — 카드의 키워드(분쇄 · 약점). 사도가 적을 칠 때 약점이면 상성 유리와 같은 +10%(rules.js NATURE_DMG)
 // card — 사도의 카드(고학년 포함)가 친 것. 사도의 사기 · 약화는 카드의 피해에만 붙는다(패시브 · 지속 피해는 안 받는다). 약화는 카드 한 장에 1 씩 준다 · 사기는 줄지 않는다
-function hurt(s, u, v, { from, pure, crit, tags, card, counter } = {}) {
-  if (u.invuln && !pure) { say(s, `${u.ko}에게 닿지 않는다`); return; }
-  let d = pure ? v : taken(s, u, v);
+// attack — 공격 카드가 친 것(잔광의 덤)
+// 사도를 치면 파티 HP 를 친다(사도의 hp · block … 은 파티의 것 — linkParty). u 는 연출 자리(맞은 사도)
+// pierce — 관통(적의 back 수): 방어(턴 방어)를 건너뛰고 실드 · HP 를 친다
+// fixed — 고정 피해(v6 카제나): 상태 · 상성 · 증감을 안 탄다. 방어 · 실드에는 막힌다
+// dot — 지속 피해: 방어 · 실드를 뚫는다(pure 면 고정 지속 피해 — 상태도 안 탄다). 반격 · 「피해를 받으면」 은 안 깨운다
+function hurt(s, u, v, { from, pure, crit, tags, card, counter, pierce, fixed, dot, attack } = {}) {
+  if (u.invuln && !pure) { say(s, `${u.side === "party" ? "파티" : u.ko}에게 닿지 않는다`); cue(s, "status", u, { id: "무적!", up: true }); return; }
+  const plain = pure || fixed;              // 상태 · 상성 · 증감을 안 탄다
+  if (card && u.side === "enemy") u.hitSeq = s.actSeq;   // 이 카드에 맞았다 — 전용 키워드의 「발동하면 사라진다」(kwConsume)
+  let d = plain ? v : taken(s, u, v);
   // 때리는 사도의 상태 — 적은 dealt 가 이미 넣었다(머리 위 숫자와 같게)
-  if (!pure && card && from && from.side === "party") {
+  if (!plain && card && from && from.side === "party") {
     let m = 1;
     m *= 1 + R.stackEff("사기", st(from, "사기"));
     if (st(from, "약화") > 0 && charge(s, from, "약화")) m *= 1 - R.STATUS_V.약화;
     if (m !== 1) d = Math.round(d * m);
   }
   // 성격 상성 — 때리는 쪽이 유리하면 +10%, 맞는 쪽이 유리하면 -5%. 사도 → 적은 약점(weakOf · 「약점」)이 곧 유리다
-  if (!pure && from) d = Math.round(d * (from.side === "party" && u.side === "enemy" && isWeakHit(s, from, u, tags) ? 1 + R.NATURE_DMG : natureMod(s, from, u)));
-  // 분쇄 · 잔불 · 잔광(rules.js STATUS_V) — 분쇄는 방어 · 실드가 깎이기 전에 본다. 격파 자체의 덤은 없다(카제나)
-  if (!pure && u.side === "enemy") {
+  if (!plain && from) d = Math.round(d * (from.side === "party" && u.side === "enemy" && isWeakHit(s, from, u, tags) ? 1 + R.NATURE_DMG : natureMod(s, from, u)));
+  // 분쇄(카드 키워드) · 잔불(적의 상태) · 잔광(파티의 상태)(rules.js STATUS_V) — 분쇄는 방어 · 실드가 깎이기 전에 본다. 격파 자체의 덤은 없다(카제나)
+  //   잔불 — 격파된 적을 치거나 이 한 대로 쓰러뜨리면 잔불 겹마다 +30%, 그 자리에서 다 사라진다. 같은 카드의 다음 타격도 같은 덤(한 번의 일)
+  //   잔광 — 공격 카드가 격파된 적을 치면 +50%(잔광은 그 카드에 1 쓴다 — 강인도 덤과 같은 한 번, run-fx · fxApi glow)
+  if (!plain && u.side === "enemy" && from && from.side === "party" && card) {
     let k = 1;
-    if (tags && tags.잔불 && u.broken) k *= 1 + R.STATUS_V.잔불;
-    if (tags && tags.잔광 && u.broken) k *= 1 + R.STATUS_V.잔광;
     if (tags && tags.분쇄 && ((u.block || 0) > 0 || (u.shield || 0) > 0)) k *= 1 + R.STATUS_V.분쇄;
+    if (u.emberSeq === s.actSeq && s.actSeq) k *= u.emberK || 1;
+    else if (st(u, "잔불") > 0 && (u.broken || Math.round(d * k) >= u.hp + (u.block || 0) + (u.shield || 0))) {
+      const n = Math.min(st(u, "잔불"), R.STATUS_V.잔불Max);
+      u.emberK = 1 + n * R.STATUS_V.잔불; u.emberSeq = s.actSeq; k *= u.emberK;
+      delete u.status.잔불; if (u.dotU) delete u.dotU.잔불;
+      say(s, `${u.ko}: 잔불 ${n} — 피해 +${Math.round(n * R.STATUS_V.잔불 * 100)}%`); cue(s, "status", u, { id: "잔불!" });
+    }
+    if (attack && u.broken && glowOn(s)) k *= 1 + R.STATUS_V.잔광;
     if (k !== 1) d = Math.round(d * k);
   }
   // 패시브·키워드·카드가 건 증감 — 주는 피해(때리는 쪽) × 받는 피해(맞는 쪽). 아무리 깎여도 10% 는 들어간다
-  if (!pure) {
-    const m = (1 + (from ? P.statMod(s, from, "dealt") : 0)) * (1 + P.statMod(s, u, "taken"));
+  if (!plain) {
+    const m = (1 + (from ? P.statMod(s, from, "dealt") : 0)) * (1 + takenMod(s, u));
     d = Math.max(0, Math.round(d * Math.max(0.1, m)));
   }
-  let guard = 0;                             // 방어 · 실드가 받아 낸 몫 — 연출에만 쓴다
-  if (!pure && u.block > 0) { const a = Math.min(u.block, d); u.block -= a; d -= a; guard += a; }
-  // 실드는 방어 다음에 깎인다. 전에는 쌓이기만 하고 한 번도 안 깎였다 — 있어도 없는 것이었다.
-  if (!pure && u.shield > 0) { const a = Math.min(u.shield, d); u.shield -= a; d -= a; guard += a; }
+  let guard = 0;                             // 방어 · 실드가 받아 낸 몫 — 연출 · 반격(다 막으면 300%)에 쓴다
+  if (!pure && !dot && !pierce && u.block > 0) { const a = Math.min(u.block, d); u.block -= a; d -= a; guard += a; }
+  // 실드는 방어 다음에 깎인다. 전에는 쌓이기만 하고 한 번도 안 깎였다 — 있어도 없는 것이었다. 지속 피해는 방어 · 실드를 뚫는다
+  if (!pure && !dot && u.shield > 0) { const a = Math.min(u.shield, d); u.shield -= a; d -= a; guard += a; }
   const before = u.hp / u.maxHp, hp0 = u.hp;
   u.hp -= d;
   if (d > 0 || guard > 0) cue(s, "hurt", u, { v: d, guard, crit: !!crit, from: Math.max(0, hp0), to: Math.max(0, u.hp) });
   if (u.side === "party" && d > 0) speak(s, u.key, "hit");
   if (u.hp <= 0) { kill(s, u, pure); return; }
-  if (u.side === "party" && d > 0 && !pure) {
-    (s.hurtNow = s.hurtNow || {})[u.key] = (s.hurtNow[u.key] || 0) + 1;
+  // 파티가 맞았다 — 「피해를 받으면」 은 누구의 패시브든 파티가 맞은 것이다(docs/16 §8). 「지난 턴에 피해를 받았으면」 도 사도 모두
+  if (u.side === "party" && d > 0 && !pure && !dot) {
+    s.hurtNow = s.hurtNow || {};
+    for (const h of s.party) s.hurtNow[h.key] = (s.hurtNow[h.key] || 0) + 1;
     emit(s, "hurt", { who: u, from });
     emit(s, "lowHp", { who: u, before, after: u.hp / u.maxHp });
   }
-  // 반격 — 적에게 맞으면(방어 · 실드로 막아도) 그 적에게 방어력 반격% 피해. 적의 수 하나에 한 번 · 1 씩 준다
-  if (!pure && !counter && u.side === "party" && !u.dead && from && from.side === "enemy" && !from.dead && st(u, "반격") > 0) {
+  // 반격(v6 카제나) — 적에게 맞으면 그 적에게 방어 기반 피해 150%, 그 공격을 방어 · 실드로 다 막았으면 300%. 치명이 붙는다.
+  // 적의 수 하나에 한 번 · 1 씩 준다(최대 10). 파티의 반격은 방어력이 가장 높은 사도의 「방어력 210% + 공격력 30%」 와 치명(partyGuard)
+  if (!pure && !dot && !counter && u.side === "party" && !u.dead && from && from.side === "enemy" && !from.dead && st(u, "반격") > 0) {
     u.ctrSeq = u.ctrSeq || 0;
     if (u.ctrSeq !== s.actSeq && charge(s, u, "반격")) {
       u.ctrSeq = s.actSeq;
-      const v = Math.max(1, Math.round((u.def || 0) * (1 + P.statMod(s, u, "def")) * R.STATUS_V.반격));
-      say(s, `${u.ko}: 반격 → ${from.ko} (${v})`);
-      cue(s, "status", u, { id: "반격!", up: true });
-      hurt(s, from, v, { from: u, counter: true });
+      const g = partyGuard(s);
+      const full = d <= 0 && guard > 0;
+      const critPct = g ? (g.crit || 0) + P.statMod(s, g, "crit") * 100 : 0;
+      const isCrit = !s.preview && s.rng() * 100 < critPct;
+      const base = g ? R.defDmgStat(atkNow(s, g), defNow(s, g)) : partyDef(s);
+      const v = R.finalDamage({ stat: base, ratio: full ? R.STATUS_V.반격Full : R.STATUS_V.반격, crit: isCrit });
+      say(s, `파티: 반격${full ? "(다 막음)" : ""} → ${from.ko} (${v}${isCrit ? " 치명" : ""})`);
+      cue(s, "status", u, { id: full ? "반격!!" : "반격!", up: true });
+      hurt(s, from, v, { from: g || u, counter: true, crit: isCrit });
     }
   }
-  if (u.side === "enemy" && d > 0 && !pure) {
+  // 충격(파티 — 적이 건 것, v6) — 카제나의 충격(대상이 되면 고정 피해)을 파티 쪽으로: 적의 치는 수에 맞으면 고정 피해 80%,
+  // 그 수를 방어 · 실드가 받아 냈으면 +50%. 방어 · 실드를 뚫는다. 수 하나에 한 번 · 1 준다 — 방어를 쌓아 버티는 손일수록 아프다
+  if (!pure && !dot && !counter && u.side === "party" && !u.dead && from && from.side === "enemy" && st(u, "충격") > 0 && s.shockSeq !== s.actSeq) {
+    s.shockSeq = s.actSeq;
+    const v = Math.max(1, Math.round(dotUnit(u, "충격") * R.STATUS_V.충격 * (guard > 0 ? 1 + R.STATUS_V.충격Shield : 1)));
+    addSt(u, "충격", -1);
+    say(s, `파티: 충격${guard > 0 ? "(방어 위)" : ""} — 고정 피해 ${v}`); cue(s, "status", u, { id: "충격!" });
+    hurt(s, u, v, { pure: true, dot: true });
+  }
+  if (u.side === "enemy" && d > 0 && !pure && !dot) {
     foePassives(s, "hurt", { target: u, from });
     if (!u.dead) foePassives(s, "lowHp", { target: u, before, after: u.hp / u.maxHp });
   }
@@ -823,35 +1062,19 @@ function handAuto(s, ev, info = {}) {
 export const FOE_HITS = ["attack", "back", "multi", "attackAll", "thorns"];
 export function foeV(e, it) {
   if (!it || !FOE_HITS.includes(it.t) || typeof it.v !== "number") return it && it.v;
-  const m = (e && e.dmgx) || 1;
-  return m !== 1 && it.v > 0 ? Math.max(1, Math.round(it.v * m)) : it.v;
-}
-
-// 쓰러진 사도의 카드를 손 · 뽑을 더미 · 버린 더미에서 사라진 카드로 옮긴다. 손에서 뺀 장수를 돌려준다
-function benchCards(s, key) {
-  const mine = (id) => (cardOf(s, id) || {}).hero === key;
-  let fromHand = 0, n = 0;
-  for (const pile of [s.hand, s.draw, s.discard]) {
-    for (let i = pile.length - 1; i >= 0; i--) if (mine(pile[i])) {
-      s.gone.push(...pile.splice(i, 1)); n++;
-      if (pile === s.hand) fromHand++;
-    }
-  }
-  if (n) say(s, `${HERO(key).ko}의 카드 ${n}장이 이번 전투에서 빠진다`);
-  return fromHand;
+  const m = (e && e.dmgx) || 1, v = allX(it);
+  return m !== 1 && v > 0 ? Math.max(1, Math.round(v * m)) : v;
 }
 
 function kill(s, u, byPoison) {
   if (u.dead) return;
-  // 엘리아스에는 죽음이 없다 — 쓰러진 사도는 주말농장에 간다(docs/03-세계관.md)
+  // 파티 HP 가 0 — 쓰러지는 사도는 없다. 파티가 더 버티지 못하면 그 싸움에서 지고 판이 끝난다(docs/16 §8)
   u.hp = 0; u.dead = true;
+  if (u.side === "enemy") s.killSeq = s.actSeq;   // 이 일에서 적이 쓰러졌다 — 「파괴:」(run-fx ifBroken)
+  if (u.side === "party") { speak(s, u.key, "down"); say(s, "파티 HP 0 — 더 버티지 못한다"); checkOver(s); return; }
   cue(s, "die", u);
-  // 쓰러진 사도의 카드는 이 전투에서 빠진다 — 손에 있던 만큼 새로 뽑는다(내 턴에 쓰러졌을 때만 손에 있다)
-  if (u.side === "party") { const n = benchCards(s, u.key); if (n && !s.over && alive(s.party).length) draw(s, n); }
-  if (u.side === "party") speak(s, u.key, "down");
-  say(s, u.side === "party" ? `${u.ko} 주말농장으로` : `${u.ko} 쓰러짐`);
-  if (u.side === "party") emit(s, "allyDown", { who: u });
-  else {
+  say(s, `${u.ko} 쓰러짐`);
+  {
     // 적 처치 — 파티 AP +1(카제나 「적 처치 시 1 회복」, rules.js KILL_AP). 마지막 적이면 전투가 끝나 쓸 일이 없다
     if (R.KILL_AP && alive(s.enemies).length) { gainAp(s, R.KILL_AP); say(s, `처치 — AP +${R.KILL_AP}`); cue(s, "status", u, { id: `AP +${R.KILL_AP}`, up: true }); }
     if (s.acting) (s.killNow = s.killNow || {})[s.acting] = (s.killNow[s.acting] || 0) + 1;
@@ -896,8 +1119,8 @@ export function hasTag(c, id) {
   return !c.flashOn && (c.tags || []).includes(id);
 }
 
-// 카드 키워드 가운데 피해에 붙는 것 — 분쇄 · 잔불 · 약점(rules.js STATUS_V · hurt · isWeakHit)
-const HIT_TAGS = ["분쇄", "잔불", "잔광", "약점"];
+// 카드 키워드 가운데 피해에 붙는 것 — 분쇄 · 약점(rules.js STATUS_V · hurt · isWeakHit). 잔불 · 잔광은 v6 부터 상태다
+const HIT_TAGS = ["분쇄", "약점"];
 const fxTags = (fx) => { const o = {}; for (const f of fx || []) if (f.k === "tag" && HIT_TAGS.includes(f.id)) o[f.id] = true; return o; };
 function cardTags(s, id, c) {
   const o = {};
@@ -905,23 +1128,26 @@ function cardTags(s, id, c) {
   return o;
 }
 
-// 카드의 때 붙은 효과(「감응: …」 · 「턴 끝에 손에 있으면: …」)를 그 자리에서 돌린다 — 카드는 손에 그대로 있다
+// 카드의 때 붙은 효과(「영감: …」 · 「안식: …」 · 「턴 끝에 손에 있으면: …」)를 그 자리에서 돌린다 — 카드는 제자리에 그대로 있다
+const WHEN_KO = { draw: "영감", discard: "안식", handEnd: "턴 끝" };
 function cardWhen(s, id, on) {
   const c = cardOf(s, id);
   const owner = c.hero ? s.party.find((u) => u.key === c.hero && !u.dead) : null;
   if (c.hero && !owner) return;
   const prev = s.acting, src0 = s.modSrc, seq0 = s.actSeq;
-  s.acting = c.hero || null; s.modSrc = `「${c.name}」 ${on === "draw" ? "감응" : "턴 끝"}`;
+  s.acting = c.hero || null; s.modSrc = `「${c.name}」 ${WHEN_KO[on] || on}`;
   s.actSeq = s.seqN = (s.seqN || 0) + 1;
-  say(s, `「${c.name}」 — ${on === "draw" ? "감응" : "손에 남아"}`);
-  if (on === "draw") cue(s, "status", owner || alive(s.party)[0], { id: `감응 「${c.name}」`, up: !c.status && !c.curse });
+  say(s, `「${c.name}」 — ${on === "handEnd" ? "손에 남아" : WHEN_KO[on]}`);
+  if (on !== "handEnd") cue(s, "status", owner || alive(s.party)[0], { id: `${WHEN_KO[on]} 「${c.name}」`, up: !c.status && !c.curse });
   const tgt = (alive(s.enemies)[0] || {}).idx ?? 0;
   try { runFx(s, c.fx, { owner, combo: null, targetIdx: tgt, tags: cardTags(s, id, c), card: true, type: c.type, when: on }, fxApi(s)); }
   finally { s.acting = prev; s.modSrc = src0; s.actSeq = seq0; }
   checkOver(s);
 }
 
-export function draw(s, n) {
+// opts.ability — 카드 · 패시브의 효과로 뽑는다(턴 시작의 뽑기가 아니다). 「영감: …」 은 이때만 깨어난다(v6 카제나). 안 주면 능력의 뽑기
+export function draw(s, n, opts = {}) {
+  const ability = opts.ability !== false;
   let burned = 0;
   for (let i = 0; i < n; i++) {
     if (!s.draw.length) {
@@ -934,9 +1160,10 @@ export function draw(s, n) {
     s.drawn = (s.drawn || 0) + 1;            // 뽑은 장수 — 패시브가 준 드로우를 셀 때(passiveGain)
     if (s.hand.length >= R.HAND_MAX) { s.gone.push(id); burned++; continue; }
     s.hand.push(id);
-    // 감응 — 뽑히면 「감응: …」 이 돈다. 감응이 또 뽑게 해도 세 겹까지
+    // 영감 — 능력으로 뽑히면 「영감: …」 이 돈다. 영감이 또 뽑게 해도 세 겹까지
     const c = cardOf(s, id);
-    if (c && (c.fx || []).some((f) => f.k === "when" && f.on === "draw") && (s.senseDepth || 0) < 3) {
+    // 적이 끼워 넣은 상태 카드 · 저주는 턴 시작에 뽑혀도 돈다(피할 수 없는 방해라)
+    if ((ability || (c && (c.status || c.curse))) && c && (c.fx || []).some((f) => f.k === "when" && f.on === "draw") && (s.senseDepth || 0) < 3) {
       s.senseDepth = (s.senseDepth || 0) + 1;
       try { cardWhen(s, id, "draw"); } finally { s.senseDepth--; }
       if (s.over) break;
@@ -1059,6 +1286,8 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
 
   // X 코스트는 남은 AP 를 전부 쓴다. 그 수가 곧 X 다.
   const paid = c.xcost ? s.ap : costOf(s, cardId);
+  // 조율(v6 카제나) — 이 카드의 비용이 낼 때 남은 AP 와 같다(「조율: …」 의 뒤가 돈다)
+  const tune = !c.xcost && paid === s.ap;
   s.ap -= paid;
   // 고학년 게이지 — 카드에 쓴 AP 1당 +10%. 0코 카드는 충전하지 않는다.
   if (paid > 0) {
@@ -1076,22 +1305,42 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   // chain — 연속: 이번 턴 바로 앞에 낸 카드의 속성(사도 성격)이 이 카드와 같다. 교주 카드는 속성이 없다
   const nat = owner ? natureOf(owner.key) : null;
   const ctx = { owner, combo: null, targetIdx, allyIdx: opts.ally, x: c.xcost ? paid : 0, shin: R.shinKindOf(CARDS[cardId], sh), tags: cardTags(s, cardId, c), card: true,
-    type: c.type, chain: !!nat && s.prevNat === nat };
+    type: c.type, chain: !!nat && s.prevNat === nat, tune };
+  // 봉인(v6 카제나) — 처음 내면 효과 없이 봉인만 풀린다(이 전투 동안). 비용은 치른다
+  const sealed = (hasTag(c, "봉인") || blessTag(s, cardId, "봉인")) && !(s.unsealed && s.unsealed[cardId]);
+  // 연결(v6 카제나) — 직접 내면 손의 다른 연결 카드를 모두 버린다(저절로 나간 것은 안 버린다)
+  if (!opts.auto && (hasTag(c, "연결") || blessTag(s, cardId, "연결"))) {
+    const drop = s.hand.filter((id) => id !== cardId && (hasTag(cardOf(s, id), "연결") || blessTag(s, id, "연결")));
+    if (drop.length) { for (const id of drop) s.hand.splice(s.hand.indexOf(id), 1); s.discard.push(...drop); say(s, `연결 — ${drop.map((id) => `「${cardOf(s, id).name}」`).join(" ")} 버린다`); }
+  }
   s.prevNat = nat;
   s.acting = c.hero || null;
   s.modSrc = `${owner ? owner.ko + " " : ""}「${c.name}」`;   // 버프 · 디버프의 출처(정보 창)
   s.boonSrc = `「${c.name}」`;                                  // 「판 내내」 버프의 출처 — 판에 적는다(run.boons)
   cue(s, "act", owner, { anim: c.type === "공격" ? "attack" : "skill", card: c });   // card — 화면이 카드에 맞는 동작을 고른다(js/data/card-motion.js)
   try {
-    if (c.built) {
+    if (sealed) {
+      (s.unsealed = s.unsealed || {})[cardId] = true;
+      say(s, `「${c.name}」 — 봉인이 풀린다(효과 없음)`); cue(s, "status", owner || alive(s.party)[0], { id: "봉인 해제", up: true });
+    } else if (c.built) {
       // 기획서에서 읽은 카드 — 효과 조각을 run-fx 가 실행한다(스탯 기반 %)
       runFx(s, c.fx, ctx, fxApi(s));
     } else {
       for (const f of c.fx) applyFx(s, c, f, ctx);
     }
     // 그 카드만의 축복 — 고른 축복의 덤 효과가 카드 효과 뒤에 돈다(배율은 ctx.shin 이 이미 실었다)
-    const bl = R.blessOf(CARDS[cardId], sh);
+    const bl = !sealed && R.blessOf(CARDS[cardId], sh);
     if (bl && bl.fx && bl.fx.length) { say(s, `겨우살이의 축복 「${bl.ko}」`); runFx(s, bl.fx, { ...ctx, shin: null }, fxApi(s)); }
+    // 협공(v6 카제나 — 파티 · 횟수) — 사도가 공격 카드를 내면 다른 아군이 공격력 100% 로 같은 적을 친다, 1 쓴다
+    if (!sealed && owner && c.type === "공격" && st(s.pool, "협공") > 0 && !s.over) {
+      const t = s.enemies.find((e) => e.idx === targetIdx && !e.dead) || alive(s.enemies)[0];
+      if (t) {
+        addSt(s.pool, "협공", -1);
+        const v = R.finalDamage({ stat: partyAtk(s, owner), ratio: R.STATUS_V.협공 });
+        say(s, `협공 → ${t.ko} (${v})`); cue(s, "status", owner, { id: "협공!", up: true });
+        hurt(s, t, v, { from: owner });
+      }
+    }
   } finally { s.discardPick = null; s.boonSrc = null; }       // 고른 버릴 카드 · 판 내내의 출처는 이 카드의 효과에서만 쓴다
   // 티그의 오버드라이브 — 평타 계수를 바꾸고 공속을 올린다(원작). 여기선 한 번 더 들어간다.
   if (s.overdrive && c.hero === "tig" && c.type === "공격") {
@@ -1118,7 +1367,18 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   // 강화 카드(rules.js isPower) — 내면 이 전투에서 사라지고, 판의 덱에서도 빠진다(afterFight 가 gained.spent 를 본다)
   const spent = R.isPower(c);                 // c — 신탁을 얹은 카드. 「강화 카드.」 신탁을 고른 카드도 강화 카드다
   if (spent) { (s.gained.spent = s.gained.spent || []).push(cardId); say(s, `강화 카드 「${c.name}」 — 판에서 사라진다`); }
-  if (c.temp || spent || hasTag(c, "소멸") || (owner && owner.dead)) s.gone.push(cardId); else s.discard.push(cardId);
+  if (!sealed) kwConsume(s, owner, c);
+  // 소멸 N(v6 카제나) — 이 전투에서 N 번 내면 소멸 · 회수(N) — 버린 더미 대신 손으로(한 전투에 N 번)
+  const useN = (c.fx || []).find((f) => f.k === "tag" && f.id === "소멸N");
+  if (useN) s.useCount = { ...(s.useCount || {}), [cardId]: ((s.useCount || {})[cardId] || 0) + 1 };
+  const goneN = !!useN && s.useCount[cardId] >= useN.n;
+  const recall = (c.fx || []).find((f) => f.k === "tag" && f.id === "회수");
+  const recallOk = !!recall && ((s.recalled || {})[cardId] || 0) < recall.n && s.hand.length < R.HAND_MAX;
+  if (c.temp || spent || goneN || hasTag(c, "소멸") || (owner && owner.dead)) { s.gone.push(cardId); if (goneN) say(s, `「${c.name}」 — ${useN.n}번째, 소멸`); }
+  else if (recallOk) { s.recalled = { ...(s.recalled || {}), [cardId]: ((s.recalled || {})[cardId] || 0) + 1 }; s.hand.push(cardId); say(s, `회수 — 「${c.name}」 손으로 돌아온다`); }
+  else s.discard.push(cardId);
+  // 연쇄(v6 카제나) — 다음 턴 시작에 같은 효과가 한 번 더(beginTurn)
+  if (!sealed && (hasTag(c, "연쇄") || blessTag(s, cardId, "연쇄")) && !opts.echo) (s.echo = s.echo || []).push({ id: cardId, target: targetIdx });
   // 겨우살이의 축복 — 낼 때 붙는 것(피해 · 회복 · 방어 · 맞은 적 상태는 run-fx 가 본다)
   if (sh === "draw") draw(s, 1);                 // 끝없는 이야기 — 내면 드로우 1
   if (sh === "ap") s.ap += 1;                     // 발맞추기 — 내면 AP +1(비용 1 이상 카드만 뜬다)
@@ -1167,8 +1427,7 @@ export function previewCard(s, handIdx, targetIdx) {
   const c = cardOf(s, id);
   const random = (c.fx || []).some((f) => f.k === "dmg" && f.target === "randomEnemy");
   const once = (pickIdx) => {
-    const { rng, ...rest } = s;
-    const sh = structuredClone(rest);
+    const sh = cloneCombat(s);
     sh.rng = makeRng(1);
     sh.preview = true;
     sh.previewPick = pickIdx;
@@ -1200,8 +1459,7 @@ export function previewUlt(s, heroKey, targetIdx) {
   const ult = ultOf(heroKey);
   const random = ((ult && ult.fx) || []).some((f) => f.k === "dmg" && f.target === "randomEnemy");
   const once = (pickIdx) => {
-    const { rng, ...rest } = s;
-    const sh = structuredClone(rest);
+    const sh = cloneCombat(s);
     sh.rng = makeRng(1);
     sh.preview = true;
     sh.previewPick = pickIdx;
@@ -1225,31 +1483,34 @@ export function previewUlt(s, heroKey, targetIdx) {
   });
 }
 
-// 아군 미리보기 — 이 카드를 내면 아군마다 회복 · 방어 · 실드가 얼마나 붙고 체력이 얼마나 빠지나(자해 · 대가).
+// 파티 미리보기 — 이 카드를 내면 파티 HP 가 얼마나 차고 · 방어 · 실드가 얼마나 붙고 · HP 가 얼마나 빠지나(자해 · 대가).
 // 적 미리보기와 같이 판을 복사해 실제로 내 본다 — 시전자 능력치 · 회복력 · 패시브가 전부 그대로 들어간다.
-// 돌려주는 것: 아군 idx 마다 { heal, block, shield, lose } 또는 null
-export function previewAllies(s, handIdx, targetIdx) {
+// 돌려주는 것: { heal, block, shield, lose, over } 또는 null — 파티는 한 몸이라 하나다(over — 최대 HP 를 넘쳐 버려지는 회복)
+export function previewParty(s, handIdx, targetIdx) {
   const id = s.hand[handIdx];
   if (!id || s.over || canPlay(s, id)) return null;
-  let after;
+  let a, over = 0;
   try {
-    const { rng, ...rest } = s;
-    const sh = structuredClone(rest);
+    const sh = cloneCombat(s);
     sh.rng = makeRng(1);
     sh.preview = true;
+    sh.fx = [];
     playCard(sh, handIdx, targetIdx);
-    after = sh.party;
+    a = sh.pool;
+    for (const f of sh.fx) if (f.k === "heal" && f.side === "party") over += Math.max(0, f.over || 0);
   } catch (err) { return null; }
-  return s.party.map((u, i) => {
-    const a = after[i];
-    if (!a || u.dead) return null;
-    const heal = Math.max(0, a.hp - u.hp);
-    const lose = Math.max(0, u.hp - a.hp);
-    const block = Math.max(0, (a.block || 0) - (u.block || 0));
-    const shield = Math.max(0, (a.shield || 0) - (u.shield || 0));
-    if (!heal && !lose && !block && !shield) return null;
-    return { heal, block, shield, lose };
-  });
+  const u = s.pool;
+  const heal = Math.max(0, a.hp - u.hp);
+  const lose = Math.max(0, u.hp - a.hp);
+  const block = Math.max(0, (a.block || 0) - (u.block || 0));
+  const shield = Math.max(0, (a.shield || 0) - (u.shield || 0));
+  if (!heal && !lose && !block && !shield) return null;
+  return { heal, block, shield, lose, over };
+}
+// 옛 이름 — 사도마다 하나씩 돌려주던 꼴. 파티 하나를 파티 자리 0 에 둔다(화면은 previewParty 를 쓴다)
+export function previewAllies(s, handIdx, targetIdx) {
+  const p = previewParty(s, handIdx, targetIdx);
+  return s.party.map((u, i) => (i === 0 ? p : null));
 }
 
 const boost = (v, combo, owner, s) => {
@@ -1384,8 +1645,37 @@ function applyFx(s, c, f, ctx) {
   }
 }
 
+// 사도 전용 키워드의 「발동하면 사라진다 · N 감소」(카제나 고유 효과 꼴 — 「장전」 · 「일점 조준」, docs/18 §6) — 1개당 덤이 카드 한 장에 쓰였으면 줄인다.
+//   자기 주머니(carrier self) — 그 사도가 공격 카드를 내면(1개당 피해 · 공격력 · 치명 덤이 붙은 것)
+//   적에게 거는 것 — 이 카드에 맞은 적의 것(1개당 받는 피해 덤) · 아군에게 거는 것 — 사도가 공격 카드를 내면 파티의 것
+const KW_USE = new Set(["dealt", "atk", "crit", "taken"]);
+function kwConsume(s, owner, c) {
+  for (const kw of Object.values(s.kw || {})) {
+    if (!kw.consume || !(kw.per || []).some((p) => KW_USE.has(p.stat))) continue;
+    const cut = (n) => (kw.consume === "all" ? 0 : Math.max(0, n - kw.consume));
+    if (kw.carrier === "self") {
+      if (!owner || owner.key !== kw.owner || c.type !== "공격") continue;
+      const bag = (s.stacks || {})[kw.owner];
+      if (bag && bag[kw.id]) { bag[kw.id] = cut(bag[kw.id]); say(s, `「${kw.id}」 — 발동해 ${bag[kw.id] ? `${bag[kw.id]} 남는다` : "사라진다"}`); }
+    } else if (kw.carrier === "enemy") {
+      for (const e of s.enemies) if (e.hitSeq === s.actSeq && e.status && e.status[kw.id]) { e.status[kw.id] = cut(e.status[kw.id]); if (!e.status[kw.id]) delete e.status[kw.id]; }
+    } else if (owner && c.type === "공격" && s.pool.status[kw.id]) {
+      s.pool.status[kw.id] = cut(s.pool.status[kw.id]); if (!s.pool.status[kw.id]) delete s.pool.status[kw.id];
+    }
+  }
+}
 // 좋은 상태 — 적에게 걸려도 「디버프를 걸면」 이 아니다
-const BUFF_ST = new Set(["사기", "불굴", "결의", "반격", "결정화", "열의", "강건", "집중", "온정"]);
+const BUFF_ST = new Set(["사기", "불굴", "결의", "반격", "결정화", "잔광", "피해 감소", "면역", "실드 유지", "저장", "협공", "고동"]);
+// 잔광(파티 · 횟수) — 이 공격 카드(한 번의 일)에 잔광이 붙었나. 처음 물으면 1 쓴다(run-fx dmg 가 첫 타격 앞에서 묻는다)
+function glowUse(s) {
+  if (!s.actSeq) return false;
+  if (s.glowSeq === s.actSeq) return true;
+  if (st(s.pool, "잔광") <= 0) return false;
+  addSt(s.pool, "잔광", -1); s.glowSeq = s.actSeq;
+  cue(s, "status", partyRep(s), { id: "잔광!", up: true });
+  return true;
+}
+const glowOn = (s) => !!s.actSeq && s.glowSeq === s.actSeq;
 // run-fx 가 쓰는 손잡이 — 엔진 속을 그쪽에 통째로 넘기지 않으려고 좁게 연다
 function fxApi(s) {
   return {
@@ -1402,28 +1692,67 @@ function fxApi(s) {
       hurt(s, t, v, { from: owner, tags: ctx.tags, card: true });
       if (!t.dead) toughHit(s, t, 1);
     },
+    // 잔광 — 공격 카드의 첫 타격 앞에서 묻는다(강인도 +1 · 격파된 적 +50%)
+    glow: () => glowUse(s),
+    // 카드 만들기(v6 — 사도 전용 키워드의 「N개가 되면: 「카드」 1장 생성」) — 이름으로 찾는다(그 사도의 카드 먼저). 이 전투의 손에만 든다(판의 덱은 그대로)
+    make: (name, n, owner) => {
+      const all = Object.keys(CARDS).filter((id) => CARDS[id].name === name || CARDS[id].ko === name);
+      const id = all.find((x) => owner && CARDS[x].hero === owner.key) || all[0];
+      if (!id) { say(s, `(만들 카드가 없다: 「${name}」)`); return; }
+      for (let k = 0; k < n; k++) { if (s.hand.length < R.HAND_MAX) s.hand.push(id); else s.discard.push(id); }
+      say(s, `「${CARDS[id].name}」 ${n}장 — 손으로`); cue(s, "status", owner || alive(s.party)[0], { id: `「${CARDS[id].name}」 +${n}`, up: true });
+    },
+    // 카드로 처음 칠 때 — 충격(공격 카드의 대상이 되면 고정 피해 80%, 실드 · 방어가 있으면 +50%) · 충격파(카드로 맞으면 다른 모든 적에게 고정 피해 300%). 둘 다 1 쓴다
+    cardHit: (owner, t, ctx) => {
+      if (t.dead) return;
+      if (ctx.type === "공격" && st(t, "충격") > 0) {
+        const guarded = (t.block || 0) > 0 || (t.shield || 0) > 0;
+        const v = Math.max(1, Math.round(dotUnit(t, "충격") * R.STATUS_V.충격 * (guarded ? 1 + R.STATUS_V.충격Shield : 1)));
+        addSt(t, "충격", -1);
+        say(s, `${t.ko}: 충격 — 고정 피해 ${v}`); cue(s, "status", t, { id: "충격!" });
+        hurt(s, t, v, { from: owner, fixed: true });
+      }
+      if (!t.dead && st(t, "충격파") > 0) {
+        const v = Math.max(1, Math.round(dotUnit(t, "충격파") * R.STATUS_V.충격파));
+        addSt(t, "충격파", -1);
+        say(s, `${t.ko}: 충격파 — 다른 적 모두 고정 피해 ${v}`); cue(s, "status", t, { id: "충격파!" });
+        for (const x of alive(s.enemies)) if (x !== t) { hurt(s, x, v, { from: owner, fixed: true }); if (s.over) return; }
+      }
+    },
     // 결의 · 손상 — 얻는 방어 · 실드를 늘린다 · 줄인다
     guardGain: (t, v) => shieldGain(s, t, v),
     weak: (from, t, tags) => isWeakHit(s, from, t, tags),
-    draw: (n) => draw(s, n),
+    draw: (n, o) => draw(s, n, o),
     // 연출 쪽지 — 회복 · 방어 · 실드(run-fx 가 직접 채우는 것)
     // 넘친 회복(over > 0) — 「회복량이 최대 HP를 초과하면」 패시브(passive.js). 누가 채웠는지는 지금 움직이는 사람(acting)
-    heal: (t, h0, over) => { healCue(s, t, h0); if (over > 0 && t.side === "party" && !t.dead && s.acting) emit(s, "overheal", { by: s.acting, who: t, over }); },
-    // 아군에게 방어 · 실드가 붙으면 「방어나 실드를 얻으면」 패시브(passive.js matches "guard")
+    // 파티 HP 가 가득 차 넘친 회복 — 「회복량이 최대 HP를 초과하면」(나이아)은 파티 최대 HP 를 넘쳤을 때다
+    heal: (t, h0, over) => { healCue(s, t, h0, over); if (over > 0 && t.side === "party" && !t.dead && s.acting) emit(s, "overheal", { by: s.acting, who: t, over }); },
+    // 파티에 방어 · 실드가 붙으면 「방어나 실드를 얻으면」 패시브(passive.js matches "guard") — 누구의 패시브든 파티가 얻은 것이다
     gain: (t, k, v) => { gainCue(s, t, k, v); if (v > 0 && t.side === "party" && !t.dead) emit(s, "guard", { who: t, k }); },
     // 상태 — 「취약 2턴」 은 2턴 간다(전에는 몇 턴이든 1턴이었다).
     // 기절은 적의 다음 수를 막고, 도발은 적이 그 사도만 치게 하고, 침묵은 적의 공격 아닌 수를 막는다.
     // 전에는 기획서 카드에서 건 기절·도발·침묵이 아무 일도 안 했다.
-    addStatus: (t, id, v, turns) => {
+    // by — 건 사도(지속 피해 · 고정 피해 상태의 바탕 — 그 사도의 지금 공격력. 교주 카드면 파티에서 가장 높은 공격력)
+    addStatus: (t, id, v, turns, by) => {
       const n = Math.max(1, turns || v || 1);
+      if (v > 0 && R.isBadSt(id) && st(t, "면역") > 0 && id !== "도발") {
+        // 면역 — 해로운 효과 하나를 막고 1 쓴다(addSt 와 같은 규칙 — 기절 · 침묵도 막는다)
+        addSt(t, "면역", -1); t.immuneHit = (t.immuneHit || 0) + 1;
+        say(s, `${t.side === "party" ? "파티" : t.ko}: 면역 — ${id} 를 막았다`); cue(s, "status", t, { id: "면역!", up: t.side === "party" });
+        return;
+      }
       if (id === "기절") {
         // 보스는 기절한 다음 한 턴은 버틴다 — 안 막으면 기절 카드를 가진 사도가 보스를 내내 묶었다
         // (마카샤 혼자 완주율 97%, 평균 21%). 보스는 적어도 두 턴에 한 번은 움직인다.
         if (t.side === "enemy" && t.boss && (t.sealed || (t.stunGuard || 0) > 0)) say(s, `${t.ko}: 기절을 버텨 냈다`);
         else if (t.side === "enemy") { t.sealed = true; if (t.boss) t.stunGuard = 2; say(s, `${t.ko}: 기절`); }
       } else if (id === "도발") {
-        if (t.side === "party") { s.taunt = t.key; s.tauntLeft = n; say(s, `${t.ko}: 도발 — 적이 이쪽을 본다`); }
-      } else addSt(t, id, n);
+        // 도발 — 누가 맞을지 고를 일이 없다(파티 HP 하나). 그 사도가 앞을 막아 서서 N턴 동안 파티가 불굴 1겹만큼 덜 받는다(rules.js TAUNT_FORT)
+        if (t.side === "party") { const k = s.acting && s.party.some((u) => u.key === s.acting) ? s.acting : t.key; s.taunt = k; s.tauntLeft = Math.max(s.tauntLeft || 0, n); say(s, `${HERO(k).ko}: 도발 — 앞을 막아 선다(파티 받는 피해 -${Math.round(R.STATUS_V.불굴 * (R.TAUNT_FORT || 0) * 100)}%)`); }
+      } else {
+        addSt(t, id, n);
+        if (R.UNIT_ST.includes(id)) setUnit(t, id, by && by.side === "party" ? atkNow(s, by) : partyAtk(s, null));
+      }
       if (v > 0 && (id !== "기절" || t.sealed) && (id !== "도발" || t.side === "party")) cue(s, "status", t, { id });
       if (t.side === "enemy" && v > 0 && !BUFF_ST.has(id)) { emit(s, "debuff", { by: s.acting, target: t, id, seq: s.actSeq }); foePassives(s, "debuffed", { target: t }); }
     },
@@ -1449,13 +1778,16 @@ function fxApi(s) {
     discard: (n, random) => {
       const many = n === "all" ? s.hand.length : Math.min(n, s.hand.length);
       const pick = !random && Array.isArray(s.discardPick) ? s.discardPick : null;
+      const out = [];
       for (let i = 0; i < many && s.hand.length; i++) {
         let at = -1;
         if (pick && pick.length) at = s.hand.indexOf(pick.shift());
         if (at < 0) at = random ? Math.floor(s.rng() * s.hand.length) : s.hand.length - 1;
         const [id] = s.hand.splice(at, 1);
-        if (id) s.discard.push(id);
+        if (id) { s.discard.push(id); out.push(id); }
       }
+      // 안식(v6 카제나) — 효과로 버려진 카드의 「안식: …」 이 돈다. 카드는 버린 더미(이번 턴 쓴 더미)에 머문다
+      for (const id of out) { const c = cardOf(s, id); if (c && (c.fx || []).some((f) => f.k === "when" && f.on === "discard")) { cardWhen(s, id, "discard"); if (s.over) return; } }
     },
   };
 }

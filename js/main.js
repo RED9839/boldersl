@@ -114,11 +114,9 @@ function reward() {
   if (!R.isBoss(run)) return mapStep();
   const next = R.advance(run);             // 층이 바뀐다 — 사도 교체는 없다
   if (run.done === "clear") return end("clear");
-  // 보스를 이기면 주말농장에 간 사도가 돌아온다(rules.js BOSS_REVIVE) — 화면을 세운 뒤에 알린다
-  const backHp = (next.revived || []).length ? `${next.revived.map((k) => (HERO_DATA[k] || {}).ko || k).join(" · ")} 주말농장에서 돌아왔습니다 (최대 HP의 ${Math.round(RULES.BOSS_REVIVE * 100)}%)` : "";
-  // 층 보스의 몫 — 가진 고유 카드 한 장이 복제됐다(run.js bossCopy)
+  // 층 보스의 몫 — 가진 고유 카드 한 장이 복제됐다(run.js bossCopy) — 화면을 세운 뒤에 알린다
   const copyNote = next.copied && CARDS[next.copied] ? `고유 카드 「${CARDS[next.copied].name}」 한 장이 더 생겼습니다` : "";
-  const back = backHp || copyNote ? `보스를 넘었습니다 — ${[copyNote, backHp].filter(Boolean).join(" · ")}` : "";
+  const back = copyNote ? `보스를 넘었습니다 — ${copyNote}` : "";
   // 마지막 층의 보스를 넘으면 뿌리 깊은 곳 — 상점 없이 캠프 한 번, 떠나면 곧장 마지막 싸움(우로스). 그것을 이겨야 판을 깬다
   if (next.final) { camp("final"); return ui.hint(back); }
   mapStep();

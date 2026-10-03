@@ -142,7 +142,7 @@ console.log("적의 차례에 격파 — AP 는 다음 턴으로");
 }
 
 console.log("");
-console.log("카드 키워드 — 분쇄 · 잔불 · 파괴 · 약점 · 강인도 피해");
+console.log("카드 키워드 — 분쇄 · 잔불(상태) · 파괴 · 약점 · 강인도 피해");
 {
   // 분쇄 — 방어 · 실드가 있는 적에게 +20%
   const a = mk(), b = mk();
@@ -154,23 +154,26 @@ console.log("카드 키워드 — 분쇄 · 잔불 · 파괴 · 약점 · 강인
   const dc = lost(c.enemies[0], () => play(c, PLAIN_H, "적 1명에게 공격력 300% 피해"));
   const dd = lost(d.enemies[0], () => play(d, PLAIN_H, "분쇄. 적 1명에게 공격력 300% 피해"));
   check(dc === dd, "분쇄 — 방어 · 실드가 없으면 그대로");
-  // 잔불 — 격파된 적에게 +30%
+  // 잔불(v6 — 적에게 쌓는 상태) — 격파된 적을 치면 겹마다 +30%, 그때 다 사라진다. 이 카드가 먼저 건 잔불도 같은 카드 피해에 붙는다
   const e = mk(), f = mk();
   for (const x of [e, f]) { x.enemies[0].broken = true; x.enemies[0].tough = 0; }
   const de = lost(e.enemies[0], () => play(e, PLAIN_H, "적 1명에게 공격력 300% 피해"));
-  const df = lost(f.enemies[0], () => play(f, PLAIN_H, "잔불. 적 1명에게 공격력 300% 피해"));
-  check(Math.abs(df - Math.round(de * (1 + R.STATUS_V.잔불))) <= 1, `잔불 — 격파된 적에게 +${Math.round(R.STATUS_V.잔불 * 100)}% (${de} → ${df})`);
+  const df = lost(f.enemies[0], () => play(f, PLAIN_H, "적 1명 잔불 2, 적 1명에게 공격력 300% 피해"));
+  check(Math.abs(df - Math.round(de * (1 + 2 * R.STATUS_V.잔불))) <= 1 && !(f.enemies[0].status || {}).잔불, `잔불 2 — 격파된 적에게 +${Math.round(2 * R.STATUS_V.잔불 * 100)}% 후 사라진다 (${de} → ${df})`);
   const g = mk(), h = mk();
   const dg = lost(g.enemies[0], () => play(g, PLAIN_H, "적 1명에게 공격력 300% 피해"));
-  const dh = lost(h.enemies[0], () => play(h, PLAIN_H, "잔불. 적 1명에게 공격력 300% 피해"));
-  check(dg === dh, "잔불 — 격파 전에는 그대로");
-  // 파괴 — 격파된 적에게만
+  const dh = lost(h.enemies[0], () => play(h, PLAIN_H, "적 1명 잔불 2, 적 1명에게 공격력 300% 피해"));
+  check(dg === dh && (h.enemies[0].status || {}).잔불 === 2, "잔불 — 격파 전에는 그대로, 겹은 남는다");
+  // 파괴(v6 카제나) — 대상이 처치된 상태일 때만. 격파만으로는 안 돈다
   const p = mk(), ap0 = p.ap;
   play(p, PLAIN_H, "적 1명에게 공격력 10% 피해. 파괴: AP +2");
-  check(p.ap === ap0 - 1, "파괴 — 격파 안 된 적이면 안 돈다");
+  check(p.ap === ap0 - 1, "파괴 — 살아 있는 적이면 안 돈다");
   const q = mk(); q.enemies[0].tough = 1; const ap1 = q.ap;
   play(q, PLAIN_H, "적 1명에게 공격력 10% 피해. 파괴: AP +2");
-  check(q.ap === ap1 - 1 + R.TOUGH.ap + 2, `파괴 — 이 카드로 격파했어도 돈다 (AP ${ap1} → ${q.ap})`);
+  check(q.ap === ap1 - 1 + R.TOUGH.ap, `파괴 — 격파만 시켰으면 안 돈다 (AP ${ap1} → ${q.ap})`);
+  const k = mk({ foes: [FOE, FOE] }); k.enemies[0].hp = 1; const ap2 = k.ap;
+  play(k, PLAIN_H, "적 1명에게 공격력 10% 피해. 파괴: AP +2");
+  check(k.enemies[0].dead && k.ap === ap2 - 1 + R.KILL_AP + 2, `파괴 — 이 카드로 처치했으면 돈다 (AP ${ap2} → ${k.ap})`);
   // 약점 — 성격과 상관없이 약점 공격
   const w = mk(), we = w.enemies[0];
   play(w, PLAIN_H, "약점. 적 1명에게 공격력 10% 피해");
@@ -219,7 +222,7 @@ console.log("카드 글 읽기");
 {
   const want = [
     ["분쇄. 적 1명에게 공격력 100% 피해", ["tag:분쇄", "dmg"]],
-    ["잔불. 적 1명에게 공격력 100% 피해", ["tag:잔불", "dmg"]],
+    ["적 1명 잔불 1, 적 1명에게 공격력 100% 피해", ["status", "dmg"]],
     ["약점. 적 전체에 공격력 50% 피해", ["tag:약점", "dmg"]],
     ["적 1명에게 공격력 100% 피해, 강인도 피해 2", ["dmg", "tough"]],
     ["적 1명에게 공격력 100% 피해. 파괴: 드로우 1", ["dmg", "ifBroken", "draw"]],

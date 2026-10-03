@@ -108,7 +108,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (st.over || (selCard < 0 && !selUlt) || !e || !e.target || !e.target.closest || e.target.closest(".pile2, .foe, .stand")) return;
     const need = selCard >= 0 ? targetsNeeded(st.hand[selCard]) : ultNeed(selUlt);
     if (!need) return useSel(0);
-    const t = pickTarget(e.clientX, e.clientY, need === "enemy" ? ".foe.tgt:not(.dead)" : ".stand.tgt:not(.dead)");
+    const t = pickTarget(e.clientX, e.clientY, need === "enemy" ? ".foe.tgt:not(.dead)" : ".stand.tgt:not(.dead), .partybox.tgt");
     if (t) useSel(Number(t.dataset.idx));
   };
 
@@ -359,7 +359,9 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   // 몸짓이 다 끝나면(settle) 비운다 — 그때부터는 판의 값 그대로. 움직임 줄이기면 아예 안 쓴다
   const shownHp = new Map();
   const bars = new Map();                   // 「side:idx」 → 체력 막대 { u, fill, lag, num } — draw 마다 새로
-  const ukey = (u) => u.side + ":" + u.idx;
+  // 파티는 한 몸(docs/16 §8) — 사도 누구를 맞혀도 파티 HP 막대 하나(「party:-1」)가 깎인다
+  const hkey = (side, idx) => (side === "party" ? "party:-1" : side + ":" + idx);
+  const ukey = (u) => hkey(u.side, u.idx);
   const hpOf = (u) => (shownHp.has(ukey(u)) ? shownHp.get(ukey(u)) : Math.max(0, u.hp));
   let beatT = [];                           // 걸어 둔 몸짓 — 새 수가 오면 걷어 낸다(낡은 값이 늦게 덮지 않게)
   const beat = (ms, fn) => { beatT.push(setTimeout(fn, ms)); };
@@ -394,7 +396,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       dashStop(true);                       // 달려가 있던 사도는 제자리로
     }
     if (!live) return [];
-    for (const e of q) if ((e.k === "hurt" || e.k === "heal") && e.from != null && !shownHp.has(e.side + ":" + e.idx)) shownHp.set(e.side + ":" + e.idx, e.from);
+    for (const e of q) if ((e.k === "hurt" || e.k === "heal") && e.from != null && !shownHp.has(hkey(e.side, e.idx))) shownHp.set(hkey(e.side, e.idx), e.from);
     return q;
   }
   const heroSwing = {};                     // 사도마다 공격 동작을 번갈아(Attack1_1 · Attack2_1)
@@ -1104,7 +1106,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       const by = act && (act.side === "party" ? st.party : st.enemies).find((x) => x.idx === act.idx);
       const t = (h.side === "enemy" ? st.enemies : st.party).find((x) => x.idx === h.idx);
       SFX.land(h, { hero: act && act.side === "party" && by ? by.key : null, enemy: act && act.side === "enemy" && by ? by.key : null,
-        ult: !!act && act.anim === "ult", heavy: !!t && h.k === "hurt" && h.v >= t.maxHp * 0.25, group: (act && act.group) || null });
+        ult: !!act && act.anim === "ult", heavy: !!t && h.k === "hurt" && h.v >= (t.side === "party" ? t.share || t.maxHp : t.maxHp) * 0.25, group: (act && act.group) || null });
     } catch { /* 소리 탓에 몸짓이 멈추지 않게 */ }
     if (h.k === "die") return dieFx(h);
     if (h.k === "tough") return toughFx(h);
@@ -1115,7 +1117,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (h.k === "hurt" || h.k === "heal") { shownHp.set(ukey(u), h.to); showHp(u, h.to); }
     if (h.k === "hurt") {
       hitFx(h);
-      const ult = !!act && act.anim === "ult", heavy = h.v >= u.maxHp * 0.25;
+      const ult = !!act && act.anim === "ult", heavy = h.v >= (u.side === "party" ? u.share || u.maxHp : u.maxHp) * 0.25;   // 사도는 제 몫(최대 HP 에 보탠 만큼) 기준
       if (!h.v) { popNum(u, `막음 ${h.guard}`, "n-guard"); knock(h.side, h.idx, 4, 140); sfx("hit", (h.side === "party" ? "ally:" : "") + "guard", false, false); return; }
       const kill = !!h.kill && h.side === "enemy";
       popNum(u, String(h.v), "n-dmg" + (h.side === "party" ? " n-ally" : "") + (h.crit ? " n-crit" : "") + (heavy || kill ? " n-big" : "") + (kill ? " n-kill" : ""),
@@ -1366,7 +1368,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       const side = it.t === "charge" ? `→${INTENT_ICON[nx.t] || ""}${nx.v != null ? C.foeV(u, nx) : ""}`
         : hit ? (it.t === "attackAll" ? "✹전체" : icon) : it.v != null && it.v !== "" ? String(it.v) : "";
       if (side) tag.appendChild(el("span", "iside", side));
-      const more = it.t === "attackAll" ? " · 전체" : it.t === "back" ? " · 후열" : it.t === "guard" ? " · 적 전체"
+      const more = it.t === "attackAll" ? ` · 전체(×${RULES.FOE_ALL_X})` : it.t === "back" ? " · 관통" : it.t === "guard" ? " · 적 전체"
         : it.t === "charge" ? ` → 다음 턴 ${nx.say} ${C.foeV(u, nx)}${nx.t === "attackAll" ? " 전체" : ""}`
         : it.id && hit ? ` · ${it.id} ${it.n || 1}` : "";
       tag.title = `「${it.say}」${more}\n${INTENT_HELP[it.t] || ""}`;
@@ -1428,27 +1430,51 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   function standNode(u, clickable, onPick) {
     const pick = clickable && !u.dead;
     // 위급 — 체력이 30% 이하면 발밑이 붉게 숨 쉰다
-    const n = el("div", "stand r" + u.row + (u.dead ? " dead" : "") + (pick ? " tgt" : "") + (!u.dead && u.hp <= u.maxHp * 0.3 ? " danger" : ""));
+    const n = el("div", "stand r" + u.row + (pick ? " tgt" : ""));   // 쓰러지는 사도는 없다 — 파티 HP 는 아래 파티 막대 하나(partyNode)
     n.dataset.idx = String(u.idx);
     if (u.sealed) n.classList.add("sealed");
     n.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: 104, slot: "battle", flip: true }));
     const tag = el("div", "sname");
     tag.appendChild(el("span", null, u.ko));
     n.appendChild(tag);
-    const hb = hpBar(u);
-    n.appendChild(hb);
-    n.appendChild(chips(u));
+    // 사도 층 — 제 손의 힘(사기 · 증감 · 키워드 주머니)만 작게. 파티 층은 파티 막대 밑 한 줄
+    const pc = chips(u); pc.classList.add("mini");
+    n.appendChild(pc);
     if (st.bubble && st.bubble.hero === u.key) n.appendChild(el("div", "bubble", st.bubble.text));
     // 누르기 — 아군에게 쓰는 카드(고학년)를 들고 있으면 이 사도에게. 아니면 사도 정보(길게 누르기 · 오른쪽 클릭도)
     n.onclick = (e) => { stopEv(e); tapUnit(u, "party"); };
     holdInfo(n, () => openHero(u));
     n.title = "눌러서 사도 정보 보기 · 아군 카드를 고른 채 누르면 냅니다";
-    // 아군 미리보기 — 회복 · 방어 · 실드가 얼마나 붙는지(시전자 능력치로 엔진이 센 값)
-    const pv = el("div", "pv apv");
-    n.appendChild(pv);
-    allyPv.set(u.idx, { n, pv, gain: hb.gain });
     n.onmouseenter = () => {
       if (u.dead) return;
+      if (selCard >= 0 && targetsNeeded(st.hand[selCard]) === "party") paintPreview(selCard, u.idx);
+      else if (selUlt && ultNeed(selUlt) === "party") paintPreview(null, u.idx, selUlt);
+    };
+    n.onmouseleave = () => { if (selCard >= 0 || selUlt) paintSel(); };
+    return n;
+  }
+
+  // ── 파티 — 한 몸(docs/16 §8). 큰 HP 막대 하나 · 방어 · 실드 · 파티 층 상태 한 줄 ───────────────
+  // 아군에게 쓰는 카드는 여기에 놓아도 된다(누르기 · 끌어 놓기). 미리보기(회복 · 방어 · 실드 · HP 소모)도 여기에
+  function partyNode(clickable) {
+    const P = st.pool;
+    const n = el("div", "partybox" + (clickable ? " tgt" : "") + (!P.dead && P.hp <= P.maxHp * 0.3 ? " danger" : "") + (P.invuln ? " invuln" : ""));
+    const head = el("div", "pbhead");
+    head.appendChild(el("b", null, "파티"));
+    head.appendChild(el("span", "pbsub", P.invuln ? "무적 — 이번 적의 차례에 맞지 않습니다" : "HP · 방어 · 실드 · 상태는 파티가 함께 씁니다"));
+    n.appendChild(head);
+    const hb = hpBar(P);
+    n.appendChild(hb);
+    n.appendChild(chips(P));
+    const pv = el("div", "pv apv");
+    n.appendChild(pv);
+    allyPv.set(-1, { n, pv, gain: hb.gain });
+    const rep = () => st.party.find((x) => !x.dead) || st.party[0];
+    n.dataset.idx = String((rep() || {}).idx || 0);      // 끌어 놓기 · 누르기 — 파티의 대표 자리(파티에 한 번 간다)
+    n.onclick = (e) => { stopEv(e); const u = rep(); if (u) tapUnit(u, "party"); };
+    n.title = "파티 HP · 방어 · 실드 · 상태는 파티가 함께 씁니다 — 아군에게 쓰는 카드를 고른 채 누르면 냅니다";
+    n.onmouseenter = () => {
+      const u = rep(); if (!u || P.dead) return;
       if (selCard >= 0 && targetsNeeded(st.hand[selCard]) === "party") paintPreview(selCard, u.idx);
       else if (selUlt && ultNeed(selUlt) === "party") paintPreview(null, u.idx, selUlt);
     };
@@ -1459,7 +1485,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   // ── 아군 상태창 ──────────────────────────────────────────────────────
   function allyNode(u, clickable, onPick) {
     // 체력은 싸움터에 서 있는 모습 아래에 있다. 여기 또 두면 같은 숫자가 두 번 뜬다.
-    const n = el("div", "ally" + (u.dead ? " dead" : "") + (clickable ? " tgt" : ""));
+    const n = el("div", "ally" + (clickable ? " tgt" : ""));
     const ultPic = CARDART.pic[u.key + "_ult"];
     if (!ultPic || !C.ultOf(u.key)) n.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: 44, slot: "battle", flip: true }));
 
@@ -1563,7 +1589,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   // ── 강인도 — 체력 막대 밑의 칸(rules.js TOUGH). 약점 성격 · 칸 · 격파 딱지 ───────────────
   // 칸은 판의 값 그대로다. 깎이는 순간에는 land 가 그 칸에 금 가는 몸짓(crack)을 건다
   const toughTip = (u) => u.broken
-    ? `격파 — 다음 내 턴 시작에 강인도가 다 찹니다. 잔불 · 잔광 · 「파괴:」 카드가 더 아프게 듭니다`
+    ? `격파 — 다음 내 턴 시작에 강인도가 다 찹니다. 잔불(이 적의 상태) · 잔광(파티의 상태)이 있으면 더 아프게 듭니다`
     : `강인도 ${u.tough}/${u.toughMax} — 공격 카드 한 장에 ${RULES.TOUGH.hit}칸(약점이면 ${RULES.TOUGH.hit + RULES.TOUGH.weak}칸). 0칸이면 격파: AP +${RULES.TOUGH.ap} · 즉시 행동 ${RULES.TOUGH.delay}장 늦춤`;   // 격파 자체의 받는 피해 덤은 없앴다(카제나) — 더 들어가는 피해는 잔불 · 잔광 카드로
   function toughPips(u) {
     const box = el("div", "tpips" + (u.broken ? " broken" : ""));
@@ -1596,16 +1622,30 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   const INT_SET = new Set(RULES.INTENSITY_ST);
   const ST_HELP = {
     취약: () => `받는 피해 +${P100(SV.취약)}% — 맞을 때마다 1 준다`, 약화: () => `주는 피해 -${P100(SV.약화)}% — 칠 때마다 1 준다`,
-    손상: () => `얻는 방어 · 실드 -${P100(SV.손상)}% — 얻을 때마다 1 준다`, 고통: () => `턴 끝에 겹만큼 고정 피해 — 그 뒤 절반`,
-    반격: () => `적에게 맞으면 방어력 ${P100(SV.반격)}% 로 되친다 — 그때 1 준다`, 표식: () => `공격 카드에 맞으면 덤 타격 ${P100(SV.표식)}% · 강인도 1 — 그때 1 준다`,
+    손상: () => `얻는 방어 · 실드 -${P100(SV.손상)}% — 얻을 때마다 1 준다`, "피해 감소": () => `받는 피해 -${P100(SV["피해 감소"])}% — 맞을 때마다 1 준다`,
+    고통: (n) => `턴 끝에 겹의 ${P100(SV.고통)}% 고정 지속 피해(${n}겹 → 건 사람 공격력의 ${P100(n * SV.고통)}%) — 그 뒤 절반`,
+    균열: (n) => `턴 끝에 겹마다 지속 피해 ${P100(SV.균열)}%(${n}겹 → ${P100(n * SV.균열)}%) — 그 뒤 절반`,
+    반격: () => `적에게 맞으면 방어 기반 피해 ${P100(SV.반격)}%(다 막으면 ${P100(SV.반격Full)}%, 치명 적용)로 되친다 — 그때 1 준다`,
+    표식: () => `공격 카드에 맞으면 덤 타격 ${P100(SV.표식)}% · 강인도 1 — 그때 1 준다`,
+    잔불: (n) => `격파된 이 적을 치거나 쓰러뜨리면 피해 +${P100(Math.min(n, SV.잔불Max) * SV.잔불)}% — 그때 다 사라진다`,
+    잔광: () => `공격 카드 강인도 +${RULES.TOUGH.glow} · 격파된 적에게 피해 +${P100(SV.잔광)}% — 공격 카드 한 장에 1 준다`,
+    면역: () => "해로운 효과 하나를 막는다 — 막을 때마다 1 준다",
+    "실드 유지": () => `턴이 바뀔 때 방어의 ${P100(SV["실드 유지"])}% 를 남긴다 — 그때 1 준다`,
+    저장: () => "턴이 끝날 때 남은 AP 를 다음 턴으로 가져간다 — 그때 1 준다",
+    협공: () => `아군이 공격 카드를 내면 다른 아군이 공격력 ${P100(SV.협공)}% 로 함께 친다 — 그때 1 준다`,
+    고동: (n) => `턴 끝에 모든 적에게 고정 피해 ${P100(RULES.stackEff("고동", n))}%`,
+    그을림: () => `즉시 행동 셈이 1 오를 때마다 지속 피해 ${P100(SV.그을림)}% — 그때 1 준다, 턴 끝에 사라진다`,
+    // 파티에 걸린 충격(적이 건 것)은 뜻이 다르다 — 적의 치는 수에 맞을 때(combat.js hurt)
+    충격: (n, u) => (u && u.side === "party"
+      ? `적의 치는 수에 맞으면 고정 피해 ${P100(SV.충격)}%(그 수를 방어 · 실드로 받아 냈으면 +${P100(SV.충격Shield)}%, 방어 · 실드를 뚫는다) — 그때 1 준다`
+      : `공격 카드의 대상이 되면 고정 피해 ${P100(SV.충격)}%(방어 · 실드가 있으면 +${P100(SV.충격Shield)}%) — 그때 1 준다`),
+    충격파: () => `카드에 맞으면 다른 모든 적에게 고정 피해 ${P100(SV.충격파)}% — 그때 1 준다`,
     사기: (n) => `주는 피해 +${P100(RULES.stackEff("사기", n))}%`,
     불굴: (n) => `받는 피해 -${P100(RULES.stackEff("불굴", n))}%${n * SV.불굴 > SV.불굴Cap ? ` (최대 -${P100(SV.불굴Cap)}%)` : ""}`,
     결의: (n) => `얻는 방어 · 실드 +${Math.round(RULES.stackEff("결의", n))}`,
-    결정화: (n) => `턴 끝에 방어력 ${P100(RULES.stackEff("결정화", n))}% 실드`,
-    열의: (n) => `공격력 +${P100(RULES.stackEff("열의", n))}%`, 강건: (n) => `방어력 +${P100(RULES.stackEff("강건", n))}%`,
-    집중: (n) => `치명 확률 +${P100(RULES.stackEff("집중", n))}%p`, 온정: (n) => `회복력 +${P100(RULES.stackEff("온정", n))}%`,
+    결정화: (n) => `턴 끝에 방어력 ${P100(RULES.stackEff("결정화", n))}% 고정 실드`,
   };
-  const stHelp = (id, n = 1) => (ST_HELP[id] ? ST_HELP[id](n) + (INT_SET.has(id) ? " (전투 내내)" : "") : "");
+  const stHelp = (id, n = 1, u = null) => (ST_HELP[id] ? ST_HELP[id](n, u) + (INT_SET.has(id) ? " (전투 내내)" : "") : "");
   const turnTxt = (n) => (n != null && n >= RULES.BOON_TURNS ? "판 내내" : n == null || n >= 999 ? "이번 전투" : `${n}턴`);   // 판 내내 — 강화 카드(run.boons)
   // 키워드 1개당이 이 사람에게 주는 증감 — [{ id, stat, v, n }]
   function kwShares(u) {
@@ -1624,8 +1664,11 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     return out;
   }
   // 이 사람에게 걸린 것 전부 — buffs · debuffs: [{ stat?, id?, v, left, src }] · keys: [{ id, n, owner, share }]
+  // 상태 두 층(docs/16 §8) — 사도(u.side party · idx ≥ 0)는 사도 층(rules.js HERO_ST)만, 파티(st.pool)는 파티 층만 보인다
+  const HERO_ST = new Set(RULES.HERO_ST);
   function effectsOf(u) {
     const buffs = [], debuffs = [], keys = [];
+    const isPool = u === st.pool, isHero = u.side === "party" && !isPool;
     const goodMod = (stat, v) => (stat === "taken" ? v < 0 : v > 0);
     for (const m of u.mods || []) (goodMod(m.stat, m.v) ? buffs : debuffs).push({ stat: m.stat, v: m.v, left: m.left, src: m.src || null });
     if (u.side === "party" && st.always) for (const m of st.always[u.key] || []) {
@@ -1634,13 +1677,16 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     }
     for (const [k, v] of Object.entries(u.status || {})) {
       if (!v) continue;
+      if (isHero && !HERO_ST.has(k)) continue;          // 파티 층은 파티 막대 밑에
+      if (isPool && HERO_ST.has(k)) continue;
       const kw = (st.kw || {})[k];
       if (kw) { keys.push({ id: k, n: v, owner: kw.owner }); continue; }
       (BAD_ST.includes(k) ? debuffs : buffs).push({ id: k, v, left: STACK_SET.has(k) ? null : v, stack: STACK_SET.has(k) ? v : 0 });
     }
-    if (u.side === "party" && st.taunt === u.key) buffs.push({ id: "도발", v: st.tauntLeft || 1, left: st.tauntLeft || 1 });
+    // 도발 — 파티가 덜 받는다(파티 층). 누가 막아 섰는지는 출처로
+    if (isPool && st.taunt) buffs.push({ id: "도발", v: st.tauntLeft || 1, left: st.tauntLeft || 1, src: `${(st.party.find((x) => x.key === st.taunt) || {}).ko || ""} — 파티 받는 피해 -${Math.round(RULES.STATUS_V.불굴 * (RULES.TAUNT_FORT || 0) * 100)}%` });
     const stk = (st.stacks || {})[u.key];
-    if (stk && u.side === "party") for (const [k, v] of Object.entries(stk)) if (v) keys.push({ id: k, n: v, owner: u.key, self: true });
+    if (stk && isHero) for (const [k, v] of Object.entries(stk)) if (v) keys.push({ id: k, n: v, owner: u.key, self: true });
     const shares = kwShares(u);
     for (const k of keys) k.share = shares.filter((x) => x.id === k.id);
     return { buffs, debuffs, keys };
@@ -1664,7 +1710,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         const k = x.stat || "#" + x.id;
         const g = by.get(k) || { ...x, v: 0, left: 999, src: [] };
         g.v += x.v; g.left = Math.min(g.left, x.left == null ? 999 : x.left);
-        g.src.push(x.stat ? `${STAT_KO[x.stat]} ${pctTxt(x.v)} · ${turnTxt(x.left)}${x.src ? " · " + x.src : ""}` : x.stack ? `${x.id} ${x.stack} — ${stHelp(x.id, x.stack)}` : `${x.id} ${turnTxt(x.left)}`);
+        g.src.push(x.stat ? `${STAT_KO[x.stat]} ${pctTxt(x.v)} · ${turnTxt(x.left)}${x.src ? " · " + x.src : ""}` : x.stack ? `${x.id} ${x.stack} — ${stHelp(x.id, x.stack, u)}` : `${x.id} ${turnTxt(x.left)}`);
         by.set(k, g);
       }
       // 칩 = 아이콘 · 값 · 남은 턴(js/fx-icons.js). 이름(clab)은 싸움터에서 숨기고 정보 창에서만 — 그림이 없는 것만 싸움터에도 이름
@@ -1762,44 +1808,27 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     }
   }
 
-  // 아군 미리보기 — 아군에게 놓는 카드는 「이 사도에게 놓으면」 을 사도마다, 올린 사도가 있으면 그때의 전부를.
-  // 그 밖의 카드(자신 · 아군 전원 · 적에게 내는 카드의 곁가지)는 한 번 내 본 결과를 모두에게
+  // 파티 미리보기 — 파티는 한 몸이라 하나다(C.previewParty): 찰 HP(넘쳐 버려질 몫까지) · 방어 · 실드 · 잃을 HP
   function paintAllies(handIdx, need, hoverIdx) {
-    const res = {};
-    if (need === "party" && hoverIdx == null) {
-      for (const u of st.party) {
-        if (u.dead) continue;
-        const p = C.previewAllies(st, handIdx, u.idx);
-        if (p && p[u.idx]) res[u.idx] = p[u.idx];
-      }
-    } else {
-      const p = C.previewAllies(st, handIdx, hoverIdx == null ? 0 : hoverIdx);
-      if (p) p.forEach((x, i) => { if (x) res[i] = x; });
-    }
-    // 아군에게 놓는 회복 카드인데 체력이 가득한 사도 — 아무것도 안 뜨면 헷갈리니 「HP 가득」
+    const slot = allyPv.get(-1);
+    if (!slot) return;
+    const P = st.pool;
+    const x = C.previewParty(st, handIdx, hoverIdx == null ? (st.party.find((u) => !u.dead) || {}).idx || 0 : hoverIdx);
     const c = C.cardOf(st, st.hand[handIdx]);
-    if (need === "party" && c && (c.fx || []).some((f) => f.k === "heal")) {
-      for (const u of st.party) {
-        if (u.dead || res[u.idx] || u.hp < u.maxHp) continue;
-        if (hoverIdx != null && hoverIdx !== u.idx) continue;
-        const slot = allyPv.get(u.idx);
-        if (!slot) continue;
-        slot.n.classList.add("pvon");
-        slot.pv.appendChild(el("span", "pvfull", "HP 가득"));
-      }
+    if (!x) {
+      // 아군에게 놓는 회복 카드인데 파티 HP 가 가득 — 아무것도 안 뜨면 헷갈리니 「HP 가득」
+      if (need === "party" && c && (c.fx || []).some((f) => f.k === "heal") && P.hp >= P.maxHp) { slot.n.classList.add("pvon"); slot.pv.appendChild(el("span", "pvfull", "HP 가득")); }
+      return;
     }
-    for (const [i, x] of Object.entries(res)) {
-      const slot = allyPv.get(Number(i)); const u = st.party[i];
-      if (!slot || !u) continue;
-      slot.n.classList.add("pvon");
-      if (x.heal) slot.pv.appendChild(el("b", "pvheal", `+${x.heal}`));
-      if (x.block) slot.pv.appendChild(el("span", "pvblk", `방어 +${x.block}`));
-      if (x.shield) slot.pv.appendChild(el("span", "pvsh", `실드 +${x.shield}`));
-      if (x.lose) slot.pv.appendChild(el("span", "pvlose", `HP -${x.lose}`));
-      if (x.heal && slot.gain) {
-        slot.gain.style.left = (Math.max(0, u.hp) / u.maxHp) * 100 + "%";
-        slot.gain.style.width = (Math.min(x.heal, u.maxHp - u.hp) / u.maxHp) * 100 + "%";
-      }
+    slot.n.classList.add("pvon");
+    if (x.heal) slot.pv.appendChild(el("b", "pvheal", `+${x.heal}`));
+    if (x.over) slot.pv.appendChild(el("span", "pvfull", `넘침 ${x.over}`));
+    if (x.block) slot.pv.appendChild(el("span", "pvblk", `방어 +${x.block}`));
+    if (x.shield) slot.pv.appendChild(el("span", "pvsh", `실드 +${x.shield}`));
+    if (x.lose) slot.pv.appendChild(el("span", "pvlose", `HP -${x.lose}`));
+    if (x.heal && slot.gain) {
+      slot.gain.style.left = (Math.max(0, P.hp) / P.maxHp) * 100 + "%";
+      slot.gain.style.width = (Math.min(x.heal, P.maxHp - P.hp) / P.maxHp) * 100 + "%";
     }
   }
 
@@ -1843,7 +1872,8 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     clearPreview();
   };
 
-  // 카드 면의 숫자 — 엔진이 쓰는 셈 그대로(run-fx hitAmount · guardAmount · healAmount): 낸 사도의 지금 공격력 · 방어력 · 회복력
+  // 카드 면의 숫자 — 엔진이 쓰는 셈 그대로(run-fx hitAmount · guardAmount · healAmount): 낸 사도의 지금 공격력 · 방어력
+  // (방어 기반 피해는 방어력 210% + 공격력 30% · 고정 피해 · 고정 실드는 상태 없이)
   // (버프 · 패시브 · 장비 · 축복 포함). 피해는 낸 쪽의 주는 피해 증감까지 — 맞는 쪽의 취약 · 상성 · 받는 피해는 대상마다 달라 뺀다
   // (그것은 적 위 미리보기가 보인다). 주인 없는 카드는 null(% 그대로)
   function cardCalc(id) {
@@ -1854,7 +1884,11 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const sh = st.shin && st.shin[id];
     const shin = RULES.shinKindOf(CARDS[id], sh);      // combat playCard 와 같은 풀이
     const dealt = Math.max(0.1, 1 + (C.statOf(st, u, "dealt") || 0));
+    const atkNow = Math.max(1, Math.round(u.atk * (1 + (C.statOf(st, u, "atk") || 0)))), defNow = Math.max(0, Math.round(u.def * (1 + (C.statOf(st, u, "def") || 0))));
     return (kind, ratio) => (kind === "dmg" ? Math.max(0, Math.round(FX.hitAmount(api, u, ratio, { shin: shin === "power" }) * dealt))
+      : kind === "ddmg" ? Math.max(0, Math.round(FX.hitAmount(api, u, ratio, { shin: shin === "power", base: "def" }) * dealt))
+      : kind === "fdmg" ? Math.max(1, Math.round(atkNow * ratio))
+      : kind === "fshield" ? Math.max(1, Math.round(defNow * ratio))
       : kind === "heal" ? FX.healAmount(api, u, ratio, shin)
       : FX.guardAmount(api, u, ratio, shin));
   }
@@ -1960,6 +1994,8 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       standEls.set(u.key, sn);
       allyField.appendChild(sn);
     }
+
+    allyField.appendChild(partyNode(need === "party"));   // 파티 HP — 서 있는 셋 밑에 넓게 하나
 
     allyZone.innerHTML = "";
     for (const u of st.party) allyZone.appendChild(allyNode(u, need === "party", (t) => play(t.idx)));
@@ -2331,7 +2367,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     // 칠 수 있는 대상을 빛낸다 — draw() 로 다시 그리면 끄는 카드가 사라지니 표시만 단다
     const lit = drag.lit || drag.need;
     if (lit === "enemy") for (const [, { n }] of foeEls) { if (!n.classList.contains("dead")) n.classList.add("tgt", "dtgt"); }
-    if (lit === "party") for (const [, n] of standEls) { if (!n.classList.contains("dead")) n.classList.add("tgt", "dtgt"); }
+    if (lit === "party") { for (const [, n] of standEls) { if (!n.classList.contains("dead")) n.classList.add("tgt", "dtgt"); } const pb = allyPv.get(-1); if (pb) pb.n.classList.add("tgt", "dtgt"); }
     clearPreview();                             // 끌기 시작 — 숫자는 대상에 갖다 댈 때 뜬다(moveDrag)
   }
   function moveDrag(e) {
@@ -2361,7 +2397,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     // 손 밑에 무엇이 있나 — 끌리는 그림과 화살은 pointer-events 가 없어 밑이 잡힌다
     let t = null;
     if (drag.need) {
-      t = pickTarget(e.clientX, e.clientY, drag.need === "enemy" ? ".foe.dtgt" : ".stand.dtgt");
+      t = pickTarget(e.clientX, e.clientY, drag.need === "enemy" ? ".foe.dtgt" : ".stand.dtgt, .partybox.dtgt");
     } else {
       const hr = hand.getBoundingClientRect();
       t = e.clientY < hr.top - 10 ? drag.fx : null;       // 손패 위로 올라왔다
@@ -2464,7 +2500,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const box = el("div", "bmstats");
     const { buffs, debuffs, keys } = effectsOf(u);
     const all = [...buffs, ...debuffs].filter((x) => x.stat);
-    // gearWhy — 장비 몫을 나눠 적을 때(회복력: 장비 공격 +N · 장비 회복력 +N)
+    // gearWhy — 장비 몫을 나눠 적을 때(방어 기반: 장비 공격 +N · 장비 방어 +N)
     const row = (ko, base, gear, now, stat, unit = "", gearWhy = null) => {
       const r = el("div", "bmstat");
       r.appendChild(el("span", "bslab", ko));
@@ -2476,21 +2512,22 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       // 장비 몫은 숫자 옆에 금빛으로(+3) 보인다 — 밑에 「장비 +3」 을 또 적지 않는다. 버프 · 키워드 출처만 아래에
       if (gear) v.firstChild.innerHTML = `${base}<i class="bsgear">+${gear}${unit}</i>`;
       const why = [];
-      // 회복력은 공격력 버프도 탄다 — 그 출처도 같이 적는다
-      for (const x of all) if (x.stat === stat || (stat === "heal" && x.stat === "atk")) why.push(`${pctTxt(x.v)} ${x.src || ""}${x.always ? "" : ` (${turnTxt(x.left)})`}`.trim());
+      // 방어 기반 피해는 방어력 · 공격력 버프를 다 탄다 — 그 출처도 같이 적는다
+      for (const x of all) if (x.stat === stat || (stat === "ddmg" && (x.stat === "atk" || x.stat === "def"))) why.push(`${pctTxt(x.v)} ${x.src || ""}${x.always ? "" : ` (${turnTxt(x.left)})`}`.trim());
       for (const k of keys) for (const sh of k.share) if (sh.stat === stat) why.push(`${pctTxt(sh.v)} 「${k.id}」 ${k.n}개`);
       if (why.length) r.appendChild(el("span", "bswhy", why.join(" · ")));
       box.appendChild(r);
     };
     if (u.side === "party") {
-      const g = u.gearAdd || { atk: 0, def: 0, crit: 0, heal: 0 };
+      const g = u.gearAdd || { atk: 0, def: 0, crit: 0 };
       row("공격력", u.atk - g.atk, g.atk, Math.max(1, Math.round(u.atk * (1 + C.statOf(st, u, "atk")))), "atk");
       row("방어력", u.def - g.def, g.def, Math.max(0, Math.round(u.def * (1 + C.statOf(st, u, "def")))), "def");
       row("치명", u.crit - g.crit, g.crit, Math.round(u.crit + C.statOf(st, u, "crit") * 100), "crit", "%");
-      // 회복력 = 공격력 + 역할 몫 + 장비 「회복력 +N」(rules.js) — 공격력 장비 · 버프가 그대로 붙고, 「회복력 +N%」 가 곱해진다(run-fx healOf)
-      const hNow = Math.round(RULES.healStat(Math.max(1, Math.round(u.atk * (1 + C.statOf(st, u, "atk")))), u.role, u.healPlus) * (1 + C.statOf(st, u, "heal")));
-      row("회복력", RULES.healStat(u.atk - g.atk, u.role), (g.atk || 0) + (g.heal || 0), hNow, "heal", "",
-        [g.atk ? `장비 공격 +${g.atk}` : null, g.heal ? `장비 회복력 +${g.heal}` : null]);
+      // 방어 기반 피해의 바탕(v6 카제나) = 방어력 210% + 공격력 30% — 반격 · 「방어 기반 피해 N%」 가 이것의 N% 를 친다. 치유는 방어력 그대로
+      const dBase = RULES.defDmgStat(u.atk - g.atk, u.def - g.def);
+      const dNow = RULES.defDmgStat(Math.max(1, Math.round(u.atk * (1 + C.statOf(st, u, "atk")))), Math.max(0, Math.round(u.def * (1 + C.statOf(st, u, "def")))));
+      row("방어 기반", dBase, RULES.defDmgStat(u.atk, u.def) - dBase, dNow, "ddmg", "",
+        [g.atk ? `장비 공격 +${g.atk}` : null, g.def ? `장비 방어 +${g.def}` : null]);
     }
     // 주는 · 받는 피해 — 0 이 아닐 때만(적은 공격력이 수마다 달라 이것만 보인다)
     for (const stat of ["dealt", "taken"]) {
@@ -2523,7 +2560,9 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         const ic = x.stat ? fxIcon(x.stat, x.v > 0 ? "up" : "down") : fxIcon(x.id);     // 싸움터 칩과 같은 그림
         if (ic) nm.insertBefore(ic, nm.firstChild);
         r.appendChild(el("span", "bmturn", x.always ? "늘" : x.stack ? `${x.stack}겹` : turnTxt(x.left)));
-        const why = x.stat ? x.src : INT_SET.has(x.id) && x.stack ? `${x.id} ${x.stack} — ${stHelp(x.id, x.stack)}` : terms.get(x.id) || stHelp(x.id) || null;
+        // 파티의 충격은 낱말 풀이(적에게 거는 뜻)가 아니라 파티 쪽 뜻으로
+        const own = x.id === "충격" && u.side === "party" ? stHelp(x.id, 1, u) : null;
+        const why = x.stat ? x.src : INT_SET.has(x.id) && x.stack ? `${x.id} ${x.stack} — ${stHelp(x.id, x.stack, u)}` : own || terms.get(x.id) || stHelp(x.id, 1, u) || null;
         if (why) r.appendChild(el("span", "bmsrc", why));
         ul.appendChild(r);
       }
@@ -2581,8 +2620,8 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     // 덤 — 강인도를 되찾는 수 · 격파로 끊기는 모으기
     const extra = [it.tough ? `강인도 +${it.tough}${it.t === "guard" || it.all ? " (적 전체)" : ""}` : "", it.t === "charge" ? (it.brk ? "격파하면 끊김" : "격파로는 못 끊음") : ""];
     return {
-      attack: ["공격", v, ["전열", on]], back: ["공격", v, ["후열", on]], attackAll: ["공격", v, ["전체", on]],
-      multi: ["연타", `${v}×${it.n}`, ["전열", on]], block: ["방어", v, ["자신", ...extra]], guard: ["방어", v, ["적 전체", ...extra]],
+      attack: ["공격", v, ["파티", on]], back: ["관통", v, ["파티 · 방어 무시", on]], attackAll: ["전체 공격", v, ["파티 한 번", on]],
+      multi: ["연타", `${v}×${it.n}`, ["파티", on]], block: ["방어", v, ["자신", ...extra]], guard: ["방어", v, ["적 전체", ...extra]],
       heal: ["회복", v, ["다친 적"]], selfHeal: ["회복", v, ["자신"]], thorns: ["반격", v, ["때린 사도"]],
       buff: [it.id || "강화", `+${v}`, [it.all ? "적 전체" : "자신", ...extra]], debuff: [it.id || "상태", painN(it.id, v, u), ["파티 전체"]], jam: ["AP", `-${v}`, ["다음 턴"]],
       charge: ["모으기", "", ["다음 턴", ...extra]],
@@ -2735,6 +2774,12 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         r.appendChild(moveKeys(p.do, null, u));
         const lim = FOE_LIMIT(p);
         if (lim) r.appendChild(el("span", "fplim", lim));
+        // 판마다 도는 특성(p.phase — 0 앞판 · 1 둘째 · 2 셋째, combat.js foePassives) — 몇 단계에서 도는지, 지금 판이 아니면 흐리게
+        if (p.phase != null) {
+          const ph = [].concat(p.phase), now = u.phased2 ? 2 : u.phased ? 1 : 0;
+          r.appendChild(el("span", "fplim", `${ph.map((n) => n + 1).join(" · ")}단계${ph.includes(now) ? " · 지금" : ""}`));
+          if (!ph.includes(now)) r.style.opacity = "0.55";
+        }
         pl.appendChild(r);
       }
       body.appendChild(pl);
@@ -2863,21 +2908,21 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (h.eldain) tags.appendChild(el("span", "ftag eldain", "엘다인"));
     body.appendChild(tags);
     body.appendChild(el("h3", "bmname", u.ko));
-    // 체력 — 적 정보 창과 같은 막대
-    if (!u.dead) {
+    // 체력 — 파티 HP 하나(docs/16 §8). 이 사도가 파티 최대 HP 에 보탠 몫을 함께 적는다
+    {
       const hp = el("div", "fhp");
       const bar = el("div", "fhpbar hero");
       const fill = el("i");
       fill.style.width = Math.max(0, Math.min(100, (u.hp / u.maxHp) * 100)) + "%";
       bar.appendChild(fill);
       hp.appendChild(bar);
-      hp.appendChild(el("span", "fhpn", `${Math.max(0, u.hp)} / ${u.maxHp}`));
+      hp.appendChild(el("span", "fhpn", `파티 ${Math.max(0, u.hp)} / ${u.maxHp}`));
       body.appendChild(hp);
     }
     const meter = el("div", "bmmeter");
-    if (u.dead) meter.appendChild(el("span", null, "쓰러졌습니다"));
-    if (u.block > 0) meter.appendChild(el("b", "blk", `방어 ${u.block}`));
-    if (u.shield > 0) meter.appendChild(el("b", "blk", `실드 ${u.shield}`));
+    meter.appendChild(el("span", null, `파티 최대 HP 에 보탠 몫 ${u.share || 0}`));
+    if (u.block > 0) meter.appendChild(el("b", "blk", `파티 방어 ${u.block}`));
+    if (u.shield > 0) meter.appendChild(el("b", "blk", `파티 실드 ${u.shield}`));
     body.appendChild(meter);
     // 능력치 — 기본(+장비) → 지금, 무엇 때문인지
     const sb = statBlock(u);
@@ -3137,7 +3182,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       b.type = "button";
       b.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: 72, slot: "ally", still: true }));
       b.appendChild(el("b", null, u.ko));
-      b.appendChild(el("span", null, `HP ${u.hp} / ${u.maxHp}`));
+      b.appendChild(el("span", null, ROW_KO[u.row]));
       b.onclick = () => { back.remove(); done(u.idx); };
       grid.appendChild(b);
     }
@@ -3398,8 +3443,9 @@ const INTENT_ICON = { attack: "⚔", multi: "⚔", back: "↷", attackAll: "✹"
   heal: "✚", selfHeal: "✚", buff: "▲", debuff: "▼", jam: "✖", thorns: "✦", addCard: "≋" };
 // 적의 수 — 마름모에 마우스를 올리면 뜨는 설명
 const INTENT_HELP = {
-  attack: "전열을 칩니다 — 전열이 비었으면 중열, 그다음 후열", back: "후열을 칩니다 — 후열이 비었으면 그다음 뒤(중열, 그다음 전열)", attackAll: "파티 전체를 칩니다",
-  multi: "전열을 여러 번 칩니다(비었으면 중열 · 후열) — 방어가 먼저 벗겨집니다",
+  attack: "파티를 칩니다 — 방어 · 실드가 먼저 받고 남은 만큼 파티 HP 가 깎입니다", back: "관통 — 방어(턴 방어)를 무시하고 실드와 파티 HP 를 칩니다. 실드로 막으세요",
+  attackAll: `전체 공격 — 파티를 한 번 칩니다(값은 이미 ×${RULES.FOE_ALL_X} 한 것)`,
+  multi: "파티를 여러 번 칩니다 — 방어가 먼저 벗겨집니다",
   charge: "힘을 모읍니다. 다음 턴에 예고한 수를 반드시 합니다 — 봉인하거나 수를 흐트러뜨리면 흩어집니다",
   block: "자기 방어를 올립니다", guard: "적 전체의 방어를 올립니다", heal: "체력이 가장 낮은 적을 회복합니다",
   buff: "스스로 강해집니다", debuff: "파티 전체에 상태를 겁니다", jam: "다음 턴 AP 를 깎습니다",

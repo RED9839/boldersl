@@ -3925,3 +3925,54 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 .phone .autoburst b { font-size: 24px; }
 @media (prefers-reduced-motion: reduce) { .autoburst { animation: none; } }
 .calm .autoburst { display: none; }
+
+/* ══ 파티 — 한 몸(docs/16 §8, 2026-10) ═══════════════════════════════════════
+   HP · 방어 · 실드 · 파티 층 상태는 서 있는 셋 밑의 넓은 막대 하나. 사도마다는 초상 · 이름 · 작은 사도 층 칩(사기 · 열의 …) · 고학년 단추 */
+.battle .afield { position: relative; }
+.battle .partybox {
+  position: absolute; left: 4%; right: 4%; top: calc(100% + 24px); z-index: 4;
+  display: flex; flex-flow: row wrap; align-items: center; column-gap: 10px; row-gap: 3px; padding: 5px 12px 6px; border-radius: 12px;
+  background: linear-gradient(180deg, #120f1ee0, #120f1eb8); border: 1px solid #ffffff26; box-shadow: 0 6px 18px #0008;
+}
+.battle .partybox .pbhead { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
+.battle .partybox .pbhead b { font-size: 14px; color: #ffe7a8; letter-spacing: .04em; }
+.battle .partybox .pbsub { display: none; }
+.battle .partybox .hpwrap { flex: 1; min-width: 0; width: auto; }
+.battle .partybox .hpwrap .bar { height: 14px; border-radius: 99px; border: 1px solid #0009; box-shadow: inset 0 1px 3px #0008; }
+.battle .partybox .hpwrap .bar i { background: linear-gradient(90deg, #4fc78a, #9be7a4); }
+.battle .partybox .hpwrap .nums { justify-content: flex-start; gap: 10px; font-size: 12.5px; color: #fff; text-shadow: 0 1px 2px #000; }
+.battle .partybox .hpwrap .nums .hpn { font-weight: 800; }
+.battle .partybox .hpwrap.shielded .bar { box-shadow: 0 0 0 2px #7fd3ff99, inset 0 1px 3px #0008; }
+.battle .partybox .hpwrap.blocked .bar { box-shadow: 0 0 0 2px #e8e2ffaa, inset 0 1px 3px #0008; }
+.battle .partybox .chips { flex-basis: 100%; justify-content: flex-start; max-width: none; }
+.battle .partybox .chips:empty { display: none; }
+.battle .partybox.danger { border-color: #ff6a6a99; animation: pbdanger 1.2s ease-in-out infinite alternate; }
+@keyframes pbdanger { from { box-shadow: 0 6px 18px #0008; } to { box-shadow: 0 0 0 2px #ff6a6a55, 0 6px 22px #ff3a3a55; } }
+.battle .partybox.invuln { border-color: #ffe7a8cc; }
+.battle .partybox.tgt { cursor: pointer; }
+.battle .partybox.dtgt, .battle .partybox.dover { border-color: #f6d58e; box-shadow: 0 0 0 2px #f6d58e66, 0 6px 18px #0008; }
+.battle .partybox .pv { position: absolute; right: 10px; top: -24px; padding: 1px 8px; border-radius: 8px; background: #0c0a16d9; display: flex; gap: 6px; align-items: baseline; pointer-events: none; }
+/* 사도 층 칩 — 초상 밑에 작게 */
+.battle .stand .chips.mini span { font-size: 9px; padding: 0 5px; }
+.phone .battle .partybox { left: 2%; right: 2%; top: calc(100% + 18px); padding: 2px 8px 3px; column-gap: 6px; flex-wrap: nowrap; }
+.phone .battle .partybox .pbhead b { font-size: 12px; }
+.phone .battle .partybox .chips { flex: 0 1 auto; flex-basis: auto; flex-wrap: nowrap; overflow: hidden; max-width: 40%; }
+.phone .battle .partybox .hpwrap { display: flex; align-items: center; gap: 6px; }
+.phone .battle .partybox .hpwrap .bar { flex: 1; min-width: 40px; }
+.phone .battle .partybox .hpwrap .nums { flex: none; gap: 6px; white-space: nowrap; }
+.phone .battle .partybox .hpwrap .bar { height: 10px; }
+.phone .battle .partybox .hpwrap .nums { font-size: 11px; }
+
+/* 파티 HP — 지도 · 이벤트 · 캠프 머리(docs/16 §8). 막대는 파티에 하나, 사도 칸은 얼굴 · 이름 */
+.mhero.mpool { cursor: default; border-color: #9be7a466; }
+.mhero.mpool .minfo { min-width: 120px; }
+.mhero.mpool .mface.ppool b { color: #9be7a4; font-size: 18px; }
+.mhero.mpool.danger { border-color: #ff6a6a99; }
+.mhero:not(.mpool) .minfo { min-width: 0; }
+.ev2-mem.ev2-pool { min-width: 160px; border-color: #9be7a466; }
+.ev2-mem:not(.ev2-pool) { min-width: 0; }
+.cp-plate.cp-party {
+  position: absolute; left: 50%; bottom: 6px; z-index: 5; transform: translateX(-50%);
+  width: min(420px, 80%); border-color: #9be7a466;
+}
+.phone .cp-plate.cp-party { top: 2px; bottom: auto; left: 2%; transform: none; width: min(240px, 34%); }

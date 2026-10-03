@@ -515,7 +515,8 @@ export function partyScreen(onStart, onBack, opts = {}) {
         plate.appendChild(pick);
       }
       const st = el("div", "tf-stats");
-      for (const [k, v] of [["HP", h.hp], ["공격력", h.atk], ["방어력", h.def], ["회복력", RULES.healStat(h.atk, h.role)]]) { const d = el("span"); d.appendChild(el("small", null, k)); d.appendChild(el("b", null, String(v))); st.appendChild(d); }
+      // 방어 기반 — 방어력 210% + 공격력 30%(v6 카제나 — 반격 · 「방어 기반 피해 N%」 의 바탕). 치유는 방어력 그대로
+      for (const [k, v] of [["HP", h.hp], ["공격력", h.atk], ["방어력", h.def], ["방어 기반", RULES.defDmgStat(h.atk, h.def)]]) { const d = el("span"); d.appendChild(el("small", null, k)); d.appendChild(el("b", null, String(v))); st.appendChild(d); }
       plate.appendChild(st);
       // 키워드 · 패시브 한 줄 — 패시브의 첫 줄(「이름: 효과」 의 효과)만. 다 읽으려면 🔍
       const first = [...String(h.passive || "").matchAll(/(^|\s·\s)([^·:]{1,30}):\s/g)];
@@ -696,7 +697,9 @@ export function partyScreen(onStart, onBack, opts = {}) {
         else if (i) slots.appendChild(el("span", "tf-gap"));
         slots.appendChild(slotOf(o.k, i, o.r));
       });
-      count.textContent = `${picked.length} / 3`;
+      // 파티 HP 하나(docs/16 §8) — 셋의 최대 HP 를 더한 것이 이 판의 파티 HP 다
+      const hpSum = picked.reduce((x, k) => x + ((HERO_DATA[k] || {}).hp || 0), 0);
+      count.textContent = `${picked.length} / 3${picked.length ? ` · 파티 HP ${hpSum}` : ""}`;
       go.disabled = picked.length !== 3;
       go.textContent = picked.length === 3 ? "떠납니다" : `사도 ${3 - picked.length}명 더`;
 
@@ -863,8 +866,8 @@ export function partyScreen(onStart, onBack, opts = {}) {
     info.appendChild(meta);
     info.appendChild(el("p", "stblurb", h.blurb));
     const g = el("div", "statgrid");
-    // 회복력 = 공격력 + 역할 몫(rules.js) — 회복 카드는 이 값을 본다
-    for (const [ko, v] of [["체력", h.hp], ["공격력", h.atk], ["방어력", h.def], ["치명", h.crit + "%"], ["회복력", RULES.healStat(h.atk, h.role)]]) {
+    // 방어 기반 = 방어력 210% + 공격력 30%(rules.js defDmgStat) — 반격 · 「방어 기반 피해 N%」 가 본다. 치유 · 방어 · 실드는 방어력
+    for (const [ko, v] of [["체력", h.hp], ["공격력", h.atk], ["방어력", h.def], ["치명", h.crit + "%"], ["방어 기반", RULES.defDmgStat(h.atk, h.def)]]) {
       const c = el("div", "statc");
       c.appendChild(el("small", null, ko));
       c.appendChild(el("strong", null, String(v)));

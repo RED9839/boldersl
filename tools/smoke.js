@@ -246,22 +246,24 @@ check(started.party.join(",") === "에르핀,티그,네르", `자리를 바꾼 �
   check(front.row === "front" && front.fired && !front.ap && !front.buff, "죠안 전열 — 중열 · 후열 줄은 꺼진다");
 }
 
-// 같은 열이면 적 쪽(파티 순서가 뒤)이 먼저 맞는다 — 에르핀(후열) · 티그 · 네르(둘 다 전열, 네르가 적 쪽)
+// 맞는 자리 — 피해는 파티 HP 로 가고, 연출 자리는 앞열의 적 쪽(파티 순서가 뒤) 사도다(docs/16 §8)
 {
-  let hitNer = 0, hitTig = 0, early = 0;
-  for (let seed = 1; seed <= 40; seed++) {
+  let hits = 0, wrong = 0, pooled = 0;
+  for (let seed = 1; seed <= 20; seed++) {
     const t = C2.newCombat({ partyKeys: ["에르핀", "티그", "네르"], rows: {}, deck: [], enemyIds: ["fairymobcloserange"], seed });
-    const [, tig, ner] = t.party;
-    for (let k = 0; k < 4 && !t.over; k++) {
-      const h0 = [tig.hp, ner.hp];
+    t.fx = [];
+    const ner = t.party[2];
+    for (let k = 0; k < 3 && !t.over; k++) {
+      const h0 = t.pool.hp;
       C2.endTurn(t);
-      const dT = h0[0] - tig.hp, dN = h0[1] - ner.hp;
-      if (dN > 0) hitNer++;
-      if (dT > 0) hitTig++;
-      if (dT > 0 && dN === 0 && !ner.dead) early++;     // 네르가 멀쩡히 서 있는데 티그만 맞았다
+      const hurt = t.fx.filter((f) => f.k === "hurt" && f.side === "party");
+      hits += hurt.length;
+      wrong += hurt.filter((f) => f.idx !== ner.idx && !t.taunt).length;
+      if (hurt.some((f) => f.v > 0) && t.pool.hp < h0) pooled++;
+      t.fx.length = 0;
     }
   }
-  check(hitNer > 0 && early === 0, `같은 열이면 적 쪽(네르)이 먼저 맞는다 (네르 ${hitNer}번 · 네르를 두고 티그만 ${early}번)`);
+  check(hits > 0 && wrong === 0 && pooled > 0, `맞는 자리는 앞열의 적 쪽(네르) · 피해는 파티 HP (${hits}대 · 다른 자리 ${wrong})`);
 }
 
 console.log("\n전투 화면");
@@ -306,30 +308,22 @@ check(!!endBtn, "턴 넘기기 단추가 있다");
   check(s5.log.some((l) => l.includes("사라졌다")), "사라졌다고 기록에 남는다");
 }
 
-// 주말농장에 간 사도 — 쓰러진 채로 싸움에 들고, 카드는 덱에서 빠진다. 싸움 중에 쓰러지면 손의 그 카드만큼 새로 뽑는다
+// 파티 HP 하나(docs/16 §8) — 쓰러지는 사도가 없다. 판의 파티 HP 로 싸움을 열고, 0 이 되면 그 싸움에서 진다
 {
   const C = await import("../js/combat.js");
   const r = R.newRun(started.party.slice(), { ...started.rows }, 77);
-  const [k0, kv, kw] = r.party;
-  r.hp[k0] = 0;
+  r.partyHp = 30;
   const { st } = R.openFight(r);
-  const u0 = st.party.find((x) => x.key === k0);
-  check(u0.dead && u0.hp === 0, "HP 0 인 사도는 쓰러진 채로 싸움에 든다");
+  check(st.pool.hp === 30 && st.pool.maxHp === r.partyMaxHp && st.party.every((u) => u.hp === 30 && !u.dead), `판의 파티 HP 로 싸움을 연다 (${st.pool.hp}/${st.pool.maxHp})`);
   const of = (k) => (id) => (C.cardOf(st, id) || {}).hero === k;
-  check(![...st.hand, ...st.draw, ...st.discard].some(of(k0)) && st.gone.some(of(k0)), "쓰러진 사도의 카드는 이번 싸움의 손 · 덱에서 빠진다");
-  // 내 턴에 쓰러지면 — 즉시 행동으로 맞아 쓰러지게 한다
+  check(r.party.every((k) => [...st.hand, ...st.draw, ...st.discard].some(of(k))), "사도 모두의 카드가 덱에 있다 — 빠지는 카드가 없다");
   const e = st.enemies[0];
   e.hp = e.maxHp = 99999; e.intent = { t: "attack", v: 9999, say: "시험", rush: 3 }; e.rushCnt = 2; e.rushedTurn = false;
-  st.taunt = kv; st.ap = 10;
-  if (!st.hand.some(of(kw))) { const i = st.draw.findIndex(of(kw)); if (i >= 0) st.hand.push(...st.draw.splice(i, 1)); }
-  if (!st.hand.some(of(kv))) { const i = st.draw.findIndex(of(kv)); if (i >= 0) st.hand.push(...st.draw.splice(i, 1)); }   // 쓰러질 사도의 카드가 손에 있어야 다시 채우는 것을 본다
-  const pi = st.hand.findIndex((id) => of(kw)(id) && !C.canPlay(st, id));
-  const n0 = st.hand.length;
+  st.ap = 10;
+  const pi = st.hand.findIndex((id) => !C.canPlay(st, id));
   if (pi >= 0) {
     C.playCard(st, pi, 0);
-    const uv = st.party.find((x) => x.key === kv);
-    check(uv.dead && !st.hand.some(of(kv)) && !st.draw.some(of(kv)) && !st.discard.some(of(kv)), "싸움 중에 쓰러진 사도의 카드도 빠진다");
-    check(st.hand.length === n0 - 1 && st.log.some((l) => l.includes("이번 전투에서 빠진다")), `빠진 만큼 손을 다시 채운다 (${n0} → ${st.hand.length})`);
+    check(st.over === "lose" && st.pool.hp === 0, `파티 HP 0 — 그 싸움에서 진다 (${st.over})`);
   } else check(false, "시험할 카드를 못 찾았다");
 }
 
@@ -538,16 +532,11 @@ console.log("\n이후 화면");
   }
 }
 run.floor = 0; run.node = 3;
-run.hp[run.party[2]] = 0;                 // 보스 싸움에서 한 명이 주말농장에 갔다
-const hp0 = { ...run.hp };
+run.partyHp = 40;                         // 보스 싸움에서 많이 다쳤다
 const adv = R.advance(run);
 check(adv.swap === false, "보스를 넘겨도 사도 교체는 없다 — 처음 고른 셋으로 끝까지");
-check(adv.revived && adv.revived.includes(run.party[2]) && adv.revived.length === run.party.filter((k) => hp0[k] <= 0).length && run.party.every((k) => run.hp[k] > 0),
-  `보스를 이기면 주말농장에 간 사도가 모두 돌아온다 (${(adv.revived || []).length}명)`);
-// 보스를 이기면 쓰러진 사도는 20% 로 돌아오고(rules.js BOSS_REVIVE), 그 위에 층 사이 +10
-const BOSS_REVIVE = (await import("../js/rules.js")).BOSS_REVIVE;
-const back0 = (k) => (hp0[k] > 0 ? hp0[k] : Math.max(1, Math.round(run.maxHp[k] * BOSS_REVIVE)));
-check(run.party.every((k) => run.hp[k] === Math.min(run.maxHp[k], back0(k) + 10)), "층 사이에 HP +10 은 그대로 · 쓰러진 사도는 보스 뒤 20% 로");
+check(adv.revived === undefined, "되살리기는 없다 — 쓰러지는 사도가 없다(파티 HP 하나, docs/16 §8)");
+check(run.partyHp === Math.min(run.partyMaxHp, 40 + R.FLOOR_REST * run.party.length), `층 사이에 파티 HP +${R.FLOOR_REST * run.party.length}(사도 한 명 몫 × 셋) — ${run.partyHp}`);
 check(typeof ui.swapScreen === "undefined", "사도 교체 화면은 없앴다");
 
 // 고학년 게이지 — 전투가 끝나도 남은 만큼 다음 전투로
@@ -555,11 +544,11 @@ check(typeof ui.swapScreen === "undefined", "사도 교체 화면은 없앴다")
   const C = await import("../js/combat.js");
   const gr = R.newRun(run.party.slice(), { ...run.rows }, 21);
   check(gr.gauge === 0, "새 판은 게이지 0");
-  const g1 = C.newCombat({ partyKeys: gr.party, rows: gr.rows, deck: gr.deck.slice(), enemyIds: ["fairymobcloserange"], seed: 2, hp: gr.hp, maxHp: gr.maxHp, gauge: gr.gauge });
+  const g1 = C.newCombat({ partyKeys: gr.party, rows: gr.rows, deck: gr.deck.slice(), enemyIds: ["fairymobcloserange"], seed: 2, partyHp: gr.partyHp, partyMaxHp: gr.partyMaxHp, gauge: gr.gauge });
   g1.gauge = 140;
   R.afterFight(gr, g1);
   check(gr.gauge === 140, `전투가 끝나면 남은 게이지를 판에 적는다 (${gr.gauge}%)`);
-  const g2 = C.newCombat({ partyKeys: gr.party, rows: gr.rows, deck: gr.deck.slice(), enemyIds: ["fairymobcloserange"], seed: 3, hp: gr.hp, maxHp: gr.maxHp, gauge: gr.gauge });
+  const g2 = C.newCombat({ partyKeys: gr.party, rows: gr.rows, deck: gr.deck.slice(), enemyIds: ["fairymobcloserange"], seed: 3, partyHp: gr.partyHp, partyMaxHp: gr.partyMaxHp, gauge: gr.gauge });
   check(g2.gauge === 140, "다음 전투는 그 게이지로 시작한다");
 }
 
@@ -646,16 +635,16 @@ console.log("\n캠프");
   r.node = 2; check(R.nextStop(r) === "camp", "두 번째 싸움 뒤 캠프");
   R.enterCamp(r, "camp");
   check(R.nextStop(r) === null, "캠프는 층마다 한 번");
-  const k0 = r.party[0]; r.hp[k0] = 10; const k1 = r.party[1]; r.hp[k1] = 0;
+  r.partyHp = 30;
   const cs = ui.campScreen(r, false, () => {}, () => {});
   check(cs.className === "campscreen2", "캠프는 어두운 유리 한 화면으로 연다");
   check(!/골디의 좌판 들르기/.test(cs.textContent) && count(cs, "cp-shop") === 0, "캠프만 있는 칸에는 상점이 없다");
-  check(count(cs, "cp-hero") === 3 && count(cs, "cp-hp") === 3, "모닥불 곁에 사도 셋 · HP 줄 셋");
-  check(cs.textContent.includes(`+${Math.min(r.maxHp[k0] - 10, Math.round(r.maxHp[k0] * 0.3))}`), "쉬면 얼마나 차는지 미리 보인다");
-  check(/주말농장에서 쉬는 중/.test(cs.textContent), "쓰러진 사도는 주말농장에서 쉰다고 적는다");
+  check(count(cs, "cp-hero") === 3 && count(cs, "cp-hp") === 1, "모닥불 곁에 사도 셋 · 파티 HP 줄 하나");
+  const gain = Math.min(r.partyMaxHp - 30, Math.round(r.partyMaxHp * 0.3));
+  check(cs.textContent.includes(`+${gain}`), "쉬면 파티 HP 가 얼마나 차는지 미리 보인다");
   const rest = clickAll(cs, (n) => n.classList.contains("cp-rest"))[0];
   rest.onclick();
-  check(r.hp[k0] === 10 + Math.round(r.maxHp[k0] * 0.3) && r.hp[k1] === Math.round(r.maxHp[k1] * 0.3), `쉬면 30% · 주말농장에 간 사도도 30% 로 돌아온다 (${r.hp[k0]}/${r.maxHp[k0]} · ${r.hp[k1]}/${r.maxHp[k1]})`);
+  check(r.partyHp === 30 + gain, `쉬면 파티 최대 HP 의 30% 가 찬다 (${r.partyHp}/${r.partyMaxHp})`);
   const trained = clickAll(cs, (n) => n.classList.contains("cp-train"))[0];
   check(trained.disabled && /이번 캠프에서는 이미 골랐습니다/.test(trained.textContent), "쉬고 나면 수련은 막히고 까닭을 적는다");
   check(R.campRest(r) !== null && R.campTrain(r, { cardId: "x", n: 1 }) !== null, "캠프에서는 하나만 고른다");
@@ -700,9 +689,9 @@ console.log("\n장비");
   const hpItem = ids.find((id) => EQUIP[id].stats.hp > 0 && EQUIP[id].affinity !== k);
   const e = EQUIP[hpItem];
   r.bag.push(hpItem);
-  const mh = r.maxHp[k], h0 = r.hp[k];
+  const mh = r.partyMaxHp, h0 = r.partyHp;
   check(R.equip(r, k, hpItem) === null && R.gearOf(r, k)[e.slot] === hpItem, `빈 칸에 낀다 (${e.ko} → ${e.slot})`);
-  check(r.maxHp[k] === mh + e.stats.hp && r.hp[k] === h0 + e.stats.hp, `HP 스탯은 최대 HP 에 바로 (+${e.stats.hp})`);
+  check(r.partyMaxHp === mh + e.stats.hp && r.partyHp === Math.min(r.partyMaxHp, h0 + e.stats.hp), `HP 스탯은 파티 최대 HP 에 바로 (+${e.stats.hp})`);
   const same = ids.find((id) => id !== hpItem && EQUIP[id].slot === e.slot && EQUIP[id].affinity !== k);
   r.bag.push(same);
   check(!!R.equip(r, k, same), "차 있는 칸은 그냥 끼면 막히고 「바꾸기」 로 한다");
@@ -712,7 +701,7 @@ console.log("\n장비");
   const gw = r.gold;
   check(R.equip(r, k, same, { replace: true }) === null && R.gearOf(r, k)[e.slot] === same && !r.bag.includes(hpItem) && r.gold === gw + price,
     `바꿔 끼면 낀 것은 팔린다 — 가방으로 안 가고 +${price} 골드`);
-  check(r.maxHp[k] === mh + EQUIP[same].stats.hp, "바꾸면 최대 HP 도 따라 바뀐다");
+  check(r.partyMaxHp === mh + EQUIP[same].stats.hp, "바꾸면 파티 최대 HP 도 따라 바뀐다");
   // 빼기는 없다 · 팔기는 가방의 것만
   check(typeof R.unequip === "undefined", "빼기는 없다 — 한 번 낀 장비는 바꿔 낄 때 팔릴 뿐");
   r.bag.push(hpItem);
@@ -991,20 +980,20 @@ console.log("");
 console.log("아군 미리보기 · 버릴 카드 고르기");
 {
   const C = await import("../js/combat.js");
-  // 벨라 「존재의 보호막」 — 자신 큰 실드, 아군 전원 작은 실드. 아군 몫도 벨라(시전자)의 방어력으로 센다(배율은 카드에서 읽는다)
+  // 파티 미리보기(docs/16 §8) — 파티 HP 하나라 하나다. 벨라 「존재의 보호막」 — 파티 실드(벨라 방어력으로) · 회복은 파티에 한 번
   const s = C.newCombat({ partyKeys: ["에르핀", "네르", "벨라"], rows: {}, deck: ["네르_s2", "벨라_u1", "에르핀_u3", "벨라_u2", "네르_s3"], enemyIds: ["fairymobcloserange"], seed: 3 });
-  s.party[0].hp = 20;
+  s.pool.hp = 20;
   const bella = s.party.find((u) => u.key === "벨라");
-  const pv = C.previewAllies(s, s.hand.indexOf("벨라_u1"), 0);
-  const allyShield = (C.cardOf(s, "벨라_u1").fx || []).find((f) => f.k === "shield" && f.target === "allAllies");
-  check(pv && allyShield && pv[0].shield === Math.round(bella.def * allyShield.ratio) && pv[1].shield === pv[0].shield, `아군 실드는 시전자(벨라 방어력 ${bella.def}) 기준 — 에르핀 · 네르 모두 +${pv && pv[0].shield}`);
-  check(pv[2].shield > pv[0].shield, `벨라 자신은 아군 몫보다 크다 — +${pv[2].shield}`);
+  const shieldFx = (C.cardOf(s, "벨라_u1").fx || []).filter((f) => f.k === "shield");
+  const pv = C.previewParty(s, s.hand.indexOf("벨라_u1"), 0);
+  const want = shieldFx.reduce((a, f) => a + Math.round(bella.def * (1 + C.statOf(s, bella, "def")) * f.ratio), 0);
+  check(pv && shieldFx.length && pv.shield === want, `파티 실드는 시전자(벨라 방어력 ${bella.def}) 기준 — +${pv && pv.shield} (기대 ${want})`);
   const hi = s.hand.indexOf("네르_s2");
-  const ph = C.previewAllies(s, hi, 0);
-  check(ph && ph[0].heal > 0 && !ph[1] && !ph[2], `달콤한 간식을 에르핀에게 — 회복 +${ph && ph[0].heal}, 다른 사도는 없음`);
-  const hp0 = s.party[0].hp;
+  const ph = C.previewParty(s, hi, 0);
+  check(ph && ph.heal > 0, `달콤한 간식 — 파티 회복 +${ph && ph.heal}`);
+  const hp0 = s.pool.hp;
   C.playCard(s, hi, 0);
-  check(s.party[0].hp - hp0 === ph[0].heal, "미리보기 값 그대로 찬다");
+  check(s.pool.hp - hp0 === ph.heal, "미리보기 값 그대로 찬다");
 
   // 버리기 — 「무작위」 가 없으면 낸 사람이 고른다
   // 손패 2장을 고르는 카드 — 앨리스 「밑장 빼기」(v4 에서 에르핀의 「컨닝 페이퍼」 가 빠졌다, docs/15)

@@ -10,7 +10,9 @@
 //           에르핀의 (공격) 카드를 N장 낼 때마다(그 사도 것만) · 파티가 (공격) 카드를 N장 낼 때마다(누구 것이든) ·
 //           파티가 이번 턴 카드를 N장째 낼 때 · 아군이 카드를 낼 때마다 · 시그니처 카드를 내면 ·
 //           적을 처치하면 · 적이 쓰러지면 · 피해를 받으면 · 아군이 피해를 받으면 · 방어나 실드를 얻으면 ·
-//           HP가 N% 이하가 되면 · 아군이 쓰러지면 · 고학년 스킬을 쓰면 · 적이 즉시 행동하면 ·
+//           HP가 N% 이하가 되면 · 고학년 스킬을 쓰면 · 적이 즉시 행동하면 ·
+//     파티는 한 몸이다(docs/16 §8) — HP · 방어 · 실드 · 상태는 파티의 것이라 「피해를 받으면」 · 「HP가 …」 · 「방어나 실드를 얻으면」 ·
+//     「자신 사기가 …」 은 모두 파티를 본다. 「아군이 쓰러지면」 은 없앴다(쓰러지는 사도가 없다)
 //           적에게 디버프를 걸면 · 회복량이 최대 HP를 초과하면 · 「X」가 N개가 되면 · 항상
 //     조건  「X」가 있으면 · 「X」가 N개 이상이면 · HP가 N% 이하이면 · HP가 N% 이상이면 · 적이 N명 이상이면 ·
 //           적이 N명뿐이면 · 파티가 이번 턴 카드를 N장 이상(이하로) 냈으면 · 이번 턴 에르핀의 카드를 내지 않았으면 ·
@@ -23,7 +25,7 @@
 //                     1개당 자신 주는 피해 +N%. 1개당 턴 종료 시 공격력 N% 피해. 「X」가 N개가 되면: …
 
 import { parseEffect } from "./effects.js";
-import { healStat, STAT_ST, stackEff } from "./rules.js";
+import { STAT_ST, stackEff } from "./rules.js";
 
 // ── 읽기 ───────────────────────────────────────────────────────────────
 
@@ -62,7 +64,6 @@ const TRIGGERS = [
   [/아군이\s*피해를\s*받으면/, () => ({ on: "hurt", who: "any" })],
   [/피해를\s*받으면/, () => ({ on: "hurt" })],
   [/HP가\s*(\d+)\s*%\s*이하가\s*되면/, (m) => ({ on: "lowHp", pct: Number(m[1]) / 100 })],
-  [/아군이\s*쓰러지면/, () => ({ on: "allyDown" })],
   // 새 적 규칙(docs/12) — 아군이 카드를 내다 적의 즉시 행동을 당겼을 때
   [/적이\s*즉시\s*행동하면/, () => ({ on: "rush" })],
   [/(?:고학년\s*스킬을|궁극기를)\s*쓰면/, () => ({ on: "ult" })],   // 옛 이름(궁극기)도 읽는다
@@ -78,7 +79,8 @@ const CONDS = [
   [/「(.+?)」\s*(?:이|가)?\s*(?:이미\s*)?있으면/, (m) => ({ c: "stack", id: m[1], n: 1 })],
   [/HP가\s*(\d+)\s*%\s*이하이면/, (m) => ({ c: "hp", pct: Number(m[1]) / 100 })],
   // 「자신 사기가 3 이상이면」 — 이 사도에게 지금 걸린 상태의 겹(장비 · 패시브가 상태를 쌓은 만큼 보상)
-  [/(?:자신\s*)?(사기|불굴|결의|결정화|반격|열의|강건|집중|온정)(?:이|가)\s*(\d+)\s*(?:겹\s*)?이상이면/, (m) => ({ c: "status", id: m[1], n: Number(m[2]) })],
+  // v6 — 파티 층 버프(잔광 · 피해 감소 · 면역 · 실드 유지 · 저장 · 협공 · 고동)도 겹으로 본다. 받침 따라 이 · 가
+  [/(?:자신\s*|파티\s*)?(사기|불굴|결의|결정화|반격|잔광|피해 감소|면역|실드 유지|저장|협공|고동)(?:이|가)\s*(\d+)\s*(?:겹\s*)?이상이면/, (m) => ({ c: "status", id: m[1], n: Number(m[2]) })],
   [/적이\s*(\d+)\s*명\s*이상이면/, (m) => ({ c: "foes", n: Number(m[1]) })],
   [/혼자\s*남으면/, () => ({ c: "alone" })],
   // 덱 무게(docs/11 §3-3) — 이번 턴 **파티가** 낸 카드 장수. 장수로 세니 신탁으로 코스트가 내려간 카드도 같다.
@@ -106,6 +108,8 @@ const CONDS = [
   [/지난\s*턴에?\s*적을\s*처치했으면/, () => ({ c: "killedLast" })],
   // 「첫 턴이면」 — 전투를 여는 한 번(턴 시작 시 AP 는 전투 시작 시에 주면 첫 턴 AP 에 덮이므로 이렇게 쓴다)
   [/첫\s*턴이면/, () => ({ c: "firstTurn" })],
+  // 「대상이 격파 상태이면」 — 일을 당한 적(카드의 대상 · 맞은 적)이 강인도 0 으로 격파돼 있을 때(장비 작성자 바람, 2026-10)
+  [/대상이\s*격파\s*(?:상태|된\s*상태)?\s*이면|대상이\s*격파돼\s*있으면/, () => ({ c: "targetBroken" })],
   // 선 열 — 「모든 열」 사도가 편성에서 고른 열에 따라 다른 줄이 켜진다
   [/(전열|중열|후열)에\s*서\s*있으면/, (m) => ({ c: "row", row: { 전열: "front", 중열: "mid", 후열: "back" }[m[1]] })],
 ];
@@ -113,7 +117,8 @@ const CONDS = [
 const LIMIT = /\(?\s*(턴당|전투당)\s*(\d+)\s*회\s*\)?/;
 
 // 「간식」 처럼 낫표를 두르면 사람이 읽기 좋지만 효과 읽기는 맨 낱말을 본다
-const bare = (t) => t.replace(/「([^」]+)」/g, "$1");
+// 다만 만들 카드 이름(「「진혼의 탄환」 1장 생성」)은 낫표째 둔다 — 카드 만들기 문법이 낫표로 이름을 찾는다
+const bare = (t) => t.replace(/「([^」]+)」(?!\s*\d+\s*장\s*(?:생성|만든다|만들기))/g, "$1");
 
 function durationOf(t) {
   if (/이번\s*전투|전투\s*내내/.test(t)) return 999;   // 끝까지 — JSON 에 Infinity 가 안 들어가서 999 턴으로 둔다
@@ -141,7 +146,7 @@ function readRule(sentence, keywords, prevTrigger) {
 
   const turns = rule.when.on === "always" ? 999 : durationOf(t);
   const { fx, left } = parseEffect(bare(t), { keywords });
-  for (const f of fx) if (["dealtMod", "takenMod", "atkMod", "defMod", "critMod", "healMod"].includes(f.k)) f.turns = turns;
+  for (const f of fx) if (["dealtMod", "takenMod", "atkMod", "defMod", "critMod"].includes(f.k)) f.turns = turns;
   rule.fx = fx.filter((f) => f.k !== "scope");
   rule.left = left;
   return rule;
@@ -168,8 +173,11 @@ export function parsePassive(text, keywords = []) {
 }
 
 // 키워드 한 줄 → { id, cap, decay, carrier, per: [...], rules: [...] }
+// 「1개당 …%」 — 공용 % 증감은 쓰지 않지만 사도 전용 키워드(고유 효과) 안에서는 쓴다(docs/18 §6 — 카제나 「장전」 · 「일점 조준」 꼴).
+// 「1개당 피해 +10%」 는 주는 피해와 같다
 const PER_STATS = [
   [/주는\s*피해\s*([+\-])\s*(\d+)\s*%/, "dealt"],
+  [/(?<!주는\s*|받는\s*)(?<![가-힣])피해\s*([+\-])\s*(\d+)\s*%/, "dealt"],
   [/받는\s*피해\s*([+\-])\s*(\d+)\s*%/, "taken"],
   [/공격력\s*([+\-])\s*(\d+)\s*%/, "atk"],
   [/방어력\s*([+\-])\s*(\d+)\s*%/, "def"],
@@ -185,14 +193,17 @@ export function parseKeyword(id, text, keywords = []) {
   if (cap) kw.cap = Number(cap[1]);
   // 줄어드는 때 — 「적의 차례가 끝나면 N 감소」(지금 글) · 「턴 종료 시 N 감소」(옛 글). 둘 다 적의 차례 뒤에 줄인다(decayKeywords)
   const WHEN = String.raw`(?:턴\s*종료\s*시|적의\s*차례가\s*끝나면)\s*`;
-  if (new RegExp(WHEN + "(?:전부|모두)\\s*사라").test(text)) kw.decay = "all";
+  if (new RegExp(WHEN + "(?:전부|모두)\\s*사라").test(text) || /턴\s*끝에\s*(?:전부\s*|모두\s*)?사라/.test(text)) kw.decay = "all";
+  // 「발동하면 사라진다」 · 「발동하면 1 감소」(카제나 고유 효과 꼴) — 1개당 덤이 카드 한 장에 쓰이면 그만큼 줄어든다(combat.js kwConsume)
+  const use = text.match(/발동하면\s*(?:(\d+)\s*(?:씩\s*)?(?:감소|줄어)|(?:전부\s*|모두\s*)?사라)/);
+  if (use) kw.consume = use[1] ? Number(use[1]) : "all";
   else { const d = text.match(new RegExp(WHEN + "(\\d+)\\s*(?:씩\\s*)?(?:감소|줄어)")); if (d) kw.decay = Number(d[1]); }
 
   // 첫 문장은 설명(사람이 읽는 말)이다. 그 뒤 문장은 모두 규칙이어야 한다 — 못 읽으면 left 에 남긴다.
   const sentences = text.split(/(?<=[.。])\s+/).map((x) => x.replace(/[.。]\s*$/, "").trim()).filter(Boolean);
   sentences.forEach((s, i) => {
     if (i === 0) return;
-    const meta = /최대\s*\d+|(?:턴\s*종료\s*시|적의\s*차례가\s*끝나면)\s*(?:\d+\s*(?:씩\s*)?(?:감소|줄어)|(?:전부|모두)\s*사라)|(?:적|아군)에게\s*(?:거는|붙는|쌓는|새기는|주는|나눠\s*주는|씌우는)/;
+    const meta = /최대\s*\d+|(?:턴\s*종료\s*시|적의\s*차례가\s*끝나면)\s*(?:\d+\s*(?:씩\s*)?(?:감소|줄어)|(?:전부|모두)\s*사라)|턴\s*끝에\s*(?:전부\s*|모두\s*)?사라|발동하면\s*(?:\d+\s*(?:씩\s*)?(?:감소|줄어)|(?:전부\s*|모두\s*)?사라)|(?:적|아군)에게\s*(?:거는|붙는|쌓는|새기는|주는|나눠\s*주는|씌우는)/;
     // 「1개당 …」 으로 시작하는 문장만 — 「턴 종료 시 「드론」 1개당 …」 은 규칙 문장이다(뒤의 피해를 쌓인 수만큼)
     const per = s.match(/^1\s*개\s*당\s*(.+)/);
     if (per) {
@@ -204,7 +215,7 @@ export function parseKeyword(id, text, keywords = []) {
       }
       const dot = body.match(/턴\s*종료\s*시\s*공격력\s*(\d+)\s*%\s*피해/);
       if (dot) kw.per.push({ stat: "dot", ratio: Number(dot[1]) / 100 });
-      const heal = body.match(/턴\s*종료\s*시\s*(?:HP\s*)?회복\s*\(?\s*(?:공격력|회복력)\s*(\d+)\s*%/);
+      const heal = body.match(/턴\s*종료\s*시\s*(?:HP\s*)?회복\s*\(?\s*방어력\s*(\d+)\s*%/);
       if (heal) kw.per.push({ stat: "hot", ratio: Number(heal[1]) / 100 });
       const n = kw.per.length;
       if (!PER_STATS.some(([re]) => re.test(body)) && !dot && !heal) kw.left.push(s);
@@ -238,7 +249,10 @@ export function setupPassives(s, heroOf, gearFx = {}) {
     const gearRules = gearFx[u.key] ? parsePassive(gearFx[u.key], kws).filter((r) => r.fx.length && !r.left).map((r) => ({ ...r, gear: true })) : [];
     // 키워드 규칙에는 표식이 어디 붙는지(kwOf)를 달아 둔다 — 아군에게 거는 표식의 「카드를 낼 때마다 「X」가 있으면」 은
     // 그 표식을 든 아군이 낼 때다(matches · condOk). 주인 혼자 낼 때만 보던 것을 고쳤다(실비아 「초청객」)
-    const rules = [...(h.passiveRules || parsePassive(h.passive, kws)), ...(kw ? kw.rules.map((r) => ({ ...r, kwOf: kw.carrier })) : []), ...gearRules];
+    // 「「X」가 N개가 되면: … AP +N」 — AP 는 한 턴에 한 번(apOnce). 한 장이 겹을 크게 쌓고 다음 장이 또 채우면 같은 턴에 두 번 터져 AP 가 샜다.
+    // 규칙 자체(소모 · 나머지 효과)는 그대로 돈다 — 막으면 겹이 꽉 찬 채 다시는 「되면」 이 안 온다
+    const kwRules = kw ? kw.rules.map((r) => ({ ...r, kwOf: kw.carrier, ...(!r.limit && r.fx.some((f) => f.k === "ap" && f.v > 0) ? { apOnce: true } : {}) })) : [];
+    const rules = [...(h.passiveRules || parsePassive(h.passive, kws)), ...kwRules, ...gearRules];
     s.passives[u.key] = rules;
     if (kw) s.kw[kw.id] = { ...kw, owner: u.key };
   }
@@ -259,7 +273,7 @@ export function stackOn(s, holder, id, owner) {
 export function statMod(s, u, stat) {
   if (!u) return 0;
   let v = 0;
-  // 능력치 상태(열의 · 강건 · 집중 · 온정) — 세기: 겹마다 +20%, 줄지 않는다(rules.js stackEff)
+  // 능력치 상태 — v6 에 없앴다(rules.js STAT_ST 가 비었다). 남은 길은 아래 증감 · 「항상」 · 전용 키워드 1개당
   const sid = STAT_ST[stat];
   if (sid) v += stackEff(sid, (u.status || {})[sid] || 0);
   for (const m of u.mods || []) if (m.stat === stat) v += m.v;
@@ -293,7 +307,7 @@ export function collectAlways(s) {
     for (const r of rules) {
       if (r.when.on !== "always") continue;
       for (const f of r.fx) {
-        const stat = { dealtMod: "dealt", takenMod: "taken", atkMod: "atk", defMod: "def", critMod: "crit", healMod: "heal" }[f.k];
+        const stat = { dealtMod: "dealt", takenMod: "taken", atkMod: "atk", defMod: "def", critMod: "crit" }[f.k];
         if (!stat) continue;
         const who = f.target === "allAllies" ? s.party.map((u) => u.key) : [key];
         for (const k of who) (s.always[k] = s.always[k] || []).push({ stat, v: f.v, cond: r.conds, owner: key, name: r.name });
@@ -332,6 +346,7 @@ function condOk(s, owner, r, info) {
     if (c.c === "hurtLastAny" && !Object.keys(s.hurtPrev || {}).length) return false;
     if (c.c === "killedLast" && !(s.killPrev || {})[owner.key]) return false;
     if (c.c === "firstTurn" && s.turn !== 1) return false;
+    if (c.c === "targetBroken" && !(info.target && info.target.side === "enemy" && info.target.broken)) return false;
   }
   return true;
 }
@@ -347,12 +362,12 @@ function matches(s, owner, w, ev, info, kwOf) {
       if (w.minCost && (info.cost || 0) < w.minCost) return false;
       if (w.sig && !info.sig) return false;
       return true;
-    case "guard": return (w.who === "any" ? info.who.side === "party" : info.who === owner) && (!w.kind || info.k === w.kind);
+    // 파티가 한 몸이라 누가 얻든 · 누가 맞든 파티의 일이다 — 「아군이 …」 와 「자신이 …」 가 같다
+    case "guard": return info.who.side === "party" && (!w.kind || info.k === w.kind);
     case "kill": return !w.mine || info.by === owner.key;
     case "break": return !w.mine || info.by === owner.key;
-    case "hurt": return w.who === "any" ? info.who.side === "party" : info.who === owner;
-    case "lowHp": return info.who === owner && info.before > w.pct && info.after <= w.pct;
-    case "allyDown": return info.who !== owner;
+    case "hurt": return info.who.side === "party";
+    case "lowHp": return info.who.side === "party" && info.before > w.pct && info.after <= w.pct;
     case "ult": return info.hero === owner.key || (info.heroes || []).includes(owner.key);
     case "debuff": return info.by === owner.key;
     case "overheal": return info.by === owner.key;
@@ -395,6 +410,8 @@ export function emit(s, ev, info, run) {
           s.fired[key] = (s.fired[key] || 0) + 1;
         }
         if (!r.fx.length) return;
+        let fx = r.fx;
+        if (r.apOnce) { const ak = `${id}|ap|${s.turn}`; if (s.fired[ak]) fx = fx.filter((f) => !(f.k === "ap" && f.v > 0)); else s.fired[ak] = 1; }
         const target = info.target && info.target.side === "enemy" ? info.target : null;
         const holder = ev === "stackReach" && info.target && info.target !== owner ? info.target : null;
         const ally = info.who && info.who.side === "party" && !info.who.dead ? info.who : owner;
@@ -402,7 +419,7 @@ export function emit(s, ev, info, run) {
         if (!FIRING.has(s)) FIRING.set(s, new Set());
         const firing = FIRING.get(s);
         firing.add(id);
-        try { run(owner, r.fx, { owner, combo: null, targetIdx: target ? target.idx : 0, passive: r.name, holder, ally }, `${owner.ko} · ${r.name}`); }
+        try { run(owner, fx, { owner, combo: null, targetIdx: target ? target.idx : 0, passive: r.name, holder, ally }, `${owner.ko} · ${r.name}`); }
         finally { firing.delete(id); }
       });
     }
@@ -414,8 +431,19 @@ export function tickTurnEnd(s, hurt, say) {
   for (const kw of Object.values(s.kw || {})) {
     const owner = s.party.find((x) => x.key === kw.owner);
     for (const p of kw.per) {
-      if (p.stat === "dot" && owner) {
-        const holders = kw.carrier === "enemy" ? s.enemies : kw.carrier === "ally" ? s.party : [];
+      // 자기 주머니(물결 꼴 — docs/18 §9) — 쌓인 수만큼 무작위 적 하나를 한 대 친다. 전에는 표식만 쳐서 자기 것은 아무 일도 없었다.
+      // 「턴 종료 시 「X」 1개당 …」 처럼 규칙 문장으로 쓴 것(프리클 · 쥬비)은 per 가 아니라 rules 로 들어가 따로 돈다 — 겹치지 않는다
+      if (p.stat === "dot" && owner && kw.carrier === "self") {
+        const n = (((s.stacks || {})[kw.owner] || {})[kw.id]) || 0;
+        const foes = s.enemies.filter((e) => !e.dead);
+        if (n && foes.length) {
+          const e = foes[Math.floor(s.rng() * foes.length)];
+          const v = Math.max(1, Math.round(owner.atk * p.ratio * n));
+          hurt(e, v, { from: owner });
+          say(`${owner.ko} · ${kw.id} ${n} — ${e.ko}에게 ${v} 피해`);
+        }
+      } else if (p.stat === "dot" && owner) {
+        const holders = kw.carrier === "enemy" ? s.enemies : kw.carrier === "ally" ? s.party.slice(0, 1) : [];   // 파티는 한 몸 — 한 번
         for (const e of holders) {
           const n = (e.status || {})[kw.id] || 0;
           if (!n || e.dead) continue;
@@ -425,11 +453,11 @@ export function tickTurnEnd(s, hurt, say) {
         }
       }
       if (p.stat === "hot" && owner) {
-        const holders = kw.carrier === "self" ? [owner] : s.party;
+        const holders = kw.carrier === "self" ? [owner] : s.party.slice(0, 1);   // 파티 HP 는 하나 — 아군 표식도 파티에 하나
         for (const u of holders) {
           const n = kw.carrier === "self" ? (((s.stacks || {})[kw.owner] || {})[kw.id] || 0) : (u.status || {})[kw.id] || 0;
           if (!n || u.dead) continue;
-          const v = Math.max(1, Math.round(healStat(owner.atk, owner.role, owner.healPlus) * (1 + statMod(s, owner, "heal")) * p.ratio * n));   // 회복력(rules.js) · 장비 회복력 · 회복력 증감
+          const v = Math.max(1, Math.round(owner.def * (1 + statMod(s, owner, "def")) * p.ratio * n));   // 치유는 방어력 기준(v6) — 방어력 증감이 붙는다
           u.hp = Math.min(u.maxHp, u.hp + v);
         }
       }
@@ -448,7 +476,7 @@ export function decayKeywords(s) {
       const pool = (s.stacks || {})[kw.owner];
       if (pool && pool[kw.id]) pool[kw.id] = cut(pool[kw.id]);
     } else {
-      for (const u of [...s.party, ...s.enemies]) if (u.status && u.status[kw.id]) {
+      for (const u of [...s.party.slice(0, 1), ...s.enemies]) if (u.status && u.status[kw.id]) {   // 파티 상태는 하나 — 한 번만 줄인다
         u.status[kw.id] = cut(u.status[kw.id]);
         if (!u.status[kw.id]) delete u.status[kw.id];
       }

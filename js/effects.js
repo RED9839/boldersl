@@ -7,10 +7,10 @@
 // 배율은 기획서대로 % 다 — 공격력 100% 는 ratio 1.0.
 
 // 한 조각 = {k, ...}. combat 이 실행한다.
-//   dmg    {ratio, target, hits}        공격력 × ratio 피해
+//   dmg    {ratio, target, hits}        공격력 × ratio 피해 · base:"def" 방어 기반 피해(rules.js DEF_DMG) · fixed 고정 피해(상태를 안 탄다)
 //   block  {ratio, target}              방어력 × ratio 방어
-//   shield {ratio, target}              방어력 × ratio 실드(유지)
-//   heal   {ratio, target}              회복력 × ratio 회복 (회복력 = 공격력 + 역할 몫, rules.js)
+//   shield {ratio, target}              방어력 × ratio 실드(유지) · fixed 고정 실드(결의 · 손상을 안 탄다)
+//   heal   {ratio, target}              방어력 × ratio 치유(v6 — 카제나처럼 방어력 기준. 회복력은 없앴다)
 //   draw   {v} · ap {v} · gauge {v}
 //   status {id, v, turns, target}       취약·약화·기절·도발
 //   stack  {id, v}                      사도 전용 키워드(간식·왕마력…)
@@ -22,6 +22,8 @@ const TARGETS = [
   [/적\s*전체|모든\s*적/g, "allEnemies"],
   [/무작위\s*적\s*1\s*명|무작위\s*적|무작위로?/g, "randomEnemy"],
   [/아군\s*(전원|전체)|파티\s*전원/g, "allAllies"],
+  // 「파티」 — 파티 한 몸(HP · 방어 · 실드 · 파티 층 상태, docs/16 §8). 「파티가 …」(패시브의 때 말)는 아니다
+  [/파티(?![가의는를\s]*(?:이번|카드|전원))(?![가의])/g, "party"],
   // 「HP 최저 아군」(이 꼴로 쓴다) · 옛 글 「HP 비율이 가장 낮은 아군」 · 「→ 다시 최저 아군」(앞에서 HP 를 이미 말했을 때)
   [/HP\s*(?:비율이\s*|가\s*)?(?:가장\s*)?(?:최저|낮은)\s*아군|최저\s*아군/g, "lowAlly"],
   [/아군\s*1명|아군\s*한\s*명/g, "oneAlly"],
@@ -29,10 +31,10 @@ const TARGETS = [
   [/적\s*1명|적\s*한\s*명/g, "oneEnemy"],
   [/대상/g, "대상"],              // 문맥에 따라 적도 아군도 된다
 ];
-const ALLY = new Set(["self", "oneAlly", "allAllies", "lowAlly"]);
+const ALLY = new Set(["self", "oneAlly", "allAllies", "lowAlly", "party"]);
 const FOE = new Set(["allEnemies", "randomEnemy", "oneEnemy"]);
 // 방어·실드·회복은 적에게 가지 않는다 — 적 말을 만나도 건너뛴다.
-const ALLY_ONLY = new Set(["block", "shield", "heal", "atkMod", "defMod", "critMod", "healMod", "invuln"]);
+const ALLY_ONLY = new Set(["block", "shield", "heal", "atkMod", "defMod", "critMod", "invuln"]);
 
 // 효과가 놓인 마디(쉼표)와 문장(마침표).
 function scopes(text, at) {
@@ -89,6 +91,7 @@ function pickTarget(text, fallback, m, kind) {
 function payer(text, m) {
   const before = text.slice(Math.max(0, m.index - 10), m.index);
   if (/아군\s*전원\s*$/.test(before)) return "allAllies";
+  if (/파티\s*$/.test(before)) return "party";
   if (/아군\s*1\s*명\s*$/.test(before)) return "oneAlly";
   return "self";
 }
@@ -126,34 +129,51 @@ const RULES = [
   // 「강화 카드.」 — 신탁 글머리. 그 신탁을 고르면 카드가 강화 카드가 된다(rules.js isPower · cardbook flashed). 태그로 읽는다
   { re: /^\s*강화\s*카드\s*\.\s*/g, make: () => ({ k: "tag", id: "강화" }) },
   // ── 강인도 · 격파(카제나, docs/07 「강인도」) ──
-  // 「강인도 피해 2」 — 약점과 상관없이 그만큼 깎는다 · 「파괴: …」 — 고른 적이 격파됐을 때만 뒤가 돈다(run-fx ifBroken)
-  // 「분쇄」 · 「잔불」 · 「약점」 — 낱말 하나로 선 것만 키워드다(「「잔불」 +2」 처럼 낫표 두른 사도 표식 · 「대지 분쇄」 같은 이름 속은 아니다)
+  // 「강인도 피해 2」 — 약점과 상관없이 그만큼 깎는다 · 「파괴: …」 — 고른 대상이 처치됐을 때만 뒤가 돈다(v6 카제나 — run-fx ifBroken)
+  // 「분쇄」 · 「약점」 — 낱말 하나로 선 것만 키워드다(「「분쇄」 +2」 처럼 낫표 두른 사도 표식 · 「대지 분쇄」 같은 이름 속은 아니다)
   { re: /강인도\s*피해\s*(\d+)/g, make: (m, text) => ({ k: "tough", v: Number(m[1]), target: pickTarget(text, "oneEnemy", m, "tough") }) },
   { re: /파괴\s*[:：]/g, make: () => ({ k: "ifBroken" }) },
-  // ── 카제나 카드 키워드(docs/16-카제나전투.md) ──
+  // ── 카제나 카드 키워드(docs/18-v6작성안내.md) ──
   // 「연속: …」 — 이번 턴 바로 앞에 낸 카드가 같은 속성(사도 성격)이면 뒤가 돈다
-  // 「감응: …」 — 뽑힐 때 뒤가 돈다(낼 때는 안 돈다) · 「턴 끝에 손에 있으면: …」 — 턴이 끝날 때 손에 있으면(상태 카드)
+  // 「조율: …」 — 이 카드의 비용이 낼 때 남은 AP 와 같으면 뒤가 돈다
+  // 「영감: …」 — 카드 · 패시브의 드로우로 뽑힐 때 뒤가 돈다(턴 시작에 뽑는 것은 아니다 · 낼 때는 안 돈다). 옛 「감응」 을 합쳤다
+  // 「안식: …」 — 카드 효과로 버려질 때 뒤가 돈다 · 「턴 끝에 손에 있으면: …」 — 턴이 끝날 때 손에 있으면(상태 카드)
   { re: /연속\s*[:：]/g, make: () => ({ k: "ifChain" }) },
-  { re: /감응\s*[:：]/g, make: () => ({ k: "when", on: "draw" }) },
+  { re: /조율\s*[:：]/g, make: () => ({ k: "ifTune" }) },
+  { re: /영감\s*[:：]/g, make: () => ({ k: "when", on: "draw" }) },
+  { re: /안식\s*[:：]/g, make: () => ({ k: "when", on: "discard" }) },
   { re: /턴\s*(?:끝에|종료\s*시)\s*손에\s*있으면\s*[:：]/g, make: () => ({ k: "when", on: "handEnd" }) },
-  // 낱말 하나로 선 키워드 — 분쇄 · 잔불 · 잔광 · 약점(피해) · 연계 · 천상(손에서 저절로) · 신속(즉시 행동 셈 안 늘림) · 증발 · 유일
-  // 「「잔불」 +2」 처럼 낫표 두른 사도 표식 · 「대지 분쇄」 같은 이름 속은 아니다
-  { re: /(?<![가-힣「]\s?)(분쇄|잔불|잔광|약점|연계|천상|신속|증발|유일)(?=\s*(?:[.,·]|$))/g, make: (m) => ({ k: "tag", id: m[1] }) },
+  // 「소멸 2.」 — 이 전투에서 두 번 내면 소멸 · 「회수.」 · 「회수 2.」 — 내고 나면 버린 더미 대신 손으로(한 전투에 N번, 안 적으면 1)
+  { re: /(?<![가-힣「]\s?)소멸\s*(\d+)(?=\s*(?:[.,·]|$))/g, make: (m) => ({ k: "tag", id: "소멸N", n: Number(m[1]) }) },
+  { re: /(?<![가-힣「]\s?)회수(?:\s*(\d+))?(?=\s*(?:[.,·]|$))/g, make: (m) => ({ k: "tag", id: "회수", n: Number(m[1] || 1) }) },
+  // 낱말 하나로 선 키워드 — 분쇄 · 약점(피해) · 연계 · 천상(손에서 저절로) · 신속(즉시 행동 셈 안 늘림) · 증발 · 유일
+  //   연결(직접 내면 손의 다른 연결 카드를 모두 버린다) · 금기(신탁 · 복제 · 상점 제거가 안 된다) · 봉인(처음 내면 효과 없이 풀린다)
+  //   개막(전투 시작에 AP 를 써서 저절로 — 모자라면 안 한다) · 연쇄(다음 턴 시작에 같은 효과가 한 번 더)
+  // 「「분쇄」 +2」 처럼 낫표 두른 사도 표식 · 「대지 분쇄」 같은 이름 속은 아니다. 잔불 · 잔광은 v6 부터 상태다(아래)
+  { re: /(?<![가-힣「]\s?)(분쇄|약점|연계|천상|신속|증발|유일|연결|금기|봉인|개막|연쇄)(?=\s*(?:[.,·]|$))/g, make: (m) => ({ k: "tag", id: m[1] }) },
   // 「사용 불가.」 — 낼 수 없는 카드(상태 카드). 「카드 사용 불가」(lockCards)와 다르다
   { re: /(?<![가-힣]\s?)사용\s*불가(?=\s*(?:[.,]|$))/g, make: () => ({ k: "tag", id: "사용불가" }) },
-  // 상태(rules.js STATUS_V · 겹 규칙) — 숫자는 겹(횟수 · 세기). 「사기 2」 「아군 전원 불굴 2」 「적 1명 고통 3」 「자신 사기 1」.
-  // 버프(사기 · 불굴 · 결의 · 결정화 · 반격)는 대상 말이 없으면 자신, 디버프(고통 · 손상 · 표식)는 고른 적. 「사기 2턴」 의 턴도 겹으로 읽는다(옛 글)
-  { re: /(?<![가-힣「])(사기|불굴|결의|결정화|반격|열의|강건|집중|온정)\s*(\d+)\s*(?:턴|겹)?/g, make: (m, text) => ({ k: "status", id: m[1], v: 1, turns: Number(m[2]), target: pickTarget(text, "self", m, "atkMod") }) },
-  { re: /(?<![가-힣「])(고통|손상|표식)\s*(\d+)\s*(?:턴|겹)?/g, make: (m, text) => ({ k: "status", id: m[1], v: 1, turns: Number(m[2]), target: pickTarget(text, "oneEnemy", m, "status") }) },
+  // 상태(rules.js STATUS_V · 겹 규칙) — 숫자는 겹(횟수 · 세기). 「사기 2」 「파티 불굴 2」 「적 1명 고통 3」 「자신 잔광 1」 「적 1명 잔불 2」.
+  // 버프는 대상 말이 없으면 자신(파티 층이면 파티), 디버프는 고른 적. 「사기 2턴」 의 턴도 겹으로 읽는다(옛 글)
+  { re: /(?<![가-힣「])(사기|불굴|결의|결정화|반격|잔광|피해\s*감소|면역|실드\s*유지|저장|협공|고동)\s*(\d+)\s*(?:턴|겹)?/g, make: (m, text) => ({ k: "status", id: m[1].replace(/\s+/g, " "), v: 1, turns: Number(m[2]), target: pickTarget(text, "self", m, "atkMod") }) },
+  { re: /(?<![가-힣「])(고통|손상|표식|잔불|균열|그을림|충격파|충격)\s*(\d+)\s*(?:턴|겹)?/g, make: (m, text) => ({ k: "status", id: m[1], v: 1, turns: Number(m[2]), target: pickTarget(text, "oneEnemy", m, "status") }) },
   // 「다음 카드 코스트 -1」 — 이번 턴에 다음에 내는 카드 한 장이 싸진다(combat nextCheaper). 「코스트 -1」(신탁 코스트)보다 먼저 읽는다
   { re: /다음\s*카드\s*(?:의\s*)?코스트\s*-\s*(\d+)/g, make: (m) => ({ k: "nextCheaper", v: Number(m[1]) }) },
-  // 능력치 증감 — 「공격력 +10%」「방어력 +20%」「치명 확률 +10%」. 피해 규칙보다 먼저 읽는다
-  // (「공격력 +10%」 는 피해가 아니다). 얼마나 가는지는 곁의 말(이번 턴 · N턴간 · 이번 전투)로 정한다.
+  // 능력치 증감 — 「공격력 +10%」「방어력 +20%」「치명 확률 +10%」(강화 카드의 「판 내내」 만 쓴다). 피해 규칙보다 먼저 읽는다
+  // (「공격력 +10%」 는 피해가 아니다). 얼마나 가는지는 곁의 말(이번 턴 · N턴간 · 이번 전투)로 정한다. 회복력 증감은 없앴다(v6 — 치유도 방어력)
   { re: /공격력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "atkMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "self", m, "atkMod") }) },
   { re: /방어력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "defMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "self", m, "defMod") }) },
   { re: /치명\s*(?:확률)?\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "critMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "self", m, "critMod") }) },
-  // 「회복력 +20%」 — 회복을 주는 쪽의 회복력(run-fx healOf). 「HP 회복(회복력 40%)」 의 배율과는 + 로 갈린다
-  { re: /회복력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "healMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "self", m, "healMod") }) },
+  // 고정 피해 — 「공격력 N% 고정 피해」: 사기 · 약화 · 취약 · 불굴 · 상성 · 증감을 안 탄다(방어 · 실드에는 막힌다)
+  {
+    re: /공격력\s*(\d+)\s*%\s*고정\s*피해/g,
+    make: (m, text) => ({ k: "dmg", ratio: Number(m[1]) / 100, fixed: true, target: pickTarget(text, "oneEnemy", m, "dmg"), hits: hitsOf(near(text, m)) }),
+  },
+  // 방어 기반 피해 — 「방어 기반 피해 N%」: 방어력 210% + 공격력 30% 를 바탕으로 N%(rules.js DEF_DMG). 카드 피해라 사기 · 취약 · 강인도는 그대로
+  {
+    re: /방어\s*기반\s*피해\s*(\d+)\s*%/g,
+    make: (m, text) => ({ k: "dmg", ratio: Number(m[1]) / 100, base: "def", target: pickTarget(text, "oneEnemy", m, "dmg"), hits: hitsOf(near(text, m)) }),
+  },
   // 피해 — 공격력 N% 피해
   {
     re: /공격력\s*(\d+)\s*%\s*(?:의\s*)?피해/g,
@@ -164,7 +184,11 @@ const RULES = [
     re: /타격당\s*공격력\s*(\d+)\s*%/g,
     make: (m, text) => ({ k: "dmg", ratio: Number(m[1]) / 100, target: pickTarget(text, "randomEnemy", m, "dmg"), hits: hitsOf(text), perHit: true }),
   },
-  // 방어 / 실드 — 방어력 N%
+  // 방어 / 실드 — 방어력 N%. 「고정 실드」 는 결의 · 손상을 안 탄다
+  {
+    re: /방어력\s*(\d+)\s*%\s*고정\s*실드/g,
+    make: (m, text) => ({ k: "shield", ratio: Number(m[1]) / 100, fixed: true, target: pickTarget(text, "self", m, "shield") }),
+  },
   {
     re: /방어력\s*(\d+)\s*%\s*방어/g,
     make: (m, text) => ({ k: "block", ratio: Number(m[1]) / 100, target: pickTarget(text, "self", m, "block") }),
@@ -173,9 +197,9 @@ const RULES = [
     re: /방어력\s*(\d+)\s*%\s*실드/g,
     make: (m, text) => ({ k: "shield", ratio: Number(m[1]) / 100, target: pickTarget(text, "self", m, "shield") }),
   },
-  // 회복 — HP 회복(회복력 N%). 옛 글의 「회복(공격력 N%)」 도 같은 회복으로 읽는다
+  // 치유 — 「HP 회복(방어력 N%)」(v6 카제나 — 치유는 방어력 기준)
   {
-    re: /회복\s*\(?\s*(?:공격력|회복력)\s*(\d+)\s*%\s*\)?/g,
+    re: /회복\s*\(?\s*방어력\s*(\d+)\s*%\s*\)?/g,
     make: (m, text) => ({ k: "heal", ratio: Number(m[1]) / 100, target: pickTarget(text, "oneAlly", m, "heal") }),
   },
   // 드로우
@@ -208,13 +232,11 @@ const RULES = [
     re: /방어력\s*(\d+)\s*%(?!\s*(방어|실드))/g,
     make: (m, text) => { const k = /실드/.test(near(text, m)) ? "shield" : "block"; return { k, ratio: Number(m[1]) / 100, target: pickTarget(text, "self", m, k) }; },
   },
-  // "공격력 100%" 만 적힌 줄
+  // "공격력 100%" 만 적힌 줄 — 늘 피해다(치유는 방어력 — v6)
   {
-    re: /공격력\s*(\d+)\s*%(?!\s*(피해|회복))/g,
-    make: (m, text) => { const k = /회복/.test(near(text, m)) ? "heal" : "dmg"; return { k, ratio: Number(m[1]) / 100, target: pickTarget(text, k === "heal" ? "oneAlly" : "oneEnemy", m, k), hits: hitsOf(near(text, m)) }; },
+    re: /공격력\s*(\d+)\s*%(?!\s*(피해|고정))/g,
+    make: (m, text) => ({ k: "dmg", ratio: Number(m[1]) / 100, target: pickTarget(text, "oneEnemy", m, "dmg"), hits: hitsOf(near(text, m)) }),
   },
-  // "회복력 100%" 만 적힌 줄 — 늘 회복이다
-  { re: /회복력\s*(\d+)\s*%/g, make: (m, text) => ({ k: "heal", ratio: Number(m[1]) / 100, target: pickTarget(text, "oneAlly", m, "heal") }) },
   // 코스트 — "코스트 -1" · "코스트 0" · "코스트 1"
   { re: /코스트\s*([+\-])\s*(\d+)/g, make: (m) => ({ k: "costDelta", v: (m[1] === "-" ? -1 : 1) * Number(m[2]) }) },
   { re: /코스트\s*(\d+)(?!\s*[%p])/g, make: (m) => ({ k: "costSet", v: Number(m[1]) }) },
@@ -223,8 +245,8 @@ const RULES = [
   // 주는/받는 피해 ±N%
   { re: /받는\s*피해\s*([+\-])\s*(\d+)\s*%/g, make: (m, text) => ({ k: "takenMod", v: (m[1] === "-" ? -1 : 1) * Number(m[2]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "auto", m, "takenMod") }) },
   { re: /주는\s*피해\s*([+\-])\s*(\d+)\s*%/g, make: (m, text) => ({ k: "dealtMod", v: (m[1] === "-" ? -1 : 1) * Number(m[2]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "auto", m, "dealtMod") }) },
-  // 카드 생성 — 「초고」 2장 생성
-  { re: /「(.+?)」\s*(\d+)\s*장\s*생성/g, make: (m) => ({ k: "make", id: m[1], v: Number(m[2]) }) },
+  // 카드 생성 — 「초고」 2장 생성(이 전투의 손에 든다 — combat fxApi make)
+  { re: /「(.+?)」\s*(\d+)\s*장\s*(?:생성|만든다|만들기)/g, make: (m) => ({ k: "make", id: m[1], v: Number(m[2]) }) },
   // 무적 · 부활 · 디버프 해제
   // 무적은 제 편에 건다. 문장에 '적 전체'가 있어도 그건 피해 쪽 이야기다.
   // 무적 — 대상은 제자리에서 찾는다(아군 1명 · HP 최저 아군 · 아군 전원). 전에는 카드 어디든
@@ -265,9 +287,8 @@ const RULES = [
   { re: /(?:고학년(?:\s*스킬)?|궁극기)\s*게이지/g, make: () => null },      // 설명말 — 못 읽은 것으로 세지 않는다
   { re: /AP\s*소모\s*없(?:음|이)/g, make: () => ({ k: "tag", id: "AP없음" }) },
 
-  // ── 침묵·면역 ──────────────────────────────────────────────────────
+  // ── 침묵 ── (면역은 v6 부터 겹 상태 「면역 N」 — 위 상태 규칙. 옛 낱말 「면역 · 무효」 는 없앴다)
   { re: /침묵\s*(\d+)?\s*턴?/g, make: (m, t) => ({ k: "status", id: "침묵", v: 1, turns: Number(m[1] || 1), target: pickTarget(t, "oneEnemy", m, "status") }) },
-  { re: /(면역|무효)/g, make: (m, t) => ({ k: "immune", target: /아군\s*(전원|전체)/.test(t) ? "allAllies" : "self" }) },
 ];
 
 // 사도 전용 키워드는 사도마다 이름이 다르다(간식·왕마력·수집품…).
@@ -326,7 +347,7 @@ export function parseEffect(text, { keyword, keywords } = {}) {
       const got = r.make(m, text);
       if (got) { got._at = from; fx.push(got); }
       left = left.slice(0, from) + " ".repeat(to - from) + left.slice(to);
-      // 「아군 전원 HP 회복(회복력 40%) 2번」 — 같은 효과를 따로 N번 낸다(나이아의 넘친 회복은 번마다 센다).
+      // 「파티 HP 회복(방어력 40%) 2번」 — 같은 효과를 따로 N번 낸다(나이아의 넘친 회복은 번마다 센다).
       // 「2회 ×」(한 효과의 타수)와 다르다. 같은 글을 두 번 잇달아 적지 않으려고 둔 꼴이다
       const rep = got && REPEAT.has(got.k) && text.slice(to).match(/^\s*(\d+)\s*번(?=\s*(?:$|[,.·]))/);
       if (rep && !overlaps(to, to + rep[0].length)) {

@@ -14,7 +14,7 @@ const ok = (m) => console.log(`  ok   ${m}`);
 function board(heroKey) {
   const h = B.heroes[heroKey];
   const me = { key: heroKey, ko: h.ko, side: "party", hp: h.hp, maxHp: h.hp, atk: h.atk, def: h.def, crit: 0, block: 0, shield: 0, status: {}, dead: false };
-  const foe = (i) => ({ key: "적" + i, ko: "적" + i, side: "enemy", hp: 200, maxHp: 200, atk: 5, def: 1, crit: 0, block: 0, shield: 0, status: {}, dead: false });
+  const foe = (i) => ({ key: "적" + i, ko: "적" + i, side: "enemy", idx: i - 1, hp: 200, maxHp: 200, atk: 5, def: 1, crit: 0, block: 0, shield: 0, status: {}, dead: false });
   const s = {
     rng: () => 0.5, party: [me], enemies: [foe(1), foe(2)],
     ap: 3, gauge: 0, hand: ["a", "b", "c"], log: [],
@@ -116,7 +116,7 @@ console.log("대상");
   const pick = (ko) => Object.values(B.cards).find((c) => c.ko === ko);
   const want = [
     // 한 카드에 대상이 여럿 — 스킬 재구성 뒤의 마력 난타(docs/07-스킬구성.md)
-    ["마력 난타", "status", "self"], ["마력 난타", "dmg", "oneEnemy"],   // v3 — 한 놈에게 몰아친다(docs/14). 「자신 불굴 1」(옛 받는 피해 -20%)
+    ["마력 난타", "status", "party"], ["마력 난타", "dmg", "oneEnemy"],   // v3 — 한 놈에게 몰아친다(docs/14). 「파티 불굴 1」(옛 「자신 불굴 1」 — 불굴은 파티 층, docs/16 §8)
   ];
   for (const [ko, k, t] of want) {
     const c = pick(ko);
@@ -229,7 +229,7 @@ console.log("적의 수");
 
   // 체력이 떨어지면 수가 바뀐다
   s = make(["curburus"]);
-  s.enemies[0].hp = 100;
+  s.enemies[0].hp = Math.round(s.enemies[0].maxHp * (ENEMIES.curburus.phase.at - 0.05));   // 판이 바뀌는 문턱 바로 아래(v6 눈금 — 체력 수천)
   C.endTurn(s);
   const ph = ENEMIES.curburus.phase;
   s.enemies[0].phased && ph.intents.includes(s.enemies[0].intent) && s.log.some((l) => l.includes(ph.say))
@@ -261,23 +261,28 @@ console.log("강인도 · 격파");
 {
   const { parseEffect } = await import("../js/effects.js");
   const p = (t) => parseEffect(t);
-  const a = p("분쇄. 잔불. 약점. 적 1명에게 2회 × 공격력 50% 피해, 강인도 피해 2. 파괴: AP +1");
-  const ks = a.fx.map((f) => (f.k === "tag" ? f.id : f.k)).join(" ");
-  !a.left && ks === "분쇄 잔불 약점 dmg tough ifBroken ap" ? ok(`다섯 낱말이 읽힌다 (${ks})`) : fail(`읽기 ${ks} · 남음 「${a.left}」`);
-  // 실행 — 카드의 첫 타격에 한 번(약점이면 더) · 강인도 피해 N · 파괴는 격파된 적에게만
+  // v6 — 잔불은 카드 태그가 아니라 적에게 거는 상태(「적 1명 잔불 1」)
+  const a = p("분쇄. 약점. 적 1명 잔불 1, 적 1명에게 2회 × 공격력 50% 피해, 강인도 피해 2. 파괴: AP +1");
+  const ks = a.fx.map((f) => (f.k === "tag" ? f.id : f.k === "status" ? `${f.id}${f.turns}` : f.k)).join(" ");
+  !a.left && ks === "분쇄 약점 잔불1 dmg tough ifBroken ap" ? ok(`여섯 낱말이 읽힌다 (${ks})`) : fail(`읽기 ${ks} · 남음 「${a.left}」`);
+  !p("잔불. 적 1명에게 공격력 50% 피해").fx.some((f) => f.k === "tag") ? ok("옛 태그 「잔불.」 은 이제 태그가 아니다") : fail("「잔불.」 이 아직 태그로 읽힌다");
+  // 실행 — 카드의 첫 타격에 한 번(약점이면 더) · 강인도 피해 N · 파괴는 대상이 처치됐을 때만(v6 카제나)
   const b = board("에르핀");
   const calls = [];
   b.api.tough = (t, n) => { calls.push([t.key, n]); if ((t.tough = (t.tough ?? 3) - n) <= 0) t.broken = true; };
   b.api.weak = (from, t, tags) => !!(tags && tags.약점);
+  const hurt0 = b.api.hurt;
+  b.api.hurt = (t, v, o) => { hurt0(t, v, o); if (t.hp <= 0) t.dead = true; };   // 가짜 판도 쓰러진다
+  b.s.enemies[0].hp = Math.round(b.me.atk * 0.5) + 1;   // 두 대째에 쓰러진다
   b.s.ap = 0;
   runFx(b.s, a.fx, { owner: b.me, targetIdx: 0, card: true, tags: { 약점: true } }, b.api);
-  const want = JSON.stringify([["적1", R.TOUGH.hit + R.TOUGH.weak], ["적1", 2]]);
-  JSON.stringify(calls) === want ? ok(`두 번 쳐도 첫 타격에 한 번 · 강인도 피해 2 (${JSON.stringify(calls)})`) : fail(`강인도 손잡이 ${JSON.stringify(calls)} (${want} 여야)`);
-  b.s.ap === 1 ? ok("격파된 적이라 「파괴: AP +1」 이 돈다") : fail(`파괴 뒤 AP ${b.s.ap}`);
+  const want = JSON.stringify([["적1", R.TOUGH.hit + R.TOUGH.weak], ["적2", 2]]);
+  JSON.stringify(calls) === want ? ok(`두 번 쳐도 첫 타격에 한 번 · 대상이 쓰러지면 「강인도 피해 2」 는 다음 적에게 (${JSON.stringify(calls)})`) : fail(`강인도 손잡이 ${JSON.stringify(calls)} (${want} 여야)`);
+  b.s.ap === 1 ? ok("처치된 대상이라 「파괴: AP +1」 이 돈다") : fail(`파괴 뒤 AP ${b.s.ap}`);
   const c = board("에르핀");
-  c.api.tough = () => {}; c.s.ap = 0;
+  c.api.tough = (t) => { t.broken = true; }; c.s.ap = 0;
   runFx(c.s, p("적 1명에게 공격력 50% 피해. 파괴: AP +1").fx, { owner: c.me, targetIdx: 0, card: true }, c.api);
-  c.s.ap === 0 ? ok("격파 안 된 적이면 「파괴:」 뒤가 안 돈다") : fail(`격파 전 파괴가 돌았다 (AP ${c.s.ap})`);
+  c.s.ap === 0 ? ok("격파만 됐고 살아 있으면 「파괴:」 뒤가 안 돈다") : fail(`처치 전 파괴가 돌았다 (AP ${c.s.ap})`);
   const d = board("에르핀"), n = [];
   d.api.tough = (t, v) => n.push(v);
   runFx(d.s, p("적 1명에게 공격력 50% 피해").fx, { owner: d.me, targetIdx: 0 }, d.api);

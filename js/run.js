@@ -10,12 +10,13 @@ import { FLOORS } from "./data/enemies.js";
 import * as R from "./rules.js";
 import { buildDeck, makeRng, newCombat } from "./combat.js";
 
+// 파티 HP 하나(docs/16 §8) — 세 사도의 최대 HP 합. 장비 HP 는 끼는 순간 파티 최대 HP 에 더한다(shiftHp)
+export const partyBaseHp = (keys) => keys.reduce((a, k) => a + (base(k).hp || 0), 0);
 export function newRun(partyKeys, rows, seed = Date.now()) {
-  const hp = {}, maxHp = {};
-  for (const k of partyKeys) { hp[k] = base(k).hp; maxHp[k] = base(k).hp; }
+  const max = partyBaseHp(partyKeys);
   return {
     seed, rng: makeRng(seed),
-    party: partyKeys.slice(), rows: { ...rows }, hp, maxHp,
+    party: partyKeys.slice(), rows: { ...rows }, partyHp: max, partyMaxHp: max,
     traits: [],                   // 옛 신탁 체계 — 지금은 안 쓴다(tools/sim.js 가 아직 잰다)
     flash: {},                    // 카드 id → 신탁 번호(1~5). 카드마다 하나만.
     reward: null,                 // 이번 보상에서 굴린 것 — 다시 그려도 안 바뀐다
@@ -65,7 +66,7 @@ export function openFight(run, { hpx = 1, dmgx = 1 } = {}) {
   run.nextFight = null;
   const st = newCombat({
     partyKeys: run.party, rows: run.rows, deck: run.deck.slice(),
-    enemyIds: currentEnemies(run), hp: run.hp, maxHp: run.maxHp, traits: run.traits, gear: gearStats(run), gearFx: gearPassives(run), flash: run.flash,
+    enemyIds: currentEnemies(run), partyHp: run.partyHp, partyMaxHp: run.partyMaxHp, traits: run.traits, gear: gearStats(run), gearFx: gearPassives(run), flash: run.flash,
     enemyHp: foeScaleOf(run).hp * hpx, enemyDmg: foeScaleOf(run).dmg * dmgx,   // 층마다 · 엘리트 칸(이벤트 엘리트도) 체력 ×1.5
     next, shin: run.shin, gauge: run.gauge || 0,   // 기적이 붙은 카드 · 고학년 게이지는 전투 사이에 이어진다
     boons: run.boons || {},                        // 강화 카드의 「판 내내」 버프 — 판이 끝날 때까지 전투마다
@@ -91,10 +92,7 @@ export function afterFight(run, combat) {
   }
   for (const b of g.boons || []) ((run.boons = run.boons || {})[b.hero] = run.boons[b.hero] || []).push({ stat: b.stat, v: b.v, src: b.src });
   run.lastGained = { cards: g.cards.slice(), flash: g.flash.slice() };
-  for (const u of combat.party) {
-    run.hp[u.key] = u.dead ? 0 : u.hp;
-    run.maxHp[u.key] = u.maxHp;
-  }
+  if (combat.pool) { run.partyHp = Math.max(0, combat.pool.hp); run.partyMaxHp = combat.pool.maxHp; }
   run.gauge = Math.max(0, Math.min(R.GAUGE_MAX, combat.gauge || 0));   // 남은 고학년 게이지는 다음 전투로
 }
 
@@ -119,7 +117,7 @@ export function rollEpiphany(run) {
   const draw3 = (pool) => { const p = pool.slice(), out = []; while (out.length < 3 && p.length) out.push(...p.splice(Math.floor(run.rng() * p.length), 1)); return out; };
   const glow = {};
   // 은총 — 사도마다 따로 굴린다(카제나). 아직 얻을 고유 카드가 남은 사도의 기본 카드 하나가 빛난다
-  const heroes = run.party.filter((k) => (run.hp[k] || 0) > 0 && uniquesLeft(run, k).length
+  const heroes = run.party.filter((k) => uniquesLeft(run, k).length
     && run.deck.some((id) => CARDS[id] && CARDS[id].hero === k && !CARDS[id].unique));
   const grace = (k) => {
     const base = run.deck.filter((id) => CARDS[id] && CARDS[id].hero === k && !CARDS[id].unique);
@@ -242,14 +240,12 @@ export function enterCamp(run, kind) {
   return run.stops[key];
 }
 
-// 쉬기 — 살아 있는 사도는 HP 를 채우고, 주말농장에 간 사도는 최대 HP 의 30% 로 돌아온다(rules.js CAMP_REVIVE)
+// 쉬기 — 파티 HP 를 파티 최대 HP 의 CAMP_HEAL 만큼 채운다(rules.js)
+export const campHealOf = (run) => Math.min(run.partyMaxHp - run.partyHp, Math.round(run.partyMaxHp * R.CAMP_HEAL));
 export function campRest(run) {
   const st = run.stops[run.camp && run.camp.key];
   if (!st || st.used) return "이번 캠프에서는 이미 골랐습니다";
-  for (const k of run.party) {
-    if ((run.hp[k] || 0) <= 0) { run.hp[k] = Math.max(1, Math.round(run.maxHp[k] * R.CAMP_REVIVE)); continue; }
-    run.hp[k] = Math.min(run.maxHp[k], run.hp[k] + Math.round(run.maxHp[k] * R.CAMP_HEAL));
-  }
+  run.partyHp = Math.min(run.partyMaxHp, run.partyHp + Math.max(0, campHealOf(run)));
   st.used = "rest";
   return null;
 }
@@ -342,6 +338,7 @@ export function removeCard(run, cardId) {
   if (run.gold < price) return "골드가 모자랍니다";
   const i = run.deck.indexOf(cardId);
   if (i < 0) return "덱에 없는 카드입니다";
+  if (R.isTaboo(CARDS[cardId])) return "금기 카드는 뺄 수 없습니다";   // v6 카제나 금기
   run.gold -= price;
   run.deck.splice(i, 1);
   run.removals = (run.removals || 0) + 1;
@@ -355,7 +352,7 @@ export function removeCard(run, cardId) {
 // 한 카드에 하나만 붙는다 — 이미 붙은 카드는 다시 안 나온다.
 export function flashTargets(run) {
   return run.deck.filter((id, i) => run.deck.indexOf(id) === i)
-    .filter((id) => CARDS[id] && (CARDS[id].unique || CARDS[id].neutral) && (CARDS[id].flash || []).length === 5 && !run.flash[id]);
+    .filter((id) => CARDS[id] && (CARDS[id].unique || CARDS[id].neutral) && (CARDS[id].flash || []).length === 5 && !run.flash[id] && !R.isTaboo(CARDS[id]));   // 금기는 신탁이 안 붙는다
 }
 
 // 이 카드에 쓸모 있는 축복 — 피해가 없으면 피해 쪽을, 회복이 없으면 회복 쪽을 빼고, 비용 -1 은 1코 이상만
@@ -392,7 +389,7 @@ export function takeFlash(run, pick) {
 // HP 는 한 판의 최대 HP 에 바로 넣고, 공격·방어·치명은 전투를 열 때 넣는다(gearStats).
 export function statsOf(equipId, heroKey) {
   const e = EQUIP[equipId];
-  const out = { hp: 0, atk: 0, def: 0, crit: 0, heal: 0 };   // heal — 「회복력 +N」(회복 카드 · 패시브의 회복력에 더한다)
+  const out = { hp: 0, atk: 0, def: 0, crit: 0 };   // 옛 「회복력 +N」 은 v6 에 없앴다(치유도 방어력 — 장비는 「방어 +N」)
   if (!e) return out;
   for (const k in out) out[k] += e.stats[k] || 0;
   if (e.affinity && e.affinity === heroKey && e.affinityLv3) for (const k in out) out[k] += e.affinityLv3[k] || 0;
@@ -419,7 +416,7 @@ export function gearPassives(run) {
 export function gearStats(run) {
   const out = {};
   for (const k of run.party) {
-    const t = { hp: 0, atk: 0, def: 0, crit: 0, heal: 0 };
+    const t = { hp: 0, atk: 0, def: 0, crit: 0 };
     for (const id of Object.values(gearOf(run, k))) { const s = statsOf(id, k); for (const x in t) t[x] += s[x]; }
     out[k] = t;
   }
@@ -427,11 +424,11 @@ export function gearStats(run) {
 }
 const owned = (run) => new Set([...(run.bag || []), ...Object.values(run.gear || {}).flatMap((g) => Object.values(g))]);
 
-// 최대 HP 가 바뀌면 지금 HP 도 같이 — 늘면 그만큼 차고, 줄면 넘치는 만큼만 깎인다. 주말농장에 간 사도는 그대로 0
-function shiftHp(run, k, d) {
+// 파티 최대 HP 가 바뀌면 지금 HP 도 같이 — 늘면 그만큼 차고, 줄면 넘치는 만큼만 깎인다(장비 HP · 이벤트)
+export function shiftHp(run, k, d) {
   if (!d) return;
-  run.maxHp[k] = Math.max(1, (run.maxHp[k] || 1) + d);
-  if ((run.hp[k] || 0) > 0) run.hp[k] = Math.max(1, Math.min(run.maxHp[k], run.hp[k] + Math.max(0, d)));
+  run.partyMaxHp = Math.max(1, (run.partyMaxHp || 1) + d);
+  run.partyHp = Math.max(1, Math.min(run.partyMaxHp, (run.partyHp || 0) + Math.max(0, d)));
 }
 
 // 낀다 — 한 번 끼면 빼지 못한다(뺄 길이 없다). replace 가 아니면 빈 칸에만.
@@ -494,23 +491,18 @@ export function takeEquip(run, equipId) {
 }
 
 // 다음 칸으로. 보스를 넘으면 층이 바뀐다(사도 교체는 없다).
-// revived — 보스를 이겨 주말농장에서 돌아온 사도 키(화면이 알린다 · main.js reward)
 export function advance(run) {
   const wasBoss = isBoss(run);
   if (!wasBoss) { run.node++; return { swap: false }; }
-  // 보스를 이기면 주말농장에 간 사도가 최대 HP 의 20% 로 돌아온다(rules.js BOSS_REVIVE)
-  const revived = reviveDown(run, R.BOSS_REVIVE);
   // 층 보스의 몫 — 가진 고유 카드 하나를 한 장 더(마지막 싸움은 판이 끝나니 빼고)
   const copied = isFinal(run) ? null : bossCopy(run);
   // 마지막 층의 보스 뒤에 마지막 싸움이 있으면 층을 넘지 않고 그리로(node 4) — 캠프 한 번을 거친다(main.js finalCamp)
-  if (!isFinal(run) && run.floor === FLOORS.length - 1 && FLOORS[run.floor].final) { run.node = 4; return { swap: false, final: true, revived, copied }; }
+  if (!isFinal(run) && run.floor === FLOORS.length - 1 && FLOORS[run.floor].final) { run.node = 4; return { swap: false, final: true, copied }; }
   run.floor++; run.node = 0;
-  if (run.floor >= FLOORS.length) { run.done = "clear"; return { swap: false, revived, copied }; }
-  // 층 사이에 조금 쉰다 — 몸도 마음도. 사도 교체는 없다(처음 고른 셋으로 끝까지 간다)
-  for (const k of run.party) {
-    run.hp[k] = Math.min(run.maxHp[k], run.hp[k] + 10);
-  }
-  return { swap: false, revived, copied };
+  if (run.floor >= FLOORS.length) { run.done = "clear"; return { swap: false, copied }; }
+  // 층 사이에 조금 쉰다 — 몸도 마음도(사도 한 명에 10 씩이던 몫을 파티에). 사도 교체는 없다(처음 고른 셋으로 끝까지 간다)
+  run.partyHp = Math.min(run.partyMaxHp, run.partyHp + FLOOR_REST * run.party.length);
+  return { swap: false, copied };
 }
 
 // 층 보스 보상 — 덱에 **가진** 사도 고유 카드 가운데 무작위 한 장을 복제한다. 강화 카드(한 장만 — 신탁으로 강화가 된 것 포함)는 뺀다.
@@ -528,20 +520,18 @@ export function bossCopy(run) {
   return id;
 }
 
-// 쓰러진 사도를 최대 HP 의 ratio 로 돌려보낸다 — 돌아온 사도 키를 돌려준다
-export function reviveDown(run, ratio) {
-  const back = run.party.filter((k) => (run.hp[k] || 0) <= 0);
-  for (const k of back) run.hp[k] = Math.max(1, Math.round((run.maxHp[k] || 1) * ratio));
-  return back;
-}
+// 층 사이 쉼 — 사도 한 명 몫(파티에 × 사도 수)
+export const FLOOR_REST = 10;
 
 // 사도 교체 — 덱에서 그 사도의 카드를 빼고 새 사도의 기본 카드를 넣는다
 export function swapHero(run, outKey, inKey) {
   if (!run.party.includes(outKey) || run.party.includes(inKey)) return false;
   run.party[run.party.indexOf(outKey)] = inKey;
   // 나가는 사도의 장비는 가방으로 돌아온다
+  const gearHp = Object.values(gearOf(run, outKey)).reduce((x, id) => x + statsOf(id, outKey).hp, 0);
   for (const id of Object.values(gearOf(run, outKey))) run.bag.push(id);
   delete run.gear[outKey];
+  shiftHp(run, outKey, -gearHp);
   run.bench = Object.keys(HERO_DATA).filter((k) => !run.party.includes(k));
   run.deck = run.deck.filter((id) => CARDS[id].hero !== outKey);
   run.deck.push(...buildDeck([inKey]).filter((id) => CARDS[id].hero === inKey));
@@ -549,11 +539,20 @@ export function swapHero(run, outKey, inKey) {
   run.rows[inKey] = base(inKey).row;
   delete run.rows[outKey];
   for (const id of Object.keys(run.flash || {})) if (CARDS[id] && CARDS[id].hero === outKey) delete run.flash[id];
-  run.hp[inKey] = base(inKey).hp;
-  run.maxHp[inKey] = base(inKey).hp;
-  delete run.hp[outKey];
-  delete run.maxHp[outKey];
+  // 파티 최대 HP — 나간 사도 몫(기본 HP)을 빼고 들어온 사도 몫을 더한다(장비 HP 는 가방으로 돌아갈 때 위에서 뺐다)
+  shiftHp(run, inKey, base(inKey).hp - base(outKey).hp);
   return true;
 }
 
-export function partyWiped(run) { return run.party.every((k) => (run.hp[k] || 0) <= 0); }
+// 판이 끝났나 — 파티 HP 가 0(쓰러지는 사도는 없다)
+export function partyWiped(run) { return (run.partyHp || 0) <= 0; }
+
+// 옛 저장 — 사도마다 hp · maxHp 였던 판을 파티 HP 하나로(더한다). 주말농장에 갔던 사도(0)는 0 을 더한다
+export function migrateRun(run) {
+  if (!run || run.partyMaxHp != null) return run;
+  const hp = run.hp || {}, max = run.maxHp || {};
+  run.partyMaxHp = Math.max(1, run.party.reduce((a, k) => a + (max[k] || base(k).hp || 0), 0));
+  run.partyHp = Math.min(run.partyMaxHp, run.party.reduce((a, k) => a + Math.max(0, hp[k] || 0), 0));
+  delete run.hp; delete run.maxHp;
+  return run;
+}

@@ -1,7 +1,7 @@
 // 기획서에서 읽은 효과 조각을 실제로 실행한다.
 //
-// 수치는 전부 **스탯 기반 %** 다(기획서) — 피해는 공격력 × 배율, 방어·실드는 방어력 × 배율,
-// 회복은 회복력(공격력 + 역할 몫) × 배율. 계산식은 rules.js 의 finalDamage 를 따른다.
+// 수치는 전부 **스탯 기반 %** 다(기획서 · 카제나) — 피해는 공격력 × 배율, 방어·실드·치유는 방어력 × 배율,
+// 방어 기반 피해는 (방어력 × 2.1 + 공격력 × 0.3) × 배율(rules.js DEF_DMG). 계산식은 rules.js 의 finalDamage 를 따른다.
 //
 // 모르는 조각은 조용히 넘기지 않고 s.unknownFx 에 쌓는다 — 안 도는 것을 도는 척하면 안 된다.
 
@@ -20,6 +20,8 @@ function resolve(s, ctx, target) {
       return foes.length ? [foes[Math.floor(s.rng() * foes.length)]] : [];
     }
     case "allAllies": return allies;
+    // 「파티」 — 파티 한 몸(HP · 방어 · 실드 · 상태). 주인 없는 카드(교주 · 상태 카드)도 닿는다. 연출 자리는 낸 사도
+    case "party": return allies.length ? [owner && !owner.dead && owner.side === "party" ? owner : allies[0]] : [];
     case "oneAlly": {
       if (ctx.lowest) return allies.slice().sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp).slice(0, 1);
       // 패시브에는 고르는 사람이 없다 — 일을 겪은 아군(맞은 사람), 없으면 자신
@@ -40,21 +42,29 @@ function resolve(s, ctx, target) {
   }
 }
 
+// 파티는 한 몸이다(js/combat.js linkParty) — 사도 여럿을 가리켜도 파티 몫(방어 · 실드 · 회복 · 상태 · 무적 · 해제 · HP 치르기)은 한 번만.
+// 「아군 전원 사기 1」 이 세 번 쌓이지 않게. 증감(mods — 공격력 +10% …)은 사도마다라 여기를 거치지 않는다
+function once(list) {
+  let seen = false;
+  return list.filter((t) => (t.side !== "party" ? true : seen ? false : (seen = true)));
+}
+
 // 버프가 들어간 공격력·방어력 — 패시브·키워드·카드의 증감을 combat 이 셈해 준다
 const atkOf = (api, u) => Math.max(1, Math.round(u.atk * (1 + (api.statOf ? api.statOf(u, "atk") : 0))));
 const defOf = (api, u) => Math.max(0, Math.round(u.def * (1 + (api.statOf ? api.statOf(u, "def") : 0))));
-// 회복력 — 버프가 들어간 공격력 + 역할 몫(rules.js HEAL_BONUS)
-// 장비 스탯 줄의 회복력(u.healPlus)을 더하고, 「회복력 +N%」 증감(statOf heal)을 곱한다
-const healOf = (api, u) => Math.round(R.healStat(atkOf(api, u), u.role, u.healPlus) * (1 + (api.statOf ? api.statOf(u, "heal") : 0)));
+// 치유 — 방어력 기준(v6 카제나 「치유 = 방어력」). 방어력 증감이 그대로 붙는다. 회복력 · 온정은 없앴다
+// 방어 기반 피해의 바탕 — 버프가 들어간 방어력 × 2.1 + 공격력 × 0.3(rules.js defDmgStat)
+const defDmgOf = (api, u) => R.defDmgStat(atkOf(api, u), defOf(api, u));
 
 // 한 번에 얼마 — 피해 한 대 · 방어/실드 · 회복. 아래 runFx 가 쓰고, 화면(fight-screen cardCalc)이 카드 면 숫자로 같은 것을 부른다(셈이 갈라지지 않게).
 // api 는 { statOf(u, stat) } 만 있으면 된다. 맞는 쪽의 취약 · 상성 · 주는/받는 피해 증감은 hurt 가 따로 건다
-export const hitAmount = (api, u, ratio, { flash = 0, shin = false, global = 0, crit = false } = {}) =>
-  R.finalDamage({ stat: atkOf(api, u), ratio, flash, shin, global, crit });
+// base: "def" — 방어 기반 피해(바탕이 방어력 210% + 공격력 30%)
+export const hitAmount = (api, u, ratio, { flash = 0, shin = false, global = 0, crit = false, base = null } = {}) =>
+  R.finalDamage({ stat: base === "def" ? defDmgOf(api, u) : atkOf(api, u), ratio, flash, shin, global, crit });
 // 양보하는 마음(축복 guard) — 방어 · 실드 ×1.3
 export const guardAmount = (api, u, ratio, shin) => Math.max(1, Math.round(defOf(api, u) * ratio * (shin === "guard" ? R.SHIN : 1)));
-// 괜찮아(축복 heal) — 회복 ×1.3
-export const healAmount = (api, u, ratio, shin) => Math.max(1, Math.round(healOf(api, u) * ratio * (shin === "heal" ? R.SHIN : 1)));
+// 괜찮아(축복 heal) — 치유 ×1.3. 바탕은 방어력(v6)
+export const healAmount = (api, u, ratio, shin) => Math.max(1, Math.round(defOf(api, u) * ratio * (shin === "heal" ? R.SHIN : 1)));
 
 // 이 사도가 그 키워드를 몇 개 들고 있나
 const stackOf = (s, key, id) => ((s.stacks || {})[key] || {})[id] || 0;
@@ -67,11 +77,23 @@ function addStack(s, key, id, v) {
   s.stacks[key][id] = Math.max(0, next);
 }
 
+// 「「X」 1개당 …」 의 X 가 몇 개인가 — 자기 주머니는 그 사도의 것, 적 표식은 고른 적(규칙이면 일을 일으킨 적)이 든 수,
+// 아군 표식은 파티의 것(파티에 하나 — linkParty)
+function perCount(s, ctx, id) {
+  const kw = (s.kw || {})[id];
+  if (kw && kw.carrier === "enemy") {
+    const t = ctx.holder && ctx.holder.side === "enemy" ? ctx.holder : resolve(s, ctx, "oneEnemy")[0];
+    return t ? (t.status || {})[id] || 0 : 0;
+  }
+  if (kw && kw.carrier === "ally") return ctx.owner ? (ctx.owner.status || {})[id] || 0 : 0;
+  return ctx.owner ? stackOf(s, ctx.owner.key, id) : 0;
+}
+
 // 한 장을 실행한다. api 는 combat 이 넘겨 주는 손잡이들이다.
 export function runFx(s, fxList, ctx, api) {
   const { owner } = ctx;
   let gate = true;                 // ifStack 이 거짓이면 그 뒤가 안 돈다
-  // 때 붙은 마디 — 「감응: …」(뽑힐 때) · 「턴 끝에 손에 있으면: …」. 그 표시 뒤의 조각은 그때(ctx.when)만 돌고, 카드를 낼 때는 안 돈다
+  // 때 붙은 마디 — 「영감: …」(능력으로 뽑힐 때) · 「안식: …」(버려질 때) · 「턴 끝에 손에 있으면: …」. 그 표시 뒤의 조각은 그때(ctx.when)만 돌고, 카드를 낼 때는 안 돈다
   let part = null;
 
   for (const f of fxList || []) {
@@ -80,8 +102,16 @@ export function runFx(s, fxList, ctx, api) {
     if (!gate && f.k !== "ifStack") continue;
     switch (f.k) {
       // ── 조건·대상 고르기 ──────────────────────────────────────────
-      // 「파괴: …」 — 고른 적이 격파된 상태일 때만 뒤가 돈다(그 카드의 앞선 타격으로 격파됐어도)
-      case "ifBroken": { const t = resolve(s, ctx, "oneEnemy")[0]; gate = !!t && !!t.broken; break; }
+      // 「파괴: …」 — 대상이 처치된 상태일 때만 뒤가 돈다(v6 카제나 「대상이 처치되거나 쓰러진 상태일 때」 — 그 카드의 앞선 타격으로 쓰러졌어도).
+      // 고른 적이 있으면 그 적, 없으면(전체 · 무작위 카드) 이 카드가 적을 하나라도 쓰러뜨렸으면
+      case "ifBroken": {
+        const t = s.enemies.find((e) => e.idx === ctx.targetIdx);
+        const single = (fxList || []).some((x) => x.k === "dmg" && x.target === "oneEnemy");
+        gate = single ? !!t && !!t.dead : (s.killSeq || 0) === s.actSeq && !!s.actSeq;
+        break;
+      }
+      // 「조율: …」 — 이 카드의 비용이 낼 때 남은 AP 와 같았으면 뒤가 돈다(combat playCard 가 ctx.tune 을 정한다)
+      case "ifTune": gate = !!ctx.tune; break;
       // 「연속: …」 — 이번 턴 바로 앞에 낸 카드가 이 카드와 같은 속성(사도 성격)이면 뒤가 돈다(combat playCard 가 ctx.chain 을 정한다)
       case "ifChain": gate = !!ctx.chain; break;
       case "ifStack": {
@@ -104,7 +134,7 @@ export function runFx(s, fxList, ctx, api) {
           ? (ctx.x || 0) + (f.xStack ? stackOf(s, owner.key, f.xStack) : 0)
           : (f.hits || 1);
         // 「「마탄」 1개당 …」 — 바로 뒤의 피해 한 줄을 쌓인 수만큼 친다(0 이면 안 친다). 한 번 쓰면 풀린다
-        if (ctx.perStack) { hits *= stackOf(s, owner.key, ctx.perStack); ctx.perStack = null; }
+        if (ctx.perStack) { hits *= perCount(s, ctx, ctx.perStack); ctx.perStack = null; }
         for (let i = 0; i < hits; i++) {
           const targets = resolve(s, ctx, f.target);
           for (const t of targets) {
@@ -113,18 +143,26 @@ export function runFx(s, fxList, ctx, api) {
             const crit = !s.preview && s.rng() * 100 < critPct;
             // 축복 — 불타는 웅변은 늘, 약점 공략은 취약인 적에게만 ×1.3
             const boost = ctx.shin === "power" || (ctx.shin === "weakSpot" && ((t.status || {})["취약"] || 0) > 0);
-            const v = hitAmount(api, owner, f.ratio, { flash: ctx.flash || 0, shin: boost, global: ctx.global || 0, crit });
-            api.hurt(t, v, { from: owner, crit, tags: ctx.tags, card: !!ctx.card });
-            // 강인도 — 카드(고학년 포함) 한 장이 그 적을 처음 칠 때 한 번. 약점이면 더, 잔광이면 또 더(rules.js TOUGH). 패시브의 피해는 안 깎는다
+            // 카드로 처음 칠 때 — 충격(공격 카드의 대상이 되면 고정 피해) · 충격파(다른 모든 적에게 고정 피해)가 먼저 돈다(api.cardHit)
+            const first = ctx.card && t.side === "enemy" && !(ctx.toughed && ctx.toughed.has(t));
+            if (first && api.cardHit) { api.cardHit(owner, t, ctx); if (t.dead) continue; }
+            // 잔광(파티 상태) — 공격 카드가 처음 칠 때 1 쓴다(이 카드 내내 붙는다 — 격파된 적 +50% · 강인도 +1)
+            if (first && ctx.type === "공격" && api.glow) api.glow();
+            // 고정 피해(f.fixed)는 상태 · 상성 · 증감을 안 탄다(방어 · 실드에는 막힌다). 치명 · 축복도 안 붙는다
+            const v = f.fixed ? Math.max(1, Math.round(atkOf(api, owner) * f.ratio))
+              : hitAmount(api, owner, f.ratio, { flash: ctx.flash || 0, shin: boost, global: ctx.global || 0, crit, base: f.base || null });
+            api.hurt(t, v, { from: owner, crit: !f.fixed && crit, tags: ctx.tags, card: !!ctx.card, fixed: !!f.fixed, attack: ctx.type === "공격" });
+            // 강인도 — 카드(고학년 포함) 한 장이 그 적을 처음 칠 때 한 번. 약점이면 더, 공격 카드에 잔광(파티 상태)이 있으면 또 더(rules.js TOUGH). 패시브의 피해는 안 깎는다
             // 표식(적의 상태)도 그때 한 번 — 덤 타격 + 강인도 1
             if (ctx.card && api.tough && t.side === "enemy" && !t.dead) {
               const hit = (ctx.toughed = ctx.toughed || new Set());
               if (!hit.has(t)) {
                 hit.add(t);
-                api.tough(t, R.TOUGH.hit + (api.weak && api.weak(owner, t, ctx.tags) ? R.TOUGH.weak : 0) + (ctx.tags && ctx.tags.잔광 ? R.TOUGH.glow : 0));
+                const glow = ctx.type === "공격" && api.glow ? api.glow() : false;
+                api.tough(t, R.TOUGH.hit + (api.weak && api.weak(owner, t, ctx.tags) ? R.TOUGH.weak : 0) + (glow ? R.TOUGH.glow : 0));
                 if (api.mark && !t.dead) api.mark(owner, t, ctx);
               }
-            }
+            } else if (first) (ctx.toughed = ctx.toughed || new Set()).add(t);
             if (ctx.shin === "frost" && !t.dead) api.addStatus(t, "취약", 1, 1);   // 눈보라 예보
             if (ctx.shin === "thorn" && !t.dead) api.addStatus(t, "중독", 2, 0);   // 가시 돋친 꿈
           }
@@ -134,36 +172,46 @@ export function runFx(s, fxList, ctx, api) {
 
       // ── 방어·실드·회복 ────────────────────────────────────────────
       // 방어·실드는 방어력 기준 — 낸 사도의 방어력. 주인 없는 카드(교주 카드)는 스탯 효과를 쓰지 않는다
-      // 양보하는 마음(축복) — 방어 · 실드 ×1.3
+      // 양보하는 마음(축복) — 방어 · 실드 ×1.3. 고정 실드(f.fixed)는 결의 · 손상 · 축복을 안 탄다
+      // 「「X」 1개당 방어력 N% 실드」 · 「… 1개당 파티 HP 회복(방어력 N%)」 — 배율에 쌓인 수를 곱한다(0 이면 안 준다). 한 번 쓰면 풀린다
       case "block": case "shield": {
         if (!owner) break;
-        const v0 = guardAmount(api, owner, f.ratio, ctx.shin);
+        let k = 1;
+        if (ctx.perStack) { k = perCount(s, ctx, ctx.perStack); ctx.perStack = null; if (!k) break; }
+        const ratio = f.ratio * k;
+        const v0 = f.fixed ? Math.max(1, Math.round(defOf(api, owner) * ratio)) : guardAmount(api, owner, ratio, ctx.shin);
         // 결의 · 손상 — 받는 쪽마다 얻는 양이 는다 · 준다(api.guardGain)
-        for (const t of resolve(s, ctx, f.target)) { const v = api.guardGain ? api.guardGain(t, v0) : v0; t[f.k] = (t[f.k] || 0) + v; if (api.gain) api.gain(t, f.k, v); }
+        for (const t of once(resolve(s, ctx, f.target))) { const v = !f.fixed && api.guardGain ? api.guardGain(t, v0) : v0; t[f.k] = (t[f.k] || 0) + v; if (api.gain) api.gain(t, f.k, v); }
         break;
       }
-      // 회복은 회복력 기준 — 낸 사도의 회복력
-      case "heal": if (owner) for (const t of resolve(s, ctx, f.target)) {
+      // 치유는 방어력 기준 — 낸 사도의 방어력(v6)
+      case "heal": if (owner) {
+        let k = 1;
+        if (ctx.perStack) { k = perCount(s, ctx, ctx.perStack); ctx.perStack = null; if (!k) break; }
+        for (const t of once(resolve(s, ctx, f.target))) {
         // 넘친 만큼(over)도 넘긴다 — 「회복량이 최대 HP를 초과하면」 패시브(passive.js overheal)
-        const h0 = t.hp, v = healAmount(api, owner, f.ratio, ctx.shin);
+        const h0 = t.hp, v = healAmount(api, owner, f.ratio * k, ctx.shin);
         t.hp = Math.min(t.maxHp, t.hp + v);
         if (api.heal) api.heal(t, h0, Math.max(0, h0 + v - t.maxHp));
+        }
       } break;
 
       // ── 능력치 증감 — 주는/받는 피해 · 공격력 · 방어력 · 치명 (이번 턴 · N턴간 · 이번 전투) ──
-      case "dealtMod": case "takenMod": case "atkMod": case "defMod": case "critMod": case "healMod": {
-        const stat = { dealtMod: "dealt", takenMod: "taken", atkMod: "atk", defMod: "def", critMod: "crit", healMod: "heal" }[f.k];
+      case "dealtMod": case "takenMod": case "atkMod": case "defMod": case "critMod": {
+        const stat = { dealtMod: "dealt", takenMod: "taken", atkMod: "atk", defMod: "def", critMod: "crit" }[f.k];
         // 대상 말이 없으면(auto) 적을 약하게 하는 것(받는 피해 + · 주는 피해 -)은 고른 적에게, 나머지는 자신에게.
         // 「자신」 이라고 적었으면 그대로 자신이다 — 스스로 거는 벌칙(이번 턴 자신 주는 피해 -20%)이 있다.
         let tg = f.target || "auto";
         if (tg === "auto") tg = (f.k === "takenMod" && f.v > 0) || (f.k === "dealtMod" && f.v < 0) ? "oneEnemy" : "self";
         // 「판 내내」(f.run) — 강화 카드의 버프. 엔진이 판에 적어 다음 전투에도 건다(combat fxApi addMod · run.js afterFight)
-        for (const t of resolve(s, ctx, tg)) api.addMod && api.addMod(t, stat, f.v, f.turns || 1, !!f.run);
+        // 증감은 사도마다 — 「파티」 면 사도 모두에게
+        for (const t of resolve(s, ctx, tg === "party" ? "allAllies" : tg)) api.addMod && api.addMod(t, stat, f.v, f.turns || 1, !!f.run);
         break;
       }
 
       // ── 자원 ──────────────────────────────────────────────────────
-      case "draw": api.draw(f.v); break;
+      // 카드 · 패시브의 드로우 — 「영감: …」 이 깨어나는 뽑기(턴 시작의 뽑기와 다르다)
+      case "draw": api.draw(f.v, { ability: true }); break;
       case "ap": s.ap = Math.max(0, s.ap + f.v); break;
       // 다음 카드 코스트 -N — 이 카드를 낸 뒤 처음 내는 카드에 붙는다(combat costOf · playCard 가 쓰고 지운다)
       case "nextCheaper": s.nextCheaper = (s.nextCheaper || 0) + f.v; break;
@@ -179,13 +227,17 @@ export function runFx(s, fxList, ctx, api) {
       case "status": {
         // 도발은 자기가 적을 끄는 것이다 — 대상 말이 적을 가리켜도 자신에게 건다
         const tg = f.id === "도발" ? "self" : f.target;
-        for (const t of resolve(s, ctx, tg)) api.addStatus(t, f.id, f.v, f.turns);
+        // 사도 층(사기 — rules.js HERO_ST)은 가리킨 사도마다 따로(「아군 전원 사기 1」 = 셋 모두 +1 · 「파티」 도 셋 모두).
+        // 파티 층(불굴 · 결의 · 취약 …)은 파티에 한 번
+        const mine = R.HERO_ST.includes(f.id);
+        const ts = resolve(s, ctx, mine && tg === "party" ? "allAllies" : tg);
+        for (const t of mine ? ts : once(ts)) api.addStatus(t, f.id, f.v, f.turns, owner);
         break;
       }
       case "strip": for (const t of resolve(s, ctx, f.target)) { t.block = 0; t.shield = 0; } break;
-      case "cleanse": for (const t of resolve(s, ctx, f.target)) api.cleanse(t, f.v); break;
-      case "invuln": for (const t of resolve(s, ctx, f.target)) t.invuln = true; break;
-      case "immune": for (const t of resolve(s, ctx, f.target)) t.immune = true; break;
+      case "cleanse": for (const t of once(resolve(s, ctx, f.target))) api.cleanse(t, f.v); break;
+      // 무적 — 사도에게 걸면 파티 전체가 무적이다(파티 HP 하나)
+      case "invuln": for (const t of once(resolve(s, ctx, f.target))) t.invuln = true; break;
 
       // ── 사도 전용 키워드 ──────────────────────────────────────────
       case "stack": {
@@ -199,7 +251,7 @@ export function runFx(s, fxList, ctx, api) {
           const FOE = ["oneEnemy", "allEnemies", "randomEnemy"];
           if (kw.carrier === "ally" && FOE.includes(tg)) tg = "self";
           if (kw.carrier === "enemy" && !FOE.includes(tg)) tg = "oneEnemy";
-          for (const t of resolve(s, ctx, tg)) {
+          for (const t of once(resolve(s, ctx, tg))) {
             t.status = t.status || {};
             const before = t.status[f.id] || 0;
             let next = Math.max(0, before + f.v);
@@ -233,8 +285,9 @@ export function runFx(s, fxList, ctx, api) {
       case "trigger": if (owner) api.trigger(owner, f.id, f.v); break;
 
       // ── 체력을 값으로 치르기 ──────────────────────────────────────
-      case "payHp": for (const t of resolve(s, ctx, f.target)) api.hurt(t, f.v, { pure: true }); break;
-      case "payHpPct": for (const t of resolve(s, ctx, f.target)) api.hurt(t, Math.round(t.maxHp * f.v), { pure: true }); break;
+      // 파티 HP 로 치른다 — 주인 없는 카드(상태 카드 「모자 속 쪽지」)는 파티가
+      case "payHp": for (const t of once(resolve(s, ctx, f.target === "self" && !owner ? "party" : f.target))) api.hurt(t, f.v, { pure: true }); break;
+      case "payHpPct": for (const t of once(resolve(s, ctx, f.target === "self" && !owner ? "party" : f.target))) api.hurt(t, Math.round(t.maxHp * f.v), { pure: true }); break;
 
       // ── 손패 ──────────────────────────────────────────────────────
       case "discard": api.discard(f.v, !!f.random); break;
@@ -244,8 +297,11 @@ export function runFx(s, fxList, ctx, api) {
       // 태그(보존·소멸·개전)는 엔진이 카드를 옮길 때 본다 · 「이번 전투」 는 증감의 길이로 이미 읽었다
       case "tag": case "scope": break;
 
+      // 카드 만들기 — 「「카드 이름」 1장 생성」(카제나 고유 효과의 「N 쌓이면 카드를 만든다」). 이 전투의 손에 든다(api.make)
+      case "make": if (api.make) api.make(f.id, f.v || 1, owner); break;
+
       case "costDelta": case "costSet": case "ratioDelta":
-      case "make": case "revive":
+      case "revive":
       case "extraTurn": case "lockCards":
       case "maxHpPct":
         s.pendingFx = s.pendingFx || {};

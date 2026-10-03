@@ -4,7 +4,7 @@
 //
 //   - 결과 낱말이 모두 읽히는가 — 못 읽은 말은 조용히 무시된다
 //   - 나오는 사도 · 선택지를 여는 사도 · 전투의 적이 실제로 있는가
-//   - 57종의 선택지 **전부**를 실제 판 상태에서 끝까지 골라 본다(고를 것은 첫 번째로) — 터지지 않는가, 결과가 적용되는가
+//   - 56종의 선택지 **전부**를 실제 판 상태에서 끝까지 골라 본다(고를 것은 첫 번째로) — 터지지 않는가, 결과가 적용되는가
 //   - 이벤트 칸이 층마다 1~2개, 한 판에 같은 이벤트가 두 번 안 나오는가
 import { EVENTS, CURSES } from "../js/data/events.js";
 import * as EV from "../js/events.js";
@@ -33,13 +33,14 @@ console.log("결과 낱말");
 console.log("");
 console.log("나오는 것");
 {
-  check(EVENTS.length === 57, `이벤트 ${EVENTS.length}종 (문서: 57)`);
+  // C3 「주말농장에서 온 편지」 는 뺐다 — 파티 HP 하나라 쓰러지는 사도가 없다(docs/16 §8)
+  check(EVENTS.length === 56, `이벤트 ${EVENTS.length}종 (문서: 56)`);
   const pools = { 공용: 0, 0: 0, 1: 0, 2: 0 };
   for (const ev of EVENTS) pools[ev.pool]++;
-  check(pools.공용 === 12 && pools[0] === 15 && pools[1] === 15 && pools[2] === 15, `풀 — 공용 ${pools.공용} · 에르피엔 ${pools[0]} · 모나티엄 ${pools[1]} · 벨리티엔 ${pools[2]}`);
+  check(pools.공용 === 11 && pools[0] === 15 && pools[1] === 15 && pools[2] === 15, `풀 — 공용 ${pools.공용} · 에르피엔 ${pools[0]} · 모나티엄 ${pools[1]} · 벨리티엔 ${pools[2]}`);
   const names = new Set();
-  // 사도가 아닌 인물(겨우살이 — js/ui.js NPC_ART) · 「쓰러진 사도」(파티에서 그때그때)는 기획서 이름이 아니다
-  const NOT_HERO = new Set(["겨우살이", "쓰러진 사도"]);
+  // 사도가 아닌 인물(겨우살이 — js/ui.js NPC_ART)은 기획서 이름이 아니다
+  const NOT_HERO = new Set(["겨우살이"]);
   for (const ev of EVENTS) {
     if (ev.npc && !NOT_HERO.has(ev.npc)) names.add(ev.npc);
     for (const o of ev.options) for (const h of [].concat(o.hero || [])) names.add(h);
@@ -63,12 +64,12 @@ console.log("나오는 것");
   if (EVENTS.some((ev) => ev.pool === "공용" && ev.options.some((o) => o.fight && !Array.isArray(o.fight.enemies) && FLOORS.some((_, f) => !o.fight.enemies[f]))))
     offFloor.push("공용 이벤트 전투에 적이 빠진 층이 있다");
   check(!offFloor.length, offFloor.length ? `다른 땅의 적: ${offFloor.join(", ")}` : "이벤트 전투의 적이 모두 그 층(공용은 층마다) 땅의 것이다");
-  // 무대 — 57종 모두 세울 그림이 있다(사도 · 겨우살이 · 쓰러진 사도 · 그 땅의 적). 적은 그 층(공용은 어느 층에나 있는 것) 땅의 것
+  // 무대 — 56종 모두 세울 그림이 있다(사도 · 겨우살이 · 그 땅의 적). 적은 그 층(공용은 어느 층에나 있는 것) 땅의 것
   const bare = EVENTS.filter((ev) => !ev.npc && !ev.foe).map((ev) => ev.id);
-  check(!bare.length, bare.length ? `무대에 세울 인물이 없는 이벤트: ${bare.join(", ")}` : "57종 모두 무대에 세울 인물(사도 · 겨우살이 · 쓰러진 사도 · 그 땅의 적)이 있다");
+  check(!bare.length, bare.length ? `무대에 세울 인물이 없는 이벤트: ${bare.join(", ")}` : "56종 모두 무대에 세울 인물(사도 · 겨우살이 · 그 땅의 적)이 있다");
   const badFoe = EVENTS.filter((ev) => ev.foe && (!ENEMIES[ev.foe] || (ev.pool === "공용" ? !floorFoes.every((F) => F.has(ev.foe)) : !floorFoes[ev.pool].has(ev.foe)))).map((ev) => `${ev.id} ${ev.foe}`);
   check(!badFoe.length, badFoe.length ? `무대의 적이 없거나 다른 땅의 것: ${badFoe.join(", ")}` : "무대에 세운 적이 모두 그 층 땅의 것이다");
-  check(EVENTS.every((ev) => ev.npc !== "쓰러진 사도" || ev.cond === "fallen"), "「쓰러진 사도」 를 세우는 이벤트는 쓰러진 사도가 있을 때만 나온다");
+  check(EVENTS.every((ev) => ev.npc !== "쓰러진 사도" && ev.cond !== "fallen"), "쓰러진 사도를 세우는 이벤트가 없다 — 파티 HP 하나(docs/16 §8)");
   const races = new Set(Object.values(HERO_DATA).map((h) => h.race));
   const badRace = EVENTS.flatMap((ev) => ev.options.filter((o) => o.race && !races.has(o.race)).map((o) => o.race));
   check(!badRace.length, badRace.length ? `없는 종족: ${badRace.join(", ")}` : "종족 조건이 실제 종족 이름이다");
@@ -97,9 +98,8 @@ console.log("선택지 전부 골라 보기");
           const run = newRun(partyFor(probe), {}, seed * 97 + oi);
           run.gold = 500;
           run.floor = ev.pool === "공용" ? seed - 1 : ev.pool;     // 공용은 세 층에서 한 번씩 — 층마다 적이 다른 전투(C9)
-          // 조건 맞추기 — 쓰러진 사도 · HP 30% 이하 · 고유 카드(신탁 대상)
-          if (ev.cond === "fallen") run.hp[run.party[2]] = 0;
-          if (probe.when === "hp30") run.hp[run.party[1]] = Math.floor(run.maxHp[run.party[1]] * 0.25);
+          // 조건 맞추기 — 파티 HP 30% 이하 · 고유 카드(신탁 대상)
+          if (probe.when === "hp30") run.partyHp = Math.floor(run.partyMaxHp * 0.25);
           const uni = Object.keys(CARDS).find((id) => CARDS[id].hero === run.party[0] && CARDS[id].unique);
           if (uni) run.deck.push(uni);
           run.event = { key: "t", choices: [ev.id], id: ev.id, phase: "choose", log: [], pending: [] };
@@ -115,7 +115,7 @@ console.log("선택지 전부 골라 보기");
             const p = run.event.pending[0];
             const v = p.k === "remove" || p.k === "dupe" ? run.deck[0]
               : p.k === "card" ? p.cards[0] : p.k === "flash" ? p.offer.picks[0]
-              : p.k === "pickHero" || p.k === "judgePick" ? run.party.find((k) => run.hp[k] > 0)
+              : p.k === "pickHero" || p.k === "judgePick" ? run.party[0]
               : p.k === "gambleChoice" ? p.options[0] : p.k === "shinPick" ? EV.shinAble(run, p.kind)[0] : p.k === "shinKind" ? p.options[0] : null;
             const w = EV.resolve(run, v);
             if (w) { stuck.push(`${ev.id} 「${probe.label}」 고르기(${p.k}): ${w}`); break; }
@@ -153,6 +153,12 @@ console.log("결과가 적용되는가");
   check(s.gauge === base.gauge + 50, `다음 전투 게이지 +50% (${s.gauge})`);
   check(s.hand.length === Math.min(10, base.hand.length + 2) || s.draw.length + s.hand.length === base.draw.length + base.hand.length, `다음 전투 첫 손패 +2 (${base.hand.length} → ${s.hand.length})`);
   check(!run.nextFight, "다음 전투 효과는 한 번 쓰면 사라진다");
+  // 한 번짜리 파티 버프 — 「다음 전투: 파티 불굴 2」 는 다음 전투 하나에만 걸고 시작한다
+  EV.apply(run, EV.parseOut("다음 전투: 파티 불굴 2"));
+  const nb = EV.takeNextFight(run);
+  const sb = newCombat({ partyKeys: run.party, rows: {}, deck: run.deck.slice(), enemyIds: ["fairymobcloserange"], seed: 3, next: nb });
+  const sb2 = newCombat({ partyKeys: run.party, rows: {}, deck: run.deck.slice(), enemyIds: ["fairymobcloserange"], seed: 3, next: EV.takeNextFight(run) });
+  check((sb.pool.status.불굴 || 0) - (base.pool.status.불굴 || 0) === 2 && (sb2.pool.status.불굴 || 0) === (base.pool.status.불굴 || 0), `다음 전투: 파티 불굴 2 — 그 전투만 (${sb.pool.status.불굴 || 0} · 다음 ${sb2.pool.status.불굴 || 0})`);
   // 기적 — 붙은 카드는 피해 ×1.3
   const id = run.deck.find((x) => CARDS[x] && CARDS[x].type === "공격" && CARDS[x].hero);
   const hit = (shin) => {

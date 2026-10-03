@@ -27,8 +27,7 @@ const wrap = (t, head) => (t.includes(head) ? t : `${head}\n\n${t}`);
 // 등급별 한도 — 늘 켜진 증감(항상)의 최대 % · 조건부/한 턴 증감의 최대 %
 const CAP = { 일반: { always: 4, burst: 10 }, 고급: { always: 6, burst: 15 }, 희귀: { always: 8, burst: 20 }, 전설: { always: 10, burst: 30 } };
 const MODS = ["dealtMod", "takenMod", "atkMod", "defMod", "critMod", "healMod"];
-// 스탯 줄의 「회복력 +N」 한도(기획서 장비 탭 머리말) — 회복에만 더하는 몫이라 공격력보다 크게 준다
-const HEAL_CAP = { 일반: 3, 고급: 4, 희귀: 6, 전설: 8 };
+// 스탯 줄의 옛 「회복력 +N」 은 v6 에 없앴다(치유도 방어력 — 「방어 +3N」 으로 옮겼다, tools/convert-v6.js)
 const RESOURCE = ["ap", "draw", "gauge"];
 
 let ok = 0, bad = 0;
@@ -65,19 +64,12 @@ for (const e of Object.values(equips)) {
   const errs = [], notes = [];
   const eff = e.effect && !/^없음/.test(e.effect) ? e.effect.replace(/\s*\[[^\]]+\]/g, "").trim() : null;
   if (!eff && e.grade !== "일반") errs.push(`효과가 없다 — ${e.grade} 이상은 하는 일이 하나는 있어야 한다`);
-  let heals = false;
   if (eff) {
     const rs = checkRules(eff, "효과", e.grade, errs, { allowAlways: e.grade === "일반" || e.grade === "고급" });
     notes.push(rs.map((r) => r.when.on).join("/"));
-    heals = rs.some((r) => r.fx.some((f) => f.k === "heal" || f.k === "healMod"));
   }
-  // 회복력 스탯 — 등급 한도 안에서, 회복이 하는 일인 장비에만(회복 효과가 있거나, 효과 없는 일반 장비)
-  if (e.stats.heal) {
-    notes.push(`회복력 +${e.stats.heal}`);
-    if (e.stats.heal > (HEAL_CAP[e.grade] || 0)) errs.push(`회복력 +${e.stats.heal} 은 ${e.grade} 한도(+${HEAL_CAP[e.grade]})를 넘는다`);
-    const affHeals = e.affinityText && /HP\s*회복|회복력\s*\+/.test(e.affinityText);
-    if (!heals && !affHeals && !(e.grade === "일반" && !eff)) errs.push("회복력 스탯은 회복 효과가 있는 장비에만 붙인다");
-  }
+  // 스탯 줄 — v6 카제나 눈금(옛 값 ×10). 「회복력」 은 없다(치유도 방어력)
+  if (/회복력/.test(e.statLine || "")) errs.push("스탯 줄에 회복력이 있다 — v6 에 없앴다(방어 +N 으로)");
   if (e.affinity) {
     const aff = (e.affinityText || "").replace(/\s*Lv\.3:.*$/, "").trim();
     if (!aff) errs.push("애착 장비인데 애착 효과가 없다");
@@ -151,7 +143,8 @@ for (const c of Object.values(neutral)) {
     if (c.cost !== "X" && fc === 0 && !zero) errs.push(`${at}교주 카드 신탁은 0코로 내리지 않는다`);
     if (zero && (fc !== 0 || !gone || !body.some((x) => x.k === "ap" && x.v === 1))) errs.push(`${at}0코 예외 카드의 신탁은 0코 · 소멸 · AP +1 그대로`);
     if (typeof fc === "number" && fc > 3) errs.push(`${at}3코 위로 올리지 않는다`);
-    if (c.cost !== "X" && fc > c.cost && gone) errs.push(`${at}코스트를 올린 신탁에 소멸을 같이 붙이지 않는다`);
+    // 기본 카드가 이미 소멸이면 소멸은 새로 붙인 벌이 아니다 — 코스트를 올린 큰 한 방 신탁을 허락한다(장비 작성자 바람, 2026-10)
+    if (c.cost !== "X" && fc > c.cost && gone && !tags.includes("소멸")) errs.push(`${at}코스트를 올린 신탁에 소멸을 같이 붙이지 않는다`);
     // 연계 · 천상은 비용 없이 저절로 나간다 — 신탁 글에 붙어 있으면 코스트를 올리지 않는다(사도 고유 카드와 같은 규칙, check-hero)
     { const auto = r.fx.find((x) => x.k === "tag" && (x.id === "연계" || x.id === "천상"));
       if (auto && typeof c.cost === "number" && typeof fc === "number" && fc > c.cost) errs.push(`${at}${auto.id} 카드는 코스트를 올리는 신탁을 두지 않는다(비용 없이 나간다)`); }

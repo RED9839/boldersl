@@ -8,9 +8,12 @@
 // 적는 모양 { v, run, combat } — v 가 다르거나, 깨졌거나, 모르는 카드 · 사도 · 적이 나오면 버리고 로비에서 시작한다.
 //   run     판 그대로(JSON) + rngState. run.where 가 어느 화면인지(map · event · camp · shop · fight · fightDone)
 //   combat  싸움 중일 때만(where 가 fight). 적의 수(intent)는 적 데이터 안의 길로, 신탁 장부(book)는 읽을 때 다시 만든다
+// 파티 HP(2026-10, docs/16 §8) — 판은 run.partyHp · run.partyMaxHp, 싸움은 combat.pool 하나. 옛 저장(사도마다 hp · maxHp)은
+//   읽을 때 더해서 하나로 바꾼다(run.js migrateRun · combat.js linkParty). 판 번호(v)는 그대로 — 옛 판도 이어 한다
 // 브라우저가 저장을 막아도 게임은 돈다 — 이어하기만 안 될 뿐이다.
 import { DEV } from "./dev.js";
-import { makeRng } from "./combat.js";
+import { makeRng, linkParty } from "./combat.js";
+import { migrateRun } from "./run.js";
 import { CARDS, HERO_DATA, EQUIP, flashed } from "./cardbook.js";
 import { ENEMIES } from "./data/enemies.js";
 
@@ -58,7 +61,8 @@ export function unpackCombat(data) {
   // 신탁을 얹은 장부 — 고른 신탁(flash)에서 다시 만든다(newCombat · applyEpiphany 와 같은 것)
   s.book = {};
   for (const [id, n] of Object.entries(s.flash || {})) if (CARDS[id]) s.book[id] = flashed(CARDS[id], n);
-  return s;
+  // 파티 손잡이(사도의 hp · status … → s.pool)를 다시 건다. 옛 싸움(사도마다 HP)이면 여기서 하나로 합친다
+  return linkParty(s);
 }
 
 // ── 판 ──────────────────────────────────────────────────────────────────
@@ -72,7 +76,7 @@ export function unpackRun(data) {
   if (typeof rngState !== "number") throw new Error("판 난수가 없다");
   run.rng = makeRng(1);
   run.rng.state = rngState;
-  return run;
+  return migrateRun(run);
 }
 
 // 한 벌 — 싸움 중이 아니면 combat 은 넣지 않는다

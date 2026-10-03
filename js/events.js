@@ -5,7 +5,8 @@
 //   바로 되는 것  골드 · HP · 최대 HP · 장비(무작위 한 점) · 다음 전투 효과 · 골칫거리 · 지도 공개 …
 //   고르는 것    카드 제거 · 카드 복제 · 고유 카드 · 교주 카드 · 신탁 · 사도 1명 — 화면이 하나씩 묻는다
 
-import { EVENTS, CURSES } from "./data/events.js";
+import { EVENTS, CURSES, GIFTS } from "./data/events.js";
+import { parseEffect } from "./effects.js";
 import { 은는, 을를, josa } from "./ko.js";
 import { CARDS, NEUTRAL_IDS, EQUIP, HERO_DATA, flashed } from "./cardbook.js";
 import * as R from "./rules.js";
@@ -13,6 +14,12 @@ import { rewardCards, offerFlash, offerEquip, offerEquipSlot, forgetCard, divine
 
 export { EVENTS };
 const koOf = (k) => (HERO_DATA[k] || {}).ko || k;
+
+// 이벤트 카드(docs/08 §1 · v6) — 골칫거리(저주)와 선물 카드를 카드 글 문법으로 장부에 올린다.
+// cardbook 은 골칫거리를 효과 없이 자리만 올린다 — 글이 카드 글인 것(rule)은 여기서 효과를 읽어 얹는다
+const cardFx = (text) => { const { fx } = parseEffect(text); return { fx, target: fx.some((f) => f.target === "oneEnemy") ? "적" : fx.some((f) => f.target === "oneAlly") ? "아군" : "없음" }; };
+for (const c of Object.values(CURSES)) if (c.rule && CARDS[c.id]) Object.assign(CARDS[c.id], cardFx(c.text));
+for (const [ko, c] of Object.entries(GIFTS)) CARDS[c.id] = { id: c.id, hero: null, gift: true, name: ko, cost: c.cost, xcost: false, type: c.type || "스킬", text: c.text, built: true, unique: false, signature: false, flash: null, tags: [], playable: true, blurb: c.blurb || null, ...cardFx(c.text) };
 
 // ── 결과 낱말 읽기 ─────────────────────────────────────────────────────
 // 「골드 -120 · 장비 (희귀)」 → [{ k: "gold", v: -120 }, { k: "equip", grade: "희귀" }]
@@ -23,6 +30,9 @@ const RULES_OUT = [
   [/^골드\s*([+\-])\s*(\d+)$/, (m) => ({ k: "gold", v: (m[1] === "-" ? -1 : 1) * Number(m[2]) })],
   [/^HP\s*([+\-])\s*(\d+)\s*%(?:\s*\((.+)\))?$/, (m) => ({ k: "hp", v: (m[1] === "-" ? -1 : 1) * Number(m[2]) / 100, who: who(m[3]) })],
   [/^최대\s*HP\s*\+\s*(\d+)(?:\s*\((.+)\))?$/, (m) => ({ k: "maxHp", v: Number(m[1]), who: who(m[2]) })],
+  [/^최대\s*HP\s*-\s*(\d+)$/, (m) => ({ k: "maxHp", v: -Number(m[1]) })],         // v6 — 파티 최대 HP 를 깎는 대가
+  // 선물 카드(GIFTS) — 덱에 한 장. 화면용 풀이(〔카드 글〕)가 붙어 있어도 읽는다(outOf)
+  [/^카드\s*「(.+?)」(?:\s*〔.*〕)?$/, (m) => (GIFTS[m[1]] ? { k: "gift", name: m[1] } : { k: "unknown", text: m[0] })],
   [/^카드\s*제거\s*(\d+)$/, (m) => ({ k: "remove", n: Number(m[1]) })],
   [/^카드\s*복제\s*(\d+)$/, (m) => ({ k: "dupe", n: Number(m[1]) })],
   [/^고유\s*카드\s*선택$/, () => ({ k: "unique" })],
@@ -41,25 +51,26 @@ const RULES_OUT = [
   // 카드 강화로서의 기적 — 덱에서 카드 한 장을 골라 기적을 얹는다(위력 ×1.3 / 비용 -1). 신탁이 없어도 된다
   [/^기적\s*카드\s*(\d+)$/, (m) => ({ k: "shinPick", n: Number(m[1]), kind: null })],
   [/^기적\s*카드\s*(\d+)\s*\(\s*(위력|비용)\s*\)$/, (m) => ({ k: "shinPick", n: Number(m[1]), kind: m[2] === "비용" ? "cost" : "power" })],
-  [/^골칫거리\s*「(.+)」$/, (m) => ({ k: "curse", name: m[1] })],
+  [/^골칫거리\s*「(.+?)」(?:\s*〔.*〕)?$/, (m) => (CURSES[m[1]] ? { k: "curse", name: m[1] } : { k: "unknown", text: m[0] })],
   [/^지도\s*공개$/, () => ({ k: "scout" })],
   [new RegExp(`^다음\\s*상점:\\s*장비\\s*\\((${GRADES})\\)$`), (m) => ({ k: "shopGift", grade: m[1] })],
   [/^다음\s*보상:\s*신탁\s*1$/, () => ({ k: "rewardFlash" })],
   [/^다음\s*전투:\s*첫\s*턴\s*AP\s*([+\-])\s*(\d+)$/, (m) => ({ k: "next", ap: (m[1] === "-" ? -1 : 1) * Number(m[2]) })],
   [/^다음\s*전투:\s*(?:고학년\s*)?게이지\s*\+\s*(\d+)\s*%$/,(m) => ({ k: "next", gauge: Number(m[1]) })],
   [/^다음\s*전투:\s*첫\s*손패\s*\+\s*(\d+)$/, (m) => ({ k: "next", hand: Number(m[1]) })],
-  [/^다음\s*전투:\s*아군\s*전원\s*약화\s*(\d+)\s*턴?$/, (m) => ({ k: "next", weak: Number(m[1]) })],   // 겹(rules.js 겹 규칙) — 옛 글 「N턴」 도 받는다
+  [/^다음\s*전투:\s*(?:아군\s*전원|파티)\s*약화\s*(\d+)\s*턴?$/, (m) => ({ k: "next", weak: Number(m[1]) })],   // 겹(rules.js 겹 규칙) — 옛 글 「N턴」 도 받는다
   [/^다음\s*전투:\s*HP\s*-\s*(\d+)\s*%$/, (m) => ({ k: "next", hpCut: Number(m[1]) / 100 })],
   // 새 적 규칙과 엮인 것(docs/12) — 첫 턴 즉시 행동 늦추기 · 적 취약 · 적 패시브 잠재우기.
   // 글은 「즉시 행동 N장 늦춤」, 옛 글 「즉시 행동 -N」 도 읽는다
   [/^다음\s*전투:\s*첫\s*턴\s*적\s*전체\s*즉시\s*행동\s*(?:-\s*(\d+)|(\d+)\s*장\s*늦춤)$/, (m) => ({ k: "next", rush: Number(m[1] || m[2]) })],
   [/^다음\s*전투:\s*적\s*전체\s*취약\s*(\d+)\s*턴?$/, (m) => ({ k: "next", foeVuln: Number(m[1]) })],
   [/^다음\s*전투:\s*적\s*패시브\s*꺼짐\s*(\d+)\s*턴$/, (m) => ({ k: "next", quiet: Number(m[1]) })],
+  // 「다음 전투: 파티 불굴 2」 — 다음 전투 하나에만 파티 버프를 걸고 시작한다(한 번짜리, 2026-10 이벤트 작성자 바람)
+  [/^다음\s*전투:\s*(?:아군\s*전원|파티)\s*(불굴|결의|결정화|피해 감소|면역|반격|실드 유지|협공|잔광|저장)\s*(\d+)$/, (m) => ({ k: "next", buff: { [m[1]]: Number(m[2]) } })],
 ];
 function who(s) {
   if (!s) return { all: true };
   if (s === "사도 1명") return { pick: true };
-  if (s === "쓰러진 사도") return { fallen: true };
   if (s === "그 사도") return { judged: true };
   return { hero: s };
 }
@@ -87,7 +98,8 @@ export function dueEvent(run) {
 const heroesOf = (run) => run.party.map((k) => ({ key: k, ko: koOf(k), race: (HERO_DATA[k] || {}).race }));
 // 이름 앞부분이 같으면 이격도 친다 — 「에르핀」 은 에르핀(왕도)도
 const hasHero = (run, name) => heroesOf(run).some((h) => h.ko === name || h.ko.startsWith(name + "("));
-const fallen = (run) => run.party.filter((k) => (run.hp[k] || 0) <= 0);
+// 파티 HP(docs/16 §8) — 사도마다 HP 가 없다. HP 결과는 모두 파티의 것
+const hpRatio = (run) => (run.partyHp || 0) / (run.partyMaxHp || 1);
 
 // 이 층에서 아직 나올 이벤트가 남았는가 — 지도에 이벤트 칸이 많은 길을 고르면 한 판에 한 번씩이라 바닥날 수 있다
 export function eventLeft(run) { return EVENTS.some((e) => eligible(run, e)); }
@@ -95,7 +107,6 @@ export function eventLeft(run) { return EVENTS.some((e) => eligible(run, e)); }
 function eligible(run, ev) {
   if ((run.eventsSeen || []).includes(ev.id)) return false;           // 한 판에 한 번
   if (ev.pool !== "공용" && ev.pool !== run.floor) return false;
-  if (ev.cond === "fallen" && !fallen(run).length) return false;
   return true;
 }
 
@@ -143,7 +154,7 @@ export function optionsOf(run, ev) {
   const opts = ev.options.filter((o) => {
     if (o.hero) return [].concat(o.hero).some((n) => hasHero(run, n));
     if (o.race) return heroesOf(run).some((h) => h.race === o.race);
-    if (o.when === "hp30") return run.party.some((k) => (run.hp[k] || 0) > 0 && run.hp[k] / run.maxHp[k] <= 0.3);
+    if (o.when === "hp30") return hpRatio(run) <= 0.3;
     return true;
   });
   return [...opts, { label: ev.leave || "떠납니다", out: ev.leaveOut || "없음", say: ev.leaveSay || null, leave: true }];
@@ -151,15 +162,16 @@ export function optionsOf(run, ev) {
 
 // 이 선택지가 실제로 무엇을 하는가 — 사도에 따라 바뀌는 값(E5 네르)을 반영한 결과 글
 export function outOf(run, opt) {
-  if (opt.price && hasHero(run, opt.price.hero)) return opt.price.out;
-  return opt.out || null;
+  const out = opt.price && hasHero(run, opt.price.hero) ? opt.price.out : opt.out || null;
+  // 이벤트 카드는 이름만으로 무엇을 하는지 모른다 — 화면에 카드 글을 붙여 보여 준다(parseOut 은 〔…〕 를 건너 읽는다)
+  return out && out.replace(/(카드|골칫거리)\s*「(.+?)」/g, (t, k, n) => { const c = (k === "카드" ? GIFTS : CURSES)[n]; return c && c.text ? `${t}〔${c.text}〕` : t; });
 }
 
 // 누구 덕에 보이는 선택지인가 — 화면이 초상을 붙인다
 export function openedBy(run, opt) {
   if (opt.hero) return heroesOf(run).find((h) => [].concat(opt.hero).some((n) => h.ko === n || h.ko.startsWith(n + "("))) || null;
   if (opt.race) return heroesOf(run).find((h) => h.race === opt.race) || null;
-  if (opt.when === "hp30") return heroesOf(run).find((h) => (run.hp[h.key] || 0) > 0 && run.hp[h.key] / run.maxHp[h.key] <= 0.3) || null;
+  if (opt.when === "hp30") return null;   // 파티가 다쳤다 — 한 사람의 덕이 아니다
   return null;
 }
 
@@ -168,13 +180,14 @@ export function judgeOf(run, opt) {
   const j = opt.judge;
   if (!j) return null;
   if (j.by === "atk-max") {
-    const top = run.party.filter((k) => (run.hp[k] || 0) > 0)
+    const top = run.party
       .map((k) => ({ k, v: (HERO_DATA[k] || {}).atk || 0 })).sort((a, b) => b.v - a.v)[0];
     if (!top) return { pass: false, who: null, value: 0, need: j.at };
     return { pass: top.v >= j.at, who: top.k, value: top.v, need: j.at };
   }
-  // hp-pick — 사도 한 명을 고른다. 판정은 고른 뒤에
-  return { pick: true, need: j.at };
+  // hp-party — 파티 HP 가 파티 최대 HP 의 at% 이상이면 성공(옛 hp-pick — 사도 한 명의 HP 를 보던 것)
+  const pct = Math.round(hpRatio(run) * 100);
+  return { pass: pct >= j.at, who: null, value: pct, need: j.at, hp: true };
 }
 
 // 못 고르는 까닭 — 골드가 모자라면 잠긴다
@@ -185,7 +198,7 @@ export function lockOf(run, opt) {
   const need = Math.max(cost, opt.needGold || 0);
   if (need && run.gold < need) return `골드가 모자랍니다 (${need} 필요)`;
   if (ops.some((o) => o.k === "remove") && run.deck.length <= ops.find((o) => o.k === "remove").n) return "뺄 카드가 모자랍니다";
-  if (opt.judge && opt.judge.by === "hp-pick" && !run.party.some((k) => (run.hp[k] || 0) > 0)) return "나설 사도가 없습니다";
+  if (ops.some((o) => o.k === "gift" && R.isOnly(CARDS[GIFTS[o.name].id]) && run.deck.includes(GIFTS[o.name].id))) return "유일 — 이미 덱에 있는 카드입니다";
   return null;
 }
 
@@ -221,13 +234,9 @@ export function choose(run, idx, { pickHero } = {}) {
   }
   if (opt.judge) {
     const j = judgeOf(run, opt);
-    if (j.pick) {
-      E.phase = "result"; E.pending = [{ k: "judgePick", judge: opt.judge }];
-      return {};
-    }
     E.judged = j.who;
     out = j.pass ? opt.judge.pass : opt.judge.fail;
-    E.log.push(`${koOf(j.who)} — 공격 ${j.value} (${j.need} 이상이면 성공) · ${j.pass ? "성공" : "실패"}`);
+    E.log.push(j.hp ? `파티 HP ${j.value}% (${j.need}% 이상이면 성공) · ${j.pass ? "성공" : "실패"}` : `${koOf(j.who)} — 공격 ${j.value} (${j.need} 이상이면 성공) · ${j.pass ? "성공" : "실패"}`);
     say = j.pass ? (opt.judge.passSay || say) : say;
   }
   E.phase = "result"; E.say = say;
@@ -243,22 +252,23 @@ function seen(run, ev) {
 // 결과를 적용한다. 바로 되는 것은 여기서, 고르는 것은 pending 에 쌓는다
 export function apply(run, ops) {
   const E = run.event;
-  const alive = run.party.filter((k) => (run.hp[k] || 0) > 0);
   for (const o of ops) {
     switch (o.k) {
       case "none": break;
       case "gold": run.gold = Math.max(0, run.gold + o.v); E.log.push(`골드 ${o.v > 0 ? "+" : ""}${o.v}`); break;
+      // HP · 최대 HP — 파티 HP 하나(docs/16 §8). 괄호(「(그 사도)」 따위)가 남은 옛 글도 파티로 읽는다
       case "hp": {
-        if (o.who.pick) { E.pending.push({ k: "pickHero", then: { k: "hp", v: o.v } }); break; }
-        const who = o.who.fallen ? fallen(run) : o.who.hero ? run.party.filter((k) => koOf(k) === o.who.hero || koOf(k).startsWith(o.who.hero + "("))
-          : o.who.judged ? [E.judged].filter(Boolean) : alive;
-        for (const k of who) hpChange(run, k, o.v, o.who.fallen);
-        E.log.push(`${o.who.fallen ? "쓰러진 사도" : o.who.hero || (o.who.judged ? koOf(E.judged) : "파티 전원")} HP ${o.v > 0 ? "+" : ""}${Math.round(o.v * 100)}%`);
+        hpChange(run, o.v);
+        E.log.push(`파티 HP ${o.v > 0 ? "+" : ""}${Math.round(o.v * 100)}%`);
         break;
       }
       case "maxHp": {
-        if (o.who.pick) { E.pending.push({ k: "pickHero", then: { k: "maxHp", v: o.v } }); break; }
-        for (const k of run.party) { run.maxHp[k] += o.v; if ((run.hp[k] || 0) > 0) run.hp[k] += o.v; }
+        if (o.v < 0) {      // 깎는 대가 — 최대가 줄면 지금 HP 도 그 안으로
+          run.partyMaxHp = Math.max(1, run.partyMaxHp + o.v); run.partyHp = Math.min(run.partyHp, run.partyMaxHp);
+          E.log.push(`파티 최대 HP ${o.v}`);
+          break;
+        }
+        run.partyMaxHp += o.v; run.partyHp += o.v;
         E.log.push(`파티 최대 HP +${o.v}`);
         break;
       }
@@ -308,7 +318,13 @@ export function apply(run, ops) {
       }
       case "curse": {
         const c = CURSES[o.name];
-        if (c) { run.deck.push(c.id); E.log.push(`골칫거리 「${o.name}」 — 덱에`); }
+        if (c) { run.deck.push(c.id); E.log.push(`골칫거리 「${o.name}」 — 덱에${c.rule ? ` (${c.text})` : ""}`); }
+        break;
+      }
+      case "gift": {
+        const c = GIFTS[o.name];
+        if (R.isOnly(CARDS[c.id]) && run.deck.includes(c.id)) { E.log.push(`「${o.name}」 — 유일, 이미 덱에 있습니다`); break; }
+        run.deck.push(c.id); E.log.push(`「${o.name}」 — 덱에 (${c.text})`);
         break;
       }
       case "scout": run.scout = true; E.log.push("지도 공개 — 다음 이벤트 칸에서 둘 중 하나를 고릅니다"); break;
@@ -317,6 +333,7 @@ export function apply(run, ops) {
       case "next": {
         const n = (run.nextFight = run.nextFight || {});
         for (const f of ["ap", "gauge", "hand", "weak", "hpCut", "rush", "foeVuln", "quiet"]) if (o[f] != null) n[f] = (n[f] || 0) + o[f];
+        if (o.buff) { n.buff = n.buff || {}; for (const [id, v] of Object.entries(o.buff)) n.buff[id] = (n.buff[id] || 0) + v; }
         E.log.push(nextLabel(o));
         break;
       }
@@ -325,21 +342,22 @@ export function apply(run, ops) {
   }
 }
 
-function hpChange(run, k, v, revive) {
-  if ((run.hp[k] || 0) <= 0 && !revive) return;            // 쓰러진 사도는 주말농장에서 쉰다
-  const max = run.maxHp[k] || 1;
-  run.hp[k] = Math.max(v < 0 ? 1 : 0, Math.min(max, (run.hp[k] || 0) + Math.round(max * v)));
+// 파티 HP 를 최대의 v 만큼 — 깎여도 1 은 남는다(이벤트로 판이 끝나지 않는다)
+function hpChange(run, v) {
+  const max = run.partyMaxHp || 1;
+  run.partyHp = Math.max(1, Math.min(max, (run.partyHp || 0) + Math.round(max * v)));
 }
 
 const nextLabel = (o) => "다음 전투: " + [
   o.ap != null && `첫 턴 AP ${o.ap > 0 ? "+" : ""}${o.ap}`,
   o.gauge != null && `고학년 게이지 +${o.gauge}%`,
   o.hand != null && `첫 손패 +${o.hand}`,
-  o.weak != null && `아군 전원 약화 ${o.weak}`,
-  o.hpCut != null && `파티 전원 HP -${Math.round(o.hpCut * 100)}%`,
+  o.weak != null && `파티 약화 ${o.weak}`,
+  o.hpCut != null && `파티 HP -${Math.round(o.hpCut * 100)}%`,
   o.rush != null && `첫 턴 적 전체 즉시 행동 ${o.rush}장 늦춤`,
   o.foeVuln != null && `적 전체 취약 ${o.foeVuln}`,
   o.quiet != null && `적 패시브 꺼짐 ${o.quiet}턴`,
+  ...Object.entries(o.buff || {}).map(([id, v]) => `파티 ${id} ${v}`),
 ].filter(Boolean).join(" · ");
 
 function neutralOffer(run, grade, n) {
@@ -429,25 +447,6 @@ export function resolve(run, value) {
       }
       break;
     }
-    case "pickHero": {
-      if (!run.party.includes(value)) return "파티에 없는 사도입니다";
-      const t = p.then;
-      if (t.k === "hp") hpChange(run, value, t.v, false);
-      if (t.k === "maxHp") { run.maxHp[value] += t.v; if ((run.hp[value] || 0) > 0) run.hp[value] += t.v; }
-      E.log.push(`${koOf(value)} — ${t.k === "hp" ? `HP ${t.v > 0 ? "+" : ""}${Math.round(t.v * 100)}%` : `최대 HP +${t.v}`}`);
-      break;
-    }
-    case "judgePick": {
-      if (!run.party.includes(value) || (run.hp[value] || 0) <= 0) return "나설 수 있는 사도가 아닙니다";
-      const hp = run.hp[value];
-      const pass = hp >= p.judge.at;
-      E.judged = value;
-      E.log.push(`${koOf(value)} — HP ${hp} (${p.judge.at} 이상이면 성공) · ${pass ? "성공" : "실패"}`);
-      if (pass && p.judge.passSay) E.say = p.judge.passSay;
-      E.pending.shift();
-      apply(run, parseOut(pass ? p.judge.pass : p.judge.fail));
-      return null;
-    }
     case "gambleChoice": {
       if (!p.options.includes(value)) return "고를 수 없습니다";
       E.pending.shift();
@@ -490,7 +489,8 @@ function ownRandom(run, c) {
   return own.length ? own[Math.floor(run.rng() * own.length)] : null;
 }
 // 강화 카드(rules.js isPower)도 한 장만 — 복제할 수 없다. run 을 주면 「강화 카드.」 신탁을 붙인 카드도 막는다
-export function dupeOk(id, run) { const c = CARDS[id]; return !!c && !R.isOnly(run ? flashed(c, (run.flash || {})[id]) : c); }
+// 복제 — 유일(rules.js isOnly)과 금기(rules.js isTaboo — v6 카제나)는 안 된다
+export function dupeOk(id, run) { const c = CARDS[id]; return !!c && !R.isOnly(run ? flashed(c, (run.flash || {})[id]) : c) && !R.isTaboo(c); }
 export function dupeExtra(run, id) { return (run.flash || {})[id] || (run.shin || {})[id] ? R.DUPE_FLASH_EXTRA : 0; }
 
 // 이벤트를 닫는다 — 다음 칸으로

@@ -8,9 +8,10 @@ import { valueOf } from "./card-value.js";
 
 export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
   const { CARDS, EQUIP, HERO_DATA } = B;
-  const alive = (run) => run.party.filter((k) => (run.hp[k] || 0) > 0);
-  const hpRatio = (run) => { const a = alive(run); return a.length ? a.reduce((x, k) => x + run.hp[k] / run.maxHp[k], 0) / run.party.length : 0; };
-  const minRatio = (run) => Math.min(...alive(run).map((k) => run.hp[k] / run.maxHp[k]), 1);
+  // 파티 HP 하나(docs/16 §8) — 사도는 늘 나선다
+  const alive = (run) => ((run.partyHp || 0) > 0 ? run.party.slice() : []);
+  const hpRatio = (run) => (run.partyHp || 0) / (run.partyMaxHp || 1);
+  const minRatio = hpRatio;
   const cardEff = (id, n) => {
     const c = n ? B.flashed(CARDS[id], n) : CARDS[id];
     if (!c) return 0;
@@ -25,7 +26,9 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
     if (!id) return 0;
     const e = EQUIP[id], s = R.statsOf(id, k), role = (HERO_DATA[k] || {}).role;
     const atkW = role === "딜러" ? 3 : role === "서포터" ? 1.8 : 1.4;
-    let v = s.hp * 0.3 + s.atk * atkW + s.def * (role === "탱커" ? 2.2 : 1) + s.crit * 0.25 + s.heal * (role === "서포터" ? 1.6 : 0.4);
+    // 스탯은 v6 눈금(옛 값 ×10 — rules.js SCALE). 치유도 방어력이라 서포터의 방어 몫이 크다
+    const KS = RULES.SCALE || 1;
+    let v = (s.hp * 0.3 + s.atk * atkW + s.def * (role === "탱커" ? 2.2 : role === "서포터" ? 2 : 1)) / KS + s.crit * 0.25;
     if (e.effect && e.effectRead) v += 4;
     if (e.affinity === k && e.affinityRead) v += 5;
     return v;
@@ -35,7 +38,6 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
       const e = EQUIP[id]; if (!e) continue;
       let best = null, gain = smart ? 0.5 : -1e9;
       for (const k of run.party) {
-        if ((run.hp[k] || 0) <= 0 && smart) continue;
         const old = R.gearOf(run, k)[e.slot];
         if (!smart) { if (!old) { best = k; break; } continue; }
         const g = gearScore(id, k) - gearScore(old, k) - (old ? 0 : -1);
@@ -119,9 +121,7 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
       const h = hpRatio(run), lo = minRatio(run);
       const bossNext = kind === "final" || M.reachable(run).some((id) => (M.nodeById(M.mapOf(run), id) || {}).type === "boss");
       const tp = trainPick(run);
-      // 주말농장에 간 사도가 있으면 쉰다 — 쉬기가 그 사도를 돌려보낸다(rules.js CAMP_REVIVE)
-      const down = alive(run).length < run.party.length;
-      if (!tp || down || h < (bossNext ? 0.75 : 0.55) || lo < 0.35) R.campRest(run); else R.campTrain(run, tp);
+      if (!tp || h < (bossNext ? 0.75 : 0.55) || lo < 0.35) R.campRest(run); else R.campTrain(run, tp);
       manageGear(run, true);
     } else {
       R.campRest(run);
@@ -138,7 +138,7 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
     if (!run.shop || run.shop.floor !== run.floor || run.shop.at !== at) { R.rollShop(run); run.shop.at = at; }
     // 장비 — 누구 칸이든 지금보다 확실히 나아지면. 그다음 약한 카드 빼기, 남는 골드로 쓸 만한 교주 카드
     const items = run.shop.items;
-    const eqGain = (id) => Math.max(...run.party.filter((k) => (run.hp[k] || 0) > 0).map((k) => gearScore(id, k) - gearScore(R.gearOf(run, k)[EQUIP[id].slot], k)));
+    const eqGain = (id) => Math.max(...run.party.map((k) => gearScore(id, k) - gearScore(R.gearOf(run, k)[EQUIP[id].slot], k)));
     const order = items.map((it, i) => ({ it, i, v: it.kind === "equip" ? eqGain(it.id) / Math.max(30, it.price) * 10 : (cardEff(it.id) - 0.9) * 2 / Math.max(30, it.price) * 100 }))
       .filter((x) => !x.it.sold).sort((a, b) => b.v - a.v);
     for (const x of order) {
@@ -153,6 +153,8 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
 
   // ── 이벤트 ────────────────────────────────────────────────────────────
   const GRADE_V = { 일반: 10, 고급: 15, 희귀: 22, 전설: 30 };
+  // HP 는 v6 눈금(rules.js SCALE — 옛 값 ×10)이다. 아래 값은 옛 눈금의 HP 하나 = 1 로 잡았다 — HP 몫은 K 로 나눈다
+  const K = RULES.SCALE || 1;
   function opsValue(run, ops) {
     let v = 0;
     const live = alive(run);
@@ -160,17 +162,13 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
       switch (o.k) {
         case "gold": v += 0.2 * Math.max(o.v, -run.gold); break;
         case "hp": {
-          const who = o.who.pick ? [live.sort((a, b) => run.hp[a] / run.maxHp[a] - run.hp[b] / run.maxHp[b])[0]].filter(Boolean)
-            : o.who.fallen ? run.party.filter((k) => (run.hp[k] || 0) <= 0) : o.who.all || o.who.judged ? live : run.party.filter((k) => (HERO_DATA[k] || {}).ko === o.who.hero);
-          for (const k of who) {
-            const d = Math.round(run.maxHp[k] * o.v);
-            if (o.who.fallen) v += 60 + d;
-            else if (d > 0) v += Math.min(d, run.maxHp[k] - run.hp[k]);
-            else v += d * (run.hp[k] + d < run.maxHp[k] * 0.3 ? 2 : 1.1);
-          }
+          // 파티 HP — 셋을 합친 몸(옛 셈의 사도 셋 몫을 더한 것과 같은 눈금)
+          const d = Math.round(run.partyMaxHp * o.v);
+          if (d > 0) v += Math.min(d, run.partyMaxHp - run.partyHp) / K;
+          else v += (d * (run.partyHp + d < run.partyMaxHp * 0.3 ? 2 : 1.1)) / K;
           break;
         }
-        case "maxHp": v += o.v * (o.who.pick ? 1 : run.party.length) * 1.2; break;
+        case "maxHp": v += (o.v * 1.2) / K; break;
         case "remove": v += run.deck.some((id) => CARDS[id] && CARDS[id].curse) ? 30 : 14; break;
         case "dupe": v += 10; break;
         case "unique": v += 20; break;
@@ -187,7 +185,7 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
         case "rewardFlash": v += 8; break;
         case "next":
           v += 8 * (o.ap || 0) + 0.1 * (o.gauge || 0) + 4 * (o.hand || 0) - 6 * (o.weak || 0) + 3 * (o.rush || 0) + 4 * (o.foeVuln || 0) + 3 * (o.quiet || 0);
-          if (o.hpCut) v -= o.hpCut * live.reduce((a, k) => a + run.maxHp[k], 0);
+          if (o.hpCut) v -= (o.hpCut * run.partyMaxHp) / K;
           break;
       }
     }
@@ -200,7 +198,7 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
       const foeHp = EV.foesOf(run, opt.fight).reduce((a, id) => a + ((ENEMIES[id] || {}).hp || 40) * hpx, 0);
       const win = opt.fight.winGamble ? opt.fight.winGamble.reduce((a, g) => a + g.p * opsValue(run, EV.parseOut(g.out)), 0) : opsValue(run, EV.parseOut(opt.fight.win || ""));
       const h = hpRatio(run);
-      return win + 10 - foeHp * 0.25 - (h < 0.6 ? 60 : 0);
+      return win + 10 - (foeHp * 0.25) / K - (h < 0.6 ? 60 : 0);
     }
     if (opt.gamble) {
       const vs = opt.gamble.map((g) => opsValue(run, EV.parseOut(g.out)));
@@ -208,7 +206,7 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
     }
     if (opt.judge) {
       const j = EV.judgeOf(run, opt);
-      const pass = j.pick ? Math.max(...alive(run).map((k) => run.hp[k]), 0) >= j.need : j.pass;
+      const pass = j.pass;
       return opsValue(run, EV.parseOut(pass ? opt.judge.pass : opt.judge.fail));
     }
     return opsValue(run, EV.parseOut(EV.outOf(run, opt)));
@@ -228,12 +226,6 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
         }
         case "card": val = smart ? p.cards.slice().sort((a, b) => cardEff(b) - cardEff(a))[0] : p.cards[0]; break;
         case "flash": val = smart ? p.offer.picks.slice().sort((a, b) => cardEff(p.offer.cardId, b) - cardEff(p.offer.cardId, a))[0] : p.offer.picks[0]; break;
-        case "pickHero": {
-          const byHp = live.slice().sort((a, b) => run.hp[a] / run.maxHp[a] - run.hp[b] / run.maxHp[b]);
-          val = !smart ? live[0] : p.then.k === "hp" && p.then.v < 0 ? byHp[byHp.length - 1] : byHp[0];
-          break;
-        }
-        case "judgePick": val = smart ? live.slice().sort((a, b) => run.hp[b] - run.hp[a])[0] : live[0]; break;
         case "gambleChoice": val = smart ? p.options.slice().sort((a, b) => opsValue(run, EV.parseOut(b)) - opsValue(run, EV.parseOut(a)))[0] : p.options[0]; break;
         case "shinPick": {
           const able = EV.shinAble(run, p.kind);
