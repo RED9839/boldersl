@@ -1199,18 +1199,19 @@ console.log("지도 (js/map.js · docs/10-지도.md)");
 {
   const M = await import("../js/map.js");
   // 씨앗 200개 × 세 층 — 모양 규칙이 늘 지켜지는가
-  // 1-1 은 일반 전투 2~4 갈래 · 1-2~1-10 은 줄마다 2~4칸(싸움 칸 하나는) · 1-11 휴식(상점) 하나 · 1-12 보스
+  // 1-1 은 일반 전투 2~4 갈래 · 1-2~1-8 은 줄마다 2~4칸(싸움 칸 하나는) · 1-9 휴식(상점) 하나 · 1-10 보스(M.ROWS 줄)
+  const N = M.ROWS;
   let bad = [], seen = new Set();
   const KINDS = new Set(["fight", "elite", "camp", "campshop", "event", "boss"]);
   for (let seed = 1; seed <= 200; seed++) for (let f = 0; f < 3; f++) {
     const m = M.genMap(seed * 7919, f);
     if (m.rows[0].length !== 1 || m.rows[0][0].type !== "start" || m.at !== m.rows[0][0].id) bad.push(`${seed}/${f} 출발 칸(1-0)`);
-    const rows = m.rows.slice(1), ids = new Set(rows.flat().map((n) => n.id));     // 1-1 … 1-12
+    const rows = m.rows.slice(1), ids = new Set(rows.flat().map((n) => n.id));     // 1-1 … 1-10
     const types = rows.map((r) => r.map((n) => n.type));
-    if (rows.length !== 12) bad.push(`${seed}/${f} 줄 ${rows.length}`);
+    if (rows.length !== N) bad.push(`${seed}/${f} 줄 ${rows.length}`);
     if (!types[0].every((t) => t === "fight") || types[0].length < 2 || types[0].length > 4) bad.push(`${seed}/${f} 첫 줄 ${types[0]}`);
-    if (types[10].join() !== "campshop" || types[11].join() !== "boss") bad.push(`${seed}/${f} 보스 앞 · 보스`);
-    for (let r = 1; r <= 9; r++) {
+    if (types[N - 2].join() !== "campshop" || types[N - 1].join() !== "boss") bad.push(`${seed}/${f} 보스 앞 · 보스`);
+    for (let r = 1; r <= N - 3; r++) {
       if (types[r].length < 2 || types[r].length > 4) bad.push(`${seed}/${f} ${r + 1}줄 칸 수 ${types[r].length}`);
       if (!types[r].some((t) => t === "fight" || t === "elite")) bad.push(`${seed}/${f} ${r + 1}줄에 싸움이 없다`);
       if (r < 3 && types[r].some((t) => t === "elite" || t === "camp")) bad.push(`${seed}/${f} ${r + 1}줄에 이른 엘리트 · 휴식`);
@@ -1224,7 +1225,7 @@ console.log("지도 (js/map.js · docs/10-지도.md)");
       if (!n.next.length) bad.push(`${seed}/${f} ${n.id} 막다른 칸`);
       if (n.next.some((x) => !rows[r + 1].some((z) => z.id === x))) bad.push(`${seed}/${f} ${n.id} 줄을 건너뛴다`);
     }
-    // 선은 같은 자리 · 바로 옆 자리로만, 서로 엇갈리지 않는다(1-10 → 1-11 로 모이는 것은 뺀다)
+    // 선은 같은 자리 · 바로 옆 자리로만, 서로 엇갈리지 않는다(1-8 → 1-9 로 모이는 것은 뺀다)
     for (let r = 0; r < rows.length - 3; r++) {
       const L = [];
       for (const nd of rows[r]) for (const x of nd.next) { const t = rows[r + 1].find((z) => z.id === x); L.push([nd.lane, t.lane]); }
@@ -1233,7 +1234,7 @@ console.log("지도 (js/map.js · docs/10-지도.md)");
     }
     seen.add(types.map((t) => t.join("")).join("|"));
   }
-  check(!bad.length, bad.length ? `지도 모양이 규칙을 어긴다 ${bad.length}: ${bad.slice(0, 3).join(" · ")}` : "지도 600장이 모두 규칙대로다(1-1 일반 2~4갈래 · 줄마다 2~4칸 · 1-11 휴식(상점) · 1-12 보스 · 다 이어짐 · 선은 옆 자리까지만 · 엇갈림 없음)");
+  check(!bad.length, bad.length ? `지도 모양이 규칙을 어긴다 ${bad.length}: ${bad.slice(0, 3).join(" · ")}` : "지도 600장이 모두 규칙대로다(1-1 일반 2~4갈래 · 줄마다 2~4칸 · 1-9 휴식(상점) · 1-10 보스 · 다 이어짐 · 선은 옆 자리까지만 · 엇갈림 없음)");
   check(seen.size > 500, `씨앗마다 길이 다르다 (${seen.size}가지)`);
   check(JSON.stringify(M.genMap(42, 1)) === JSON.stringify(M.genMap(42, 1)), "같은 씨앗 · 같은 층이면 같은 지도");
   {
@@ -1263,7 +1264,7 @@ console.log("지도 (js/map.js · docs/10-지도.md)");
       mr.elite = false; mr.reward = null;
     }
   }
-  check(M.currentNode(mr).type === "boss" && R.isBoss(mr) && M.stageName(mr, M.currentNode(mr)) === "1-12", "끝 칸은 1-12 보스");
+  check(M.currentNode(mr).type === "boss" && R.isBoss(mr) && M.stageName(mr, M.currentNode(mr)) === `1-${M.ROWS}`, `끝 칸은 1-${M.ROWS} 보스`);
   const adv2 = R.advance(mr);
   check(mr.floor === 1 && adv2.swap === false, "보스를 넘으면 다음 층(사도 교체 없이)");
   check(M.mapOf(mr).floor === 1 && M.currentNode(mr).type === "start" && M.stageName(mr, M.currentNode(mr)) === "2-0" && M.reachable(mr).length >= 2, "다음 층은 새 지도, 2-0 출발 칸부터");

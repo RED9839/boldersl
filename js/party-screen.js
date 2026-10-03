@@ -385,7 +385,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
     wt.appendChild(el("small", null, "첫 층"));
     wt.appendChild(el("b", null, `${floor.n}층 · ${floor.name}`));
     const sub = el("span", null, floor.sub);
-    sub.title = "지도에서 길을 골라 12칸 끝의 보스까지";
+    sub.title = "지도에서 길을 골라 10칸 끝의 보스까지";
     wt.appendChild(sub);
     where.appendChild(wt);
     const bossRow = el("div", "tf-boss");

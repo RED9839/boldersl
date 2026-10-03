@@ -54,8 +54,9 @@ function twoStep(onConfirm, { verb = "이것으로 합니다", danger = false } 
   };
   return { bar, pick };
 }
-// 지금 칸 다음이 보스인가 — 휴식(상점) 칸은 층 중간에도 있다. 보스 바로 앞 칸(1-11)에서만 「보스에게 갑니다」
-const bossNext = (run) => { const n = M.currentNode(run); return !!(n && n.row === M.ROWS - 1); };
+// 지금 칸 다음이 보스인가 — 휴식(상점) 칸은 층 중간에도 있다. 보스 바로 앞 칸(1-9)에서만 「보스에게 갑니다」.
+// 줄 번호가 아니라 다음 칸으로 본다 — 열두 칸 시절의 저장(지도)으로 이어해도 맞게
+const bossNext = (run) => { const n = M.currentNode(run); return !!(n && n.next.some((id) => (M.nodeById(run.map, id) || {}).type === "boss")); };
 
 // 가운데 창 — 전투 밖(보상 등)에서 쓴다. 바깥 · Esc 로 닫는다. 전투 안에는 같은 모양의 openModal 이 따로 있다
 let outModal = null;

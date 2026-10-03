@@ -1,14 +1,15 @@
 // 지도 — 층마다 갈림길이 있는 길을 골라 간다. 파티 미니미가 칸에서 칸으로 걷는다(ui.js 의 mapScreen).
 //
-// 한 층은 열두 칸 길이다 — 1-1 부터 1-12 까지(왼쪽 → 오른쪽). 줄마다 칸이 2~4개(최대 네 갈래), 무작위로.
+// 한 층은 열 칸 길이다 — 1-1 부터 1-10 까지(왼쪽 → 오른쪽). 줄마다 칸이 2~4개(최대 네 갈래), 무작위로.
+// (열두 칸이던 것을 2026-10 줄였다 — 한 판이 너무 길었다)
 //   1-1         일반 전투만 — 처음부터 2~4 갈래로 갈라져 시작한다
-//   1-2 ~ 1-10  일반 · 엘리트 · 휴식 · 휴식(상점) · 이벤트 가운데 무작위
+//   1-2 ~ 1-8   일반 · 엘리트 · 휴식 · 휴식(상점) · 이벤트 가운데 무작위
 //               (엘리트 · 휴식 · 휴식(상점)은 1-4 부터. 줄마다 싸움 칸이 하나는 있다)
-//   1-11        휴식(상점) — 보스 앞은 늘 이것 하나. 모두 여기로 모인다
-//   1-12        보스
+//   1-9         휴식(상점) — 보스 앞은 늘 이것 하나. 모두 여기로 모인다
+//   1-10        보스
 // 한 줄에 자리(레인)가 넷 — 칸은 그 자리에만 서고, 선은 같은 자리 · 바로 옆 자리로만 이어진다(엇갈리지 않는다).
 // 모든 칸은 처음 줄에서 닿고, 모든 칸에서 보스에 닿는다.
-// 싸움의 세기는 줄이 정한다 — 층의 싸움(FLOORS[].pools — 세기마다 네다섯 벌) 가운데 1-1~1-3 약 · 1-4~1-6 중 · 1-7~ 강.
+// 싸움의 세기는 줄이 정한다 — 층의 싸움(FLOORS[].pools — 세기마다 네다섯 벌) 가운데 1-1~1-3 약 · 1-4~1-5 중 · 1-6~ 강.
 // 엘리트는 한 단계 센 싸움을 체력 ×ELITE_HP 로(rules.js) — 이기면 장비 하나와 신탁, 골드 더.
 //
 // 지도는 판의 씨앗과 층으로 정해진다 — 다시 그려도 같은 길이다. 설계는 docs/10-지도.md.
@@ -24,21 +25,21 @@ function pickFoes(rng, floor, node, prev) {
   return from[Math.floor(rng() * from.length)];
 }
 
-export const ROWS = 12;
+export const ROWS = 10;
 export const MAX_LANES = 4;
 export const KIND_KO = { start: "출발", fight: "일반", elite: "엘리트", camp: "휴식", campshop: "휴식+상점", event: "이벤트", boss: "보스" };
 
-// 1-2 ~ 1-10 에서 칸 종류를 고르는 무게 — 줄에 따라 못 나오는 것이 있다
+// 1-2 ~ 1-8 에서 칸 종류를 고르는 무게 — 줄에 따라 못 나오는 것이 있다
 function kindWeights(r) {
   return [
     ["fight", 46],
     ["event", 22],
     ["elite", r >= 3 ? 17 : 0],
     ["camp", r >= 3 ? 8 : 0],
-    ["campshop", r >= 3 && r <= 8 ? 20 : 0],       // 1-4 ~ 1-9. 1-10 은 빼 둔다 — 바로 뒤가 휴식(상점)이다
+    ["campshop", r >= 3 && r <= ROWS - 4 ? 20 : 0],   // 1-4 ~ 1-7. 1-8 은 빼 둔다 — 바로 뒤가 휴식(상점)이다
   ];
 }
-const tierOf = (r) => (r < 3 ? 0 : r < 6 ? 1 : 2);
+const tierOf = (r) => (r < 3 ? 0 : r < 5 ? 1 : 2);
 
 export function genMap(seed, floor) {
   const rng = makeRng(((seed >>> 0) ^ Math.imul(floor + 1, 2654435761)) >>> 0);
@@ -56,7 +57,7 @@ export function genMap(seed, floor) {
   const lanesOf = [];
   const links = [];                               // links[r] = [[fromLane, toLane], ...]
   lanesOf[0] = shuffle([0, 1, 2, 3]).slice(0, 2 + Math.floor(rng() * (MAX_LANES - 1))).sort((x, y) => x - y);
-  for (let r = 0; r < ROWS - 3; r++) {            // 1-1 → … → 1-10 (1-11 · 1-12 는 하나로 모인다)
+  for (let r = 0; r < ROWS - 3; r++) {            // 1-1 → … → 1-8 (1-9 · 1-10 은 하나로 모인다)
     const from = lanesOf[r], L = [];
     const crosses = (i, j) => L.some(([a, b]) => (a < i && b > j) || (a > i && b < j));
     for (const i of from) {
@@ -97,7 +98,7 @@ export function genMap(seed, floor) {
       return node;
     }));
   }
-  // ③ 잇기 — 뼈대의 선을 칸 id 로. 1-10 의 모든 칸 → 1-11 휴식(상점) → 1-12 보스
+  // ③ 잇기 — 뼈대의 선을 칸 id 로. 1-8 의 모든 칸 → 1-9 휴식(상점) → 1-10 보스
   for (let r = 0; r < ROWS - 1; r++) {
     const a = rows[r], b = rows[r + 1];
     if (b.length === 1) { for (const n of a) n.next = [b[0].id]; continue; }
@@ -144,7 +145,7 @@ export function mapOf(run) {
 export const nodeById = (map, id) => map.rows.flat().find((n) => n.id === id) || null;
 export const currentNode = (run) => (run.map && run.map.at ? nodeById(run.map, run.map.at) : null);
 // 칸 이름 — 「1-5」
-export const stageName = (run, node) => `${run.floor + 1}-${node.row}`;        // 1-0 출발 · 1-1 … 1-12 보스
+export const stageName = (run, node) => `${run.floor + 1}-${node.row}`;        // 1-0 출발 · 1-1 … 1-10 보스
 
 // 지금 고를 수 있는 칸 — 지금 칸에서 이어진 칸(출발 칸이면 1-1 의 2~4 갈래)
 export function reachable(run) {
