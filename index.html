@@ -15,6 +15,15 @@
 <link rel="stylesheet" href="css/battle.css">
 <link rel="stylesheet" href="css/stage.css">
 <link rel="stylesheet" href="css/czn.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap">
+<link rel="stylesheet" href="css/revive.css">
+<script>
+  // 둥근 글꼴(Jua)을 못 받으면(오프라인 · 막힌 곳) 대신 글꼴을 굵게 — css/revive.css 의 --rv-w
+  (function () { try { var d = document.fonts; if (!d || !d.load) return; var t = setTimeout(function () { if (!d.check("16px Jua")) document.documentElement.classList.add("rv-nojua"); }, 2500);
+    d.load("16px Jua").then(function (f) { if (!f.length) { clearTimeout(t); document.documentElement.classList.add("rv-nojua"); } }).catch(function () {}); } catch (e) {} })();
+</script>
 </head>
 <body>
 <header class="top">

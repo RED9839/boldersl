@@ -2602,10 +2602,28 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     box.appendChild(face);
     const body = el("div", "bmbody");
     const nat = C.natureOf(u.key);
-    body.appendChild(el("span", "bmkind", [h.race, h.role, ROW_KO[u.row], nat ? `성격 ${nat}` : null, h.eldain ? "엘다인" : null].filter(Boolean).join(" · ")));
+    // 머리 — 성격 · 역할 · 열 · 종족을 알약 꼬리표로(낱말을 가운뎃점으로 잇던 한 줄 대신 — 한눈에 색으로 읽힌다)
+    const tags = el("div", "ftags rvtags");
+    if (nat) tags.appendChild(el("span", "ftag n" + nat, nat));
+    tags.appendChild(el("span", "ftag role", h.role));
+    tags.appendChild(el("span", "ftag", ROW_KO[u.row]));
+    tags.appendChild(el("span", "ftag", h.race));
+    if (h.eldain) tags.appendChild(el("span", "ftag eldain", "엘다인"));
+    body.appendChild(tags);
     body.appendChild(el("h3", "bmname", u.ko));
+    // 체력 — 적 정보 창과 같은 막대
+    if (!u.dead) {
+      const hp = el("div", "fhp");
+      const bar = el("div", "fhpbar hero");
+      const fill = el("i");
+      fill.style.width = Math.max(0, Math.min(100, (u.hp / u.maxHp) * 100)) + "%";
+      bar.appendChild(fill);
+      hp.appendChild(bar);
+      hp.appendChild(el("span", "fhpn", `${Math.max(0, u.hp)} / ${u.maxHp}`));
+      body.appendChild(hp);
+    }
     const meter = el("div", "bmmeter");
-    meter.appendChild(el("span", null, u.dead ? "쓰러졌습니다" : `체력 ${Math.max(0, u.hp)} / ${u.maxHp}`));
+    if (u.dead) meter.appendChild(el("span", null, "쓰러졌습니다"));
     if (u.block > 0) meter.appendChild(el("b", "blk", `방어 ${u.block}`));
     if (u.shield > 0) meter.appendChild(el("b", "blk", `실드 ${u.shield}`));
     body.appendChild(meter);
