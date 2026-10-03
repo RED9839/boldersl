@@ -891,15 +891,12 @@ console.log("키워드가 최대를 넘게 한 번에 쌓이면 그만큼 터진
   }
 }
 
-console.log("강화 카드는 「소멸」 없이도 내면 사라진다 · 「소멸 2」 신탁은 두 번(2026-10 사용자: 교주 「자기 계발」)");
+console.log("강화 카드는 「소멸」 없이도 내면 사라진다 · 신탁 글에 「소멸」 · 「소멸 N」 을 적지 않는다(카제나 강화 카드처럼 — 2026-10 사용자)");
 {
   const id = "중립_자기계발";
   const mk = (n) => { const s = C.newCombat({ partyKeys: ["우이", "티그", "네르"], deck: [], enemyIds: ["buseuleogi"], seed: 3, flash: n ? { [id]: n } : {} }); s.enemies[0].hp = s.enemies[0].maxHp = 99999; s.hand = [id]; s.ap = 9; return s; };
-  for (const n of [0, 3]) { const s = mk(n); C.playCard(s, 0, 0); check(s.gone.includes(id), `신탁 ${n || "없음"} — 내면 사라진다`); }
-  const s = mk(2); C.playCard(s, 0, 0); const first = s.discard.includes(id);
-  s.hand = [id]; s.discard = []; C.playCard(s, 0, 0);
-  check(first && s.gone.includes(id), "「소멸 2」 — 첫 번째는 버린 더미, 두 번째에 사라진다");
-  check(!Object.values(CARDS).some((c) => c.type === "강화" && (c.flash || []).some((f) => /소멸(?!\s*\d)/.test(f.text || ""))), "강화 카드 신탁 글에 뜻 없는 「소멸」 이 없다");
+  for (const n of [0, 2, 3]) { const s = mk(n); C.playCard(s, 0, 0); check(s.gone.includes(id), `신탁 ${n || "없음"} — 내면 사라진다`); }
+  check(!Object.values(CARDS).some((c) => c.type === "강화" && (c.flash || []).some((f) => /소멸/.test(f.text || ""))), "강화 카드 신탁 글에 「소멸」 · 「소멸 N」 이 없다");
 }
 
 console.log(bad ? `실패 ${bad}개` : "카제나 전투 체계가 규칙대로 돈다");

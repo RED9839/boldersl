@@ -137,10 +137,13 @@ export function flashed(card, n) {
   const fx = (f.fx || []).filter((x) => x.k !== "costSet" && x.k !== "costDelta");
   // 「강화 카드.」 로 시작하는 신탁 — 고르면 이 카드가 강화 카드가 된다(js/rules.js isPower). 글머리는 카드 면의 꼬리표(card-text POWER_TAG)가 대신한다
   const power = fx.some((x) => x.k === "tag" && x.id === "강화");
+  // 유일은 카드 종류에 붙는다 — 신탁 글에 안 적혀 있어도 기본 카드가 유일이면 글머리에 그대로 둔다(2026-10 사용자: 「신탁 붙으면 유일이 사라진다」)
+  const body = power ? f.text.replace(/^\s*강화\s*카드\s*\.\s*/, "") : f.text;
+  const only = /^\s*유일\s*\./.test(card.text || "") && !/유일/.test(body);
   return {
     ...card, cost,
     ...(power ? { type: "강화" } : {}),
-    text: power ? f.text.replace(/^\s*강화\s*카드\s*\.\s*/, "") : f.text,
+    text: only ? `유일. ${body}` : body,
     fx,
     // 대상도 신탁의 글로 다시 정한다 — 전에는 기본 카드의 것을 그대로 써서, 신탁이 「적 1명 기절」 을 붙여도
     // 화면이 적을 고르게 하지 않았다(맨 앞 적에게 갔다). 신탁 488개가 그랬다
