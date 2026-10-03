@@ -346,9 +346,19 @@ main:has(.battle) { max-width: 1240px; }
 .pilecell .gcard { width: 100%; cursor: default; }
 .pfull { margin: 0; font-size: 11.5px; line-height: 1.65; color: #cfc7ea; word-break: keep-all; }
 .pflash {
-  position: absolute; right: 7px; top: 7px; z-index: 4; font-size: 9.5px; font-weight: 800;
+  position: absolute; right: 4px; top: 4px; z-index: 6; font-size: 9.5px; font-weight: 800;   /* 그림 칸 오른쪽 위 — 카드 이름을 가리지 않게 */
   color: #221a08; background: #ffcf6b; border-radius: 4px; padding: 1px 6px;
+  max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-shadow: 0 1px 4px #0008;
 }
+.pflash::before { content: "✦ "; }
+/* 겨우살이의 축복 — 그림 칸 왼쪽 아래 초록 꼬리표 */
+.pshin {
+  position: absolute; left: 4px; bottom: 4px; z-index: 6; font-size: 9.5px; font-weight: 800; max-width: 80%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0f2a12; background: #9be08a; border-radius: 4px; padding: 1px 6px; box-shadow: 0 1px 4px #0008;
+}
+.pshin::before { content: "✿ "; }
+/* 신탁이 붙은 카드 — 테두리 안쪽에 금빛 한 줄 */
+.gcard.oracle { outline: 2px solid #ffcf6bcc; outline-offset: -3px; }
 
 /* ══ 피해 미리보기 ══════════════════════════════════════════════════════
    카드를 고르거나 올리면 적 위에 얼마나 깎이는지 뜬다. 막대 끝에는 깎일 만큼 그림자. */

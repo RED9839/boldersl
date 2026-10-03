@@ -113,7 +113,7 @@ console.log("선택지 전부 골라 보기");
           let guard = 0;
           while (run.event.pending.length && guard++ < 10) {
             const p = run.event.pending[0];
-            const v = p.k === "remove" || p.k === "dupe" ? run.deck[0]
+            const v = p.k === "remove" ? run.deck[0] : p.k === "dupe" ? run.deck.find((id) => EV.dupeOk(id, run))
               : p.k === "card" ? p.cards[0] : p.k === "flash" ? p.offer.picks[0]
               : p.k === "pickHero" || p.k === "judgePick" ? run.party[0]
               : p.k === "gambleChoice" ? p.options[0] : p.k === "shinPick" ? EV.shinAble(run, p.kind)[0] : p.k === "shinKind" ? p.options[0] : null;

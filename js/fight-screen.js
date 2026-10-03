@@ -390,14 +390,20 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     }
   }
   // 몸짓이 끝났다(또는 걷어 냈다) — 보이는 값을 판의 값으로
+  let heldGuard = null;              // 턴을 넘기기 전 파티의 방어 · 실드 — 적의 차례 몸짓 동안 보인다(hpBar)
+  let heldFresh = false;             // 방금 턴을 넘겨 잡아 둔 것인가 — 그다음 수(카드 · 고학년)가 오면 버린다
   function settle() {
     shownHp.clear();
-    for (const [, b] of bars) showHp(b.u, Math.max(0, b.u.hp));
+    heldGuard = null;
+    for (const [, b] of bars) { showHp(b.u, Math.max(0, b.u.hp)); if (b.paint) b.paint({ block: b.u.block, shield: b.u.shield }); }
   }
   // draw() 머리에서 — 쌓인 쪽지를 꺼낸다. 새 수면 남은 몸짓을 걷고, 맞을 사람의 막대를 맞기 전 값에 붙든다
   function takeFx() {
     const q = st.fx.splice(0);
     const live = groundOk && !calmNow();
+    // 붙들어 둔 방어 · 실드 — 턴을 넘긴 바로 그 그림에서만 쓴다. 몸짓을 안 보이면(calm) · 다음 수가 오면 판의 값으로
+    if (!live || !heldFresh) heldGuard = null;
+    heldFresh = false;
     if (!live || q.length) {
       for (const t of beatT) clearTimeout(t);
       beatT = [];
@@ -1241,6 +1247,13 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const u = (h.side === "enemy" ? st.enemies : st.party).find((x) => x.idx === h.idx);
     if (!u) return;
     if (h.k === "hurt" || h.k === "heal") { shownHp.set(ukey(u), h.to); showHp(u, h.to); }
+    // 붙들어 둔 방어 · 실드 — 막은 만큼 방어부터 깎아 보인다
+    if (h.k === "hurt" && h.side === "party" && heldGuard && h.guard > 0) {
+      let left = h.guard;
+      const fromB = Math.min(heldGuard.block, left); heldGuard.block -= fromB; left -= fromB;
+      heldGuard.shield = Math.max(0, heldGuard.shield - left);
+      const pb = bars.get(ukey(st.pool)); if (pb && pb.paint) pb.paint(heldGuard);
+    }
     if (h.k === "hurt") {
       hitFx(h);
       const ult = !!act && act.anim === "ult", heavy = h.v >= (u.side === "party" ? u.share || u.maxHp : u.maxHp) * 0.25;   // 사도는 제 몫(최대 HP 에 보탠 만큼) 기준
@@ -1766,8 +1779,11 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   }
 
   function hpBar(u) {
+    // 파티의 방어 · 실드는 적의 차례 몸짓이 끝날 때까지 턴을 넘기기 전 값으로 보인다(heldGuard) —
+    // 판은 이미 다음 턴(방어 0)인데 적이 아직 치는 중이라, 방어가 턴 끝에 사라진 것처럼 보였다(2026-10 사용자)
+    const g = u === st.pool && heldGuard ? heldGuard : { block: u.block, shield: u.shield };
     // 실드·방어가 있으면 막대에 테를 두른다 — 숫자를 안 읽어도 누가 막혀 있는지 보인다
-    const wrap = el("div", "hpwrap" + (u.shield > 0 ? " shielded" : "") + (u.block > 0 ? " blocked" : ""));
+    const wrap = el("div", "hpwrap" + (g.shield > 0 ? " shielded" : "") + (g.block > 0 ? " blocked" : ""));
     const bar = el("div", "bar");
     const hp = hpOf(u);
     // 뒤처지는 막대 — 맞으면 체력 막대는 바로 줄고, 이것은 잠깐 남았다가 따라 줄어든다(얼마나 깎였는지 보인다)
@@ -1786,9 +1802,16 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const nums = el("div", "nums");
     const num = el("span", "hpn", `${hp} / ${u.maxHp}`);
     nums.appendChild(num);
-    bars.set(ukey(u), { u, fill, lag, num });
-    if (u.block > 0) nums.appendChild(el("span", "b", `방어 ${u.block}`));
-    if (u.shield > 0) nums.appendChild(el("span", "sh", `실드 ${u.shield}`));
+    const bSpan = el("span", "b"), sSpan = el("span", "sh");
+    bars.set(ukey(u), { u, fill, lag, num, bSpan, sSpan, wrap });
+    const paint = (gg) => {
+      bSpan.textContent = gg.block > 0 ? `방어 ${gg.block}` : ""; bSpan.hidden = !(gg.block > 0);
+      sSpan.textContent = gg.shield > 0 ? `실드 ${gg.shield}` : ""; sSpan.hidden = !(gg.shield > 0);
+      wrap.classList.toggle("blocked", gg.block > 0); wrap.classList.toggle("shielded", gg.shield > 0);
+    };
+    bars.get(ukey(u)).paint = paint;
+    paint(g);
+    nums.appendChild(bSpan); nums.appendChild(sSpan);
     wrap.appendChild(nums);
     return wrap;
   }
@@ -2338,6 +2361,10 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       const cbody = el("p", "gtext");
       withNumbers(cbody, cardParts({ ...c, name: c.name }, c.hero).action, c.hero, cardCalc(id));
       b.appendChild(cbody);
+      // 신탁이 붙은 카드 — 금빛 꼬리표(ui-common bigCard 와 같다)
+      if (c.flashOn) { b.classList.add("oracle"); cart.appendChild(el("span", "pflash", c.flashKind || c.flashKo || "신탁")); }
+      // 겨우살이의 축복 — 초록 꼬리표(ui-common bigCard 와 같다)
+      { const sh = st.shin && st.shin[id]; if (sh) { const [ko, line] = (RULES.shinLabel(CARDS[id], sh) || "겨우살이의 축복").split(" — "); const t = el("span", "pshin", ko); t.title = line || ""; cart.appendChild(t); } }
 
       // 누구 카드인가 — 아래에 가는 띠 하나. 손패가 사도 순서로 서 있으니 띠만 있으면 읽힌다.
       if (c.hero) {
@@ -3621,6 +3648,8 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     sweepOut();
     // 남은 카드(보존)만 「있던 것」 으로 — 새로 뽑은 카드는 뽑을 더미에서 날아온다
     handSeen = countIds(st.hand.filter((id) => ((C.cardOf(st, id) || {}).tags || []).includes("보존")));
+    heldGuard = (st.pool.block || 0) > 0 || (st.pool.shield || 0) > 0 ? { block: st.pool.block || 0, shield: st.pool.shield || 0 } : null;
+    heldFresh = !!heldGuard;
     C.endTurn(st);
     draw();
   };

@@ -16,7 +16,7 @@ import { getZoom } from "./stage.js";
 import { settingsPanel } from "./settings-panel.js";
 import { sfx } from "./sfx.js";
 import { writeSave, saveOk } from "./save.js";
-import { HERO, TINT, el, hint, screen, NTINT, goldIcon, goldLabel, mistletoeIcon, MISTLETOE, openHelp, fsButton, img, withKeywords, kwText, showCard, showPiles, bigCard, effectBox, setStageBg, BATTLE_BG, statText, equipIcon, emptySlotIcon, equipCard, showEquip, confirmPop } from "./ui-common.js";
+import { HERO, TINT, el, hint, screen, NTINT, goldIcon, goldLabel, mistletoeIcon, MISTLETOE, openHelp, fsButton, img, withKeywords, kwText, showCard, showPiles, bigCard, effectBox, setStageBg, BATTLE_BG, statText, equipIcon, emptySlotIcon, equipCard, showEquip, confirmPop, deckSections, deckSecHead, runCard } from "./ui-common.js";
 
 // 다른 파일로 옮긴 것도 ui.js 에서 그대로 꺼내 쓴다(main.js · tools/smoke.js)
 export { hint, openHelp, equipIcon } from "./ui-common.js";
@@ -284,10 +284,7 @@ export function mapScreen(run, onEnter, onQuit) {
 
 // 덱 보기에서 — 신탁이 붙은 카드는 바뀐 모습으로
 function flashedCard(run, id) {
-  const c = CARDS[id];
-  if (!c) return null;
-  const n = (run.flash || {})[id];
-  return n ? flashed(c, n) : c;   // 글만이 아니라 코스트도 — 코스트를 바꾸는 신탁이 있다
+  return runCard(run, id);   // 글만이 아니라 코스트도 — 코스트를 바꾸는 신탁이 있다. 겨우살이의 축복 꼬리표까지(ui-common runCard)
 }
 
 // ── 판 기록 ─────────────────────────────────────────────────────────────
@@ -345,7 +342,7 @@ export function bossCopyPick(run, ids, onPick) {
   const go = el("button", "bmuse", "카드를 고르세요");
   go.disabled = true;
   for (const id of ids) {
-    const c = flashed(CARDS[id], (run.flash || {})[id]);
+    const c = runCard(run, id);
     const cell = el("button", "cpcell");
     const big = bigCard(c, CARDART.pic[id] || null);
     big.onclick = null; big.title = "";
@@ -592,6 +589,16 @@ function gearStrip(run, k, size = 26) {
     row.appendChild(cell);
   }
   return row;
+}
+// 고를 신탁 하나 — 글 상자가 아니라 신탁을 얹은 카드 그대로(전투의 신탁 창처럼, 2026-10 사용자). 위에 신탁 이름
+function flashPick(c, id, n) {
+  const f = (c.flash || [])[n - 1] || {};
+  const b = el("button", "fpick f" + n);
+  b.appendChild(el("span", "fpname", f.kind || f.ko || ""));
+  const card = bigCard(flashed(c, n), (id && CARDART.pic[id]) || null);
+  card.onclick = null; card.title = "";
+  b.appendChild(card);
+  return b;
 }
 // 신탁이 붙을 카드 — 보상 · 수련 · 이벤트의 신탁 줄 맨 앞. 그림 아래에 효과를 글로 한 번 더(고르는 신탁과 견주게).
 // 이미 신탁이 붙은 카드(이벤트의 「신탁 바꾸기」)면 지금 모습과 「지금」 — 전에는 원래 글을 「지금」 이라고 보였다
@@ -1005,12 +1012,7 @@ export function campScreen(run, withShop, onDone, onShop) {
     for (const n of offer.picks) {
       const f = (c.flash || [])[n - 1];
       if (!f) continue;
-      const b = el("button", "fcard f" + n);
-      const hd = el("div", "fhead2");
-      hd.appendChild(el("b", null, f.kind || f.ko));
-      if (f.kind) hd.appendChild(el("span", "fko", f.ko));   // 자유 신탁은 이름이 머리
-      b.appendChild(hd);
-      b.appendChild(withKeywords(el("p", "ftext2"), shortText(f.text), c.hero));
+      const b = flashPick(c, offer.cardId, n);
       b.onclick = () => ts.pick(b, n, f.kind || f.ko);
       fr.appendChild(b);
     }
@@ -1357,15 +1359,19 @@ export function shopScreen(run, onDone, opts = {}) {
       if (why) return why === "골드가 모자랍니다" ? poor() : say(why);
       sfx.play("shop.remove"); say(GOLDY.remove); act("remove"); draw();
     }, { verb: `${price} 골드로 뺍니다`, danger: true });
-    run.deck.forEach((id) => {
-      const c = CARDS[id];
-      if (!c) return;
-      const w = el("button", "sh-deckcard");
-      w.appendChild(bigCard(c, CARDART.pic[id] || null));
-      w.title = "눌러서 고르기";
-      w.onclick = () => ts.pick(w, id, c.name);
-      grid.appendChild(w);
-    });
+    // 사도별로(파티 차례) 기본 → 고유, 그 뒤 교주 카드 · 골칫거리(ui-common deckSections). 같은 카드는 한 장에 ×n
+    for (const sec of deckSections(run, run.deck)) {
+      grid.appendChild(deckSecHead(sec));
+      for (const id of sec.ids) {
+        const c = runCard(run, id);   // 신탁 · 축복이 붙었으면 붙은 모습으로(꼬리표가 보인다)
+        const w = el("button", "sh-deckcard");
+        if (sec.count.get(id) > 1) w.appendChild(el("span", "ev2-n", `×${sec.count.get(id)}`));
+        w.appendChild(bigCard(c, CARDART.pic[id] || null));
+        w.title = "눌러서 고르기";
+        w.onclick = () => ts.pick(w, id, c.name);
+        grid.appendChild(w);
+      }
+    }
     wrap.appendChild(grid);
     wrap.appendChild(ts.bar);
     openSheet("sh-deckmodal", "뺄 카드를 고릅니다", `${price} 골드 · 이번 상점에서 한 장 · 덱 ${run.deck.length}장`, wrap);
@@ -1653,12 +1659,15 @@ export function eventScreen(run, onDone, onFight) {
       head(p.k === "remove" ? "덱에서 뺄 카드" : "한 장 더 넣을 카드", "카드를 눌러 고르고, 아래 단추로 정합니다");
       ts = twoStep(commit, { verb: p.k === "remove" ? "덱에서 뺍니다" : "한 장 더 넣습니다", danger: p.k === "remove" });
       const grid = el("div", "ev2-cards");
-      const seen = new Set();
-      for (const id of run.deck) {
-        if (seen.has(id)) continue; seen.add(id);
-        const c = CARDS[id]; if (!c) continue;
+      // 사도별로(파티 차례) 기본 → 고유, 그 뒤 교주 카드 · 골칫거리(ui-common deckSections).
+      // 복제는 사도 고유 카드만 — 기본 카드 · 교주 카드는 내놓지 않는다(2026-10 사용자, events.js dupeOk)
+      const secs = deckSections(run, run.deck).map((sec) => (p.k === "dupe" ? { ...sec, ids: sec.ids.filter((id) => CARDS[id].hero && CARDS[id].unique) } : sec)).filter((sec) => sec.ids.length);
+      for (const sec of secs) for (const [k, id] of sec.ids.entries()) {
+        if (k === 0) grid.appendChild(deckSecHead(sec));
+        if (!CARDS[id]) continue;
+        const c = runCard(run, id);   // 신탁 · 축복이 붙었으면 붙은 모습으로
         const w = el("button", "ev2-card");
-        const n = run.deck.filter((x) => x === id).length;
+        const n = sec.count.get(id);
         if (n > 1) w.appendChild(el("span", "ev2-n", `×${n}`));
         // 복제 — 유일(rules.js isOnly) 카드는 못 고르고, 신탁 · 기적이 붙은 카드는 골드를 더 받는다
         const locked = p.k === "dupe" && !EV.dupeOk(id, run);
@@ -1673,12 +1682,16 @@ export function eventScreen(run, onDone, onFight) {
       box.appendChild(ts.bar);
     } else if (p.k === "shinPick") {
       // 기적 — 대가 없는 카드 강화. 덱에서 한 장을 골라 위력 ×1.3 이나 비용 -1 을 얹는다
-      head("겨우살이의 축복", p.kind ? (p.kind === "cost" ? "덱에서 한 장 — 이 카드의 코스트가 1 줄어듭니다" : "덱에서 한 장 — 이 카드의 피해가 ×1.3 이 됩니다") : "덱에서 한 장을 고르면, 그 카드에 맞는 축복 셋이 뜹니다", true);
+      head("겨우살이의 축복", p.kind ? (p.kind === "cost" ? "덱에서 한 장 — 이 카드의 코스트가 1 줄어듭니다" : "덱에서 한 장 — 이 카드의 피해가 ×1.3 이 됩니다") : "덱에서 한 장을 고르면, 그 카드에 맞는 축복 하나가 무작위로 얹힙니다", true);
       ts = twoStep(commit, { verb: "이 카드에 축복을 얹습니다" });
       const grid = el("div", "ev2-cards");
-      for (const id of EV.shinAble(run, p.kind)) {
-        const c = CARDS[id];
+      // 사도별로(파티 차례) 기본 → 고유, 그 뒤 교주 카드(ui-common deckSections) · 신탁이 붙었으면 붙은 모습으로
+      const able = EV.shinAble(run, p.kind);
+      for (const sec of deckSections(run, run.deck.filter((id) => able.includes(id)))) for (const [k, id] of sec.ids.entries()) {
+        if (k === 0) grid.appendChild(deckSecHead(sec));
+        const c = runCard(run, id);
         const w = el("button", "ev2-card");
+        if (sec.count.get(id) > 1) w.appendChild(el("span", "ev2-n", `×${sec.count.get(id)}`));
         w.appendChild(bigCard(c, CARDART.pic[id] || null));
         w.onclick = () => ts.pick(w, id, c.name);
         grid.appendChild(w);
@@ -1732,12 +1745,7 @@ export function eventScreen(run, onDone, onFight) {
       fr.appendChild(flashTarget(c, p.offer.cardId, run));
       for (const n of p.offer.picks) {
         const f = (c.flash || [])[n - 1]; if (!f) continue;
-        const b = el("button", "fcard f" + n);
-        const hd = el("div", "fhead2");
-        hd.appendChild(el("b", null, f.kind || f.ko));
-        if (f.kind) hd.appendChild(el("span", "fko", f.ko));   // 자유 신탁은 이름이 머리
-        b.appendChild(hd);
-        b.appendChild(withKeywords(el("p", "ftext2"), shortText(f.text), c.hero));
+        const b = flashPick(c, p.offer.cardId, n);
         b.onclick = () => ts.pick(b, n, f.kind || f.ko);
         fr.appendChild(b);
       }

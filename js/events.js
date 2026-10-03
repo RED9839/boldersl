@@ -207,6 +207,8 @@ export function lockOf(run, opt) {
   const need = Math.max(cost, opt.needGold || 0);
   if (need && run.gold < need) return `골드가 모자랍니다 (${need} 필요)`;
   if (ops.some((o) => o.k === "remove") && run.deck.length <= ops.find((o) => o.k === "remove").n) return "뺄 카드가 모자랍니다";
+  // 복제는 사도 고유 카드만 — 복제할 고유 카드가 없으면 고르지 못하게(대가만 치르고 빈손이 되지 않게)
+  if (ops.some((o) => o.k === "dupe") && !run.deck.some((id) => dupeOk(id, run))) return "복제할 고유 카드가 없습니다";
   if (ops.some((o) => o.k === "gift" && R.isOnly(CARDS[GIFTS[o.name].id]) && run.deck.includes(GIFTS[o.name].id))) return "유일 — 이미 덱에 있는 카드입니다";
   return null;
 }
@@ -395,21 +397,13 @@ export function resolve(run, value) {
     case "shinPick": {
       if (value == null) { E.log.push("겨우살이의 축복 — 받지 않았습니다"); break; }
       if (!shinAble(run, p.kind).includes(value)) return "축복을 얹을 수 없는 카드입니다";
-      // 그 카드만의 축복이 둘 이상이면 그 전부를 차례대로 보여 주고 고르게 한다(위력 · 비용을 정한 자리여도)
+      // 카드를 고르면 축복은 무작위로 붙는다 — 셋 중 고르던 것을 없앴다(2026-10 사용자). 그 카드만의 축복이 있으면 그 가운데서,
+      // 없으면 이 카드에 맞는 축복(divineKindsFor) 가운데서. 자리가 정한 꼴(위력 · 비용)이 있으면 그것
       const own = R.blessKeys(CARDS[value]);
-      if (own.length > 1 || (!p.kind && own.length)) {
-        E.pending.splice(1, 0, { k: "shinKind", cardId: value, options: own });
-        break;
-      }
-      if (!p.kind) {
-        const all = divineKindsFor(CARDS[value]);
-        const picks = [];
-        while (picks.length < 3 && all.length) picks.push(...all.splice(Math.floor(run.rng() * all.length), 1));
-        E.pending.splice(1, 0, { k: "shinKind", cardId: value, options: picks });
-        break;
-      }
+      const pool = own.length ? own : p.kind ? [p.kind] : divineKindsFor(CARDS[value]);
+      if (!pool.length) return "축복을 얹을 수 없는 카드입니다";
       run.shin = run.shin || {};
-      run.shin[value] = CARDS[value].bless ? "own" : p.kind;      // 그 카드만의 축복이 있으면 그것
+      run.shin[value] = pool[Math.floor(run.rng() * pool.length)];
       E.log.push(`겨우살이의 축복! 「${CARDS[value].name}」 — ${R.shinLabel(CARDS[value], run.shin[value])}`);
       break;
     }
@@ -424,6 +418,7 @@ export function resolve(run, value) {
     case "dupe": {
       if (!run.deck.includes(value)) return "덱에 없는 카드입니다";
       if (powerCard(run, value)) return "강화 카드는 한 장만 — 복제할 수 없습니다";
+      if (!CARDS[value] || !CARDS[value].hero || !CARDS[value].unique) return "복제는 사도 고유 카드만 됩니다";
       if (!dupeOk(value, run)) return "유일 — 덱에 한 장만 넣는 카드는 복제할 수 없습니다";
       const extra = dupeExtra(run, value);
       if (extra) {
@@ -499,7 +494,8 @@ function ownRandom(run, c) {
 }
 // 강화 카드(rules.js isPower)도 한 장만 — 복제할 수 없다. run 을 주면 「강화 카드.」 신탁을 붙인 카드도 막는다
 // 복제 — 유일(rules.js isOnly)과 금기(rules.js isTaboo — v6 카제나)는 안 된다
-export function dupeOk(id, run) { const c = CARDS[id]; return !!c && !R.isOnly(run ? flashed(c, (run.flash || {})[id]) : c) && !R.isTaboo(c); }
+// 복제는 사도 고유 카드만 — 기본 카드 · 교주 카드 · 골칫거리는 안 된다(2026-10 사용자)
+export function dupeOk(id, run) { const c = CARDS[id]; return !!c && !!c.hero && !!c.unique && !R.isOnly(run ? flashed(c, (run.flash || {})[id]) : c) && !R.isTaboo(c); }
 export function dupeExtra(run, id) { return (run.flash || {})[id] || (run.shin || {})[id] ? R.DUPE_FLASH_EXTRA : 0; }
 
 // 이벤트를 닫는다 — 다음 칸으로

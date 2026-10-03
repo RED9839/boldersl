@@ -1,7 +1,7 @@
 // 화면들이 같이 쓰는 것 — 요소 만들기 · 화면 비우기 · 카드 꼴 · 낱말 쪽지 · 도움말 · 장비 아이콘.
 // ui.js(지도 · 보상 · 캠프 · 상점 · 이벤트 · 끝) · party-screen.js · fight-screen.js 가 여기서 꺼내 쓴다. 여기는 그 셋을 부르지 않는다.
 import { HEROES } from "./data/heroes.js";
-import { HERO_DATA, EQUIP } from "./cardbook.js";
+import { HERO_DATA, EQUIP, CARDS, flashed } from "./cardbook.js";
 import CARDART from "./data/cardart.js";
 import { shortText, splitKeywords, cardParts, numParts, keywordLines } from "./card-text.js";
 import * as C from "./combat.js";
@@ -389,6 +389,54 @@ export function showCard(c, heroKey) {
 // piles: [{ key, label, ids, why }] · pick: 처음 열 칸 · cardFor: id → 이 판에서의 카드(신탁 반영)
 // onDetail: id → 카드를 누르면 가운데에 자세히(전투의 카드 창). 없으면 보기만 한다
 // numFor: id → 그 카드의 수치 셈(전투 중만, bigCard calc)
+// 이 판의 카드 — 신탁이 붙었으면 붙은 모습, 겨우살이의 축복이 있으면 그 이름(shinKo)까지. 덱 보기 · 상점 제거 · 이벤트 목록이 같이 쓴다
+export function runCard(run, id) {
+  const base = CARDS[id];
+  if (!base) return null;
+  const n = (run.flash || {})[id];
+  const c = n ? flashed(base, n) : base;
+  const sh = (run.shin || {})[id];
+  if (!sh) return c;
+  const [ko, line] = (RULES.shinLabel(base, sh) || "겨우살이의 축복").split(" — ");
+  return { ...c, shinKo: ko, shinLine: line || "" };
+}
+
+// 덱을 사도별로 — 파티 차례로 사도마다 기본 카드 → 고유 카드, 그 뒤 교주 카드, 맨 뒤 골칫거리(2026-10 사용자: 카드 제거 화면이 얻은 차례였다).
+// 같은 카드는 한 번만(장수는 n). 화면은 묶음마다 머리(.pilesec)를 단다 — 상점 카드 제거 · 이벤트의 제거/복제가 같이 쓴다
+export function deckSections(run, ids) {
+  const order = (run.party || []).slice();
+  // 같은 카드는 한 장으로 — id 가 달라도(시작 덱의 같은 카드 두 장) 이름 · 글 · 코스트가 같으면 같은 카드다. 대표 id 에 장수를 모은다
+  const count = new Map(), rep = new Map();
+  for (const id of ids) {
+    const c = CARDS[id]; if (!c) continue;
+    const sig = [c.hero, c.name, c.cost, c.text, (run.flash || {})[id] || "", (run.shin || {})[id] || ""].join("|");   // 신탁 · 축복이 다르면 다른 카드
+    if (!rep.has(sig)) rep.set(sig, id);
+    const r = rep.get(sig);
+    count.set(r, (count.get(r) || 0) + 1);
+  }
+  const groups = new Map();
+  for (const id of count.keys()) {
+    const c = CARDS[id]; if (!c) continue;
+    const key = c.hero && order.includes(c.hero) ? c.hero : c.curse ? "~curse" : "~neutral";
+    (groups.get(key) || groups.set(key, []).get(key)).push(id);
+  }
+  const rank = (k) => (k === "~neutral" ? 90 : k === "~curse" ? 99 : order.indexOf(k));
+  return [...groups.entries()].sort((a, b) => rank(a[0]) - rank(b[0])).map(([key, list]) => ({
+    hero: key.startsWith("~") ? null : key,
+    label: key === "~neutral" ? "교주 카드" : key === "~curse" ? "골칫거리" : HERO(key).ko,
+    ids: list.sort((a, b) => (!!CARDS[a].unique - !!CARDS[b].unique) || (CARDS[a].cost || 0) - (CARDS[b].cost || 0) || String(CARDS[a].name).localeCompare(String(CARDS[b].name))),
+    count,
+  }));
+}
+// 묶음 머리 — 그리드의 한 줄 전체
+export function deckSecHead(sec) {
+  const h = el("div", "pilesec");
+  if (sec.hero) h.appendChild(art.portrait(sec.hero, { ko: HERO(sec.hero).ko, tint: TINT(sec.hero), size: 28, slot: "battle", still: true }));
+  h.appendChild(el("b", null, sec.label));
+  h.appendChild(el("span", "psn", `${sec.ids.reduce((a, id) => a + sec.count.get(id), 0)}장`));
+  return h;
+}
+
 export function showPiles(piles, pick, cardFor, onDetail, numFor) {
   if (kwNote) { kwNote.remove(); kwNote = null; }
   const back = el("div", "pilemodal");
@@ -427,7 +475,7 @@ export function showPiles(piles, pick, cardFor, onDetail, numFor) {
     const first = new Map();
     for (const id of pl.ids) {
       const c = cardFor(id) || {};
-      const sig = [c.hero, c.name, c.cost, c.text].join("|");
+      const sig = [c.hero, c.name, c.cost, c.text, c.shinKo || ""].join("|");   // 축복이 다르면 다른 카드
       if (!first.has(sig)) first.set(sig, id);
       const rep = first.get(sig);
       bag.set(rep, (bag.get(rep) || 0) + 1);
@@ -466,7 +514,6 @@ export function showPiles(piles, pick, cardFor, onDetail, numFor) {
       card.onclick = onDetail ? () => onDetail(id) : null;   // 누르면 자세히 — 더미 창 위에 뜬다
       card.title = onDetail ? "눌러서 자세히 보기" : "";
       if (onDetail) card.classList.add("canzoom");
-      if (c.flashOn) card.appendChild(el("span", "pflash", c.flashKind || c.flashKo || "신탁"));
       cell.appendChild(card);
       // 카드 밑에 전문을 한 번 더 붙이던 것은 뺐다 — 카드 글과 거의 같아 겹쳐 보였다(2026-10 사용자). 자세히는 카드를 누르면 본다
       grid.appendChild(cell);
@@ -525,6 +572,10 @@ export function bigCard(c, pic, calc) {
   const body = el("p", "gtext");
   withNumbers(body, cardParts(c, c.hero).action, c.hero, calc);
   n.appendChild(body);
+  // 신탁이 붙은 카드 — 오른쪽 위에 금빛 꼬리표(신탁 이름). 그냥 카드와 갈라 보이게(2026-10 사용자)
+  if (c.flashOn) { n.classList.add("oracle"); artBox.appendChild(el("span", "pflash", c.flashKind || c.flashKo || "신탁")); }
+  // 겨우살이의 축복이 얹힌 카드 — 그림 칸 왼쪽 아래에 초록 꼬리표(축복 이름). 판의 카드(runCard)만 shinKo 를 든다
+  if (c.shinKo) { n.classList.add("blessed"); const t = el("span", "pshin", c.shinKo); t.title = c.shinLine || ""; artBox.appendChild(t); }
   n.onclick = () => showCard(c, c.hero);
   n.title = "눌러서 낱말 풀이 보기";
   return n;

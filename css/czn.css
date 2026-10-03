@@ -1134,6 +1134,13 @@ body:has(#screen.mapscreen) .top { display: none; }
 .gearmodal :is(.egrade, .eblurb, .eeff) { color: #b9b2d6; }
 /* 신탁 — 붙을 카드를 줄 맨 앞에 */
 .flashrow { align-items: center; flex-wrap: nowrap; }
+/* 고를 신탁 — 신탁을 얹은 카드(ui.js flashPick). 이벤트 · 캠프 수련이 같이 쓴다 */
+.fpick { flex: 0 1 210px; min-width: 0; align-self: center; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 6px; background: none; border: 2px solid transparent; border-radius: 14px; cursor: pointer; transition: transform .12s, border-color .12s; color: inherit; }
+.fpick:hover { transform: translateY(-4px); }
+.fpick .gcard { width: 100%; pointer-events: none; }
+.fpick .fpname { font-size: 14px; font-weight: 900; color: #ffe08a; text-shadow: 0 1px 3px #000; }
+.fpick.sel, .fpick.on, .fpick.picked { border-color: #f6d58e; box-shadow: 0 0 24px #f6d58e55; }
+.phone .fpick { flex-basis: 150px; }
 /* 신탁 셋은 늘 한 줄로 — 칸이 고정 폭이라 넓은 화면에서도 셋째가 밑으로 내려갔다(2026-10 사용자) */
 .flashrow > .fcard { flex: 1 1 0; min-width: 0; max-width: 320px; width: auto; }
 .ftarget { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: none; }
@@ -2064,7 +2071,7 @@ body:has(#screen.shopscreen2) .top { display: none; }
 .sh-close { min-height: 0; padding: 8px 16px; border-radius: 10px; font-size: 14px; font-weight: 800; background: #ffffff12; border: 1px solid #ffffff2e; color: var(--ink); }
 .sh-close:hover:not(:disabled) { transform: none; border-color: var(--gold); }
 .sh-sheetbody { min-height: 0; overflow-y: auto; padding: 16px 18px 20px; }
-.sh-deck { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 14px; }
+.sh-deck { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); grid-auto-rows: max-content; align-content: start; gap: 14px; }
 .sh-deckcard .gcard { width: 100%; cursor: pointer; box-shadow: 0 8px 18px #000a; transition: transform .12s, box-shadow .12s; }
 .sh-deckcard .gcard:hover { transform: translateY(-4px); box-shadow: 0 0 0 2px #ff9aa8, 0 0 18px #ff9aa866, 0 12px 24px #000c; }
 /* 가방 — gearPanel 을 어두운 유리로 */
@@ -2886,7 +2893,7 @@ body:has(#screen.eventscreen2) .top { display: none; }
 .ev2-sheethead { display: flex; flex-direction: column; gap: 4px; }
 .ev2-sheethead b { font-size: 22px; font-weight: 900; }
 .ev2-sheethead span { font-size: 13px; color: #b9b2d6; }
-.ev2-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); align-items: start; gap: 14px; overflow-y: auto; padding: 12px 8px; min-height: 0; }
+.ev2-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); grid-auto-rows: max-content; align-content: start; align-items: start; gap: 14px; overflow-y: auto; padding: 12px 8px; min-height: 0; }   /* 줄 높이는 카드 높이대로 — 창 높이를 줄마다 나눠 카드가 아래 줄을 덮었다 */
 .ev2-cards.big { display: flex; flex-wrap: wrap; justify-content: center; gap: 22px; }
 .ev2-cards .gcard { width: 100%; box-shadow: 0 8px 18px #000a; }
 .ev2-cards.big .ev2-card { width: 210px; }
@@ -2906,7 +2913,7 @@ body:has(#screen.eventscreen2) .top { display: none; }
 
 /* 상점 카드 제거 · 캠프 수련 — 고른 뒤 확인 줄 */
 .sh-deckwrap, .cp-trainwrap { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
-.sh-deckwrap .sh-deckcard { padding: 0; min-height: 0; border: 0; background: transparent; border-radius: 14px; transition: transform .12s; }
+.sh-deckwrap .sh-deckcard { position: relative; padding: 0; min-height: 0; border: 0; background: transparent; border-radius: 14px; transition: transform .12s; }
 .sh-deckwrap .sh-deckcard:hover:not(:disabled) { transform: translateY(-4px); }
 
 /* 휴대폰 */

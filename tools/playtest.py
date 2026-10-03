@@ -262,7 +262,7 @@ def step_battle(d, By, notes):
 
 def step_reward(d, By, notes):
     cards = d.find_elements(By.CSS_SELECTOR, ".rpick:not(.rgot) .gcard")   # rgot = 이 전투에서 이미 얻은 것(보기만)
-    flashes = d.find_elements(By.CSS_SELECTOR, ".fcard")
+    flashes = d.find_elements(By.CSS_SELECTOR, ".fcard, .fpick")
     # 누르면 가운데에 자세히가 뜬다 — 거기서 「덱에 넣습니다」 · 「이 신탁을 붙입니다」
     def confirm():
         time.sleep(0.2)
@@ -294,7 +294,7 @@ def step_event(d, By, notes, step):
         if ok: d.execute_script("arguments[0].click()", ok[0])
     # 고를 것이 있으면 먼저 — 카드 · 신탁 · 사도 · 골라 받기(위에 뜨는 창)
     if d.find_elements(By.CSS_SELECTOR, ".ev2-sheet"):
-        for sel in (".ev2-sheet .fcard", ".ev2-sheet .ev2-card", ".ev2-sheet .ev2-hero", ".ev2-sheet .ev2-opt"):
+        for sel in (".ev2-sheet .fpick", ".ev2-sheet .fcard", ".ev2-sheet .ev2-card", ".ev2-sheet .ev2-hero", ".ev2-sheet .ev2-opt"):
             el = d.find_elements(By.CSS_SELECTOR, sel)
             if el:
                 notes["이벤트: 고를 것을 골랐다"] += 1
