@@ -1,0 +1,9 @@
+# Cloudflare Pages 설정 — 공개판(npm run deploy)과 판 기록 받기(functions/api/record.js)
+name = "bolzena"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-10-01"
+
+# 판 기록 — 우로스 앞에서 「보내기」 를 고른 사람의 기록이 쌓인다. 읽기는 tools/records-pull.js(wrangler 로그인한 사람만)
+[[kv_namespaces]]
+binding = "RECORDS"
+id = "c4ddda9070294a9784c366daa02300b7"

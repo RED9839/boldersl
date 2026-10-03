@@ -17,3 +17,6 @@ Thumbs.db
 
 # 기획서 백업 사본 — tools/merge-redesign.js --write 가 만든다. 옛 판은 git 기록에 있다
 트릭컬_기획서_전체_*전.md
+
+# 보내온 판 기록(npm run records:pull) — 플레이어 기록이라 저장소에 넣지 않는다
+records/

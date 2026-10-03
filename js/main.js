@@ -172,8 +172,8 @@ function camp(kind) {
   S.writeSave(run);
   ui.campScreen(run, kind === "campshop", kind === "final" ? finalGo : mapStep, () => shop(kind));
 }
-// 우로스 앞 — 여기까지의 판 기록을 파일로 내려받겠냐고 묻는다(2026-10 사용자: 기록을 모아 밸런스를 잰다).
-// 저장하면 우로스를 이기든 지든 끝난 뒤 결과까지 든 파일을 한 번 더 내려받는다(end)
+// 우로스 앞 — 여기까지의 판 기록을 보내겠냐고 묻는다(2026-10 사용자: 다른 사람의 기록을 모아 밸런스를 잰다 — functions/api/record.js).
+// 보내기를 고르면 우로스를 이기든 지든 끝난 뒤 결과를 한 번 더 보낸다(end)
 function finalGo() {
   ui.recordAsk(run, (yes) => {
     if (yes) { run.recordOn = true; S.writeSave(run); ui.saveRecord(run, "우로스 전"); }

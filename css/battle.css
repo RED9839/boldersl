@@ -334,6 +334,12 @@ main:has(.battle) { max-width: 1240px; }
   display: grid; grid-template-columns: repeat(auto-fill, minmax(172px, 1fr)); gap: 14px;
   padding: 12px 16px 18px; overflow-y: auto; min-height: 0;
 }
+.pilesec {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; margin-top: 6px; padding: 4px 2px 8px;
+  border-bottom: 2px dashed #ffffff1a; font-size: 17px; color: #efeaff;
+}
+.pilesec:first-child { margin-top: 0; }
+.pilesec .psn { margin-left: auto; font-size: 12.5px; font-weight: 800; color: #ffcf6b; }
 .pilecell { display: flex; flex-direction: column; gap: 6px; }
 .pilecell .rwho { background: #211c33; border-color: #3a3352; color: #efeaff; }
 .pilecell .rwho .pn { margin-left: auto; font-size: 12px; font-weight: 900; color: #ffcf6b; }

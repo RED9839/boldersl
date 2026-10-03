@@ -432,19 +432,34 @@ export function showPiles(piles, pick, cardFor, onDetail, numFor) {
       const rep = first.get(sig);
       bag.set(rep, (bag.get(rep) || 0) + 1);
     }
+    // 사도별로 묶는다 — 사도는 덱에 처음 나온 차례(파티 차례), 그 안에서 기본 카드 → 고유 카드, 코스트 · 이름 순.
+    // 주인 없는 카드(교주 · 골칫거리)는 맨 뒤(2026-10 사용자: 「사도별로, 기본 카드 고유 카드 순으로」)
+    const heroAt = new Map();
+    for (const id of pl.ids) { const h = (cardFor(id) || {}).hero || ""; if (!heroAt.has(h)) heroAt.set(h, h ? heroAt.size : 999); }
     const order = [...bag.keys()].sort((a, b) => {
       const ca = cardFor(a) || {}, cb = cardFor(b) || {};
-      return String(ca.hero || "").localeCompare(String(cb.hero || "")) || (ca.cost || 0) - (cb.cost || 0) || String(ca.name).localeCompare(String(cb.name));
+      return (heroAt.get(ca.hero || "") - heroAt.get(cb.hero || "")) || (!!ca.unique - !!cb.unique)
+        || (ca.cost || 0) - (cb.cost || 0) || String(ca.name).localeCompare(String(cb.name));
     });
+    let secHero = null;
     for (const id of order) {
       const c = cardFor(id);
       if (!c) continue;
+      const h = c.hero || "";
+      if (h !== secHero) {
+        secHero = h;
+        const n = pl.ids.filter((x) => ((cardFor(x) || {}).hero || "") === h).length;
+        const sec = el("div", "pilesec");
+        if (h) {
+          sec.appendChild(art.portrait(h, { ko: HERO(h).ko, tint: TINT(h), size: 28, slot: "battle", still: true }));
+          sec.appendChild(el("b", null, HERO(h).ko));
+        } else sec.appendChild(el("b", null, "교주 카드 · 그 밖"));
+        sec.appendChild(el("span", "psn", `${n}장`));
+        grid.appendChild(sec);
+      }
       const cell = el("div", "pilecell");
       const who = el("div", "rwho");
-      if (c.hero) {
-        who.appendChild(art.portrait(c.hero, { ko: HERO(c.hero).ko, tint: TINT(c.hero), size: 22, slot: "battle", still: true }));
-        who.appendChild(el("b", null, HERO(c.hero).ko));
-      } else who.appendChild(el("b", null, "공용"));
+      who.appendChild(el("b", null, !h ? (c.type || "카드") : c.unique ? "고유 카드" : "기본 카드"));
       if (bag.get(id) > 1) who.appendChild(el("span", "pn", `×${bag.get(id)}`));
       cell.appendChild(who);
       const card = bigCard(c, CARDART.pic[id] || null, numFor ? numFor(id) : null);

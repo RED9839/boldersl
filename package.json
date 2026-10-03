@@ -11,6 +11,7 @@
     "sfx": "python tools/extract-sfx.py",
     "currency": "python tools/extract-currency-icons.py",
     "records": "node tools/records.js",
+    "records:pull": "node tools/records-pull.js",
     "sim": "node tools/sim.js 400",
     "smoke": "node tools/smoke.js",
     "save": "node tools/check-save.js",
