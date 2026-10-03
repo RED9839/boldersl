@@ -18,7 +18,7 @@ const ICONS = {
   taken: { c: "#ff8a9a", ko: "받는 피해", g: F(SHIELD, 0.22) + S(SHIELD, 2) + S("M12.8 5.5l-2.6 4.6 3.4 2.2-2.6 5", 2) },
   def: { c: "#8cc8ff", ko: "방어력", g: F(SHIELD, 0.85) + `<path d="M8.5 11.5l2.5 2.5 4.5-5" fill="none" stroke="#0b1424" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>` },
   crit: { c: "#ffd84a", ko: "치명 확률", g: S("M12 5a7 7 0 1 0 0 14a7 7 0 1 0 0-14", 2) + S("M12 1.8v4.4M12 17.8v4.4M1.8 12h4.4M17.8 12h4.4", 2.2) + F("M12 9.2l.9 1.9 1.9.9-1.9.9-.9 1.9-.9-1.9-1.9-.9 1.9-.9z") },
-  heal: { c: "#7cf0a0", ko: "회복력", g: F(HEART, 0.9) + `<path d="M12 9.5v6M9 12.5h6" stroke="#0b2414" stroke-width="2.2" stroke-linecap="round"/>` },
+  heal: { c: "#7cf0a0", ko: "회복", g: F(HEART, 0.9) + `<path d="M12 9.5v6M9 12.5h6" stroke="#0b2414" stroke-width="2.2" stroke-linecap="round"/>` },
   취약: { c: "#ff7a8a", ko: "취약", g: F("M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18", 0.2) + S("M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18", 2) + S("M12.5 3.5L10 9l4 2.5-3 4.5 1.5 4.5", 2.2) },
   약화: { c: "#c0a8ff", ko: "약화", g: F("M20.5 3.5l-.6 3.8-3.6 3.6-3.2-3.2 3.6-3.6z") + F("M11.2 9.9l3 3-3.9 3.9-3-3z") + S("M4.2 12.6l7.2 7.2M7.3 16.7l-3.6 3.6", 2.4) },
   감전: { c: "#ffe24a", ko: "감전", g: F("M13.5 1.8L4.5 13.5h6l-1.4 8.7 9.4-12h-6.2z") },

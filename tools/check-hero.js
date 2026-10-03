@@ -149,7 +149,7 @@ for (const file of files) {
         // 시그니처 코스트는 원작 저학년 주기(SP 총량 ÷ 초당 SP)에서 — 자주 쓰면 1코, 보통 2코, 드물고 큰 기술 3코(docs/11 §3-3)
         if (i === 0 && !(u.cost === 1 || u.cost === 2 || u.cost === 3 || u.cost === "X")) errs.push(`시그니처 「${u.ko}」 — 1~3코 또는 X (${u.cost}코)`);
         if (typeof u.cost === "number" && u.cost >= 1) {
-          const r = valueOf(fx) / baseValue(u.cost);
+          const r = valueOf(fx, { power: u.type === "강화" }) / baseValue(u.cost);
           ratios.push(r);
           const cap = h.eldain ? 1.75 : 1.5;     // 엘다인은 체급이 한 단계 위다
           if (r > cap) errs.push(`고유 「${u.ko}」 — ${u.cost}코에 비해 너무 세다 (값어치 ${r.toFixed(1)}배 · ${cap}배까지)`);
@@ -191,7 +191,7 @@ for (const file of files) {
             if (dr >= 2 && !ffx.some((x) => x.k === "tag" && x.id === "소멸")) errs.push(`「${u.ko}」 ${nm} — 0코에 드로우 ${dr} 은 소멸을 붙인다`);
             // 공짜 카드가 크면 한 번만 — 에슈르 「고대 마법서 필사본」 ⑤ 가 0코에 전투 내내 공격력 +20% 였다
             // ② 경량은 같은 카드를 공짜로 만드는 보상이다 — 기본 카드보다 세지만 않으면 된다
-            if (f.kind === "경량") { if (valueOf(ffx) > valueOf(fx) * 1.05) errs.push(`「${u.ko}」 경량 — 0코판이 기본 카드보다 세다`); }
+            if (f.kind === "경량") { if (valueOf(ffx, { power: u.type === "강화" }) > valueOf(fx, { power: u.type === "강화" }) * 1.05) errs.push(`「${u.ko}」 경량 — 0코판이 기본 카드보다 세다`); }
             // 연계 · 천상의 값(비용 없이 저절로 나간다)은 0코 카드에 덤이 아니다 — 이미 공짜다. 그 값은 빼고 본다
             else if (valueOf(ffx.filter((x) => !(x.k === "tag" && (x.id === "연계" || x.id === "천상")))) > 1.0 && !ffx.some((x) => x.k === "tag" && x.id === "소멸"))
               errs.push(`「${u.ko}」 ${nm} — 0코인데 효과가 크다(값어치 ${valueOf(ffx).toFixed(1)}) — 줄이거나 소멸을 붙인다`);
@@ -202,7 +202,7 @@ for (const file of files) {
           if (auto && typeof u.cost === "number" && typeof c === "number" && c > u.cost) errs.push(`「${u.ko}」 ${nm} — ${auto.id} 카드는 코스트를 올리는 신탁을 두지 않는다(비용 없이 나간다)`);
         });
         // 신탁은 기본보다 나아야 한다 — 손해 · 하나 마나 · 소멸 남발 금지(tools/lib/card-value.js oracleRules · docs/12-신탁.md)
-        for (const e of oracleRules({ fx, cost: u.cost, tags: [...u.tags, ...tagsOf(fx)] }, u.flash.map((f) => ({ fx: pe(f.text), at: `「${u.ko}」 ${f.kind || `「${f.ko}」`}` })), { selfKw: kw && kw.carrier === "self" ? [kwName] : [] }))
+        for (const e of oracleRules({ fx, cost: u.cost, tags: [...u.tags, ...tagsOf(fx)] }, u.flash.map((f) => ({ fx: pe(f.text), at: `「${u.ko}」 ${f.kind || `「${f.ko}」`}` })), { selfKw: kw && kw.carrier === "self" ? [kwName] : [], power: u.type === "강화" }))
           errs.push(e.startsWith("「") ? e : `「${u.ko}」 ${e}`);
       });
       // 엘다인 — 세계수의 힘을 받은 사도. 원작에서도 기본 스펙이 높다. 고유 카드가 코스트 값어치의 평균 1.1배는 된다
@@ -246,7 +246,7 @@ for (const file of files) {
           if (!b.kind && !b.fx.length) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 효과를 못 읽었다: ${bl.text}`); else read++;
           if (b.left) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 못 읽은 말: 「${b.left}」`);
           if (b.kind === "cost" && !(typeof u.cost === "number" && u.cost >= 2)) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 코스트 -1 은 2코 이상 카드만(0코가 되면 안 된다)`);
-          const base = valueOf(parseEffect(u.text, { keywords: kws }).fx) || 0.5;
+          const base = valueOf(parseEffect(u.text, { keywords: kws }).fx, { power: u.type === "강화" }) || 0.5;
           // 축복의 보존 · 개전 — 그 카드가 손에 남는다 · 첫 손패에 든다(js/combat.js blessTag). 덤 0.3 으로 친다
           const extra = valueOf(b.fx) + b.fx.filter((f) => f.k === "tag" && (f.id === "보존" || f.id === "개전")).length * 0.3;
           if (b.fx.some((f) => f.k === "tag" && f.id === "소멸")) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 소멸은 축복에 붙이지 않는다`);
@@ -263,13 +263,17 @@ for (const file of files) {
         }
       }
     }
-    // ── 강화 카드(js/rules.js isPower · docs/15 §7) — 사도마다 한 장까지, 버프는 「판 내내」 ──
-    // 한 장만 · 쓰면 사라짐(판의 덱에서도) · 판 내내. 그래서 기본 카드와 신탁 다섯이 모두 「판 내내 …」 증감을 하나는 든다.
-    // 「판 내내」 는 강화 카드에만 쓴다 — 다른 카드 · 패시브 · 고학년 · 축복에 쓰면 판에 쌓인다
+    // ── 강화 카드(js/rules.js isPower · docs/15 §7) — 사도마다 한 장까지, 버프는 「전투 내내」 ──
+    // 한 장만(유일) · 쓰면 이 전투에서 사라짐(덱에는 남는다) · 전투 내내(그 전투 끝까지 — 2026-10-04, 옛 「판 내내」).
+    // 그래서 기본 카드와 신탁 다섯이 모두 「전투 내내 …」 증감을 하나는 든다.
+    // 「전투 내내」 % 증감은 강화 카드에만 쓴다 — 강화 카드의 몫(% 증감이 허락되는 유일한 카드 글, docs/18). 옛 말 「판 내내」 는 어디에도 쓰지 않는다
+    // 다만 「전투 내내 자신 · 아군 1명 공격력 +15%(의 배수)」 는 어디에나 — 옛 「자신 · 아군 1명 사기 N」 을 옮긴 개인 버프(사기 1 = +15%, 2026-10 사용자)
     {
       const pe = (t) => parseEffect(t, { keywords: kws }).fx;
       const MODS = ["dealtMod", "takenMod", "atkMod", "defMod", "critMod", "healMod"];
-      const boons = (fx) => fx.filter((f) => MODS.includes(f.k) && f.run);
+      const morale = (f) => f.k === "atkMod" && f.run && f.v > 0 && (f.target === "self" || f.target === "oneAlly") && Math.round(f.v * 100) % 15 === 0;
+      const runs = (fx) => fx.filter((f) => MODS.includes(f.k) && f.run);
+      const boons = (fx) => runs(fx).filter((f) => !morale(f));   // 강화 카드의 몫 — 옛 사기를 옮긴 공격력 증감은 빼고
       // 강화 길 — 기본이 강화인 고유 카드, 또는 신탁 하나가 「강화 카드.」 로 시작하는 고유 카드(그 신탁을 고르면 강화 카드가 된다)
       const marked = (t) => pe(t).some((f) => f.k === "tag" && f.id === "강화");
       const paths = [...h.unique.filter((u) => u.type === "강화").map((u) => `「${u.ko}」`),
@@ -285,23 +289,24 @@ for (const file of files) {
         for (const x of list) {
           const b = boons(pe(x.text));
           if (u.type === "강화" && marked(x.text)) errs.push(`${x.at} — 이미 강화 카드다. 「강화 카드.」 를 적지 않는다`);
-          if (!x.power) { if (b.length || /판\s*내내/.test(x.text)) errs.push(`${x.at} — 「판 내내」 는 강화 카드에만`); continue; }
-          if (!b.length) errs.push(`${x.at} — 강화 카드는 「판 내내 자신 …+N%」 증감을 하나 든다(신탁도)`);
-          if (b.length > 2) errs.push(`${x.at} — 판 내내 증감이 ${b.length}개(둘까지)`);
+          if (/판\s*내내/.test(x.text)) errs.push(`${x.at} — 「판 내내」 는 낡은 말 — 「전투 내내」 로`);
+          if (!x.power) { if (b.length) errs.push(`${x.at} — 「전투 내내」 증감은 강화 카드에만`); continue; }
+          if (!runs(pe(x.text)).length) errs.push(`${x.at} — 강화 카드는 「전투 내내 자신 …+N%」 증감을 하나 든다(신탁도)`);
+          if (b.length > 2) errs.push(`${x.at} — 전투 내내 증감이 ${b.length}개(둘까지)`);
           for (const f of b) {
-            // 강화 카드는 자기 자신만 강화한다(2026-10 사용자) — 아군 전원 · 다른 아군에게 거는 판 내내는 안 된다
+            // 강화 카드는 자기 자신만 강화한다(2026-10 사용자) — 아군 전원 · 다른 아군에게 거는 전투 내내는 안 된다
             const cap = 0.2;
-            if (f.v < 0 ? f.k !== "takenMod" : f.k === "takenMod") errs.push(`${x.at} — 판 내내는 제 편에 좋은 것만(${fxLabel(f)})`);
-            if (Math.abs(f.v) > cap + 1e-9) errs.push(`${x.at} — 판 내내 ${fxLabel(f)} 는 크다(자신 20% 까지 — 판 끝까지 쌓인다)`);
-            if (f.target !== "self") errs.push(`${x.at} — 강화 카드의 판 내내는 자신에게만(${f.target})`);
+            if (f.v < 0 ? f.k !== "takenMod" : f.k === "takenMod") errs.push(`${x.at} — 전투 내내는 제 편에 좋은 것만(${fxLabel(f)})`);
+            if (Math.abs(f.v) > cap + 1e-9) errs.push(`${x.at} — 전투 내내 ${fxLabel(f)} 는 크다(자신 20% 까지)`);
+            if (f.target !== "self") errs.push(`${x.at} — 강화 카드의 전투 내내는 자신에게만(${f.target})`);
           }
           if (pe(x.text).some((f) => f.k === "tag" && f.id === "소멸") || (u.type === "강화" && u.tags.includes("소멸"))) errs.push(`${x.at} — 강화 카드는 쓰면 사라진다. 「소멸」 을 따로 적지 않는다`);
         }
-        if (u.type === "강화") for (const bl of u.blesses || (u.bless ? [u.bless] : [])) if (/판\s*내내/.test(bl.text)) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 축복에는 「판 내내」 를 쓰지 않는다(덤은 이번 전투 것)`);
+        if (u.type === "강화") for (const bl of u.blesses || (u.bless ? [u.bless] : [])) if (/판\s*내내/.test(bl.text) || boons(pe(bl.text)).length) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 축복에는 「전투 내내」 를 쓰지 않는다(덤은 이번 것 — 강화 카드 몫과 겹친다)`);
       }
-      for (const c of [...h.start, ...(h.ult ? [h.ult] : [])]) if (/판\s*내내/.test(c.text || "")) errs.push(`「${c.ko}」 — 「판 내내」 는 강화 카드에만`);
-      if (/판\s*내내/.test(h.passive || "") || /판\s*내내/.test((h.keyword && h.keyword.text) || "")) errs.push("패시브 · 키워드 — 「판 내내」 는 강화 카드에만");
-      for (const u of h.unique) if (u.type !== "강화") for (const bl of u.blesses || (u.bless ? [u.bless] : [])) if (/판\s*내내/.test(bl.text)) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 「판 내내」 는 강화 카드에만`);
+      for (const c of [...h.start, ...(h.ult ? [h.ult] : [])]) if (/판\s*내내/.test(c.text || "") || boons(pe(c.text || "")).length) errs.push(`「${c.ko}」 — 「전투 내내」 증감은 강화 카드에만(옛 말 「판 내내」 도)`);
+      if (/판\s*내내/.test(h.passive || "") || /판\s*내내/.test((h.keyword && h.keyword.text) || "")) errs.push("패시브 · 키워드 — 「판 내내」 는 낡은 말(강화 카드는 「전투 내내」)");
+      for (const u of h.unique) if (u.type !== "강화") for (const bl of u.blesses || (u.bless ? [u.bless] : [])) if (/판\s*내내/.test(bl.text) || boons(pe(bl.text)).length) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 「전투 내내」 증감은 강화 카드에만`);
     }
     // 「(턴당 N회)」 는 카드 · 고학년 스킬 글에도 쓰지 않는다(2026-10 사용자)
     for (const c of cards) if (/턴당\s*\d+\s*회/.test(c.text || "")) errs.push(`${c.where} — 「턴당 N회」 를 쓰지 않는다`);
@@ -382,7 +387,7 @@ function fxLabel(f) {
     case "spend": return `${f.id} ${f.v === "all" ? "전부" : f.v} 소모`;
     case "status": return `${f.id} ${f.turns}턴${t}`;
     case "dealtMod": case "takenMod": case "atkMod": case "defMod": case "critMod": case "healMod":
-      return `${{ dealtMod: "주는 피해", takenMod: "받는 피해", atkMod: "공격력", defMod: "방어력", critMod: "치명", healMod: "회복력" }[f.k]} ${f.v > 0 ? "+" : ""}${Math.round(f.v * 100)}%${f.run ? " 판 내내" : f.turns >= 999 ? " 전투 내내" : f.turns > 1 ? ` ${f.turns}턴` : ""}${t}`;
+      return `${{ dealtMod: "주는 피해", takenMod: "받는 피해", atkMod: "공격력", defMod: "방어력", critMod: "치명", healMod: "회복력" }[f.k]} ${f.v > 0 ? "+" : ""}${Math.round(f.v * 100)}%${f.run ? " 전투 내내(강화)" : f.turns >= 999 ? " 이번 전투" : f.turns > 1 ? ` ${f.turns}턴` : ""}${t}`;
     default: return f.k + (f.v != null ? " " + f.v : "");
   }
 }

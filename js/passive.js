@@ -25,7 +25,7 @@
 //                     1개당 자신 주는 피해 +N%. 1개당 턴 종료 시 공격력 N% 피해. 「X」가 N개가 되면: …
 
 import { parseEffect } from "./effects.js";
-import { STAT_ST, stackEff } from "./rules.js";
+import { STAT_ST, stackEff, STATUS_V } from "./rules.js";
 
 // ── 읽기 ───────────────────────────────────────────────────────────────
 
@@ -494,8 +494,16 @@ export function tickMods(s) {
 }
 
 // src — 어디서 왔나(「실비아 「궁극의 유희」」 따위). 사도 정보 창이 버프 · 디버프마다 출처를 적는다
-// run — 강화 카드의 「판 내내」 버프(run.boons). 정보 창이 「판 내내」 로 적는다
+// run — 강화 카드의 「전투 내내」 버프(그 전투 끝까지). 정보 창이 「전투 내내」 로 적는다
+// 사도의 「전투 내내 공격력 +N%」(옛 「자신 · 아군 1명 사기」 — 사기 1겹 = +15%, 파티 사기와 곱해지니 낮췄다 — 2026-10 사용자)는
+// 사기 겹 상한과 같이 사도마다 +150% 까지(15% × 10겹)
+export const MORALE_ATK = 0.15;
 export function addMod(u, stat, v, turns, src, run) {
   u.mods = u.mods || [];
+  if (run && stat === "atk" && v > 0 && u.side === "party") {
+    const has = u.mods.filter((m) => m.run && m.stat === "atk" && m.v > 0).reduce((a, m) => a + m.v, 0);
+    v = Math.min(v, MORALE_ATK * STATUS_V.사기Max - has);
+    if (v <= 1e-9) return;
+  }
   u.mods.push({ stat, v, left: turns == null ? 1 : turns, ...(src ? { src } : {}), ...(run ? { run: true } : {}) });
 }

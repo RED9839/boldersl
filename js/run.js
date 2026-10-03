@@ -33,8 +33,6 @@ export function newRun(partyKeys, rows, seed = Date.now()) {
     floor: 0, node: 0,            // node 0..2 전투, 3 보스, 4 마지막 층 너머의 마지막 보스(isFinal)
     bench: Object.keys(HERO_DATA).filter((k) => !partyKeys.includes(k)),
 
-    boons: {},                    // 강화 카드가 남긴 「판 내내」 버프 — { 사도키: [{ stat, v, src }] }. 전투를 열 때마다 다시 건다
-    spent: [],                    // 써 버린 강화 카드 — 덱에서 빠졌고, 이 판에서는 다시 안 나온다(rules.js isPower)
     where: null,                  // 지금 어느 화면에 있나 — 이어하기가 그 자리로 돌아간다(js/main.js · js/save.js)
     done: null,
   };
@@ -69,7 +67,6 @@ export function openFight(run, { hpx = 1, dmgx = 1 } = {}) {
     enemyIds: currentEnemies(run), partyHp: run.partyHp, partyMaxHp: run.partyMaxHp, traits: run.traits, gear: gearStats(run), gearFx: gearPassives(run), flash: run.flash,
     enemyHp: foeScaleOf(run).hp * hpx, enemyDmg: foeScaleOf(run).dmg * dmgx,   // 층마다 · 엘리트 칸(이벤트 엘리트도) 체력 ×1.5
     next, shin: run.shin, gauge: run.gauge || 0,   // 기적이 붙은 카드 · 고학년 게이지는 전투 사이에 이어진다
-    boons: run.boons || {},                        // 강화 카드의 「판 내내」 버프 — 판이 끝날 때까지 전투마다
     elite: run.eventFight ? !!run.eventFight.elite : !!run.elite,   // 엘리트 칸 — 강인도 칸이 하나 더(rules.js TOUGH)
     glow: run.forceGlow || rollEpiphany(run),   // 신탁 — 이 전투에서 빛날 카드(카제나). forceGlow 는 시험 도구가 정해 넣는 것
     seed: (run.seed + run.floor * 101 + run.node * 7 + (run.step || 0) * 13 + (run.eventFight ? 555 : 0)) >>> 0,
@@ -84,13 +81,7 @@ export function afterFight(run, combat) {
   const g = combat.gained || { cards: [], flash: [] };
   for (const id of g.cards) if (!run.deck.includes(id) && !powerWhy(run, id)) run.deck.push(id);
   for (const f of g.flash) { run.flash[f.cardId] = f.n; if (f.shin) (run.shin = run.shin || {})[f.cardId] = f.shin; }
-  // 강화 카드 — 낸 것은 판의 덱에서 빠지고(같은 id 가 둘이어도 모두) 다시 안 나온다. 건 「판 내내」 버프는 판에 남는다
-  for (const id of g.spent || []) {
-    run.deck = run.deck.filter((x) => x !== id);
-    run.spent = run.spent || [];
-    if (!run.spent.includes(id)) run.spent.push(id);
-  }
-  for (const b of g.boons || []) ((run.boons = run.boons || {})[b.hero] = run.boons[b.hero] || []).push({ stat: b.stat, v: b.v, src: b.src });
+  // 강화 카드는 판에 남기는 것이 없다 — 덱에 그대로 있고, 버프는 그 전투에서 끝났다(옛 gained.spent · boons 는 보지 않는다)
   run.lastGained = { cards: g.cards.slice(), flash: g.flash.slice() };
   if (combat.pool) { run.partyHp = Math.max(0, combat.pool.hp); run.partyMaxHp = combat.pool.maxHp; }
   run.gauge = Math.max(0, Math.min(R.GAUGE_MAX, combat.gauge || 0));   // 남은 고학년 게이지는 다음 전투로
@@ -152,7 +143,7 @@ export function rollEpiphany(run) {
 // 아직 얻을 수 있는 고유 카드 — 덱에 있는 것 · 한 번 빼 버린 것(run.dropped)은 빠진다.
 // 은총 · 상점이 같이 쓴다. 빼 버린 카드가 은총으로 다시 돌아오지 않게(사용자가 정한 규칙)
 export function uniquesLeft(run, heroKey) {
-  const gone = new Set([...(run.dropped || []), ...(run.spent || [])]);     // 써 버린 강화 카드도(rules.js isPower)
+  const gone = new Set(run.dropped || []);
   return uniqueIdsOf(heroKey).filter((id) => !run.deck.includes(id) && !gone.has(id));
 }
 // 덱에서 카드를 뺄 때 — 고유 카드면 적어 둔다
@@ -189,7 +180,7 @@ export function rollReward(run) {
   return run.reward;
 }
 
-// 강화 카드를 덱에 넣을 수 없는 까닭 — 이미 한 장 있거나 이 판에서 써 버렸으면. 넣을 수 있으면 null.
+// 강화 카드를 덱에 넣을 수 없는 까닭 — 이미 한 장 있으면(유일). 넣을 수 있으면 null.
 // 은총 · 이벤트 · 보상이 덱에 카드를 넣는 곳마다 본다(rules.js isPower)
 // 이 판에서 그 카드가 강화 카드인가 — 기본이 강화이거나, 「강화 카드.」 신탁을 붙였거나
 export const powerCard = (run, cardId) => !!CARDS[cardId] && R.isPower(flashed(CARDS[cardId], (run.flash || {})[cardId]));
@@ -200,10 +191,9 @@ export function flashOk(run, cardId, n) {
   if (!c || !R.isPower(flashed(c, n)) || R.isPower(c)) return true;
   return run.deck.filter((x) => x === cardId).length <= 1;
 }
-// 유일(rules.js isOnly — 강화 카드 · 「유일.」 · 교주 「덱에 1장만.」)은 덱에 한 장만. 강화 카드는 쓴 뒤에도 다시 안 들어온다
+// 유일(rules.js isOnly — 강화 카드 · 「유일.」 · 교주 「덱에 1장만.」)은 덱에 한 장만. 강화 카드는 써도 덱에 남는다(이 전투에서만 사라짐)
 export const onlyCard = (run, cardId) => !!CARDS[cardId] && R.isOnly(flashed(CARDS[cardId], (run.flash || {})[cardId]));
 export function powerWhy(run, cardId) {
-  if (powerCard(run, cardId) && (run.spent || []).includes(cardId)) return "이 판에서 이미 쓴 강화 카드입니다 — 강화 카드는 쓰면 사라집니다";
   if (onlyCard(run, cardId) && run.deck.includes(cardId)) return "유일 — 덱에 한 장만 넣을 수 있습니다";
   return null;
 }
@@ -511,8 +501,7 @@ export function bossCopy(run) {
   const owned = [...new Set(run.deck)].filter((id) => {
     const c = CARDS[id];
     if (!c || !c.unique || !c.hero) return false;
-    if (R.isOnly(flashed(c, (run.flash || {})[id]))) return false;      // 유일(강화 카드 포함)은 복제하지 않는다
-    return !(run.spent || []).includes(id);
+    return !R.isOnly(flashed(c, (run.flash || {})[id]));      // 유일(강화 카드 포함)은 복제하지 않는다
   });
   if (!owned.length) return null;
   const id = owned[Math.floor(run.rng() * owned.length)];
@@ -549,7 +538,13 @@ export function partyWiped(run) { return (run.partyHp || 0) <= 0; }
 
 // 옛 저장 — 사도마다 hp · maxHp 였던 판을 파티 HP 하나로(더한다). 주말농장에 갔던 사도(0)는 0 을 더한다
 export function migrateRun(run) {
-  if (!run || run.partyMaxHp != null) return run;
+  if (!run) return run;
+  // 옛 판(강화 카드가 「판 내내」 이던 때) — 써 버려 덱에서 빠진 강화 카드(run.spent)는 덱으로 돌려놓고, 판에 적힌 버프(run.boons)는 버린다
+  if (run.spent || run.boons) {
+    for (const id of run.spent || []) if (typeof id === "string" && !(run.deck || []).includes(id)) (run.deck = run.deck || []).push(id);
+    delete run.spent; delete run.boons;
+  }
+  if (run.partyMaxHp != null) return run;
   const hp = run.hp || {}, max = run.maxHp || {};
   run.partyMaxHp = Math.max(1, run.party.reduce((a, k) => a + (max[k] || base(k).hp || 0), 0));
   run.partyHp = Math.min(run.partyMaxHp, run.party.reduce((a, k) => a + Math.max(0, hp[k] || 0), 0));

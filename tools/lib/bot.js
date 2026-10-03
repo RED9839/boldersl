@@ -176,7 +176,6 @@ export function makeBots({ C, B, R, ENEMIES }) {
   }
 
   const MOD_W = { atk: 12 * K, dealt: 12 * K, crit: 4 * K, def: 8 * K, taken: -14 * K };   // 방어력은 v6 부터 치유도 키운다
-  const BOON_W = 9;          // 판 내내 증감 — 3턴 몫(이번 전투) × 전투 셋
   const KNOWN = new Set(["취약", "약화", "감전", "중독", "힘", "침묵", "가시", "사기", "불굴", "결의", "결정화", "반격", "고통", "손상", "표식",
     "잔불", "잔광", "피해 감소", "면역", "실드 유지", "저장", "협공", "균열", "고동", "그을림", "충격", "충격파"]);
   // 상태 한 겹의 값어치(HP 단위). 적에게 건 것 · 아군에게 건 것
@@ -238,8 +237,8 @@ export function makeBots({ C, B, R, ENEMIES }) {
       if (u.dead) continue;
       for (const [k, w] of Object.entries(ALLY_ST)) if (MINE.has(k)) v += w * useful(k, st(u, k)) * (k === "사기" ? (u.role === "딜러" ? 1.4 : 0.8) : 1);
       const rw = u.role === "딜러" ? 1.4 : 0.8;
-      // 「판 내내」(강화 카드 · m.run) — 이번 전투 끝까지에 다음 전투들까지 간다. 일찍 낼수록 이득이라 크게 친다(전투 셋 몫)
-      for (const m of u.mods || []) v += (MOD_W[m.stat] || 0) * rw * m.v * (m.run ? BOON_W : Math.min(m.left, 3));
+      // 강화 카드의 「전투 내내」(m.run)도 그 전투 끝까지뿐이다 — 다른 증감처럼 남은 몫(3턴까지)으로 친다(옛 「판 내내」 ×9 는 뗐다)
+      for (const m of u.mods || []) v += (MOD_W[m.stat] || 0) * rw * m.v * Math.min(m.left, 3);
     }
     for (const bag of Object.values(s.stacks || {})) for (const n of Object.values(bag)) v += 1.5 * K * n;
     v += 0.06 * K * s.gauge;

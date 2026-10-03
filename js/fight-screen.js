@@ -77,6 +77,9 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   const flashBox = el("span", "bflash");
   for (const id of run.traits) { const t = TRAITS[id]; const c = el("span", "flash", t.ko); c.title = t.text; flashBox.appendChild(c); }
   head.appendChild(flashBox);
+  // 파티 HP — 왼쪽 위, 층 이름 밑(2026-10 사용자: 「hp 칸 왼쪽 위로」). draw 가 다시 채운다
+  const partySlot = el("div", "pbslot");
+  head.appendChild(partySlot);
   s.appendChild(head);
 
   // 오른쪽 위 메뉴 — 이어하기 · 설정 · 메인화면으로
@@ -90,16 +93,14 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   let sayT = 0;
   const say = (m) => { hint(m); clearTimeout(sayT); if (m) sayT = setTimeout(() => hint(""), 1800); };
 
-  // ② 싸움터 — 왼쪽에 아군, 오른쪽에 적. 가장자리에 덱과 버린 더미.
+  // ② 싸움터 — 왼쪽에 아군, 오른쪽에 적. 덱과 버린 더미는 아래 줄(⑤ 손패 양옆)에 — 카제나 배치(2026-10)
   const field = el("div", "field");
   const drawPile = el("div", "pile2 draw");
   const allyField = el("div", "afield");
   const foeZone = el("div", "foes");
   const discPile = el("div", "pile2 disc");
-  field.appendChild(drawPile);
   field.appendChild(allyField);
   field.appendChild(foeZone);
-  field.appendChild(discPile);
   const turnTag = el("div", "turntag");
   field.appendChild(turnTag);
   s.appendChild(field);
@@ -145,13 +146,15 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   const allyZone = el("div", "allies");
   s.appendChild(allyZone);
 
-  // ⑤ 코스트 창 + 손패 + 턴 종료
+  // ⑤ 아래 한 줄 — [뽑을 더미 · AP] 손패 [버린 더미 · 턴 넘기기]. 판단에 드는 숫자를 손패 옆에 모은다(카제나 배치)
   const deckRow = el("div", "deckrow");
   const apBox = el("div", "apbox");
   const piles = el("span", "pile");
   const endBtn = el("button", "endturn", "턴 넘기기");
+  deckRow.appendChild(drawPile);
   deckRow.appendChild(apBox);
   deckRow.appendChild(piles);
+  deckRow.appendChild(discPile);
   deckRow.appendChild(endBtn);
   s.appendChild(deckRow);
 
@@ -653,7 +656,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   function toughFx(h) {
     const slot = foeEls.get(h.idx);
     const cells = slot && slot.pips ? slot.pips.querySelectorAll(".tcells i") : [];
-    const lo = Math.min(h.from, h.to), hi = Math.max(h.from, h.to);
+    const lo = Math.floor(Math.min(h.from, h.to)), hi = Math.ceil(Math.max(h.from, h.to));
     for (let k = lo; k < hi; k++) {
       const c = cells[k]; if (!c) continue;
       c.classList.remove("crack", "refill"); void c.offsetWidth;
@@ -1362,12 +1365,17 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       const gem = el("span", "igem");
       gem.appendChild(el("b", null, hit ? (it.t === "multi" ? `${hitV}×${it.n}` : String(hitV)) : icon));
       tag.appendChild(gem);
-      // 마름모 옆은 아이콘 · 숫자만 — 말(「몸으로 민다」)은 올리면 뜨는 풀이와 적 정보 창으로 옮겼다(넷이면 서로 덮었다).
-      // 치는 수는 마름모가 숫자라 옆에 아이콘(전체는 「전체」 까지), 아닌 수는 마름모가 아이콘이라 옆에 값
+      // 마름모 옆 — 무엇을(공격 · 방어 …) · 누구에게(파티 · 자신 · 적 전체). 마름모가 「얼마나」.
+      // 말(「몸으로 민다」)은 올리면 뜨는 풀이와 적 정보 창에 둔다 — 넷이 서면 서로 덮었다
       const nx = it.next || {};
-      const side = it.t === "charge" ? `→${INTENT_ICON[nx.t] || ""}${nx.v != null ? C.foeV(u, nx) : ""}`
-        : hit ? (it.t === "attackAll" ? "✹전체" : icon) : it.v != null && it.v !== "" ? String(it.v) : "";
-      if (side) tag.appendChild(el("span", "iside", side));
+      const what = el("span", "iwhat");
+      const val = !hit && it.t !== "charge" && it.v != null && it.v !== "" ? ` ${it.v}` : "";
+      what.appendChild(el("b", null, it.t === "addCard" && it.id ? `${it.id} ×${it.n || 1}` : (INTENT_KO[it.t] || it.say || "") + val));
+      const who = it.t === "addCard" ? "→ " + (ADD_TO_KO[it.to] || "파티 더미") : it.t === "charge" ? `다음 턴 ${INTENT_KO[nx.t] || nx.say || ""}${nx.v != null ? " " + C.foeV(u, nx) : ""}`
+        : INTENT_WHO[it.t] ? "→ " + INTENT_WHO[it.t] : "";
+      if (who) what.appendChild(el("small", null, who));
+      tag.appendChild(what);
+      const meta = el("span", "imeta");
       const more = it.t === "attackAll" ? ` · 전체(×${RULES.FOE_ALL_X})` : it.t === "back" ? " · 관통" : it.t === "guard" ? " · 적 전체"
         : it.t === "charge" ? ` → 다음 턴 ${nx.say} ${C.foeV(u, nx)}${nx.t === "attackAll" ? " 전체" : ""}`
         : it.id && hit ? ` · ${it.id} ${it.n || 1}` : "";
@@ -1377,19 +1385,20 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       if (rn && !u.sealed && u.rushedTurn) {
         const rush = el("span", "rush done", "⚡끝");
         rush.title = "이번 턴에는 이미 즉시 행동했습니다 — 다음 턴까지 당겨지지 않습니다";
-        tag.appendChild(rush);
+        meta.appendChild(rush);
       } else if (rn && !u.sealed) {
         const k = u.rushCnt || 0;
         const rush = el("span", "rush" + (k === rn - 1 ? " hot" : ""), `⚡${k}/${rn}`);
         rush.title = `카드를 ${rn - k}장 더 내면 이 수를 즉시 합니다`;
-        tag.appendChild(rush);
+        meta.appendChild(rush);
       }
       // 적 정보 — 작은 ⓘ. 카드를 든 채 적을 누르면 카드가 나가니, 정보는 여기 · 길게 누르기 · 오른쪽 클릭으로
       const info = el("button", "finfo", "i");
       info.title = "적 정보";
       info.setAttribute("aria-label", `${u.ko} 정보`);
       info.onclick = (e) => { stopEv(e); openFoe(u); };
-      tag.appendChild(info);
+      meta.appendChild(info);
+      tag.appendChild(meta);
       n.appendChild(tag);
     }
 
@@ -1509,7 +1518,9 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       gearRow = gs;
     }
     box.appendChild(top);
-    box.appendChild(chips(u));
+    // 사도 층 상태(사기 · 열의 …) — 이름 옆 한 줄. 파티 층은 왼쪽 위 파티 막대에
+    const own = chips(u); own.classList.add("achips");
+    top.appendChild(own);
 
     // 고학년 스킬 — 게이지가 차면 누를 수 있다
     const ult = C.ultOf(u.key);
@@ -1531,6 +1542,13 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       } else if (!why) b.appendChild(el("i", "ubadge", "고학년!"));
       b.appendChild(el("span", "ucost", `${ult.cost}%`));
       b.appendChild(el("span", "uname", ult.ko));
+      // 이 사도의 고학년까지 — 파티 게이지가 비용의 몇 할까지 찼나(사도마다 한 줄)
+      const ubar = el("span", "ubar");
+      const ubi = el("i");
+      ubi.style.width = Math.min(100, (st.gauge / ult.cost) * 100).toFixed(1) + "%";
+      ubar.appendChild(ubi);
+      ubar.appendChild(el("em", null, `${Math.min(st.gauge, ult.cost)} / ${ult.cost}`));
+      b.appendChild(ubar);
       // 카드처럼 쓴다 — 눌러 고르고 대상을 누르거나, 끌어다 놓는다(startUltDrag). 길게 누르기 · 오른쪽 클릭은 자세히.
       // 쓸 수 없으면 누르면 자세히(까닭이 보인다)
       b.title = why ? `${why} · 눌러서 자세히` : "눌러 고른 뒤 대상을 누르거나, 끌어다 놓으면 씁니다 · 길게 누르면 자세히";
@@ -1590,18 +1608,19 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   // 칸은 판의 값 그대로다. 깎이는 순간에는 land 가 그 칸에 금 가는 몸짓(crack)을 건다
   const toughTip = (u) => u.broken
     ? `격파 — 다음 내 턴 시작에 강인도가 다 찹니다. 잔불(이 적의 상태) · 잔광(파티의 상태)이 있으면 더 아프게 듭니다`
-    : `강인도 ${u.tough}/${u.toughMax} — 공격 카드 한 장에 ${RULES.TOUGH.hit}칸(약점이면 ${RULES.TOUGH.hit + RULES.TOUGH.weak}칸). 0칸이면 격파: AP +${RULES.TOUGH.ap} · 즉시 행동 ${RULES.TOUGH.delay}장 늦춤`;   // 격파 자체의 받는 피해 덤은 없앴다(카제나) — 더 들어가는 피해는 잔불 · 잔광 카드로
+    : `강인도 ${u.tough}/${u.toughMax} — 타격 한 번에 ${RULES.TOUGH.hit}칸(약점이면 ${RULES.TOUGH.hit + RULES.TOUGH.weak}칸). 0칸이면 격파: AP +${RULES.TOUGH.ap} · 다음 차례 행동 불가`;   // 격파 자체의 받는 피해 덤은 없앴다(카제나) — 더 들어가는 피해는 잔불 · 잔광 카드로
   function toughPips(u) {
     const box = el("div", "tpips" + (u.broken ? " broken" : ""));
     const wk = C.weakOf(u.key);
     if (wk.length) {
       const w = el("span", "tweak");
       for (const k of wk) w.appendChild(el("i", "n" + k, k.slice(0, 1)));
-      w.title = `약점 ${wk.join(" · ")} — 이 성격 사도의 공격은 피해 +${Math.round(RULES.NATURE_DMG * 100)}%, 강인도 ${RULES.TOUGH.weak}칸 더`;
+      w.title = `약점 ${wk.join(" · ")} — 이 성격 사도의 공격은 피해 +${Math.round(RULES.NATURE_DMG * 100)}%, 강인도 타격마다 ${RULES.TOUGH.hit + RULES.TOUGH.weak}칸(아니면 ${RULES.TOUGH.hit}칸)`;
       box.appendChild(w);
     }
     const row = el("span", "tcells");
-    for (let i = 0; i < u.toughMax; i++) row.appendChild(el("i", i < u.tough ? "on" : null));
+    // 0.5칸 — 반만 찬 칸(half)
+    for (let i = 0; i < u.toughMax; i++) row.appendChild(el("i", i + 1 <= u.tough ? "on" : i < u.tough ? "on half" : null));
     row.title = toughTip(u);
     box.appendChild(row);
     if (u.broken) { const b = el("b", "tbrk", "격파"); b.title = toughTip(u); box.appendChild(b); }
@@ -1611,7 +1630,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   // ── 걸린 것 — 버프 · 디버프 · 키워드 ────────────────────────────────
   // 칩과 정보 창이 같은 목록을 쓴다(effectsOf). 버프는 청록, 디버프는 빨강, 키워드는 금빛 — 값과 남은 턴을 함께.
   // 전에는 상태 · 증감 · 키워드가 한 줄에 같은 모양으로 섞여 무엇이 좋은 것인지 한눈에 안 보였다(2026-10 사용자)
-  const STAT_KO = { dealt: "주는 피해", taken: "받는 피해", atk: "공격력", def: "방어력", crit: "치명", heal: "회복력" };
+  const STAT_KO = { dealt: "주는 피해", taken: "받는 피해", atk: "공격력", def: "방어력", crit: "치명" };
   // 디버프 칩 — rules.js BAD_ST(취약 · 약화 · 손상 · 고통 · 감전 · 중독)에 화면만의 것. 표식은 적에게 걸리는 디버프
   const BAD_ST = [...RULES.BAD_ST, "표식", "기절", "침묵", "화상", "출혈"];
   // 겹으로 도는 상태(rules.js STACK_ST) — 칩의 숫자가 남은 턴이 아니라 겹(횟수 · 세기)이다
@@ -1633,20 +1652,20 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     "실드 유지": () => `턴이 바뀔 때 방어의 ${P100(SV["실드 유지"])}% 를 남긴다 — 그때 1 준다`,
     저장: () => "턴이 끝날 때 남은 AP 를 다음 턴으로 가져간다 — 그때 1 준다",
     협공: () => `아군이 공격 카드를 내면 다른 아군이 공격력 ${P100(SV.협공)}% 로 함께 친다 — 그때 1 준다`,
-    고동: (n) => `턴 끝에 모든 적에게 고정 피해 ${P100(RULES.stackEff("고동", n))}%`,
+    고동: (n) => `턴 끝에 적 전체에 고정 피해 ${P100(RULES.stackEff("고동", n))}%`,
     그을림: () => `즉시 행동 셈이 1 오를 때마다 지속 피해 ${P100(SV.그을림)}% — 그때 1 준다, 턴 끝에 사라진다`,
     // 파티에 걸린 충격(적이 건 것)은 뜻이 다르다 — 적의 치는 수에 맞을 때(combat.js hurt)
     충격: (n, u) => (u && u.side === "party"
       ? `적의 치는 수에 맞으면 고정 피해 ${P100(SV.충격)}%(그 수를 방어 · 실드로 받아 냈으면 +${P100(SV.충격Shield)}%, 방어 · 실드를 뚫는다) — 그때 1 준다`
       : `공격 카드의 대상이 되면 고정 피해 ${P100(SV.충격)}%(방어 · 실드가 있으면 +${P100(SV.충격Shield)}%) — 그때 1 준다`),
-    충격파: () => `카드에 맞으면 다른 모든 적에게 고정 피해 ${P100(SV.충격파)}% — 그때 1 준다`,
+    충격파: () => `카드에 맞으면 그 적을 뺀 적 전체에 고정 피해 ${P100(SV.충격파)}% — 그때 1 준다`,
     사기: (n) => `주는 피해 +${P100(RULES.stackEff("사기", n))}%`,
     불굴: (n) => `받는 피해 -${P100(RULES.stackEff("불굴", n))}%${n * SV.불굴 > SV.불굴Cap ? ` (최대 -${P100(SV.불굴Cap)}%)` : ""}`,
     결의: (n) => `얻는 방어 · 실드 +${Math.round(RULES.stackEff("결의", n))}`,
     결정화: (n) => `턴 끝에 방어력 ${P100(RULES.stackEff("결정화", n))}% 고정 실드`,
   };
   const stHelp = (id, n = 1, u = null) => (ST_HELP[id] ? ST_HELP[id](n, u) + (INT_SET.has(id) ? " (전투 내내)" : "") : "");
-  const turnTxt = (n) => (n != null && n >= RULES.BOON_TURNS ? "판 내내" : n == null || n >= 999 ? "이번 전투" : `${n}턴`);   // 판 내내 — 강화 카드(run.boons)
+  const turnTxt = (n) => (n != null && n >= RULES.BOON_TURNS ? "전투 내내" : n == null || n >= 999 ? "이번 전투" : `${n}턴`);   // 전투 내내 — 강화 카드(그 전투 끝까지)
   // 키워드 1개당이 이 사람에게 주는 증감 — [{ id, stat, v, n }]
   function kwShares(u) {
     const out = [];
@@ -1798,7 +1817,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       else if (x.tough) pv.appendChild(el("span", "pvt", `◆-${x.tough}`));
       if (slot.pips && x.tough) {
         const cells = slot.pips.querySelectorAll(".tcells i");
-        for (let k = Math.max(0, u.tough - x.tough); k < u.tough; k++) if (cells[k]) cells[k].classList.add("pvcut");
+        for (let k = Math.max(0, Math.floor(u.tough - x.tough)); k < u.tough; k++) if (cells[k]) cells[k].classList.add("pvcut");
       }
       if (g) {
         const left = Math.max(0, u.hp - x.hp);
@@ -1995,7 +2014,8 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       allyField.appendChild(sn);
     }
 
-    allyField.appendChild(partyNode(need === "party"));   // 파티 HP — 서 있는 셋 밑에 넓게 하나
+    partySlot.innerHTML = "";
+    partySlot.appendChild(partyNode(need === "party"));   // 파티 HP — 왼쪽 위(머리 밑)
 
     allyZone.innerHTML = "";
     for (const u of st.party) allyZone.appendChild(allyNode(u, need === "party", (t) => play(t.idx)));
@@ -2011,7 +2031,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const piles = () => [
       { key: "draw", label: "뽑을 더미", ids: st.draw, why: "차례는 안 보여 줍니다 — 섞여 있습니다." },
       { key: "disc", label: "버린 더미", ids: st.discard, why: "덱이 바닥나면 섞여서 뽑을 더미로 돌아갑니다." },
-      { key: "gone", label: "사라진 카드", ids: st.gone, why: "소멸했거나 손이 넘쳤거나 주인이 쓰러져 빠진 카드 — 이 전투에서 다시 안 나옵니다." },
+      { key: "gone", label: "사라진 카드", ids: st.gone, why: "소멸했거나 손이 넘쳐 빠진 카드 — 이 전투에서 다시 안 나옵니다." },
       { key: "all", label: "덱 전체", ids: run.deck, why: "이 판의 덱. 신탁이 붙은 카드는 바뀐 모습으로 보입니다." },
     ];
     const cardFor = (id) => C.cardOf(st, id);
@@ -2021,7 +2041,18 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     discPile.appendChild(el("span", "plab", "버린 것"));
     discPile.title = "눌러서 버린 카드 보기";
     discPile.onclick = () => showPiles(piles(), "disc", cardFor, openCard, cardCalc);
-    turnTag.textContent = `${st.turn}턴`;
+    // 가운데 위 — 턴과 이번 적 차례에 예고된 피해의 합(머리 위 마름모 숫자를 더한 것 · 봉인 · 격파된 적은 빼고)
+    turnTag.innerHTML = "";
+    turnTag.appendChild(el("b", "tturn", `${st.turn}턴`));
+    let due = 0;
+    for (const e of st.enemies) {
+      if (e.dead || e.sealed || !e.intent) continue;
+      const v = C.intentHit(e);
+      if (v != null) due += v * (e.intent.t === "multi" ? e.intent.n || 1 : 1);
+    }
+    const dueTag = el("span", "tdue" + (due ? "" : " none"), due ? `예고 피해 ${due}` : "공격 예고 없음");
+    dueTag.title = "이번 적의 차례에 예고된 피해를 모두 더한 값입니다 — 방어 · 실드가 먼저 받습니다";
+    turnTag.appendChild(dueTag);
     // 턴이 바뀌면 싸움터 가운데에 크게 알린다 — 적이 무엇을 했는지 보기 전에 턴이 넘어간 걸 알아야 한다.
     if (st.turn !== shownTurn && !st.over) {
       shownTurn = st.turn;
@@ -2675,7 +2706,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     else if (run.eventFight ? run.eventFight.elite : run.elite) tags.appendChild(el("span", "ftag elite", "엘리트"));
     if (nat) tags.appendChild(el("span", "ftag n" + nat, nat));
     tags.appendChild(el("span", "ftag", (u.row || E.row) === "back" ? "뒷줄" : "앞줄"));
-    for (const k of C.weakOf(u.key)) { const t = el("span", "ftag weak n" + k, `약점 ${k}`); t.title = `${k} 사도의 공격은 피해 +${Math.round(RULES.NATURE_DMG * 100)}%, 강인도 ${RULES.TOUGH.weak}칸 더`; tags.appendChild(t); }
+    for (const k of C.weakOf(u.key)) { const t = el("span", "ftag weak n" + k, `약점 ${k}`); t.title = `${k} 사도의 공격은 피해 +${Math.round(RULES.NATURE_DMG * 100)}%, 강인도 타격마다 ${RULES.TOUGH.hit + RULES.TOUGH.weak}칸(아니면 ${RULES.TOUGH.hit}칸)`; tags.appendChild(t); }
     body.appendChild(tags);
     body.appendChild(el("h3", "bmname", u.ko));
     const hpl = el("div", "fhp");
@@ -3107,7 +3138,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   function showGrace(hero, id) {
     const back = el("div", "gracebanner");
     back.appendChild(el("div", "epititle", "은총!"));
-    back.appendChild(el("p", "episub", `${HERO(hero).ko}의 고유 카드 — 손에 들어왔습니다. 이번 턴 비용 0`));
+    back.appendChild(el("p", "episub", `${HERO(hero).ko}의 고유 카드 — 손에 들어왔습니다. 이번 턴 코스트 0`));
     const card = bigCard(CARDS[id], CARDART.pic[id] || null);
     card.onclick = null;
     back.appendChild(card);
@@ -3121,12 +3152,12 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const base = CARDS[cardId];
     box.appendChild(el("div", "epititle", g.kind === "hero" ? "은총!" : "신탁!"));
     box.appendChild(el("p", "episub", g.kind === "hero"
-      ? `${HERO(g.hero).ko}에게 신탁 — 고유 카드 하나를 얻습니다. 이번 턴에는 비용 0`
-      : `「${base.name}」에 신탁 — 하나를 고르면 카드가 바뀌고, 이번에는 비용 0`));
+      ? `${HERO(g.hero).ko}에게 신탁 — 고유 카드 하나를 얻습니다. 이번 턴에는 코스트 0`
+      : `「${base.name}」에 신탁 — 하나를 고르면 카드가 바뀌고, 이번에는 코스트 0`));
     // 고르기 전에 원래 효과를 견준다 — 이미 신탁이 붙은 카드면 지금 모습(「지금」)
     if (g.kind !== "hero") {
       const now = C.cardOf(st, cardId), lit = !!(st.flash && st.flash[cardId]);
-      box.appendChild(effectBox(now, lit ? "지금" : "원래 효과", `「${base.name}」 · 비용 ${now.xcost ? "X" : now.cost}${lit && now.flashKo ? ` · 신탁 「${now.flashKo}」` : ""}`));
+      box.appendChild(effectBox(now, lit ? "지금" : "원래 효과", `「${base.name}」 · 코스트 ${now.xcost ? "X" : now.cost}${lit && now.flashKo ? ` · 신탁 「${now.flashKo}」` : ""}`));
     }
     const row = el("div", "epirow");
     g.options.forEach((opt, i) => {
@@ -3370,7 +3401,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
           s.classList.add("defeat");
           const ban = el("div", "defeatban");
           ban.appendChild(el("b", null, "전멸"));
-          ban.appendChild(el("small", null, "모두 쓰러졌습니다"));
+          ban.appendChild(el("small", null, "파티 HP 가 바닥났습니다"));
           field.appendChild(ban);
           try { SFX.play("defeat"); } catch { /* 소리 */ }
         }
@@ -3439,6 +3470,12 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
 }
 
 // 적의 수 아이콘 — 싸움터의 마름모와 적 정보 창이 같은 것을 쓴다(치는 수의 마름모는 숫자)
+// 적의 수 — 머리 위에 크게 쓰는 짧은 이름과 대상(파티는 한 몸이라 「파티」)
+const INTENT_KO = { attack: "공격", multi: "연속 공격", back: "관통 공격", attackAll: "전체 공격", charge: "힘 모으기", block: "방어", guard: "방어",
+  heal: "회복", selfHeal: "회복", buff: "강화", debuff: "약화", jam: "방해", thorns: "가시", addCard: "카드 끼우기" };
+const INTENT_WHO = { attack: "파티", multi: "파티", back: "파티", attackAll: "파티", debuff: "파티", jam: "파티", addCard: "파티 더미",
+  block: "자신", buff: "자신", selfHeal: "자신", thorns: "자신", guard: "적 전체", heal: "다친 적" };
+const ADD_TO_KO = { hand: "손패", draw: "뽑을 더미", discard: "버린 더미" };
 const INTENT_ICON = { attack: "⚔", multi: "⚔", back: "↷", attackAll: "✹", charge: "⏳", block: "🛡", guard: "🛡",
   heal: "✚", selfHeal: "✚", buff: "▲", debuff: "▼", jam: "✖", thorns: "✦", addCard: "≋" };
 // 적의 수 — 마름모에 마우스를 올리면 뜨는 설명

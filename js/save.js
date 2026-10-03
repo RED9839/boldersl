@@ -93,9 +93,8 @@ function check(d) {
   if (!known(r.party, HERO_DATA) || !r.party.length) throw new Error("모르는 사도");
   if (!known(r.deck, CARDS)) throw new Error("모르는 카드");
   if (!Object.keys(r.flash || {}).every((id) => CARDS[id])) throw new Error("모르는 신탁 카드");
-  // 강화 카드 — 써 버린 카드(spent)와 그 「판 내내」 버프(boons: { 사도키: [{ stat, v, src }] }). 옛 판에는 없다(없으면 빈 것)
-  if (!known(r.spent || [], CARDS)) throw new Error("모르는 강화 카드");
-  for (const list of Object.values(r.boons || {})) if (!Array.isArray(list) || !list.every((b) => b && typeof b.stat === "string" && typeof b.v === "number")) throw new Error("판 내내 버프가 깨졌다");
+  // 옛 판의 강화 카드 기록(spent · boons — 「판 내내」 시절)은 보지 않는다. 모르는 카드가 든 spent 만 걸러 낸다(run.js migrateRun 이 덱으로 돌려놓는다)
+  if (Array.isArray(r.spent)) r.spent = r.spent.filter((id) => typeof id === "string" && CARDS[id]);
   if (!known(r.bag || [], EQUIP)) throw new Error("모르는 장비");
   for (const g of Object.values(r.gear || {})) if (!known(Object.values(g), EQUIP)) throw new Error("모르는 장비");
   if (!r.where || !WHERE.includes(r.where.k)) throw new Error("어느 화면인지 모른다");

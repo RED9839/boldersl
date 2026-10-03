@@ -464,13 +464,13 @@ export function partyScreen(onStart, onBack, opts = {}) {
       const pic = el("div", "tf-art");
       pic.appendChild(art.portrait(key, { ko: h.ko, tint: NTINT[h.nature], size: 0, slot: "event", still: true }));
       if (art.slotOf(key, "event") === "standing") {
-        spineView(pic, "standing", key, { bust: 0.9 }).then((v) => {
+        spineView(pic, "standing", key, { bust: 0.9, body: 0.4 }).then((v) => {
           if (!v) return;
           const st1 = pic.querySelector(":scope > .art");
           if (st1) st1.remove();
           pic.classList.add("live");
           pic.spine = v;                     // 시험 도구가 몸 가운데를 잰다
-          centreOnBody(pic, v);
+          if (!v.bodyFit) centreOnBody(pic, v);   // 몸으로 못 세운 사도(머리 본 없음)만 옛 방식으로
         }, () => {});
       }
       n.appendChild(pic);
@@ -508,7 +508,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
         for (const r of ROW_ORDER) {
           const b = el("span", "tf-rowb" + (rowOf(key) === r ? " on" : ""), ROWS_KO[r]);
           const line = (h.passive || "").split(" · ").filter((t) => t.includes(`${ROWS_KO[r]}에 서 있으면`)).join(" · ");
-          b.title = line ? `${ROWS_KO[r]}에 서면 — ${line}` : `${ROWS_KO[r]}에 선다`;
+          b.title = line ? `${ROWS_KO[r]}에 서면 — ${line}` : `${ROWS_KO[r]}에 섭니다`;
           b.onclick = (e) => { e.stopPropagation(); rows[key] = r; fill(); };
           pick.appendChild(b);
         }
@@ -558,7 +558,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
     }
     function swapBtn(a, b) {
       const n = el("button", "tm-fswap tf-swap", "⇄");
-      n.title = `${HERO_DATA[a].ko} ↔ ${HERO_DATA[b].ko} 자리 바꾸기 — 같은 열은 오른쪽(적 쪽)이 먼저 맞는다`;
+      n.title = `${HERO_DATA[a].ko} ↔ ${HERO_DATA[b].ko} 자리 바꾸기 — 전투에서 선 순서와 손패 순서가 바뀝니다`;
       n.onclick = (e) => {
         e.stopPropagation();
         const i = picked.indexOf(a), j = picked.indexOf(b);
@@ -867,7 +867,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
     info.appendChild(el("p", "stblurb", h.blurb));
     const g = el("div", "statgrid");
     // 방어 기반 = 방어력 210% + 공격력 30%(rules.js defDmgStat) — 반격 · 「방어 기반 피해 N%」 가 본다. 치유 · 방어 · 실드는 방어력
-    for (const [ko, v] of [["체력", h.hp], ["공격력", h.atk], ["방어력", h.def], ["치명", h.crit + "%"], ["방어 기반", RULES.defDmgStat(h.atk, h.def)]]) {
+    for (const [ko, v] of [["HP", h.hp], ["공격력", h.atk], ["방어력", h.def], ["치명", h.crit + "%"], ["방어 기반", RULES.defDmgStat(h.atk, h.def)]]) {
       const c = el("div", "statc");
       c.appendChild(el("small", null, ko));
       c.appendChild(el("strong", null, String(v)));

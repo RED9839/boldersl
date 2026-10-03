@@ -112,7 +112,7 @@ export const ENEMIES = {
     // 원작 「불효자손」 — 요정들의 마법 농기구(괭이). 갈 밭이 없으면 목적을 잃고 방황한다. 높은 공격력 · 낮은 HP
     // 정체: 유리 대포 · 달아오름 — 턴이 끝날 때마다 날이 서서 사기 1(줄지 않는다, 셋까지). 강인도 2칸뿐이다
     // 공략: 오래 둘수록 세진다 — 두 턴 안에 쓰러뜨려라. 칸이 둘이라 한 장 반이면 깨진다, 깬 AP 로 몰아 쳐라. 녹슨 날은 고통(방어로 못 막는다) (달아오름 · 고통)
-    ko: "불효자손", hp: 300, row: "front", nature: "순수", tough: 2, tint: "#e0a0b0",
+    ko: "불효자손", hp: 300, row: "front", nature: "순수", tough: 3, tint: "#e0a0b0",
     pick: "shuffle",
     passives: [
       { name: "날이 선다", on: "turnEnd", do: { t: "buff", id: "사기", v: 1 } },
@@ -173,7 +173,7 @@ export const ENEMIES = {
     // 원작 「탱탱 멜로」 — 마시멜로 골렘. 너무 많이 얻어맞으면 분노한다(그래도 마시멜로다)
     // 정체: 방패 · 깨면 무른다 — 강인도 4칸, 부풀면 1칸을 되찾는다. 격파되면 푹 꺼져 취약 2
     // 공략: 부풀기(⚡3) 앞에선 한 턴에 몰아 깨고, 깬 턴에 딜러로 몰아 쳐라 — 방어로 버티면 이 녀석만 남는다. 절반에서 한 번 분노해 사기 1 (방패 · 깨면 무른다)
-    ko: "탱탱 멜로", hp: 480, row: "front", nature: "순수", tough: 4, tint: "#f0e6d8",
+    ko: "탱탱 멜로", hp: 480, row: "front", nature: "순수", tough: 5, tint: "#f0e6d8",
     passives: [
       { name: "얻어맞아 분노", on: "lowHp", at: 0.5, do: { t: "buff", id: "사기", v: 1 } },
       { name: "푹 꺼진다", on: "broken", do: { t: "buff", id: "취약", v: 2 } },
@@ -237,7 +237,7 @@ export const ENEMIES = {
     // 「요정 왕국 근처에서 영향을 받아 단 것에 집착 · 통통하게 젤리가 올라서 고통에 둔감하다」
     // 정체: 방패 · 굳히기 — 강인도 4칸, 맞을 때마다(턴 두 번) 방어 +30, 감싸면 적 전체 방어에 강인도 1칸씩, 둔감해지면 피해 감소 2. 격파되면 젤리가 물러져 취약 1
     // 공략: 작은 카드로 쪼개 치면 젤리만 두꺼워진다 — 큰 카드로 깨고, 깬 턴에 몰아 쳐라 (방패 · 굳히기 · 깨면 무른다)
-    ko: "누루링-요정 탱커", hp: 500, row: "front", art: "nururingtanker", skin: "Skin_Fairy", weak: ["우울"], tough: 4, tint: "#f0c890",
+    ko: "누루링-요정 탱커", hp: 500, row: "front", art: "nururingtanker", skin: "Skin_Fairy", weak: ["우울"], tough: 5, tint: "#f0c890",
     passives: [
       { name: "통통한 젤리", on: "hurt", limit: 2, do: { t: "block", v: 30 } },
       { name: "물러진 젤리", on: "broken", do: { t: "buff", id: "취약", v: 1 } },
@@ -494,7 +494,7 @@ export const ENEMIES = {
   nururingtanker: {
     // 정체: 방패 · 굳히기 · 녹이기 — 강인도 4칸, 방패 · 굳기(⚡3)로 1칸씩 되찾고, 방패로 내려찍으면 손상 2. 디버프가 걸리면 주워 온 장비로 막는다
     // 공략: 한 턴에 몰아 깨라. 약화 · 취약은 아끼고 공격으로 벗겨라 (방패 · 굳히기 · 녹이기)
-    ko: "누루링-엘프 탱커", hp: 640, row: "front", skin: "Skin_Elf", weak: ["광기"], tough: 4, tint: "#c8b878",
+    ko: "누루링-엘프 탱커", hp: 640, row: "front", skin: "Skin_Elf", weak: ["광기"], tough: 5, tint: "#c8b878",
     passives: [
       { name: "주워 온 장비", on: "debuffed", do: { t: "block", v: 60 } },
     ],
@@ -587,7 +587,7 @@ export const ENEMIES = {
     // 「간사한 말로 주변을 도발한다」
     // 정체: 방패 · 균열 · 당기면 손해 — 강인도 4칸, 꼬드기면 적 전체 방어에 강인도 1칸씩, 짓누르면 균열 2. 당기면 간사한 말로 파티 취약 1
     // 공략: 신속 카드로 셈을 넘기고 적게 세게. 균열은 방어로 못 막는다 — 오래 버틸수록 손해다 (방패 · 균열 · 당기면 손해)
-    ko: "누루링-마녀 탱커", hp: 700, row: "front", art: "nururingtanker", skin: "Skin_Witch", weak: ["순수"], tough: 4, tint: "#a080b0",
+    ko: "누루링-마녀 탱커", hp: 700, row: "front", art: "nururingtanker", skin: "Skin_Witch", weak: ["순수"], tough: 5, tint: "#a080b0",
     passives: [
       { name: "간사한 말", on: "rushed", do: { t: "debuff", id: "취약", v: 1 } },
     ],
@@ -922,14 +922,14 @@ export const ENEMIES = {
     //        땅속으로 파고들면(⚡0) 솟구치기 · 고통 2, 이 판은 **격파로 안 끊긴다**. 불씨가 튀면 「불씨」 둘(쥔 채 넘기면 파티 고통 6)
     // 셋째 판(30%) — 「세계수의 불씨」: 턴이 끝날 때마다 사기 1(셋까지). 다시 열반(방어 · 강인도 다 참)에 들고 뿌리의 불씨를 빨아 회복(⚡3),
     //        「불씨」 를 손에 쥐여 준다. 격파되면 다시 취약 2 — 일섬과 회복 사이에 몰아 밀어라
-    ko: "우로스", hp: 3320, row: "front", boss: true, skin: "Skin_None", weak: ["활발"], tough: 6, tint: "#c8504a",
+    ko: "우로스", hp: 3320, row: "front", boss: true, skin: "Skin_None", weak: ["활발"], tough: 7, tint: "#c8504a",
     scale: 0.66,         // 원작 그림이 화면을 꽉 채운다 — 커버러스만 하게
     passives: [
       { name: "열반", on: "fightStart", do: { t: "block", v: 300 } },
       { name: "파멸의 운명", on: "turnEnd", do: { t: "debuff", id: "고통", v: 1 } },
       { name: "갈라진 허물", on: "broken", phase: [0, 2], do: { t: "buff", id: "취약", v: 2 } },
       { name: "검은 연기", on: "turnStart", phase: 1, do: { t: "debuff", id: "손상", v: 2 } },
-      { name: "다시 열반", on: "lowHp", at: 0.3, do: { t: "block", v: 240, tough: 6 } },
+      { name: "다시 열반", on: "lowHp", at: 0.3, do: { t: "block", v: 240, tough: 7 } },
       { name: "세계수의 불씨", on: "turnEnd", phase: 2, do: { t: "buff", id: "사기", v: 1 } },
     ],
     open: { t: "debuff", id: "약화", v: 1, say: "허물을 벗고 열반에 든다", rush: 3 },

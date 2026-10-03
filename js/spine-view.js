@@ -146,7 +146,9 @@ function reachOf(sp, skeleton, unit, scale) {
 }
 // mix — 동작이 바뀔 때 섞는 시간(초). 0 이면 바로 바뀐다(전투). 로비의 메인 사도는 부드럽게 섞는다
 // bust — 머리부터 몸의 이 몫(0~1)만 칸 높이에 맞춘다. 아래는 칸 밖으로 잘린다(고학년 컷인의 상반신)
-export async function spineView(el, kind, key, { scale = 1, anim, flip = false, skin, unit = 0, mix = 0, bust = 0 } = {}) {
+// body — 테두리 대신 몸으로 세운다: 머리 본을 칸 위에서 이 몫(0~1)에, 발(원점)을 칸 바닥에, 머리를 가로 가운데에.
+//   테두리는 떠 있는 왕관 · 큰 무기 · 날개까지 세서 사도마다 크기와 가운데가 들쭉날쭉했다(2026-10 사용자: 편성 칸). 머리 본이 없으면 bust 로
+export async function spineView(el, kind, key, { scale = 1, anim, flip = false, skin, unit = 0, mix = 0, bust = 0, body = 0 } = {}) {
   const sp = spine();
   if (!sp) return null;
   await loadSpineManifest();
@@ -155,7 +157,7 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
   const w = el.clientWidth || 200, h = el.clientHeight || 200;
   // 크기는 열쇠에 넣지 않는다 — 캔버스 크기는 그리는 고리가 매 프레임 화면에 맞춰 다시 잡는다.
   // 넣어 두었더니 싸움터 높이에 따라 크기가 바뀌는 전투 화면에서 다시 쓰질 못하고 카드 한 장마다 컨텍스트가 늘어 하얗게 버려졌다.
-  const id = `${kind}|${key}|${scale}|${anim || ""}|${flip ? "f" : ""}|${skin || ""}|${unit}|${mix}|${bust || ""}`;
+  const id = `${kind}|${key}|${scale}|${anim || ""}|${flip ? "f" : ""}|${skin || ""}|${unit}|${mix}|${bust || ""}|${body || ""}`;
   const spare = pool.find((v) => v.id === id && !v.canvas.isConnected);
   if (spare) {
     // 새 칸에도 「넘쳐도 된다」 표시를 단다 — 빠뜨렸더니 옮겨 붙인 캔버스가 칸(둥근 네모)에 잘려 보였다
@@ -244,6 +246,9 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
   state.apply(skeleton); skeleton.updateWorldTransform();
   const off = new sp.Vector2(), size = new sp.Vector2();
   skeleton.getBounds(off, size, []);
+  // 몸으로 세우기 — 쉬는 자세의 머리 본 자리(발이 원점). 위로 서 있지 않으면(본이 없거나 아래) 쓰지 않는다
+  const headBone = body ? skeleton.bones.find((b) => /(^|_)Head$/i.test(b.data.name)) : null;
+  const bodyAt = headBone && headBone.worldY > 1 ? { x: headBone.worldX, y: headBone.worldY } : null;
   // 같은 배율로 서는 칸 — 동작이 닿는 곳까지 캔버스를 넓힌다(옆 칸 · 위 · 발 아래)
   let spawnFrom = 0;
   if (unit) {
@@ -304,6 +309,14 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
       skeleton.scaleX = flip ? -fit : fit;
       skeleton.x = 0;
       skeleton.y = -canvas.height / 2 + boxH * (over.down + 0.05);
+    } else if (bodyAt) {
+      // 발은 칸 바닥 조금 위, 머리 본은 칸 위에서 body 몫 — 가로는 머리가 가운데
+      const H = canvas.height, foot = 0.03;
+      const fit = (H * (1 - body - foot) / bodyAt.y) * scale;
+      skeleton.scaleY = fit;
+      skeleton.scaleX = flip ? -fit : fit;
+      skeleton.x = (flip ? 1 : -1) * bodyAt.x * fit;
+      skeleton.y = -H / 2 + H * foot;
     } else if (bust) {
       // 머리 꼭대기를 칸 위끝 조금 아래에 — 가로는 가운데
       const fit = (canvas.height / ((size.y || 1) * bust)) * scale;
@@ -409,12 +422,13 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
     const was = cur && cur.animation && cur.animation !== rest ? { n: cur.animation.name, loop: cur.loop } : null;
     api.dispose();
     if (!host || !host.isConnected) return;
-    spineView(host, kind, key, { scale, anim, flip, skin, unit, mix, bust }).then((v) => {
+    spineView(host, kind, key, { scale, anim, flip, skin, unit, mix, bust, body }).then((v) => {
       if (!v) return;
       if (host.spine === api) host.spine = v;
       if (was) v.play(was.n, was.loop);
     });
   }, { once: true });
+  api.bodyFit = !!bodyAt;               // 몸으로 세웠다 — 부르는 쪽이 따로 가운데를 맞출 필요가 없다
   pool.push({ id, canvas, api, wake, place });
   evict();
   return api;

@@ -107,7 +107,9 @@ for (const c of Object.values(neutral)) {
   const statFree = (list, at) => {
     const bad = list.filter((f) => STAT_FX.includes(f.k));
     if (bad.length) errs.push(`${at}스탯을 빌리는 효과(${[...new Set(bad.map((f) => f.k))].join(" · ")}) — 교주 카드는 사도 스탯을 쓰지 않는다`);
-    if (list.some((f) => f.target === "self" || (f.k === "status" && f.id === "도발"))) errs.push(`${at}「자신」 · 도발 — 교주 카드에는 주인이 없다. 아군 1명 · 아군 전원 · HP 최저 아군으로`);
+    if (list.some((f) => f.target === "self" || (f.k === "status" && f.id === "도발"))) errs.push(`${at}「자신」 · 도발 — 교주 카드에는 주인이 없다. 아군 전원 · 파티로`);
+    // 한 명을 고르는 아군 효과는 두지 않는다(2026-10 사용자 — 불굴 · 결의 따위는 파티 공용이라 「아군 1명」 만 사기에 걸려 헷갈린다)
+    if (list.some((f) => f.target === "oneAlly" || f.target === "lowAlly")) errs.push(`${at}아군 1명 · HP 최저 아군 — 교주 카드는 한 명을 고르지 않는다. 아군 전원 · 파티로`);
   };
   statFree(fx, "");
   const fightMods = (list, at) => {

@@ -59,7 +59,7 @@ console.log("약점 · 아닌 타격");
   check(e.tough === R.TOUGH.fight - R.TOUGH.hit, `약점 아닌 공격 카드 — 강인도 -${R.TOUGH.hit} (${e.tough})`);
   const t0 = e.tough;
   play(s, PLAIN_H, "적 1명에게 4회 × 공격력 30% 피해");
-  check(e.tough === t0 - R.TOUGH.hit, "여러 번 치는 카드도 한 장에 한 번만 깎는다");
+  check(e.tough === Math.max(0, t0 - 4 * R.TOUGH.hit), `여러 번 치는 카드는 타격마다 깎는다 (4회 → ${e.tough})`);
   const s2 = mk(), e2 = s2.enemies[0];
   play(s2, WEAK_H, "적 1명에게 공격력 100% 피해");
   check(e2.tough === R.TOUGH.fight - R.TOUGH.hit - R.TOUGH.weak, `약점 공격 카드 — 강인도 -${R.TOUGH.hit + R.TOUGH.weak} (${e2.tough})`);
@@ -79,17 +79,18 @@ console.log("약점 · 아닌 타격");
 }
 
 console.log("");
-console.log("격파 — AP +1 · 즉시 행동 늦춤 · 덤 피해 없음");
+console.log("격파 — AP +1 · 다음 차례 행동 불가 · 덤 피해 없음");
 {
   const s = mk(), e = s.enemies[0];
   e.intent = { t: "attack", v: 1, say: "시험 — 친다", rush: 9 };
+  e.tough = 2;
   play(s, WEAK_H, "적 1명에게 공격력 10% 피해");
-  check(!e.broken && e.tough === 1, "두 칸 깎인 뒤 아직 서 있다");
-  const ap0 = s.ap, rc0 = e.rushCnt || 0;
+  check(!e.broken && e.tough === 1, "약점 한 타에 한 칸 — 아직 서 있다");
+  const ap0 = s.ap;
   play(s, WEAK_H, "적 1명에게 공격력 10% 피해");
   check(e.broken && e.tough === 0, "0 칸 — 격파");
   check(s.ap === ap0 - 1 + R.TOUGH.ap, `파티 AP +${R.TOUGH.ap} (카드 값 1 을 내고 ${ap0} → ${s.ap})`);
-  check((e.rushCnt || 0) === rc0 + 1 - R.TOUGH.delay, `즉시 행동 셈이 ${R.TOUGH.delay}장 늦춰진다 (카드 한 장에 +1, 격파 -1 → ${e.rushCnt})`);
+  check(e.sealed === true, "격파된 적은 다음 차례에 움직이지 못한다");
   check(s.log.some((l) => l.includes("격파!")), "기록에 「격파!」");
   const t0 = e.tough;
   play(s, WEAK_H, "적 1명에게 공격력 10% 피해");
@@ -130,7 +131,7 @@ console.log("");
 console.log("적의 차례에 격파 — AP 는 다음 턴으로");
 {
   const s = mk(), e = s.enemies[0];
-  e.tough = 1;
+  e.tough = R.TOUGH.hit;
   // 적의 차례에 격파하는 길(가시 · 반격 패시브)을 흉내 — 적의 차례 깃발만 세우고 카드로 깎는다
   s.foeTurn = true;
   const ap0 = s.ap;
@@ -168,7 +169,7 @@ console.log("카드 키워드 — 분쇄 · 잔불(상태) · 파괴 · 약점 �
   const p = mk(), ap0 = p.ap;
   play(p, PLAIN_H, "적 1명에게 공격력 10% 피해. 파괴: AP +2");
   check(p.ap === ap0 - 1, "파괴 — 살아 있는 적이면 안 돈다");
-  const q = mk(); q.enemies[0].tough = 1; const ap1 = q.ap;
+  const q = mk(); q.enemies[0].tough = R.TOUGH.hit; const ap1 = q.ap;
   play(q, PLAIN_H, "적 1명에게 공격력 10% 피해. 파괴: AP +2");
   check(q.ap === ap1 - 1 + R.TOUGH.ap, `파괴 — 격파만 시켰으면 안 돈다 (AP ${ap1} → ${q.ap})`);
   const k = mk({ foes: [FOE, FOE] }); k.enemies[0].hp = 1; const ap2 = k.ap;
@@ -195,11 +196,11 @@ console.log("");
 console.log("미리보기 · 저절로 내는 카드 · 저장");
 {
   const s = mk(), e = s.enemies[0];
-  e.tough = 2;
+  e.tough = 1;
   const i = card(s, WEAK_H, "적 1명에게 공격력 100% 피해");
   const pv = C.previewCard(s, i, 0);
-  check(pv && pv[0] && pv[0].tough === 2 && pv[0].brk, `미리보기에 강인도 -${pv && pv[0] && pv[0].tough} · 격파`);
-  check(e.tough === 2 && !e.broken, "미리보기는 판을 안 바꾼다");
+  check(pv && pv[0] && pv[0].tough === 1 && pv[0].brk, `미리보기에 강인도 -${pv && pv[0] && pv[0].tough} · 격파`);
+  check(e.tough === 1 && !e.broken, "미리보기는 판을 안 바꾼다");
   // 손에서 저절로 — 다음 단계(연계 · 천상)가 쓸 고리. 시험 태그 하나를 「격파」 에 걸어 본다
   C.HAND_AUTO.시험 = "break";
   const s2 = mk(), e2 = s2.enemies[0];

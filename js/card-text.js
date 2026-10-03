@@ -32,7 +32,8 @@ const SHORT = [
   // 기획서 글의 「2턴간 …」 · 「이번 전투 동안 …」 · 「이번 턴 …」 을 뒤로 옮긴다(이어 적은 「공격력 +10% · 방어력 +10%」 는 통째로)
   [new RegExp(`(\\d+)턴간 ${DUR_TGT} (${DUR_CHAIN})`, "g"), "$2 $3 $1턴"],
   [new RegExp(`이번 전투 동안 ${DUR_TGT} (${DUR_CHAIN})`, "g"), "$1 $2 전투 내내"],
-  [new RegExp(`판 내내 ${DUR_TGT} (${DUR_CHAIN})`, "g"), "$1 $2 판 내내"],       // 강화 카드(rules.js isPower)
+  [new RegExp(`전투 내내 ${DUR_TGT} (${DUR_CHAIN})`, "g"), "$1 $2 전투 내내"],   // 강화 카드(rules.js isPower)
+  [new RegExp(`판 내내 ${DUR_TGT} (${DUR_CHAIN})`, "g"), "$1 $2 전투 내내"],     // 옛 글 「판 내내」 — 강화 카드는 이제 전투 내내
   [new RegExp(`이번 턴 ${DUR_TGT} (${DUR_CHAIN})`, "g"), "$1 $2 이번 턴"],
   // 같은 것을 이어 한 번 더 — 「회복 70% → 회복 40%」 는 「회복 70% → 40%」(대상은 앞의 것 · 최저 아군은 그때 다시 고른다)
   [/(피해|회복|방어|실드) (\d+)% → \1 (\d+)%/g, "$1 $2% → $3%"],
@@ -158,9 +159,13 @@ export function polite(t) {
 // 신탁 글머리의 「코스트 N.」 — 카드 머리의 코스트 칸이 같은 값을 보이니 카드 면에서는 뺀다(데이터는 그대로)
 const COST_HEAD = /^코스트\s*\d+\s*\.\s*/;
 
-// 사도의 강화 카드(rules.js isPower) — 규칙(한 장만 · 쓰면 사라짐 · 판 내내)은 카드 머리의 종류 표(강화 · 금테 꼬리표)가 이미 말한다.
+// 사도의 강화 카드(rules.js isPower) — 규칙(한 장만 · 쓰면 이 전투에서 사라짐 · 전투 내내)은 카드 머리의 종류 표(강화 · 금테 꼬리표)가 이미 말한다.
 // 카드 면 글 앞에 또 적으니 같은 말이 두 번이었다(2026-10 사용자) — 글에서는 빼고, 크게 보기의 낱말 풀이에만 「강화 카드」 를 올린다
-export const POWER_TAG = "강화 카드: 한 장만 · 쓰면 사라짐 · 판 내내.";
+// 「한 장만」 은 따로 규칙을 두지 않고 유일로 말한다(rules.js isOnly 가 이미 강화 카드를 유일로 본다 — 2026-10 사용자)
+export const POWER_TAG = "유일. 강화 카드: 쓰면 이 전투에서 사라짐 · 전투 내내.";
+// 기본 낱말 — 카드마다 나오는 바탕 말(도움말에 있다). 카드를 눌렀을 때의 풀이 목록에는 안 올린다
+// (밑줄은 그대로 — 눌러서 볼 수 있다). 한 장에 풀이가 예닐곱 개씩 붙어 창이 위로 쭉 밀렸다(2026-10 사용자: 「키워드 좀 줄여야」)
+export const BASIC_TERMS = new Set(["파티", "방어", "실드", "회복", "치유", "드로우", "AP", "디버프", "해제", "강인도", "고학년 게이지", "즉시 행동", "방어 기반 피해", "고정 피해", "고정 실드", "HP 최저 아군", "최저 아군", "낼 때마다", "파티가", "전투 내내"]);
 export function cardParts(card, heroKey) {
   const full = shortText(card.text).replace(COST_HEAD, "");
   const m = full.match(LOCAL);
@@ -168,15 +173,17 @@ export function cardParts(card, heroKey) {
   const action = m ? `${m[1]} ${m[2]}` : full;
   const terms = [];
   const seen = new Set();
-  const push = (ko, text, kind) => { if (ko && !seen.has(ko)) { seen.add(ko); terms.push({ ko, text, kind }); } };
+  const push = (ko, text, kind) => { if (ko && !seen.has(ko) && !(BASIC_TERMS.has(ko) && kind !== "이 카드" && kind !== "전용")) { seen.add(ko); terms.push({ ko, text, kind }); } };
 
   if (m) push(m[2], full.slice(m[0].length), "이 카드");
-  if (power) for (const pt of splitKeywords(POWER_TAG, heroKey)) if (pt.kw && pt.kw.ko === "강화 카드") push(pt.kw.ko, pt.kw.text, pt.kw.kind);
+  if (power) for (const pt of splitKeywords(POWER_TAG, heroKey)) if (pt.kw && (pt.kw.ko === "강화 카드" || pt.kw.ko === "유일")) push(pt.kw.ko, pt.kw.text, pt.kw.kind);
 
   // 하는 일과 풀이에 나온 낱말을 차례대로 모은다
   const hunt = (t) => { for (const p of splitKeywords(t, heroKey)) if (p.kw) push(p.kw.ko, p.kw.text, p.kw.kind); };
   hunt(action);
-  for (const t of terms.slice()) if (t.text) hunt(t.text);
+  // 풀이 속 낱말은 이 카드 · 사도 전용 키워드의 풀이에서만 한 겹 더 — 공용 낱말의 풀이(「파티」 는 상태 열 개를 늘어놓는다)까지
+  // 따라가면 「적 전체 피해, 파티 피해 감소 3」 한 줄에 풀이가 열세 개 붙었다(2026-10 사용자: 「쓸데없이 많다」)
+  for (const t of terms.slice()) if (t.text && (t.kind === "이 카드" || t.kind === "전용")) hunt(t.text);
 
   return { action, terms };
 }

@@ -48,7 +48,12 @@ export const TOUGH_VAL = 0.3;
 //   영감(능력으로 뽑힐 때 — v6 카제나, 옛 감응은 늘 돌았다) · 안식(효과로 버려질 때)
 export const COND_VAL = { ifBroken: 0.4, ifChain: 0.5, ifTune: 0.4, draw: 0.85, discard: 0.4 };
 
-export function valueOf(fx) {
+// 「전투 내내 공격력 +N%」 를 사기 눈금으로 세는가 — 옛 「자신 · 아군 1명 사기 N」 을 옮긴 개인 버프(2026-10 사용자 「개인 공격력 증가로」).
+//   강화 카드(power · 「강화 카드.」 신탁)의 전투 내내는 옛 눈금 그대로 — 쓰면 이 전투에서 사라지는 한 장의 강화 몫이다(글로는 둘을 가를 수 없다)
+const moraleMod = (f, fx, power) => f.k === "atkMod" && f.run && f.v > 0
+  && !(power || (fx || []).some((g) => g.k === "tag" && g.id === "강화"));
+// power — 강화 카드(rules.js isPower)의 글이다. 강화 카드의 「전투 내내」 증감은 옛 눈금 그대로 센다(쓰면 이 전투에서 사라지는 한 장의 몫)
+export function valueOf(fx, { power = false } = {}) {
   let v = 0, per = 1, cond = 1, dmgV = 0, dmgArea = 1;
   const tags = [], marks = [];
   for (const f of fx || []) {
@@ -76,7 +81,12 @@ export function valueOf(fx) {
         if ((f.id === "잔불" || f.id === "잔광") && fx.some((x) => x.k === "dmg")) { marks.push(f); break; }
         // 기절은 적 하나의 한 수를 지운다 — 적 전체면 넓이(×1.6)만큼(장비 작성자 바람, 2026-10 — 전에는 광역도 한 명 값). 무작위는 한 명과 같다
         v += f.id === "기절" ? 0.8 * (f.target === "allEnemies" ? 1.6 : 1) : f.id === "도발" ? 0.3 : (STATUS_VAL[f.id] ?? 0.2) * (f.turns || 1) * stArea(f); break;
-      case "dealtMod": case "takenMod": case "atkMod": case "defMod": case "critMod":
+      // 「전투 내내 … 공격력 +N%」 — 옛 「자신 · 아군 1명 사기」 를 옮긴 것(사기 1 = +15% — 파티 사기와 곱해져서 낮췄다, 2026-10 사용자). 옛 사기 1겹과 같은 값(+15% = 0.6)
+      //   강화 카드(power)의 것은 아래 옛 눈금 그대로
+      case "atkMod":
+        if (moraleMod(f, fx, power)) { v += (Math.abs(f.v) / 0.15) * STATUS_VAL.사기 * area(f.target); break; }
+        v += Math.abs(f.v) * 2 * Math.min(f.turns || 1, 4) * area(f.target); break;
+      case "dealtMod": case "takenMod": case "defMod": case "critMod":
         v += Math.abs(f.v) * 2 * Math.min(f.turns || 1, 4) * area(f.target); break;
       // 회복력 증감은 회복에만 붙는다 — 피해 · 방어까지 오르는 증감의 절반으로 친다
 
@@ -127,8 +137,9 @@ export const tagsOf = (fx) => (fx || []).filter((f) => f.k === "tag").map((f) =>
 // 카드 한 장의 값 — tags 는 그 카드에 실제로 붙는 태그(신탁을 고른 카드는 신탁 글의 태그만 · js/combat.js hasTag)
 //   벌칙 증감 · HP 소모 · 손패 버리기는 뺀다. 보존 +0.1 · 개전 +0.15. 소멸은 한 전투에 한 번 — ×0.7
 // selfKw — 자기 주머니 키워드 이름들. 「적 전체에 … 「자기 키워드」 +N」 은 문장 앞의 「적 전체」 를 물고 와도 그 사도 주머니에 한 번만 쌓인다(run-fx stack)
-export function cardValue(fx, tags = tagsOf(fx), { selfKw = [] } = {}) {
-  let v = valueOf(fx);
+export function cardValue(fx, tags = tagsOf(fx), { selfKw = [], power = false } = {}) {
+  power = power || tags.includes("강화");
+  let v = valueOf(fx, { power });
   for (const f of fx || []) {
     if (penalty(f) && f.k === "status") v -= 2 * (STATUS_VAL[f.id] ?? 0.2) * (f.turns || 1) * stArea(f);
     else if (penalty(f)) v -= 2 * Math.abs(f.v) * 2 * Math.min(f.turns || 1, 4) * area(f.target) * (f.k === "healMod" ? 0.5 : 1);
@@ -136,7 +147,7 @@ export function cardValue(fx, tags = tagsOf(fx), { selfKw = [] } = {}) {
     if (f.k === "payHpPct") v -= 3 * f.v;
     if (f.k === "discard") v -= f.v === "all" ? 0.3 : 0.1 * f.v;
     // 「이번 전투 동안」 증감 — valueOf 는 4턴까지만 센다. 전투 내내 가니 2턴을 더 쳐 준다(6턴)
-    if (PEN_MODS.includes(f.k) && (f.turns || 1) >= 999 && !penalty(f)) v += Math.abs(f.v) * 2 * 2 * area(f.target) * (f.k === "healMod" ? 0.5 : 1);
+    if (PEN_MODS.includes(f.k) && (f.turns || 1) >= 999 && !penalty(f) && !moraleMod(f, fx, power)) v += Math.abs(f.v) * 2 * 2 * area(f.target) * (f.k === "healMod" ? 0.5 : 1);
     // 키워드를 적 전체에게 — valueOf 는 넓이를 안 본다. 적 표식만 넓어진다: 자기 주머니(selfKw)는 한 번 · 아군 표식은 파티에 하나(once)라 「아군 전원」 도 한 번
     if (f.k === "stack" && f.v > 0 && f.target === "allEnemies" && !selfKw.includes(f.id)) v += 0.3 * f.v * 0.6;
   }

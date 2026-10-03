@@ -29,6 +29,7 @@
     "short": "node tools/check-short.js",
     "keywords": "node tools/build-keywords.js",
     "kwcheck": "node tools/check-keywords.js",
+    "terms": "node tools/check-terms.js",
     "world": "node tools/world-check.js",
     "sim:save": "node tools/sim.js 1200 --save",
     "minimi": "python tools/build-minimi.py",

@@ -59,8 +59,13 @@ const bossNext = (run) => { const n = M.currentNode(run); return !!(n && n.row =
 
 // 가운데 창 — 전투 밖(보상 등)에서 쓴다. 바깥 · Esc 로 닫는다. 전투 안에는 같은 모양의 openModal 이 따로 있다
 let outModal = null;
-function centerModal(kind) {
+// onClose — 어떻게 닫히든(닫기 단추 · 바깥 누르기 · Esc) 한 번 부른다. 다른 창이 이 자리를 갈아 끼우면 새 창이 이어받는다
+// (승리 뒤 장비 창이 바깥 누르기로 닫히거나 「눌러서 장착」 띠가 창을 갈아 끼우면 다음 칸으로 안 넘어갔다 — 2026-10 사용자)
+let outClose = null;
+function centerModal(kind, onClose) {
+  const carry = outClose; outClose = null;
   closeCenter();
+  outClose = onClose || carry;
   const back = el("div", "bmodal " + kind);
   const box = el("div", "bmbox");
   back.appendChild(box);
@@ -70,7 +75,13 @@ function centerModal(kind) {
   outModal = back;
   return box;
 }
-function closeCenter() { if (outModal) { outModal.remove(); outModal = null; if (typeof removeEventListener === "function") removeEventListener("keydown", escCenter); } }
+function closeCenter() {
+  if (!outModal) return;
+  outModal.remove(); outModal = null;
+  if (typeof removeEventListener === "function") removeEventListener("keydown", escCenter);
+  const f = outClose; outClose = null;
+  if (f) f();
+}
 function escCenter(e) { if (e.key === "Escape") closeCenter(); }
 function termDl(terms) {
   const dl = el("dl", "bmterms");
@@ -127,7 +138,7 @@ export function mapScreen(run, onEnter, onQuit) {
     info.appendChild(el("b", null, h.ko || k));
     cell.appendChild(info);
     cell.appendChild(gearStrip(run, k, 22));
-    cell.title = "눌러서 장비 보기" + (boonText(run, k) ? " · " + boonText(run, k) : "");
+    cell.title = "눌러서 장비 보기";
     cell.onclick = () => openGear();
     party.appendChild(cell);
   }
@@ -415,7 +426,7 @@ export function rewardScreen(run, onPick) {
     body.appendChild(el("span", "bmkind", c.hero ? `${HERO(c.hero).ko}의 고유 카드 · ${c.type}` : `공용 카드 · ${c.type}`));
     body.appendChild(el("h3", "bmname", c.name));
     const meter = el("div", "bmmeter");
-    meter.appendChild(el("span", null, c.xcost ? "비용 X — 남은 AP 를 모두 씁니다" : `비용 ${c.cost} AP`));
+    meter.appendChild(el("span", null, c.xcost ? "코스트 X — 남은 AP 를 모두 씁니다" : `코스트 ${c.cost} AP`));
     if (c.flash && c.flash.length) meter.appendChild(el("span", null, `신탁 ${c.flash.length}가지`));
     body.appendChild(meter);
     const { action, terms } = cardParts(c, c.hero);
@@ -514,29 +525,22 @@ function flashTarget(c, id, run) {
   const card = bigCard(now, (id && CARDART.pic[id]) || null);
   card.onclick = () => showCard(now, c.hero);
   box.appendChild(card);
-  box.appendChild(effectBox(now, n ? "지금" : "원래 효과", `「${c.name}」 · 비용 ${now.xcost ? "X" : now.cost}${n && now.flashKo ? ` · 신탁 「${now.flashKo}」` : ""}`));
+  box.appendChild(effectBox(now, n ? "지금" : "원래 효과", `「${c.name}」 · 코스트 ${now.xcost ? "X" : now.cost}${n && now.flashKo ? ` · 신탁 「${now.flashKo}」` : ""}`));
   return box;
 }
 
 // 장비 창 — 지도의 「장비」 단추 · 전투 중 떨어진 장비 띠(fight-screen)가 같이 쓴다
 export function openGearModal(run, { sub, onClose } = {}) {
-  const box = centerModal("gearmodal");
+  const box = centerModal("gearmodal", onClose);
   const body = el("div", "bmbody");
   body.appendChild(el("h3", "bmname", "장비"));
   body.appendChild(el("span", "bmkind", sub || "전투 밖이면 언제든 끼고 바꿀 수 있습니다"));
   const redraw = () => { const old = body.querySelector(".gearpanel"); const gp = gearPanel(run, "empty", () => { redraw(); }, hint); if (old) old.replaceWith(gp); else body.appendChild(gp); };
   redraw();
   const x = el("button", "bmclose", "닫기");
-  x.onclick = () => { closeCenter(); if (onClose) onClose(); };
+  x.onclick = () => closeCenter();
   const row = el("div", "bmbtns"); row.appendChild(x); body.appendChild(row);
   box.appendChild(body);
-}
-
-// 그 사도의 「판 내내」 버프 한 줄 — 「판 내내 공격력 +10% 「백호 비전서」」. 없으면 ""
-const BOON_KO = { dealt: "주는 피해", taken: "받는 피해", atk: "공격력", def: "방어력", crit: "치명", heal: "회복력" };
-function boonText(run, k) {
-  const list = (run.boons || {})[k] || [];
-  return list.length ? "판 내내 " + list.map((b) => `${BOON_KO[b.stat] || b.stat} ${b.v > 0 ? "+" : ""}${Math.round(b.v * 100)}%${b.src ? " " + b.src : ""}`).join(" · ") : "";
 }
 
 function gearPanel(run, mode, onChange, say) {
@@ -552,9 +556,6 @@ function gearPanel(run, mode, onChange, say) {
       const who = el("div", "gwho");
       who.appendChild(art.portrait(k, { ko: h.ko, tint: TINT(k), size: 28, slot: "battle", still: true }));
       who.appendChild(el("b", null, h.ko));
-      // 강화 카드가 남긴 「판 내내」 버프 — 출처 카드와 함께(run.boons)
-      const bn = boonText(run, k);
-      if (bn) who.appendChild(el("span", "gboon", bn));
       r.appendChild(who);
       const slots = el("div", "gslots");
       for (const sl of RULES.SLOTS) {
@@ -1594,7 +1595,7 @@ export function eventScreen(run, onDone, onFight) {
       box.appendChild(ts.bar);
     } else if (p.k === "shinPick") {
       // 기적 — 대가 없는 카드 강화. 덱에서 한 장을 골라 위력 ×1.3 이나 비용 -1 을 얹는다
-      head("겨우살이의 축복", p.kind ? (p.kind === "cost" ? "덱에서 한 장 — 이 카드의 비용이 1 줄어듭니다" : "덱에서 한 장 — 이 카드의 피해가 ×1.3 이 됩니다") : "덱에서 한 장을 고르면, 그 카드에 맞는 축복 셋이 뜹니다", true);
+      head("겨우살이의 축복", p.kind ? (p.kind === "cost" ? "덱에서 한 장 — 이 카드의 코스트가 1 줄어듭니다" : "덱에서 한 장 — 이 카드의 피해가 ×1.3 이 됩니다") : "덱에서 한 장을 고르면, 그 카드에 맞는 축복 셋이 뜹니다", true);
       ts = twoStep(commit, { verb: "이 카드에 축복을 얹습니다" });
       const grid = el("div", "ev2-cards");
       for (const id of EV.shinAble(run, p.kind)) {

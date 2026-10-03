@@ -63,6 +63,14 @@ function mentions(text, [a, b]) {
 // 전에는 카드 글 전체에서 표 순서대로 찾아서, 「무작위 적에게 … 자신 HP 회복」 처럼
 // 한 카드에 대상이 둘이면 뒤의 회복까지 무작위 적에게 갔다(79군데가 그랬다).
 // 마디 → 문장 → 글 전체 순으로 넓혀 가며, 효과보다 앞에 나온 말 가운데 가장 가까운 것을 쓴다.
+// 버프 상태의 대상 — 바로 앞 말만 본다(위 상태 규칙). 없으면 파티
+function buffTarget(text, m) {
+  const before = text.slice(Math.max(0, m.index - 14), m.index);
+  if (/자신(?:에게)?\s*$/.test(before)) return "self";
+  if (/아군\s*1\s*명(?:에게)?\s*$/.test(before)) return "oneAlly";
+  if (/대상(?:에게)?\s*$/.test(before)) return "oneAlly";
+  return "party";
+}
 function pickTarget(text, fallback, m, kind) {
   const allyOnly = ALLY_ONLY.has(kind) || (!kind && ALLY.has(fallback));
   const ok = (t) => !(allyOnly && FOE.has(t));
@@ -112,13 +120,14 @@ function hitsOf(text) {
 // 남은 AP 를 전부 쓰고 그 수만큼(+키워드 스택만큼) 때린다. 전에는 못 읽어서 1회만 쳤다.
 // 증감이 얼마나 가는가 — 「이번 전투」 · 「전투 내내」 는 끝까지, 「N턴간」 · 뒤에 붙은 「N턴」 은 N턴, 아무 말 없으면 이번 턴
 function durOf(t) {
-  if (/이번\s*전투|전투\s*내내|판\s*내내/.test(t)) return 999;   // 끝까지 — JSON 에 Infinity 가 안 들어가서 999 턴으로 둔다
+  if (/이번\s*전투|전투\s*내내|판\s*내내/.test(t)) return 999;   // 끝까지(옛 글 「판 내내」 도 같다) — JSON 에 Infinity 가 안 들어가서 999 턴으로 둔다
   const m = t.match(/(\d+)\s*턴\s*(?:간|동안)?/);
   return m ? Number(m[1]) : 1;
 }
-// 「판 내내」 — 강화 카드의 버프(rules.js isPower). 이 전투 끝까지에 더해, 판이 끝날 때까지 다음 전투마다 다시 걸린다(run.boons).
-// 증감 조각에 run: true 를 붙인다 — 엔진(combat fxApi addMod)이 그것을 보고 판에 적는다
-function boonOf(t) { return /판\s*내내/.test(t) ? { run: true } : {}; }
+// 「전투 내내」 — 강화 카드의 버프(rules.js isPower). 그 전투가 끝나면 사라진다(카제나의 강화 카드처럼 — 판에는 남지 않는다).
+// 증감 조각에 run: true 를 붙인다 — 엔진(combat fxApi addMod)이 그것을 보고 정보 창에 「전투 내내」 로 적는다.
+// 옛 글 「판 내내」(강화 카드가 판 끝까지 가던 때)도 같은 것으로 읽는다 — 옛 저장 · 남은 글 대비. 「이번 전투 동안」 은 run 이 아니다
+function boonOf(t) { return /판\s*내내|전투\s*내내/.test(t) ? { run: true } : {}; }
 
 function xOf(clause) {
   const m = clause.match(/\(\s*AP\s*(?:\+\s*([가-힣]+))?\s*\)\s*회|\bX\s*회/);
@@ -154,12 +163,14 @@ const RULES = [
   // 「사용 불가.」 — 낼 수 없는 카드(상태 카드). 「카드 사용 불가」(lockCards)와 다르다
   { re: /(?<![가-힣]\s?)사용\s*불가(?=\s*(?:[.,]|$))/g, make: () => ({ k: "tag", id: "사용불가" }) },
   // 상태(rules.js STATUS_V · 겹 규칙) — 숫자는 겹(횟수 · 세기). 「사기 2」 「파티 불굴 2」 「적 1명 고통 3」 「자신 잔광 1」 「적 1명 잔불 2」.
-  // 버프는 대상 말이 없으면 자신(파티 층이면 파티), 디버프는 고른 적. 「사기 2턴」 의 턴도 겹으로 읽는다(옛 글)
-  { re: /(?<![가-힣「])(사기|불굴|결의|결정화|반격|잔광|피해\s*감소|면역|실드\s*유지|저장|협공|고동)\s*(\d+)\s*(?:턴|겹)?/g, make: (m, text) => ({ k: "status", id: m[1].replace(/\s+/g, " "), v: 1, turns: Number(m[2]), target: pickTarget(text, "self", m, "atkMod") }) },
+  // 버프의 대상은 바로 앞 말로만 정한다 — 「자신 사기 2」 · 「아군 1명 사기 1」. **대상 말이 없으면 파티**(「사기 1」 = 셋 모두, 「불굴 2」 = 파티).
+  // 「파티 사기 1」 · 「아군 전원 사기 1」 은 같은 뜻의 옛 글(2026-10 사용자: 파티에 거는 버프는 「파티」 를 빼고 짧게).
+  // 전에는 문장 앞쪽의 대상 말(「자신 … 방어, 사기 1」)을 따라가 버프가 엉뚱한 사람에게 갔다. 디버프는 고른 적. 「사기 2턴」 의 턴도 겹으로 읽는다(옛 글)
+  { re: /(?<![가-힣「])(사기|불굴|결의|결정화|반격|잔광|피해\s*감소|면역|실드\s*유지|저장|협공|고동)\s*(\d+)\s*(?:턴|겹)?/g, make: (m, text) => ({ k: "status", id: m[1].replace(/\s+/g, " "), v: 1, turns: Number(m[2]), target: buffTarget(text, m) }) },
   { re: /(?<![가-힣「])(고통|손상|표식|잔불|균열|그을림|충격파|충격)\s*(\d+)\s*(?:턴|겹)?/g, make: (m, text) => ({ k: "status", id: m[1], v: 1, turns: Number(m[2]), target: pickTarget(text, "oneEnemy", m, "status") }) },
   // 「다음 카드 코스트 -1」 — 이번 턴에 다음에 내는 카드 한 장이 싸진다(combat nextCheaper). 「코스트 -1」(신탁 코스트)보다 먼저 읽는다
   { re: /다음\s*카드\s*(?:의\s*)?코스트\s*-\s*(\d+)/g, make: (m) => ({ k: "nextCheaper", v: Number(m[1]) }) },
-  // 능력치 증감 — 「공격력 +10%」「방어력 +20%」「치명 확률 +10%」(강화 카드의 「판 내내」 만 쓴다). 피해 규칙보다 먼저 읽는다
+  // 능력치 증감 — 「공격력 +10%」「방어력 +20%」「치명 확률 +10%」(강화 카드의 「전투 내내」 만 쓴다). 피해 규칙보다 먼저 읽는다
   // (「공격력 +10%」 는 피해가 아니다). 얼마나 가는지는 곁의 말(이번 턴 · N턴간 · 이번 전투)로 정한다. 회복력 증감은 없앴다(v6 — 치유도 방어력)
   { re: /공격력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "atkMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "self", m, "atkMod") }) },
   { re: /방어력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "defMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "self", m, "defMod") }) },

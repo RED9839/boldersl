@@ -152,16 +152,15 @@ export function runFx(s, fxList, ctx, api) {
             const v = f.fixed ? Math.max(1, Math.round(atkOf(api, owner) * f.ratio))
               : hitAmount(api, owner, f.ratio, { flash: ctx.flash || 0, shin: boost, global: ctx.global || 0, crit, base: f.base || null });
             api.hurt(t, v, { from: owner, crit: !f.fixed && crit, tags: ctx.tags, card: !!ctx.card, fixed: !!f.fixed, attack: ctx.type === "공격" });
-            // 강인도 — 카드(고학년 포함) 한 장이 그 적을 처음 칠 때 한 번. 약점이면 더, 공격 카드에 잔광(파티 상태)이 있으면 또 더(rules.js TOUGH). 패시브의 피해는 안 깎는다
-            // 표식(적의 상태)도 그때 한 번 — 덤 타격 + 강인도 1
+            // 강인도 — 카드(고학년 포함)의 타격 한 번마다: 약점이면 1칸, 아니면 0.5칸(rules.js TOUGH). 패시브의 피해는 안 깎는다
+            // 잔광(파티 상태) 1칸 · 표식(적의 상태)의 덤 타격은 카드 한 장이 그 적을 처음 칠 때 한 번
             if (ctx.card && api.tough && t.side === "enemy" && !t.dead) {
               const hit = (ctx.toughed = ctx.toughed || new Set());
-              if (!hit.has(t)) {
-                hit.add(t);
-                const glow = ctx.type === "공격" && api.glow ? api.glow() : false;
-                api.tough(t, R.TOUGH.hit + (api.weak && api.weak(owner, t, ctx.tags) ? R.TOUGH.weak : 0) + (glow ? R.TOUGH.glow : 0));
-                if (api.mark && !t.dead) api.mark(owner, t, ctx);
-              }
+              const once = !hit.has(t);
+              if (once) hit.add(t);
+              const glow = once && ctx.type === "공격" && api.glow ? api.glow() : false;
+              api.tough(t, R.TOUGH.hit + (api.weak && api.weak(owner, t, ctx.tags) ? R.TOUGH.weak : 0) + (glow ? R.TOUGH.glow : 0));
+              if (once && api.mark && !t.dead) api.mark(owner, t, ctx);
             } else if (first) (ctx.toughed = ctx.toughed || new Set()).add(t);
             if (ctx.shin === "frost" && !t.dead) api.addStatus(t, "취약", 1, 1);   // 눈보라 예보
             if (ctx.shin === "thorn" && !t.dead) api.addStatus(t, "중독", 2, 0);   // 가시 돋친 꿈
@@ -203,7 +202,7 @@ export function runFx(s, fxList, ctx, api) {
         // 「자신」 이라고 적었으면 그대로 자신이다 — 스스로 거는 벌칙(이번 턴 자신 주는 피해 -20%)이 있다.
         let tg = f.target || "auto";
         if (tg === "auto") tg = (f.k === "takenMod" && f.v > 0) || (f.k === "dealtMod" && f.v < 0) ? "oneEnemy" : "self";
-        // 「판 내내」(f.run) — 강화 카드의 버프. 엔진이 판에 적어 다음 전투에도 건다(combat fxApi addMod · run.js afterFight)
+        // 「전투 내내」(f.run) — 강화 카드의 버프. 그 전투 끝까지 간다(combat fxApi addMod · R.BOON_TURNS). 판에는 적지 않는다
         // 증감은 사도마다 — 「파티」 면 사도 모두에게
         for (const t of resolve(s, ctx, tg === "party" ? "allAllies" : tg)) api.addMod && api.addMod(t, stat, f.v, f.turns || 1, !!f.run);
         break;

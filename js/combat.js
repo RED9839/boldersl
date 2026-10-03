@@ -96,7 +96,7 @@ function gainAp(s, n) {
 // 는 그 몸을 가리키는 손잡이라(읽기 · 쓰기 모두) 옛 코드가 「사도 u 의 hp」 를 고치면 파티 HP 가 바뀐다.
 // 손잡이는 열거되지 않는다 — 저장(JSON) · 복사(structuredClone)에는 s.pool 만 실리고, 받은 쪽이 linkParty 로 다시 건다.
 // 그래서 판을 복사하는 곳은 늘 cloneCombat 을 쓴다(미리보기 · 봇 · 저장 되살리기).
-// 사도마다 따로 남는 것: 공격력 · 방어력 · 치명 · 장비 · 줄 · 증감(mods — 「판 내내」) · 자기 키워드 주머니(s.stacks) · 카드
+// 사도마다 따로 남는 것: 공격력 · 방어력 · 치명 · 장비 · 줄 · 증감(mods — 강화 카드의 「전투 내내」 포함) · 자기 키워드 주머니(s.stacks) · 카드
 export const POOL_KEYS = ["hp", "maxHp", "block", "shield", "invuln", "dead", "stUse", "ctrSeq", "dotU", "immuneHit"];
 // 상태는 두 층(카제나처럼, 2026-10 사용자 「공통버프 빼고 자기 자신한테 거는 공증 %는 개인버프」):
 //   파티 층 — 살아남는 것 · 적이 아군에게 거는 것: 불굴 · 결의 · 결정화 · 반격 · 고통 · 취약 · 약화 · 손상 · 아군 표식 … (s.pool.status 하나)
@@ -169,7 +169,7 @@ export function partyDef(s) {
   for (const u of s.party) best = Math.max(best, Math.round((u.def || 0) * (1 + P.statMod(s, u, "def"))));
   return best;
 }
-// 사도의 지금 공격력 · 방어력(전용 키워드 1개당 · 판 내내 증감 포함)
+// 사도의 지금 공격력 · 방어력(전용 키워드 1개당 · 전투 내내 증감 포함)
 const atkNow = (s, u) => Math.max(1, Math.round((u.atk || 0) * (1 + P.statMod(s, u, "atk"))));
 const defNow = (s, u) => Math.max(0, Math.round((u.def || 0) * (1 + P.statMod(s, u, "def"))));
 // 파티의 막는 손 — 방어력이 가장 높은 사도. 반격(방어 기반 피해)은 이 사도의 「방어력 210% + 공격력 30%」 와 치명으로 친다(docs/18)
@@ -188,11 +188,11 @@ function partyAtk(s, but) {
 // ── 전투 시작 ──────────────────────────────────────────────────────────
 // gauge — 지난 전투에서 남은 고학년 게이지(run.gauge). 전투가 끝나도 이어진다
 // enemyHp · enemyDmg — 적 체력 · 피해 배율(run.js openFight 가 rules.js foeScale 로 층마다 정한다). 없으면 ENEMY_HP · 1
-// boons — 강화 카드가 남긴 「판 내내」 버프(run.boons: { 사도키: [{ stat, v, src }] }). 전투를 열 때 늘 걸린 증감으로 다시 건다
+// 강화 카드의 버프는 「전투 내내」 — 그 전투가 끝나면 사라진다. 옛 판의 run.boons(「판 내내」 시절)는 받지 않는다
 // elite — 엘리트 칸(강인도 칸이 하나 더, rules.js TOUGH)
 // partyHp · partyMaxHp — 한 판의 파티 HP(run.partyHp · run.partyMaxHp). 없으면(옛 도구) 사도마다 준 hp · maxHp 를 더하고,
 // 그것도 없으면 세 사도의 최대 HP(장비 HP 포함) 합으로 가득 찬 채 연다
-export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, partyHp, partyMaxHp, seed, noNature, traits, gear, gearFx, flash, enemyHp, enemyDmg, next, shin, glow, gauge, boons, elite }) {
+export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, partyHp, partyMaxHp, seed, noNature, traits, gear, gearFx, flash, enemyHp, enemyDmg, next, shin, glow, gauge, elite }) {
   const rng = makeRng(seed);
   const party = partyKeys.map((key, i) => {
     // 스탯은 기획서가 원본이다. 기획서에 없는 사도만 옛 heroes.js 를 본다.
@@ -277,10 +277,8 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, partyHp,
   // 신탁 — 빛나는 카드(run.js rollEpiphany). 내는 순간 화면이 셋 중 하나를 고르게 하고 applyEpiphany 로 건다
   s.glow = JSON.parse(JSON.stringify(glow || {}));
   // 이 전투에서 얻은 것 — 끝나면 run.js afterFight 가 판에 남긴다.
-  // spent — 낸 강화 카드(판의 덱에서 빠진다) · boons — 그 카드가 건 「판 내내」 버프(다음 전투에도 걸린다)
-  s.gained = { cards: [], flash: [], spent: [], boons: [] };
-  // 지난 전투들에서 쓴 강화 카드의 「판 내내」 버프 — 처음부터 걸려 있다(정보 창에 출처 카드와 「판 내내」)
-  for (const u of party) for (const b of (boons && boons[u.key]) || []) P.addMod(u, b.stat, b.v, R.BOON_TURNS, b.src || null, true);
+  // 강화 카드는 판에 아무것도 남기지 않는다 — 낸 카드는 이 전투에서만 사라지고(s.gone), 버프는 이 전투 끝까지
+  s.gained = { cards: [], flash: [] };
   s.freeOnce = {};                          // 신탁이 붙은 카드 — 이번에 내는 것은 비용 0
   s.freeTurn = {};                          // 은총으로 얻은 카드 — 그 턴 비용 0
   // 이벤트가 걸어 둔 「다음 전투」 효과(docs/08-이벤트.md) — 이 전투에서 한 번
@@ -359,7 +357,7 @@ const cue = (s, k, u, more) => { if (s.fx && u) s.fx.push({ k, side: u.side, idx
 const healCue = (s, u, h0, over = 0) => { if (u && (u.hp > h0 || over > 0)) cue(s, "heal", u, { v: u.hp - h0, from: h0, to: u.hp, ...(over > 0 ? { over } : {}) }); };
 const gainCue = (s, u, k, v) => { if (v > 0) cue(s, k, u, { v }); };
 // 능력치 증감의 이름 — 꼬리표 「공격력 +10%」 (fight-screen 의 칩과 같은 말)
-const MOD_KO = { dealt: "주는 피해", taken: "받는 피해", atk: "공격력", def: "방어력", crit: "치명", heal: "회복력" };
+const MOD_KO = { dealt: "주는 피해", taken: "받는 피해", atk: "공격력", def: "방어력", crit: "치명" };
 
 // 사도가 말한다. 그 순간에 맞는 줄이 없으면 아무 말도 안 한다 — 틀린 대사보다 없는 편이 낫다.
 // 한 전투에서 같은 순간을 되풀이하지 않는다(같은 말을 두 번 들으면 대사가 아니라 소리가 된다).
@@ -519,7 +517,7 @@ export function endTurn(s) {
     if (s.nerWorked) { s.ap += 1; say(s, "네르가 AP를 대 준다 (+1)"); }
     const target = alive(s.party).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
     const v = s.party.some((u) => u.key === "erpin" && !u.dead) ? 5 : 3;
-    if (target) { target.block += v; say(s, `네르가 ${을를(target.ko)} 감싼다 (방어도 +${v})`); }
+    if (target) { target.block += v; say(s, `네르가 ${을를(target.ko)} 감싼다 (방어 +${v})`); }
   }
   // 프리클의 가시 촉수 — 소멸 전까지 근처의 적을 친다(원작 그대로)
   // v4 부터 촉수는 키워드 「가시 촉수」(기획서 규칙)로 돈다. 기획서 카드는 s.tentacles 를 안 쓴다 —
@@ -983,7 +981,7 @@ export function isWeakHit(s, from, to, tags) {
   if (tags && tags.약점) return true;
   return !s.noNature && weakOf(to.key).includes(natureOf(from.key));
 }
-// 강인도를 n 깎는다. 0 이 되면 격파 — AP +1 · 즉시 행동 셈 늦춤 · 받는 피해 증가(hurt). 격파된 적 · 쓰러진 적은 더 안 깎인다
+// 강인도를 n 깎는다(0.5 단위). 0 이 되면 격파 — AP +1 · 다음 차례 행동 불가. 격파된 적 · 쓰러진 적은 더 안 깎인다
 function toughHit(s, e, n) {
   if (!e || e.side !== "enemy" || e.dead || e.broken || !(n > 0) || !e.toughMax) return;
   const from = e.tough;
@@ -993,8 +991,9 @@ function toughHit(s, e, n) {
   e.broken = true;
   const ap = R.TOUGH.ap || 0;
   gainAp(s, ap);
-  e.rushCnt = (e.rushCnt || 0) - (R.TOUGH.delay || 0);
-  say(s, `${e.ko}: 격파! (AP +${ap} · 즉시 행동 ${R.TOUGH.delay}장 늦춤)`);
+  // 행동 불가 — 그 적의 다음 차례(즉시 행동 포함)를 건너뛴다. 다음 내 턴 시작에 일어선다
+  e.sealed = true;
+  say(s, `${e.ko}: 격파! (AP +${ap} · 다음 차례 행동 불가)`);
   hitCue(s, e, "break", { ap });
   emit(s, "break", { target: e, by: s.acting });
   // brk — 「격파되면 흩어진다」 고 적힌 수(모으기 · 그 큰 수)는 격파로 끊긴다(enemies.js). 깨는 손에 주는 몫
@@ -1316,7 +1315,6 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   s.prevNat = nat;
   s.acting = c.hero || null;
   s.modSrc = `${owner ? owner.ko + " " : ""}「${c.name}」`;   // 버프 · 디버프의 출처(정보 창)
-  s.boonSrc = `「${c.name}」`;                                  // 「판 내내」 버프의 출처 — 판에 적는다(run.boons)
   cue(s, "act", owner, { anim: c.type === "공격" ? "attack" : "skill", card: c });   // card — 화면이 카드에 맞는 동작을 고른다(js/data/card-motion.js)
   try {
     if (sealed) {
@@ -1341,7 +1339,7 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
         hurt(s, t, v, { from: owner });
       }
     }
-  } finally { s.discardPick = null; s.boonSrc = null; }       // 고른 버릴 카드 · 판 내내의 출처는 이 카드의 효과에서만 쓴다
+  } finally { s.discardPick = null; }       // 고른 버릴 카드는 이 카드의 효과에서만 쓴다
   // 티그의 오버드라이브 — 평타 계수를 바꾸고 공속을 올린다(원작). 여기선 한 번 더 들어간다.
   if (s.overdrive && c.hero === "tig" && c.type === "공격") {
     say(s, "오버드라이브 — 한 번 더");
@@ -1364,9 +1362,9 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
     if (coffer) { s.ap += coffer; say(s, `곳간 — AP +${coffer}`); }
   }
 
-  // 강화 카드(rules.js isPower) — 내면 이 전투에서 사라지고, 판의 덱에서도 빠진다(afterFight 가 gained.spent 를 본다)
+  // 강화 카드(rules.js isPower) — 내면 이 전투에서만 사라진다(소멸처럼 s.gone). 판의 덱에는 남아 다음 전투에 다시 쓴다
   const spent = R.isPower(c);                 // c — 신탁을 얹은 카드. 「강화 카드.」 신탁을 고른 카드도 강화 카드다
-  if (spent) { (s.gained.spent = s.gained.spent || []).push(cardId); say(s, `강화 카드 「${c.name}」 — 판에서 사라진다`); }
+  if (spent) say(s, `강화 카드 「${c.name}」 — 이 전투에서 사라진다`);
   if (!sealed) kwConsume(s, owner, c);
   // 소멸 N(v6 카제나) — 이 전투에서 N 번 내면 소멸 · 회수(N) — 버린 더미 대신 손으로(한 전투에 N 번)
   const useN = (c.fx || []).find((f) => f.k === "tag" && f.id === "소멸N");
@@ -1757,11 +1755,10 @@ function fxApi(s) {
       if (t.side === "enemy" && v > 0 && !BUFF_ST.has(id)) { emit(s, "debuff", { by: s.acting, target: t, id, seq: s.actSeq }); foePassives(s, "debuffed", { target: t }); }
     },
     statOf: (u, stat) => P.statMod(s, u, stat),
-    // run — 「판 내내」(강화 카드). 아군에게 건 것만 판에 적는다(gained.boons → run.js afterFight → run.boons)
+    // run — 강화 카드의 「전투 내내」. 이 전투 끝까지 간다(R.BOON_TURNS — 정보 창이 「전투 내내」 로 적는다). 판에는 적지 않는다
     addMod: (t, stat, v, turns, run) => {
-      const boon = !!run && t.side === "party" && !!s.boonSrc;
+      const boon = !!run && t.side === "party";
       P.addMod(t, stat, v, boon ? R.BOON_TURNS : turns, s.modSrc || null, boon);
-      if (boon) (s.gained.boons = s.gained.boons || []).push({ hero: t.key, stat, v, src: s.boonSrc });
       // 연출 쪽지 — 「공격력 +10%」 꼬리표와 강화 · 약화 소리. up 은 걸린 쪽에 좋은가(받는 피해는 줄어야 좋다)
       const pct = Math.round(v * 100);
       if (pct) cue(s, "status", t, { id: `${MOD_KO[stat] || stat} ${pct > 0 ? "+" : ""}${pct}%`, up: stat === "taken" ? pct < 0 : pct > 0, mod: stat });

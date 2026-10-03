@@ -68,9 +68,9 @@ console.log("");
 console.log("글 읽기 — 상태 문법");
 {
   const want = [
-    ["사기 2", "status:사기:2:self"], ["아군 전원 불굴 2", "status:불굴:2:allAllies"], ["적 1명 취약 2", "status:취약:2:oneEnemy"],
+    ["사기 2", "status:사기:2:party"], ["자신 사기 2", "status:사기:2:self"], ["아군 전원 불굴 2", "status:불굴:2:party"], ["적 1명 취약 2", "status:취약:2:oneEnemy"],
     ["자신 사기 1", "status:사기:1:self"], ["적 1명 고통 3", "status:고통:3:oneEnemy"], ["아군 1명 반격 2", "status:반격:2:oneAlly"],
-    ["적 전체 손상 1", "status:손상:1:allEnemies"], ["결의 2", "status:결의:2:self"], ["결정화 3", "status:결정화:3:self"], ["적 1명 표식 2", "status:표식:2:oneEnemy"],
+    ["적 전체 손상 1", "status:손상:1:allEnemies"], ["결의 2", "status:결의:2:party"], ["결정화 3", "status:결정화:3:party"], ["적 1명 표식 2", "status:표식:2:oneEnemy"],
     ["적 1명에게 공격력 100% 피해, 자신 약화 1", "dmg · status:약화:1:self"],
   ];
   for (const [t, w] of want) {
@@ -395,7 +395,7 @@ console.log("상태 카드 · 저주");
   // 판의 덱에는 안 들어간다 — 싸움이 끝나도
   const run = { deck: ["a", "b"], flash: {}, shin: {}, hp: {}, maxHp: {}, spent: [], gauge: 0 };
   const deck0 = run.deck.slice();
-  s.gained = { cards: [], flash: [], spent: [], boons: [] };
+  s.gained = { cards: [], flash: [] };
   RUN.afterFight(run, s);
   check(JSON.stringify(run.deck) === JSON.stringify(deck0), "전투가 끝나도 판의 덱(run.deck)에 상태 카드가 없다");
 }
@@ -481,7 +481,7 @@ console.log("v6 — 잔불(적 상태) · 파괴(처치)");
   const p = mk({ foes: [FOE, FOE] }); p.enemies[0].hp = 1; const ap0 = p.ap;
   play(p, A, "적 1명에게 공격력 50% 피해. 파괴: AP +2");
   check(p.ap === ap0 - 1 + R.KILL_AP + 2, `파괴 — 처치했으면 돈다 (AP ${ap0} → ${p.ap})`);
-  const q = mk(); q.enemies[0].tough = 1; const ap1 = q.ap;
+  const q = mk(); q.enemies[0].tough = R.TOUGH.hit; const ap1 = q.ap;
   play(q, A, "적 1명에게 공격력 50% 피해. 파괴: AP +2");
   check(q.enemies[0].broken && q.ap === ap1 - 1 + R.TOUGH.ap, "파괴 — 격파만 했으면 안 돈다");
   const r = mk({ foes: [FOE, FOE] }); r.enemies[1].hp = 1; const ap2 = r.ap;
@@ -685,8 +685,8 @@ console.log("docs/18 베껴 쓰는 줄 — 엔진이 모두 읽는다");
   check(pas.length >= 8 && !badP.length, `패시브 ${pas.length}줄 모두 읽힌다${badP.length ? " — 못 읽음: " + badP.join(" | ") : ""}`);
   const badK = kws.filter((l) => { const [nm, txt] = l.split("|").map((x) => x.trim()); const k = parsePassiveKw(nm, txt, [nm]); return k.left.length || (!k.per.length && !k.rules.length); });
   check(kws.length >= 5 && !badK.length, `전용 키워드 ${kws.length}줄 모두 읽힌다${badK.length ? " — 못 읽음: " + badK.join(" | ") : ""}`);
-  const pct = lines.filter((l) => /(주는 피해|받는 피해|공격력|방어력|치명 확률|회복력)\s*[+\-]\s*\d+\s*%/.test(l) && !/판 내내/.test(l));
-  check(!pct.length, `% 증감은 「판 내내」 밖에 없다(카드 글 — 전용 키워드의 1개당은 따로)${pct.length ? " — " + pct.join(" | ") : ""}`);
+  const pct = lines.filter((l) => /(주는 피해|받는 피해|공격력|방어력|치명 확률|회복력)\s*[+\-]\s*\d+\s*%/.test(l) && !/전투 내내/.test(l));
+  check(!pct.length, `% 증감은 「전투 내내」(강화 카드) 밖에 없다(카드 글 — 전용 키워드의 1개당은 따로)${pct.length ? " — " + pct.join(" | ") : ""}`);
   const old = [...lines, ...pas].filter((l) => /회복력|온정|열의|강건|집중\s*\d|감응|잔불\.|잔광\./.test(l));
   check(!old.length, `옛 낱말(회복력 · 온정 · 열의 · 강건 · 집중 · 감응 · 잔불. · 잔광.)이 없다${old.length ? " — " + old.join(" | ") : ""}`);
   // 적 · 이벤트 블록 — 적의 수(JSON 꼴)와 이벤트 결과 낱말이 엔진에 읽힌다
@@ -744,23 +744,23 @@ console.log("적의 새 수 — 깃발 · 강인도 되찾기 · 결의/손상 �
   // 격파로 끊기 — brk 가 붙은 모으기는 그 턴에 격파하면 흩어지고, 안 붙은 것은 그대로
   const h = mk({ foes: ["nururingwarrior_fairy"] }), he = h.enemies[0];
   const ch = ENEMIES.nururingwarrior_fairy.intents.find((x) => x.t === "charge");
-  he.intent = ch; he.tough = 1;
+  he.intent = ch; he.tough = R.TOUGH.hit;
   play(h, A, "적 1명에게 공격력 10% 피해");
   check(he.broken && he.intent === null, `brk — 「${ch.say}」 를 격파로 끊는다`);
   C.endTurn(h);
   check(he.intent !== ch.next && hero(h, A).hp === 9999 && h.party.every((u) => u.hp === u.maxHp), "끊긴 큰 수는 다음 턴에 오지 않는다");
   const n = mk({ foes: ["droneg_sentry"] }), ne = n.enemies[0];
   const ch2 = ENEMIES.droneg_sentry.intents.find((x) => x.t === "charge");
-  ne.intent = ch2; ne.tough = 1; ne.block = 0;
+  ne.intent = ch2; ne.tough = R.TOUGH.hit; ne.block = 0;
   play(n, A, "적 1명에게 공격력 10% 피해");
   check(ne.broken && ne.intent === ch2, `brk 없는 모으기(「${ch2.say}」)는 격파로 안 끊긴다 — 기절 · 봉인`);
   // 패시브 — 격파되면(broken) · 격파에서 일어서면(recover)
   const m = mk({ foes: ["marshmallowtanker"] }), me = m.enemies[0];
-  me.tough = 1;
+  me.tough = R.TOUGH.hit;
   play(m, A, "적 1명에게 공격력 10% 피해");
   check(me.broken && st(me, "취약") === 2, `격파되면 — 탱탱 멜로 「푹 꺼진다」 취약 ${st(me, "취약")}`);
   const r = mk({ foes: ["elfsoldiercloserange_honor"] }), re = r.enemies[0];
-  re.tough = 1;
+  re.tough = R.TOUGH.hit;
   play(r, A, "적 1명에게 공격력 10% 피해");
   check(re.broken && !st(re, "사기"), "의장대 격파 — 아직 사기 없음");
   C.endTurn(r);
