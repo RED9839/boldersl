@@ -83,6 +83,13 @@ export function afterFight(run, combat) {
   for (const f of g.flash) { run.flash[f.cardId] = f.n; if (f.shin) (run.shin = run.shin || {})[f.cardId] = f.shin; }
   // 강화 카드는 판에 남기는 것이 없다 — 덱에 그대로 있고, 버프는 그 전투에서 끝났다(옛 gained.spent · boons 는 보지 않는다)
   run.lastGained = { cards: g.cards.slice(), flash: g.flash.slice() };
+  // 싸움 기록 — 판 기록 파일(recordOf)에 들어간다. 어디서 · 누구와 · 몇 턴 · 파티 HP 얼마에서 얼마로
+  const kind = run.eventFight ? "event" : isFinal(run) ? "final" : isBoss(run) ? "boss" : run.elite ? "elite" : "fight";
+  (run.hist = run.hist || []).push({
+    floor: run.floor + 1, node: run.node, kind, foes: (currentEnemies(run) || []).slice(), result: combat.over || null,
+    turns: combat.turn || 0, hp: [run.partyHp, combat.pool ? Math.max(0, combat.pool.hp) : run.partyHp, run.partyMaxHp],
+    got: { cards: g.cards.slice(), flash: g.flash.map((f) => [f.cardId, f.n]) },
+  });
   if (combat.pool) { run.partyHp = Math.max(0, combat.pool.hp); run.partyMaxHp = combat.pool.maxHp; }
   run.gauge = Math.max(0, Math.min(R.GAUGE_MAX, combat.gauge || 0));   // 남은 고학년 게이지는 다음 전투로
 }
@@ -507,6 +514,22 @@ export function bossCopy(run) {
   const id = owned[Math.floor(run.rng() * owned.length)];
   run.deck.push(id);
   return id;
+}
+
+// 판 기록 — 우로스 앞에서 저장하겠냐고 묻는다(main.js). 내려받은 파일을 모아 밸런스를 잰다(tools/records.js).
+// 판을 되살리는 저장(save.js)과 달리 읽기 좋은 모양 — 이름을 같이 적는다
+export function recordOf(run, stage) {
+  const nm = (id) => (CARDS[id] ? CARDS[id].name : id);
+  const count = {};
+  for (const id of run.deck) count[id] = (count[id] || 0) + 1;
+  return {
+    kind: "bolzena-record", v: 1, stage, at: new Date().toISOString(), seed: run.seed,
+    party: run.party.map((k) => ({ key: k, ko: (HERO_DATA[k] || {}).ko || k, row: run.rows[k], gear: Object.fromEntries(Object.entries(gearOf(run, k)).map(([s, id]) => [s, (EQUIP[id] || {}).ko || id])) })),
+    partyHp: run.partyHp, partyMaxHp: run.partyMaxHp, gold: run.gold, gauge: run.gauge || 0, removals: run.removals || 0,
+    deck: Object.entries(count).map(([id, n]) => ({ id, name: nm(id), n, hero: (CARDS[id] || {}).hero || null, flash: (run.flash || {})[id] || null, shin: (run.shin || {})[id] || null })),
+    bag: run.bag.map((id) => (EQUIP[id] || {}).ko || id),
+    fights: run.hist || [],
+  };
 }
 
 // 층 사이 쉼 — 사도 한 명 몫(파티에 × 사도 수)

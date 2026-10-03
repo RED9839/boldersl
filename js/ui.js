@@ -294,6 +294,36 @@ function flashedCard(run, id) {
 // 누구의 무슨 카드인지가 첫눈에 보여야 한다 — 이름만 떠 있으면 고를 수가 없다.
 // 층 보스의 몫 — 복제된 고유 카드를 가운데 창으로 보여 준다(run.js bossCopy).
 // 전에는 지도 밑 안내 한 줄뿐이라 못 보고 지나갔다(2026-10 사용자)
+export function recordAsk(run, onGo) {
+  let yes = false;
+  const box = centerModal("cardmodal recordmodal", () => onGo(yes));
+  const body = el("div", "bmbody");
+  body.appendChild(el("span", "bmkind", "마지막 싸움 앞"));
+  body.appendChild(el("h3", "bmname", "우로스까지의 기록을 저장하시겠습니까?"));
+  body.appendChild(el("p", "bmtext", `파티 · 덱 · 장비 · 지나온 싸움(${(run.hist || []).length}번)을 파일 하나로 내려받습니다. 우로스와의 싸움이 끝나면 결과가 든 파일을 한 번 더 받습니다. 그 파일을 넘겨 주시면 밸런스를 맞추는 데 씁니다.`));
+  const row = el("div", "bmbtns");
+  const y = el("button", "bmuse", "저장하고 도전");
+  y.onclick = () => { yes = true; closeCenter(); };
+  const n = el("button", "bmclose", "저장 없이 도전");
+  n.onclick = closeCenter;
+  row.appendChild(y); row.appendChild(n);
+  body.appendChild(row);
+  box.appendChild(body);
+}
+// 판 기록을 JSON 파일로 내려받는다(run.js recordOf)
+export function saveRecord(run, stage) {
+  try {
+    const rec = R.recordOf(run, stage);
+    const blob = new Blob([JSON.stringify(rec, null, 1)], { type: "application/json" });
+    const a = document.createElement("a");
+    const d = new Date(), p = (x) => String(x).padStart(2, "0");
+    a.download = `볼제나-기록-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}-${stage.replace(/\s+/g, "")}.json`;
+    a.href = URL.createObjectURL(blob);
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  } catch (e) { console.warn("기록 저장 실패", e); }
+}
+
 export function bossCopyNote(run, id) {
   const c0 = CARDS[id];
   if (!c0) return;

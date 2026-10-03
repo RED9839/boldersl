@@ -10,6 +10,7 @@
     "voice:select": "python tools/extract-select-voice.py",
     "sfx": "python tools/extract-sfx.py",
     "currency": "python tools/extract-currency-icons.py",
+    "records": "node tools/records.js",
     "sim": "node tools/sim.js 400",
     "smoke": "node tools/smoke.js",
     "save": "node tools/check-save.js",

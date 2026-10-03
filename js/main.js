@@ -93,6 +93,7 @@ function resume(saved) {
 // 판이 끝났다 — 이긴 판 · 진 판은 이어할 수 없게 저장을 지운다
 function end(kind) {
   S.clearSave();
+  if (run && run.recordOn) ui.saveRecord(run, kind === "clear" ? "우로스 승리" : "우로스 패배");
   ui.endScreen(kind, run, start);
 }
 
@@ -169,7 +170,15 @@ function camp(kind) {
   R.enterCamp(run, kind);
   run.where = { k: "camp", kind };
   S.writeSave(run);
-  ui.campScreen(run, kind === "campshop", kind === "final" ? () => fight() : mapStep, () => shop(kind));
+  ui.campScreen(run, kind === "campshop", kind === "final" ? finalGo : mapStep, () => shop(kind));
+}
+// 우로스 앞 — 여기까지의 판 기록을 파일로 내려받겠냐고 묻는다(2026-10 사용자: 기록을 모아 밸런스를 잰다).
+// 저장하면 우로스를 이기든 지든 끝난 뒤 결과까지 든 파일을 한 번 더 내려받는다(end)
+function finalGo() {
+  ui.recordAsk(run, (yes) => {
+    if (yes) { run.recordOn = true; S.writeSave(run); ui.saveRecord(run, "우로스 전"); }
+    fight();
+  });
 }
 
 // 상점 — 휴식(상점) 칸마다 새 진열. 한 층에 여럿 들를 수 있다. 진열은 그 칸에서 한 번만 굴린다
