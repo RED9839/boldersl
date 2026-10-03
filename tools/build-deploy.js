@@ -19,7 +19,8 @@ const A = (p) => path.join(ROOT, "assets", p);
 const ASSET_DIRS = ["spine", "bg", "skillicons", "gear", "spell", "cardart", "uiicons", "sd", "monster"];
 // 폴더에서 몇 장만 — 재화 아이콘은 골드 하나
 const ASSET_FILES = ["currency/CurrencyIcon_0008.png"];
-const VOICE_CATS = new Set(["decksetting"]);
+// 목소리 — 편성 대사 · 고학년 대사(컷인, 2026-10 사용자). 스킨 전용(_skinN)은 게임이 안 쓰니 뺀다(js/voice.js voiceSet)
+const VOICE_CATS = new Set(["decksetting", "ultimate"]);
 const MAX_FILES = 20000, MAX_BYTES = 25 * 1024 * 1024;
 
 let files = 0, bytes = 0, biggest = { f: "", n: 0 };
@@ -51,14 +52,14 @@ const codeFiles = files, codeBytes = bytes;
 for (const d of ASSET_DIRS) copyDir(A(d), path.join(DIST, "assets", d));
 for (const f of ASSET_FILES) if (fs.existsSync(A(f))) copyFile(A(f), path.join(DIST, "assets", f));
 
-// ③ 목소리 — 편성 대사만, 색인도 그 갈래만 남긴다(없는 갈래는 게임이 조용히 넘어간다)
+// ③ 목소리 — 편성 · 고학년 대사만, 색인도 그 갈래만 남긴다(없는 갈래는 게임이 조용히 넘어간다)
 const vIndexPath = A("voice/index.json");
 if (fs.existsSync(vIndexPath)) {
   const idx = JSON.parse(fs.readFileSync(vIndexPath, "utf8"));
   const out = {};
   for (const [hero, skins] of Object.entries(idx)) {
     const base = skins.base || {};
-    const keep = Object.fromEntries(Object.entries(base).filter(([c]) => VOICE_CATS.has(c)));
+    const keep = Object.fromEntries(Object.entries(base).filter(([c]) => VOICE_CATS.has(c)).map(([c, l]) => [c, l.filter((f) => !/_skin\d/.test(f))]));
     if (!Object.keys(keep).length) continue;
     out[hero] = { base: keep };
     for (const list of Object.values(keep)) for (const f of list) copyFile(A("voice/" + f), path.join(DIST, "assets/voice", f));
