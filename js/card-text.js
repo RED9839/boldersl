@@ -153,18 +153,20 @@ export function polite(t) {
 // 신탁 글머리의 「코스트 N.」 — 카드 머리의 코스트 칸이 같은 값을 보이니 카드 면에서는 뺀다(데이터는 그대로)
 const COST_HEAD = /^코스트\s*\d+\s*\.\s*/;
 
-// 사도의 강화 카드(rules.js isPower) — 카드 면 맨 앞에 규칙 꼬리표. 「강화 카드」 는 낱말 풀이가 붙는다(build-keywords)
+// 사도의 강화 카드(rules.js isPower) — 규칙(한 장만 · 쓰면 사라짐 · 판 내내)은 카드 머리의 종류 표(강화 · 금테 꼬리표)가 이미 말한다.
+// 카드 면 글 앞에 또 적으니 같은 말이 두 번이었다(2026-10 사용자) — 글에서는 빼고, 크게 보기의 낱말 풀이에만 「강화 카드」 를 올린다
 export const POWER_TAG = "강화 카드: 한 장만 · 쓰면 사라짐 · 판 내내.";
 export function cardParts(card, heroKey) {
   const full = shortText(card.text).replace(COST_HEAD, "");
   const m = full.match(LOCAL);
   const power = !!(card.unique && card.hero && card.type === "강화");
-  const action = (power ? POWER_TAG + " " : "") + (m ? `${m[1]} ${m[2]}` : full);
+  const action = m ? `${m[1]} ${m[2]}` : full;
   const terms = [];
   const seen = new Set();
   const push = (ko, text, kind) => { if (ko && !seen.has(ko)) { seen.add(ko); terms.push({ ko, text, kind }); } };
 
   if (m) push(m[2], full.slice(m[0].length), "이 카드");
+  if (power) for (const pt of splitKeywords(POWER_TAG, heroKey)) if (pt.kw && pt.kw.ko === "강화 카드") push(pt.kw.ko, pt.kw.text, pt.kw.kind);
 
   // 하는 일과 풀이에 나온 낱말을 차례대로 모은다
   const hunt = (t) => { for (const p of splitKeywords(t, heroKey)) if (p.kw) push(p.kw.ko, p.kw.text, p.kw.kind); };

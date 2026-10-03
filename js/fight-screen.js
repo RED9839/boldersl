@@ -26,6 +26,7 @@ import { HERO, TINT, NTINT, el, kwNote, hint, screen, TMARK, TKIND, goldIcon, mi
 //   ult(heroKey, phase)     고학년 — "cast"(SD 동작 시작) · "impact"(첫 타격)
 //   card(heroKey, anim)     카드 · 적의 수가 동작을 시작할 때 — anim 은 attack · skill
 import { sfx as SFX } from "./sfx.js";
+import { josa } from "./ko.js";
 import { fxIcon, kwToken } from "./fx-icons.js";
 // 효과음(js/sfx.js) — 맞는 소리는 land 가 SFX.land 로 직접 낸다(맞은 쪽 · 때린 쪽 · 고학년 · 크게 맞음을 다 안다).
 // 사도 동작의 소리(카드 · 고학년)는 playBeats 가 SFX.action 으로 — 스파인 SFX 이벤트 시각에, 안 맞으면 시작 + 터지는 소리를 맞는 순간에 맞춰.
@@ -190,7 +191,8 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   lootBox.appendChild(lootList);
   s.appendChild(lootBox);
   let lootGold = 0, goldRow = null;
-  const ground = [];                        // 바닥에 떨어진 금화 { node, x, y, gold, taken }
+  const ground = [];                        // 바닥에 떨어진 금화 · 장비 { node, x, y, gold, equip?, taken }
+  let gotEquip = null;                      // 이기고 주운 장비 — 다 주우면 장비 창을 띄운다
   // 금화는 몸통(body)에 붙어서 화면을 갈아도 남는다 — 지거나 메인화면으로 나가거나 이어하기로 다시 열 때 걷는다
   const clearGround = () => { for (const c of ground) c.node.remove(); ground.length = 0; };
   if (typeof document === "object" && document.querySelectorAll) document.querySelectorAll(".groundcoin").forEach((n) => n.remove());
@@ -252,6 +254,14 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     c.taken = true;
     const z = zNow();
     c.node.remove();
+    if (c.equip) {
+      const fly = equipIcon(EQUIP[c.equip], 48);
+      fly.classList.add("dropequip");
+      flyTo(fly, { x: c.x, y: c.y });
+      dropEquip(c.equip);
+      gotEquip = c.equip;
+      return;
+    }
     const fly = goldIcon("dropcoin");
     fly.style.setProperty("--k", "0");
     flyTo(fly, { x: c.x, y: c.y });
@@ -283,14 +293,19 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     requestAnimationFrame(tick);
   }
   // 들고 있던 것 — 장비 아이콘이 적 자리에서 목록으로 날아간다
+  // 들고 있던 장비 — 바로 목록에 넣지 않고 쓰러진 자리에 떨어뜨린다. 이기면 사도들이 금화와 함께 주워(walkOut → pickCoin)
+  // 그때 목록에 오르고, 다 주운 뒤 장비 창을 띄운다(2026-10 사용자). 자리를 잴 수 없는 화면(시험)은 예전처럼 바로 목록으로
   function dropItems(from) {
     if (itemsDropped || !loot) return;
     itemsDropped = true;
-    if (loot.equip && loot.equip[0]) {
-      const id = loot.equip[0], ic = equipIcon(EQUIP[id], 64);
-      ic.classList.add("dropequip");
-      setTimeout(() => { flyTo(ic, from); dropEquip(id); }, 250);
-    }
+    if (!(loot.equip && loot.equip[0])) return;
+    const id = loot.equip[0];
+    if (!groundOk || !from) { dropEquip(id); return; }
+    const z = zNow(), ic = equipIcon(EQUIP[id], 40);
+    ic.classList.add("groundequip");
+    ic.style.left = from.x / z + "px"; ic.style.top = from.y / z + "px";
+    document.body.appendChild(ic);
+    ground.push({ node: ic, x: from.x, y: from.y, gold: 0, equip: id });
   }
   function lootCard(id, label, from) {
     const c = CARDS[id];
@@ -1277,7 +1292,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       const side = it.t === "charge" ? `→${INTENT_ICON[nx.t] || ""}${nx.v != null ? C.foeV(u, nx) : ""}`
         : hit ? (it.t === "attackAll" ? "✹전체" : icon) : it.v != null && it.v !== "" ? String(it.v) : "";
       if (side) tag.appendChild(el("span", "iside", side));
-      const more = it.t === "attackAll" ? " · 전체" : it.t === "back" ? " · 뒷줄" : it.t === "guard" ? " · 적 전체"
+      const more = it.t === "attackAll" ? " · 전체" : it.t === "back" ? " · 후열" : it.t === "guard" ? " · 적 전체"
         : it.t === "charge" ? ` → 다음 턴 ${nx.say} ${C.foeV(u, nx)}${nx.t === "attackAll" ? " 전체" : ""}`
         : it.id && hit ? ` · ${it.id} ${it.n || 1}` : "";
       tag.title = `「${it.say}」${more}\n${INTENT_HELP[it.t] || ""}`;
@@ -2436,8 +2451,8 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   const MOVE_KW = (it, v = it.v) => {
     const on = it.id ? `${it.id} ${it.n || 1}` : "";      // 맞은 사람에게 거는 상태
     return {
-      attack: ["공격", v, ["앞줄", on]], back: ["공격", v, ["뒷줄", on]], attackAll: ["공격", v, ["전체", on]],
-      multi: ["연타", `${v}×${it.n}`, ["앞줄", on]], block: ["방어", v, ["자신"]], guard: ["방어", v, ["적 전체"]],
+      attack: ["공격", v, ["전열", on]], back: ["공격", v, ["후열", on]], attackAll: ["공격", v, ["전체", on]],
+      multi: ["연타", `${v}×${it.n}`, ["전열", on]], block: ["방어", v, ["자신"]], guard: ["방어", v, ["적 전체"]],
       heal: ["회복", v, ["다친 적"]], selfHeal: ["회복", v, ["자신"]], thorns: ["반격", v, ["때린 사도"]],
       buff: [it.id || "강화", `+${v}`, ["자신"]], debuff: [it.id || "상태", v, ["파티 전체"]], jam: ["AP", `-${v}`, ["다음 턴"]],
       charge: ["모으기", "", ["다음 턴"]],
@@ -3199,7 +3214,16 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         lootBox.querySelector(".lthead").textContent = "승리 — 얻은 것";
         if (!lootList.children.length) lootList.appendChild(el("p", "ltnone", "이번에는 떨어진 것이 없습니다"));
       }
-      setTimeout(() => { clearGround(); onDone(st.over); }, loot ? 1300 : 500);
+      const next = () => { clearGround(); onDone(st.over); };
+      // 장비를 주웠으면 장비 창 — 누구에게 낄지 고르고 닫으면 다음 칸으로(가방에는 이미 들어 있다)
+      if (gotEquip && groundOk) {
+        setTimeout(() => import("./ui.js").then((ui) => ui.openGearModal(run, {
+          sub: `「${EQUIP[gotEquip].ko}」 ${josa(EQUIP[gotEquip].ko, "을를")} 주웠습니다 — 누구에게 낄지 고르세요 · 닫으면 다음 칸으로`,
+          onClose: next,
+        })).catch(next), 700);
+        return;
+      }
+      setTimeout(next, loot ? 1300 : 500);
     }));
   }
 
@@ -3231,8 +3255,8 @@ const INTENT_ICON = { attack: "⚔", multi: "⚔", back: "↷", attackAll: "✹"
   heal: "✚", selfHeal: "✚", buff: "▲", debuff: "▼", jam: "✖", thorns: "✦" };
 // 적의 수 — 마름모에 마우스를 올리면 뜨는 설명
 const INTENT_HELP = {
-  attack: "앞줄부터 칩니다", back: "뒷줄부터 칩니다", attackAll: "파티 전체를 칩니다",
-  multi: "앞줄부터 여러 번 칩니다 — 방어가 먼저 벗겨집니다",
+  attack: "전열을 칩니다 — 전열이 비었으면 중열, 그다음 후열", back: "후열을 칩니다 — 후열이 비었으면 그다음 뒤(중열, 그다음 전열)", attackAll: "파티 전체를 칩니다",
+  multi: "전열을 여러 번 칩니다(비었으면 중열 · 후열) — 방어가 먼저 벗겨집니다",
   charge: "힘을 모읍니다. 다음 턴에 예고한 수를 반드시 합니다 — 봉인하거나 수를 흐트러뜨리면 흩어집니다",
   block: "자기 방어를 올립니다", guard: "적 전체의 방어를 올립니다", heal: "체력이 가장 낮은 적을 회복합니다",
   buff: "스스로 강해집니다", debuff: "파티 전체에 상태를 겁니다", jam: "다음 턴 AP 를 깎습니다",

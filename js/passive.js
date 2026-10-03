@@ -42,8 +42,9 @@ const TRIGGERS = [
   // 「1코 이상」 — 적힌 코스트가 N 이상인 카드만 센다(0코 순환 카드가 장수 패시브를 공짜로 돌리지 않게)
   // 「한 턴에」 — 센 장수가 턴마다 0 으로 돌아간다(perTurn). 안 적으면 전투 내내 이어 센다
   [/^\s*(?:([^\s「」:,.·][^「」:,.·]{0,11}?)의\s+)?(한\s*턴에\s*)?(?:(\d+)\s*코\s*이상\s*)?(공격|스킬|강화)?\s*카드를\s*(한\s*턴에\s*)?(\d+)\s*장\s*낼\s*때마다/,
-    (m) => ({ on: "play", every: Number(m[6]), type: m[4] || null, minCost: m[3] ? Number(m[3]) : 0, ...(m[2] || m[5] ? { perTurn: true } : {}), ...(m[1] ? { by: m[1].trim() } : {}) })],
-  [/(한\s*턴에\s*)?(?:(\d+)\s*코\s*이상\s*)?(공격|스킬|강화)?\s*카드를\s*(\d+)\s*장\s*낼\s*때마다/, (m) => ({ on: "play", every: Number(m[4]), type: m[3] || null, minCost: m[2] ? Number(m[2]) : 0, ...(m[1] ? { perTurn: true } : {}) })],
+    (m) => ({ on: "play", every: Number(m[6]), type: m[4] || null, minCost: m[3] ? Number(m[3]) : 1,   // N장마다는 0코를 안 센다(게이지와 같다)
+      ...(m[2] || m[5] ? { perTurn: true } : {}), ...(m[1] ? { by: m[1].trim() } : {}) })],
+  [/(한\s*턴에\s*)?(?:(\d+)\s*코\s*이상\s*)?(공격|스킬|강화)?\s*카드를\s*(\d+)\s*장\s*낼\s*때마다/, (m) => ({ on: "play", every: Number(m[4]), type: m[3] || null, minCost: m[2] ? Number(m[2]) : 1, ...(m[1] ? { perTurn: true } : {}) })],
   [/아군이\s*(공격|스킬|강화)?\s*카드를\s*낼\s*때마다/, (m) => ({ on: "play", who: "any", type: m[1] || null })],
   // 「시그니처 카드를 내면」 — 그 사도의 시그니처(원작 저학년). 신탁으로 바뀐 것도 시그니처다
   [/시그니처\s*카드를\s*(?:낼\s*때마다|내면)/, () => ({ on: "play", sig: true })],

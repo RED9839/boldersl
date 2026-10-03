@@ -272,6 +272,8 @@ for (const file of files) {
         ...h.unique.filter((u) => u.type !== "강화").flatMap((u) => u.flash.filter((f) => marked(f.text)).map((f) => `「${u.ko}」 신탁 「${f.ko}」`))];
       if (paths.length > 1) errs.push(`강화 길이 ${paths.length}개(${paths.join(" · ")}) — 사도마다 하나까지(기본 카드 하나 또는 신탁 하나)`);
       if (paths.length) notes.push(`강화 카드: ${paths[0]}`);
+      // 시그니처에는 강화 길을 두지 않는다 — 쓰면 판에서 사라져 사도의 대표 카드가 없어진다
+      for (const u of h.unique) if ((u.tags || []).includes("시그니처")) if (u.type === "강화" || u.flash.some((f) => marked(f.text))) errs.push(`「${u.ko}」 — 시그니처 카드에는 강화 길을 두지 않는다(쓰면 판에서 사라진다)`);
       for (const u of h.unique) {
         const list = [{ text: u.text, at: `고유 「${u.ko}」`, power: u.type === "강화" }, ...u.flash.map((f) => ({ text: f.text, at: `「${u.ko}」 「${f.ko}」`, power: u.type === "강화" || marked(f.text) }))];
         for (const x of list) {

@@ -40,6 +40,7 @@ function devFight() {
   for (const k of DEV.party) rows[k] = HERO_DATA[k].row;
   run = R.newRun(DEV.party, rows);
   if (DEV.foes && DEV.foes.length) run.eventFight = { enemies: DEV.foes, name: "시험 싸움" };   // 시험 — 고른 적과
+  if (DEV.drop) run.devDrop = true;                                  // 시험 — 장비를 반드시 떨군다(run.js rollReward)
   if (DEV.gear) {
     const all = Object.values(EQUIP);
     for (const k of DEV.party) for (const sl of RULES.SLOTS) {

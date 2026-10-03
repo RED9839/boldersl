@@ -177,7 +177,7 @@ export function rollReward(run) {
   // 드랍 — 장비가 확률로 하나(R.DROP). 마지막 보스는 판이 끝나니 안 떨군다. 교주 카드는 상점 · 이벤트에서만
   const T = R.DROP[isBoss(run) ? "boss" : run.elite ? "elite" : "fight"];
   const at = (tbl) => tbl[Math.min(run.floor, tbl.length - 1)];
-  const eq = !lastBoss && run.rng() < T.equip ? offerEquip(run, at(T.equipGrade), 1, { dupes: true }) : [];
+  const eq = !lastBoss && (run.devDrop || run.rng() < T.equip) ? offerEquip(run, at(T.equipGrade), 1, { dupes: true }) : [];   // devDrop — 시험 화면(&drop=1)
   run.reward = {
     equip: eq.length ? eq : null,
     equipTaken: null,
