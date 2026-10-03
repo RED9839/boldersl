@@ -127,8 +127,6 @@ export function runFx(s, fxList, ctx, api) {
             }
             if (ctx.shin === "frost" && !t.dead) api.addStatus(t, "취약", 1, 1);   // 눈보라 예보
             if (ctx.shin === "thorn" && !t.dead) api.addStatus(t, "중독", 2, 0);   // 가시 돋친 꿈
-            // 능력치 상태 — 카드가 친 이 일에 열의 · 집중을 한 번 쓴다(같은 카드의 다음 타격도 덕을 본다)
-            if (ctx.card && api.use) { api.use(owner, "열의"); api.use(owner, "집중"); }
           }
         }
         break;
@@ -140,9 +138,8 @@ export function runFx(s, fxList, ctx, api) {
       case "block": case "shield": {
         if (!owner) break;
         const v0 = guardAmount(api, owner, f.ratio, ctx.shin);
-        // 손상 — 받는 쪽마다 얻는 양이 준다(api.guardGain)
+        // 결의 · 손상 — 받는 쪽마다 얻는 양이 는다 · 준다(api.guardGain)
         for (const t of resolve(s, ctx, f.target)) { const v = api.guardGain ? api.guardGain(t, v0) : v0; t[f.k] = (t[f.k] || 0) + v; if (api.gain) api.gain(t, f.k, v); }
-        if (ctx.card && api.use) api.use(owner, "강건");
         break;
       }
       // 회복은 회복력 기준 — 낸 사도의 회복력
@@ -151,7 +148,6 @@ export function runFx(s, fxList, ctx, api) {
         const h0 = t.hp, v = healAmount(api, owner, f.ratio, ctx.shin);
         t.hp = Math.min(t.maxHp, t.hp + v);
         if (api.heal) api.heal(t, h0, Math.max(0, h0 + v - t.maxHp));
-        if (ctx.card && api.use) { api.use(owner, "열의"); api.use(owner, "온정"); }
       } break;
 
       // ── 능력치 증감 — 주는/받는 피해 · 공격력 · 방어력 · 치명 (이번 턴 · N턴간 · 이번 전투) ──

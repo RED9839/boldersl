@@ -80,11 +80,12 @@ console.log("본보기 — 네르 「기도」(셋이 차는 그 턴에 계시)"
   check(burst > 0 && morale(tig) - d0 === burst && (tig.block || 0) > b0, `계시 — 아군 전원 사기 ${burst} · 방어 (티그 사기 ${morale(tig)} · 방어 ${tig.block})`);
   check(s.log.some((l) => l.includes("네르 · 기도")), "계시가 내리면 키워드 규칙이 기록에 남는다");
   endTurn(s);
-  check(morale(tig) === d0 + burst && pray() === 1, `사기는 턴으로 안 준다(쓸 때 1 씩) — 다음 턴에도 남고 기도는 다시 1 (사기 ${morale(tig)} · 기도 ${pray()})`);
+  check(morale(tig) === d0 + burst && pray() === 1, `사기는 세기라 줄지 않는다 — 다음 턴에도 남고 기도는 다시 1 (사기 ${morale(tig)} · 기도 ${pray()})`);
   // 시그니처 — 아군 전원 사기(카드 글에서 읽는다)
   const sigId = idOf("네르", "세계수의 계시");
   const give = (CARDS[sigId].fx || []).filter((f) => f.k === "status" && f.id === "사기" && f.target === "allAllies").reduce((a, f) => a + (f.turns || 1), 0);
   const d1 = morale(tig);
+  if (s.stacks && s.stacks["네르"]) s.stacks["네르"]["기도"] = 0;   // 시그니처의 「기도」 +N 이 셋을 채워 계시까지 내리지 않게
   play(s, sigId);
   check(give > 0 && morale(tig) - d1 === give, `「세계수의 계시」 — 아군 전원 사기 ${give} (티그 ${d1} → ${morale(tig)})`);
   // 도발 — 적이 네르만 친다 · 무적은 적의 차례까지 막는다(「여왕님 앞은 못 지나가요」)

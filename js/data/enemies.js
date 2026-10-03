@@ -15,7 +15,7 @@
 //                brk: true — 모으는 턴에 **격파하면** 흩어진다(깨는 손 · 딜러에게 주는 몫. 보스는 판마다 다르다)
 //   block v      자기 방어 · guard v  적 전체 방어 · heal v  체력 비율이 가장 낮은 적을 회복
 //                적이 얻는 방어도 강건(+20%) · 손상(-50%)을 받는다(combat.js foeBlock)
-//   buff         자기에게 상태(사기 · 불굴 · 강건 · 취약 …) — all: true 면 적 전체(깃발)
+//   buff         자기에게 상태(사기 · 불굴 · 강건 · 취약 …) — all: true 면 적 전체(깃발). 세기 상태(사기 · 불굴 · 강건 …)는 줄지 않고 적 하나에 rules.js FOE_INT_MAX 겹까지
 //   debuff       아군 전체에 상태 · jam  다음 턴 AP 를 깎는다
 //   tough N      어느 수에나 붙인다 — 그 수와 함께 강인도를 N칸 되찾는다(guard · all 이면 적 전체). 격파된 동안은 안 찬다
 //   적이 거는 고통은 층 피해 배율(dmgx)을 곱한다 — 방어를 뚫는 피해라 치는 수와 같은 눈금(combat.js foeStatus)
@@ -99,13 +99,13 @@ export const ENEMIES = {
   },
   magicfork: {
     // 원작 「불효자손」 — 요정들의 마법 농기구(괭이). 갈 밭이 없으면 목적을 잃고 방황한다. 높은 공격력 · 낮은 HP
-    // 공략: 28 체력 유리 대포 — 날을 세우면(⚡3) 사기 2, 다음 두 수가 세진다. 녹슨 날로 긁으면 고통이 남으니(방어로 못 막는다) 날을 세운 턴에 쓰러뜨려라 (강화 · 고통)
+    // 공략: 28 체력 유리 대포 — 날을 세우면(⚡3) 사기 1, 남은 전투 내내 세진다(사기는 줄지 않는다). 녹슨 날로 긁으면 고통이 남으니(방어로 못 막는다) 날을 세운 턴에 쓰러뜨려라 (강화 · 고통)
     ko: "불효자손", hp: 28, row: "front", nature: "순수", tint: "#e0a0b0",
     pick: "shuffle",
     intents: [
       { t: "attack", v: 10, say: "밭을 갈듯 내리찍는다", w: 2, rush: 6 },
       { t: "multi", v: 4, n: 2, id: "고통", say: "녹슨 날로 두 번 긁는다", rush: 5 },
-      { t: "buff", id: "사기", v: 2, say: "날을 세운다", rush: 3 },
+      { t: "buff", id: "사기", v: 1, say: "날을 세운다", rush: 3 },
     ],
   },
   ginseng: {
@@ -156,10 +156,10 @@ export const ENEMIES = {
   marshmallowtanker: {
     // 원작 「탱탱 멜로」 — 마시멜로 골렘. 너무 많이 얻어맞으면 분노한다(그래도 마시멜로다)
     // 공략: 부풀기 · 줄 맞추기 ⚡3 — 부풀면 강인도를 1칸 되찾는다, 그 수 앞에선 한 턴에 몰아 깨라. 격파되면 푹 꺼져 취약 2 —
-    //       깬 턴에 딜러로 몰아 쳐라. 절반에서 한 번 분노해 사기 2 (방패 · 깨면 무른다)
+    //       깬 턴에 딜러로 몰아 쳐라. 절반에서 한 번 분노해 사기 1 (방패 · 깨면 무른다)
     ko: "탱탱 멜로", hp: 48, row: "front", nature: "순수", tint: "#f0e6d8",
     passives: [
-      { name: "얻어맞아 분노", on: "lowHp", at: 0.5, do: { t: "buff", id: "사기", v: 2 } },
+      { name: "얻어맞아 분노", on: "lowHp", at: 0.5, do: { t: "buff", id: "사기", v: 1 } },
       { name: "푹 꺼진다", on: "broken", do: { t: "buff", id: "취약", v: 2 } },
     ],
     intents: [
@@ -218,7 +218,7 @@ export const ENEMIES = {
   nururingtanker_fairy: {
     // 「요정 왕국 근처에서 영향을 받아 단 것에 집착 · 통통하게 젤리가 올라서 고통에 둔감하다」
     // 공략: 맞을 때마다(턴 두 번) 방어 +3 — 작은 카드로 쪼개 치면 젤리만 두꺼워진다, 큰 카드로. 감싸기 ⚡3 는 적 전체 방어에 강인도 1칸씩 —
-    //       그 전에 깨라. 고통에 둔감해지면 불굴 2 (방패 · 굳히기)
+    //       그 전에 깨라. 고통에 둔감해지면 불굴 1 (방패 · 굳히기)
     ko: "누루링-요정 탱커", hp: 50, row: "front", art: "nururingtanker", skin: "Skin_Fairy", weak: ["우울"], tint: "#f0c890",
     passives: [
       { name: "통통한 젤리", on: "hurt", limit: 2, do: { t: "block", v: 3 } },
@@ -226,18 +226,18 @@ export const ENEMIES = {
     intents: [
       { t: "guard", v: 6, tough: 1, say: "젤리로 감싼다", rush: 3 },
       { t: "attack", v: 9, say: "통통 부딪힌다", rush: 5 },
-      { t: "buff", id: "불굴", v: 2, say: "고통에 둔감해진다", rush: 4 },
+      { t: "buff", id: "불굴", v: 1, say: "고통에 둔감해진다", rush: 4 },
       { t: "attack", v: 12, say: "깔고 앉는다", rush: 6 },
     ],
   },
   nururingwarrior_fairy: {
     // 「젤리 살이 아니라 근육이라 주장하며 힘자랑을 한다」
-    // 공략: 힘자랑 ⚡3 — 사기 2 가 붙는다, 그 턴엔 두 장까지. 팔을 걷으면(⚡0) 다음 턴 16 — 그 턴에 격파하면 힘이 흩어진다(기절 · 봉인도) (강화 · 깨면 끊긴다)
+    // 공략: 힘자랑 ⚡3 — 사기 1 이 붙는다(줄지 않는다), 그 턴엔 두 장까지. 팔을 걷으면(⚡0) 다음 턴 16 — 그 턴에 격파하면 힘이 흩어진다(기절 · 봉인도) (강화 · 깨면 끊긴다)
     ko: "누루링-요정 전사", hp: 36, row: "front", art: "nururingwarrior", skin: "Skin_Fairy", weak: ["우울"], tint: "#f0b878",
     pick: "shuffle",
     intents: [
       { t: "attack", v: 9, say: "젤리 주먹", w: 2, rush: 5 },
-      { t: "buff", id: "사기", v: 2, say: "근육이라고 우긴다", rush: 3 },
+      { t: "buff", id: "사기", v: 1, say: "근육이라고 우긴다", rush: 3 },
       { t: "charge", brk: true, say: "팔을 걷어붙인다", next: { t: "attack", v: 16, say: "힘자랑 한 방" } },
     ],
   },
@@ -277,7 +277,7 @@ export const ENEMIES = {
       { t: "block", v: 12, tough: 2, say: "뚜껑을 닫는다", rush: 6 },
       { t: "attack", v: 14, say: "와락 문다", rush: 6 },
       { t: "multi", v: 4, n: 3, say: "금화를 뱉는다", rush: 3 },
-      { t: "buff", id: "사기", v: 2, say: "보석을 삼킨다", rush: 5 },
+      { t: "buff", id: "사기", v: 1, say: "보석을 삼킨다", rush: 5 },
     ],
     phase: {
       at: 0.5, say: "뚜껑이 삐걱거린다",
@@ -300,7 +300,7 @@ export const ENEMIES = {
       { t: "attack", v: 12, say: "갈아엎는다", rush: 6 },
       { t: "multi", v: 4, n: 3, id: "고통", say: "마구 긁는다", rush: 6 },
       { t: "charge", brk: true, say: "자루를 높이 든다", next: { t: "attackAll", v: 11, say: "밭째 갈아엎는다" } },
-      { t: "buff", id: "사기", v: 2, say: "날을 간다", rush: 3 },
+      { t: "buff", id: "사기", v: 1, say: "날을 간다", rush: 3 },
     ],
   },
   ginseng_mad: {
@@ -329,7 +329,7 @@ export const ENEMIES = {
     ko: "엘프 돌격병", hp: 51, row: "front", nature: "순수", tint: "#6fa2c0",
     pick: "shuffle",
     passives: [
-      { name: "전우의 복수", on: "allyDown", do: { t: "buff", id: "사기", v: 2 } },
+      { name: "전우의 복수", on: "allyDown", do: { t: "buff", id: "사기", v: 1 } },
     ],
     intents: [
       { t: "attack", v: 12, say: "대열을 맞춘다", w: 2, rush: 6 },
@@ -340,7 +340,7 @@ export const ENEMIES = {
   },
   elfsoldiercloserange_worker: {
     // 원작 「엘프 돌격병」-냉정 — 「통칭 '노동반'. 엘프들의 공병이다. 제일 힘들다. 귀찮게 하지 말자」
-    // 공략: 당기면 귀찮아서 바리케이드(적 전체 방어 +6) — 이 녀석 앞에선 신속 카드로 셈을 넘겨라. 보강 자재를 나눠 주면 적 전체 강건 2(방어 수 +20%),
+    // 공략: 당기면 귀찮아서 바리케이드(적 전체 방어 +6) — 이 녀석 앞에선 신속 카드로 셈을 넘겨라. 보강 자재를 나눠 주면 적 전체 강건 1(방어 수 +20%),
     //       공구에 맞으면 손상(방어 · 실드 반) — 방어만 쌓는 손은 공구를 맞기 전에 쌓아 둬라. 바리케이드 ⚡3 (방패 · 당기면 손해 · 녹이기)
     ko: "엘프 돌격병 · 노동반", hp: 58, row: "front", nature: "냉정", art: "elfsoldiercloserange", tint: "#5f8fa8",
     passives: [
@@ -349,18 +349,18 @@ export const ENEMIES = {
     intents: [
       { t: "guard", v: 8, say: "바리케이드를 세운다", rush: 3 },
       { t: "attack", v: 11, id: "손상", n: 1, say: "공구로 내려친다", rush: 5 },
-      { t: "buff", id: "강건", v: 2, all: true, say: "보강 자재를 나눠 준다", rush: 4 },
+      { t: "buff", id: "강건", v: 1, all: true, say: "보강 자재를 나눠 준다", rush: 4 },
       { t: "attack", v: 14, say: "삽으로 퍼붓는다", rush: 6 },
     ],
   },
   elfsoldiercloserange_honor: {
     // 원작 「엘프 돌격병」-우울 — 「엘프 군인들 중 의장대에 속하는 자들이다. 엘프 군인들의 이미지를 담당한다」
     // 공략: 디버프를 걸면 자존심이 상해 사기 +1 — 디버프 덱은 피하고 공격으로. 자세 가다듬기 ⚡3 는 강인도 2칸을 되찾는다.
-    //       검을 세우면(⚡0) 다음 턴 22 — 그 턴에 격파하면 흩어진다. 다만 격파에서 일어서면 체면을 세우려 사기 2 — 깬 턴에 끝장내라 (차지꾼 · 일어서면 성난다)
+    //       검을 세우면(⚡0) 다음 턴 22 — 그 턴에 격파하면 흩어진다. 다만 격파에서 일어서면 체면을 세우려 사기 1 — 깬 턴에 끝장내라 (차지꾼 · 일어서면 성난다)
     ko: "엘프 돌격병 · 의장대", hp: 50, row: "front", nature: "우울", art: "elfsoldiercloserange", tint: "#7f98c8",
     passives: [
       { name: "의장대의 자존심", on: "debuffed", do: { t: "buff", id: "사기", v: 1 } },
-      { name: "의장대의 체면", on: "recover", do: { t: "buff", id: "사기", v: 2 } },
+      { name: "의장대의 체면", on: "recover", do: { t: "buff", id: "사기", v: 1 } },
     ],
     intents: [
       { t: "attack", v: 12, say: "의장검을 휘두른다", rush: 6 },
@@ -382,7 +382,7 @@ export const ENEMIES = {
   },
   elfsoldierlongrange_escort: {
     // 원작 「엘프 명사수」-광기 — 「모나티엄 외부의 유지 보수 작업에 나갈 시 동료들을 호위한다」
-    // 공략: 막아서기 ⚡3 — 적 전체 불굴 1(받는 피해 -20%, 맞는 일 하나에 1). 작은 카드 한 장으로 불굴을 벗긴 뒤 큰 카드로.
+    // 공략: 막아서기 ⚡3 — 적 전체 불굴 1(받는 피해 -20%, 줄지 않는다). 쌓이기 전에 먼저 잡아라.
     //       동료가 쓰러지면 뒷줄을 쏜다(7) — 이 녀석부터 잡거나 마지막 둘을 같은 턴에 (저격 · 엄호)
     ko: "엘프 명사수 · 호위", hp: 36, row: "back", nature: "광기", art: "elfsoldierlongrange", tint: "#6f98b8",
     pick: "shuffle",
@@ -398,12 +398,12 @@ export const ENEMIES = {
   elfsoldierlongrange_honor: {
     // 원작 「엘프 명사수」-우울 — 「의장대에 소속이라 그런지 자존심이 매우 강하다」
     // 공략: 총을 겨누면(⚡0) 다음 턴 뒷줄에 22 — 그 턴에 격파하거나 봉인 · 기절로 끊어라. 관통으로 먼저 잡아도 된다.
-    //       고개를 쳐들면 자신에게 불굴 2 — 작은 카드로 벗겨라. 나머지는 ⚡6~8 이라 느긋하다 (저격 · 깨면 끊긴다)
+    //       고개를 쳐들면 자신에게 불굴 1 — 줄지 않으니 쳐들기 전에 몰아 쳐라. 나머지는 ⚡6~8 이라 느긋하다 (저격 · 깨면 끊긴다)
     ko: "엘프 명사수 · 의장대", hp: 34, row: "back", nature: "우울", art: "elfsoldierlongrange", tint: "#8fa0c8",
     intents: [
       { t: "charge", brk: true, say: "의장 총을 겨눈다", next: { t: "back", v: 22, say: "한 치 어긋남 없이 쏜다" } },
       { t: "back", v: 9, say: "예포를 쏜다", rush: 8 },
-      { t: "buff", id: "불굴", v: 2, say: "고개를 쳐든다", rush: 6 },
+      { t: "buff", id: "불굴", v: 1, say: "고개를 쳐든다", rush: 6 },
     ],
   },
   drones: {
@@ -512,7 +512,7 @@ export const ENEMIES = {
     ko: "누루링-엘프 서포터", hp: 34, row: "back", skin: "Skin_Elf", weak: ["광기"], tint: "#c0b080",
     pick: "shuffle",
     passives: [
-      { name: "사이 나쁜 동료", on: "allyDown", do: { t: "buff", id: "사기", v: 2 } },
+      { name: "사이 나쁜 동료", on: "allyDown", do: { t: "buff", id: "사기", v: 1 } },
     ],
     intents: [
       { t: "heal", v: 9, say: "기름을 덧발라 준다", rush: 3 },
@@ -572,17 +572,17 @@ export const ENEMIES = {
   },
   nururingwarrior_witch: {
     // 「의외로 힘이 강한 것 같다」
-    // 공략: 젤리 근육을 부풀리면(⚡0) 다음 턴 26 — 그 턴에 격파하거나 기절 · 봉인으로 끊어라. 다만 격파에서 일어서면 약이 올라 사기 2 —
+    // 공략: 젤리 근육을 부풀리면(⚡0) 다음 턴 26 — 그 턴에 격파하거나 기절 · 봉인으로 끊어라. 다만 격파에서 일어서면 약이 올라 사기 1 —
     //       깨는 턴에 끝까지 밀든지, 큰 수 앞에서만 깨라. 약초 씹기 ⚡3 (강화 · 깨면 끊긴다 · 일어서면 성난다)
     ko: "누루링-마녀 전사", hp: 50, row: "front", art: "nururingwarrior", skin: "Skin_Witch", weak: ["순수"], tint: "#9070a0",
     pick: "shuffle",
     passives: [
-      { name: "약이 오른다", on: "recover", do: { t: "buff", id: "사기", v: 2 } },
+      { name: "약이 오른다", on: "recover", do: { t: "buff", id: "사기", v: 1 } },
     ],
     intents: [
       { t: "attack", v: 13, say: "의외로 센 주먹", w: 2, rush: 6 },
       { t: "charge", brk: true, say: "젤리 근육을 부풀린다", next: { t: "attack", v: 26, say: "내리꽂는다" } },
-      { t: "buff", id: "사기", v: 2, say: "약초를 씹는다", rush: 3 },
+      { t: "buff", id: "사기", v: 1, say: "약초를 씹는다", rush: 3 },
     ],
   },
   nururingarcher_witch: {
@@ -616,16 +616,16 @@ export const ENEMIES = {
   curseddoll_naive: {
     // 순수 — 「마녀가 스스로 움직이는 인형을 만들어 팔던 것이 유행이 지나버렸다」
     // 공략: 무겁고 느리다 — 수가 ⚡8 이상이니 마음껏 몰아 쳐 먼저 쓰러뜨려라. 실밥이 풀리면 「엉킨 실」(손에 든 채 넘기면 손상 2)이 뽑을 더미에 든다.
-    //       동료부터 잡으면 끊긴 실을 이어 사기 3 (방패 · 느긋이 · 끼워 넣기)
+    //       동료부터 잡으면 끊긴 실을 이어 사기 1 (방패 · 느긋이 · 끼워 넣기)
     ko: "누루링 인형", hp: 76, row: "front", nature: "순수", art: "curseddoll", tint: "#8f7fa8",
     passives: [
-      { name: "이어 붙인 실", on: "allyDown", do: { t: "buff", id: "사기", v: 3 } },
+      { name: "이어 붙인 실", on: "allyDown", do: { t: "buff", id: "사기", v: 1 } },
     ],
     intents: [
       { t: "guard", v: 12, say: "팔리던 천을 두른다", rush: 8 },
       { t: "attack", v: 12, say: "무겁게 내려친다", rush: 9 },
       { t: "addCard", id: "엉킨 실", n: 1, to: "draw", say: "실밥이 풀린다", rush: 8 },
-      { t: "buff", id: "사기", v: 2, say: "실이 팽팽해진다", rush: 0 },
+      { t: "buff", id: "사기", v: 1, say: "실이 팽팽해진다", rush: 0 },
       { t: "attack", v: 14, say: "밀어붙인다", rush: 10 },
     ],
   },
@@ -639,7 +639,7 @@ export const ENEMIES = {
     open: { t: "debuff", id: "취약", v: 1, say: "눈이 붉게 빛난다", rush: 4 },
     intents: [
       { t: "back", v: 14, id: "고통", n: 2, say: "그림자 바늘", rush: 6 },
-      { t: "buff", id: "사기", v: 2, say: "실이 팽팽해진다", rush: 3 },
+      { t: "buff", id: "사기", v: 1, say: "실이 팽팽해진다", rush: 3 },
       { t: "multi", v: 4, n: 3, say: "실이 춤춘다", rush: 6 },
       { t: "block", v: 10, say: "실로 몸을 감는다", rush: 3 },
     ],
@@ -690,7 +690,7 @@ export const ENEMIES = {
   },
   hatsnail_jolly: {
     // 활발 — 「처음 마녀 모자를 집으로 선택한 햇팽이의 머릿속은 밝은 미래에 대한 꿈으로 가득하다」
-    // 공략: 통통 튕기기 · 떠들기가 ⚡3으로 잦다 — 당길 때마다 신이 나 사기 1 가 붙으니 신속 카드로 셈을 넘기거나, 34 체력을 관통 큰 한 장으로 먼저 (재촉꾼 · 당기면 손해)
+    // 공략: 통통 튕기기 · 떠들기가 ⚡3으로 잦다 — 당길 때마다 신이 나 사기 1 이 붙으니(줄지 않는다) 신속 카드로 셈을 넘기거나, 34 체력을 관통 큰 한 장으로 먼저 (재촉꾼 · 당기면 손해)
     ko: "햇팽이 · 꿈꾸는", hp: 34, row: "back", nature: "활발", art: "hatsnail", tint: "#c09060",
     pick: "shuffle",
     passives: [
@@ -709,20 +709,20 @@ export const ENEMIES = {
     // 공략: 웅크림 ⚡3 — 그 턴엔 적게 세게. 숨을 들이쉬면 그 턴에 격파하거나 끊어라. 동료가 쓰러지면 격노하니 곰을 먼저 (반격꾼 + 깨면 끊긴다)
     ko: "머곰", hp: 67, row: "front", nature: "광기", tint: "#b07f5a",
     passives: [
-      { name: "격노", on: "allyDown", do: { t: "buff", id: "사기", v: 2 } },
+      { name: "격노", on: "allyDown", do: { t: "buff", id: "사기", v: 1 } },
     ],
     intents: [
       { t: "attack", v: 16, say: "앞발을 든다", rush: 6 },
       { t: "block", v: 10, tough: 1, say: "몸을 웅크린다", rush: 3 },
       { t: "charge", brk: true, say: "숨을 크게 들이쉰다", next: { t: "attack", v: 24, say: "덮친다" } },
-      { t: "buff", id: "사기", v: 2, say: "배를 채운다", rush: 4 },
+      { t: "buff", id: "사기", v: 1, say: "배를 채운다", rush: 4 },
     ],
     phase: {
       at: 0.4, say: "배가 고파 사나워졌다",
       intents: [
         { t: "multi", v: 8, n: 2, say: "마구 할퀸다", rush: 6 },
         { t: "charge", brk: true, say: "숨을 크게 들이쉰다", next: { t: "attack", v: 22, say: "덮친다" } },
-        { t: "buff", id: "사기", v: 2, say: "허겁지겁 먹는다", rush: 3 },
+        { t: "buff", id: "사기", v: 1, say: "허겁지겁 먹는다", rush: 3 },
       ],
     },
   },
@@ -747,20 +747,20 @@ export const ENEMIES = {
     // 원작 「크르브르스」 — 차원 대충돌의 보스(나무위키 몬스터 문서). 1층 끝을 지킨다.
     // 공략: 앞판 — 웅크림 · 털 ⚡3. 웅크리면 강인도 2칸을 되찾으니 웅크리기 전에 깨라. 숨을 모으면(⚡0) 그 턴에 격파하면 흩어진다 — 1층의 격파 수업.
     //       세 머리가 깨면(55%) 물어뜯기 한 번마다 고통, 울부짖음 ⚡3 — 카드를 아껴라. 이 판의 불길은 격파로 안 끊긴다(기절 · 봉인).
-    //       격파에서 일어서면 깨어난 머리가 성나 사기 2 — 깨는 턴에 끝까지 밀 수 있을 때 깨라.
+    //       격파에서 일어서면 깨어난 머리가 성나 사기 1 — 깨는 턴에 끝까지 밀 수 있을 때 깨라.
     //       한 턴 세 장째가 공격이면 한 머리가 뒤를 무니 세 번째는 스킬 · 방어로. 디버프가 걸리면 털을 세워 사기 — 디버프는 한 턴에 몰아 걸어라.
     //       4분의 1 아래로 가면 세 머리가 한꺼번에 날뛴다 — 세 갈래 불길(⚡0)은 다시 격파로 끊긴다, 남은 체력을 두 턴 안에 밀어라
     ko: "커버러스", hp: 244, row: "front", boss: true, nature: "광기", tint: "#c07f7f",
     passives: [
       { name: "셋째 머리", on: "card", type: "공격", every: 3, do: { t: "back", v: 5 } },
       { name: "곤두선 털", on: "debuffed", do: { t: "buff", id: "사기", v: 1 } },
-      { name: "깨어난 머리", on: "recover", do: { t: "buff", id: "사기", v: 2 } },
+      { name: "깨어난 머리", on: "recover", do: { t: "buff", id: "사기", v: 1 } },
     ],
     intents: [
       { t: "attackAll", v: 11, say: "세 머리가 짖는다", rush: 7 },
       { t: "block", v: 16, tough: 2, say: "웅크린다", rush: 3 },
       { t: "back", v: 24, say: "뒤를 물어뜯는다", rush: 8 },
-      { t: "buff", id: "사기", v: 2, say: "털을 세운다", rush: 3 },
+      { t: "buff", id: "사기", v: 1, say: "털을 세운다", rush: 3 },
       { t: "charge", brk: true, say: "세 머리가 숨을 모은다", next: { t: "attackAll", v: 19, say: "세 머리가 함께 짖는다" } },
     ],
     phase: {
@@ -777,7 +777,7 @@ export const ENEMIES = {
       intents: [
         { t: "charge", brk: true, say: "세 머리가 한꺼번에 숨을 모은다", next: { t: "attackAll", v: 25, id: "고통", n: 3, say: "세 갈래 불길을 뿜는다" } },
         { t: "multi", v: 11, n: 3, say: "세 머리가 번갈아 문다", rush: 7 },
-        { t: "buff", id: "사기", v: 3, tough: 2, say: "털을 곤두세운다", rush: 3 },
+        { t: "buff", id: "사기", v: 1, tough: 2, say: "털을 곤두세운다", rush: 3 },
       ],
     },
   },
@@ -817,7 +817,7 @@ export const ENEMIES = {
       intents: [
         { t: "multi", v: 7, n: 4, say: "기관총을 마구 쏜다", rush: 6 },
         { t: "charge", brk: true, say: "입에 빛을 모은다", next: { t: "attackAll", v: 29, say: "거대한 레이저를 쏜다" } },
-        { t: "buff", id: "사기", v: 3, say: "출력을 한계까지 올린다", rush: 3 },
+        { t: "buff", id: "사기", v: 1, say: "출력을 한계까지 올린다", rush: 3 },
       ],
     },
   },
@@ -830,14 +830,14 @@ export const ENEMIES = {
     // 공략: 저주를 견디는 손 — 한 턴 세 장째 스킬마다 모자가 주문을 되받아 약화를 건다(스킬은 두 장까지). 주문을 웅얼거리면 「모자 속 쪽지」 둘 —
     //       AP 를 남겨 치워라. 솥이 끓으면(⚡0) 다음 턴 파티 전체 · 고통 2 — 그 턴에 격파하면 흩어진다. 점액 방울은 한 방울마다 손상.
     //       절반에서 한 번 모자 속에 숨는다(방어 · 강인도 다 참). 인형이 쓰러지면 실이 끊겨 사기가 붙으니 인형(회복)을 먼저 잡되 그 턴엔 막을 준비를.
-    //       60% 아래 — 마녀의 의식이 깨어 저주가 번지고(고통) 인형에 실을 꿰어 적 전체 사기 2, 번개(⚡0)는 격파로 안 끊긴다.
+    //       60% 아래 — 마녀의 의식이 깨어 저주가 번지고(고통) 인형에 실을 꿰어 적 전체 사기 1, 번개(⚡0)는 격파로 안 끊긴다.
     //       25% 아래 — 모자만 남아 날뛰고 점액으로 메우며 강인도를 되찾는다(⚡3), 마지막 솥은 다시 격파로 끊긴다
     ko: "햇팽이 마녀", hp: 262, row: "front", boss: true, nature: "냉정", art: "hatsnail", tint: "#8a5aa8",
     scale: 1.5,          // 보통 달팽이(그림 그대로)보다 크게 — 커버러스만 하게
     passives: [
       { name: "되받는 주문", on: "card", type: "스킬", every: 3, do: { t: "debuff", id: "약화", v: 1 } },
       { name: "모자 속으로", on: "lowHp", at: 0.5, do: { t: "block", v: 18, tough: 5 } },
-      { name: "끊긴 실", on: "allyDown", do: { t: "buff", id: "사기", v: 2 } },
+      { name: "끊긴 실", on: "allyDown", do: { t: "buff", id: "사기", v: 1 } },
     ],
     intents: [
       { t: "back", v: 17, say: "모자챙으로 뒤를 후린다", rush: 6 },
@@ -851,7 +851,7 @@ export const ENEMIES = {
         { t: "jam", v: 2, say: "모자가 혼자 주문을 외운다", rush: 3 },
         { t: "attackAll", v: 12, id: "고통", n: 2, say: "보랏빛 저주가 번진다", rush: 7 },
         { t: "charge", say: "모자 끝에 번개를 모은다", next: { t: "attackAll", v: 23, say: "마녀의 번개가 떨어진다" } },
-        { t: "buff", id: "사기", v: 2, all: true, say: "인형에게 실을 꿴다", rush: 3 },
+        { t: "buff", id: "사기", v: 1, all: true, say: "인형에게 실을 꿴다", rush: 3 },
       ],
     },
     phase2: {
@@ -896,7 +896,7 @@ export const ENEMIES = {
         { t: "charge", say: "땅속으로 파고든다", next: { t: "attackAll", v: 26, id: "고통", n: 2, say: "땅을 가르고 솟구친다" } },
         { t: "multi", v: 5, n: 4, say: "결계의 검이 날아든다", rush: 6 },
         { t: "addCard", id: "불씨", n: 2, to: "draw", say: "불씨가 튄다", rush: 3 },
-        { t: "buff", id: "사기", v: 2, say: "불꽃이 거세진다", rush: 3 },
+        { t: "buff", id: "사기", v: 1, say: "불꽃이 거세진다", rush: 3 },
         { t: "back", v: 21, say: "지팡이를 내던진다", rush: 6 },
       ],
     },

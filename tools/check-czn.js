@@ -1,4 +1,4 @@
-// 카제나 전투 체계 둘째 단계(docs/16-카제나전투.md) — 상태(겹 규칙) · 카드 키워드 · 처치 AP · 상태 카드 · 유일 · 약점 다시 고르기.
+// 카제나 전투 체계 둘째 단계(docs/16-카제나전투.md) — 상태(겹 규칙 — 횟수 CHARGE_ST · 세기 INTENSITY_ST) · 카드 키워드 · 처치 AP · 상태 카드 · 유일 · 약점 다시 고르기.
 //   node tools/check-czn.js
 // 카드는 판의 장부(s.book)에 시험용으로 세운다 — 사도 카드에는 아직 새 키워드가 없다(v5 에서 쓴다)
 import * as C from "../js/combat.js";
@@ -56,6 +56,10 @@ const hero = (s, k) => s.party.find((u) => u.key === k);
 console.log("수치 — 한 표(rules.js STATUS_V)");
 check(V.취약 === 0.5 && V.약화 === 0.25 && V.사기 === 0.2 && V.불굴 === 0.2 && V.손상 === 0.5, `취약 +${V.취약 * 100}% · 약화 -${V.약화 * 100}% · 사기 +${V.사기 * 100}% · 불굴 -${V.불굴 * 100}% · 손상 -${V.손상 * 100}%`);
 check(R.WEAK === undefined && R.FRAIL === undefined && V.격파 === undefined, "옛 상수(WEAK · FRAIL · 격파 덤)가 없다 — 엔진 · 봇은 STATUS_V 하나만 읽는다");
+check(["취약", "약화", "손상", "반격", "표식"].every((k) => R.CHARGE_ST.includes(k)) && ["사기", "불굴", "결의", "결정화", "열의", "강건", "집중", "온정"].every((k) => R.INTENSITY_ST.includes(k))
+  && !R.CHARGE_ST.some((k) => R.INTENSITY_ST.includes(k)), `두 갈래 — 횟수 ${R.CHARGE_ST.join(" · ")} / 세기 ${R.INTENSITY_ST.join(" · ")}`);
+check(Math.abs(R.stackEff("사기", 3) - 3 * V.사기) < 1e-9 && R.stackEff("불굴", 4) === V.불굴Cap && R.stackEff("불굴", 9) === V.불굴Cap && V.불굴Cap === 0.8, `세기 셈 — 사기 3 = +${Math.round(R.stackEff("사기", 3) * 100)}% · 불굴 4 = 불굴 9 = -${Math.round(V.불굴Cap * 100)}%`);
+check(R.INTENSITY_ST.every((k) => V[k + "Max"] === 10) && R.stackEff("사기", 15) === R.stackEff("사기", 10) && R.FOE_INT_MAX === 3, `세기 상한 — 사도 ${V.사기Max}겹 · 적 ${R.FOE_INT_MAX}겹`);
 
 console.log("");
 console.log("글 읽기 — 상태 문법");
@@ -83,7 +87,7 @@ console.log("글 읽기 — 상태 문법");
 }
 
 console.log("");
-console.log("겹 — 더해지고, 한 번의 일에 1 씩 준다");
+console.log("겹 — 더해진다. 세기(사기 …)는 줄지 않는다");
 {
   const s = mk();
   play(s, A, "자신 사기 2", { type: "스킬", target: "없음" });
@@ -91,10 +95,29 @@ console.log("겹 — 더해지고, 한 번의 일에 1 씩 준다");
   check(st(hero(s, A), "사기") === 3, `사기 2 + 사기 1 = ${st(hero(s, A), "사기")} (중첩)`);
   C.endTurn(s);
   check(st(hero(s, A), "사기") === 3, "턴이 지나도 안 준다");
+  // 세기는 일(카드 · 적의 수 · 턴)을 몇 번 거쳐도 그대로
+  const u = hero(s, A);
+  Object.assign(u.status, { 불굴: 2, 결의: 2, 열의: 2, 강건: 1, 집중: 1, 온정: 1 });
+  s.ap = 50;
+  play(s, A, "적 1명에게 3회 × 공격력 10% 피해");
+  play(s, A, "방어력 100% 방어", { type: "스킬", target: "없음" });
+  play(s, A, "자신 HP 회복(회복력 10%)", { type: "스킬", target: "없음" });
+  play(s, A, "적 1명에게 공격력 10% 피해");
+  s.enemies[0].intent = { t: "attack", v: 5, say: "시험 — 친다", rush: 0 }; s.taunt = A; s.tauntLeft = 9;
+  C.endTurn(s); C.endTurn(s);
+  const keep = { 사기: 3, 불굴: 2, 결의: 2, 열의: 2, 강건: 1, 집중: 1, 온정: 1 };
+  check(Object.entries(keep).every(([k, n]) => st(u, k) === n), `세기 — 카드 네 장 · 적의 수 · 턴 둘을 거쳐도 그대로 (${Object.keys(keep).map((k) => `${k} ${st(u, k)}`).join(" · ")})`);
+  // 사도는 10겹까지 · 적은 FOE_INT_MAX 겹까지
+  s.ap = 50;
+  play(s, A, "자신 사기 9", { type: "스킬", target: "없음" });
+  check(st(u, "사기") === V.사기Max, `사도 사기는 ${V.사기Max}겹까지 (${st(u, "사기")})`);
+  const e = s.enemies[0];
+  for (let i = 0; i < 5; i++) { e.intent = { t: "buff", id: "사기", v: 1, say: "시험 — 성난다", rush: 0 }; C.endTurn(s); }
+  check(st(e, "사기") === R.FOE_INT_MAX, `적은 턴마다 사기 1 을 쌓아도 ${R.FOE_INT_MAX}겹까지 (${st(e, "사기")})`);
 }
 
 console.log("");
-console.log("취약 · 약화 · 사기 · 불굴 — 수치와 줄어드는 때");
+console.log("취약 · 약화(횟수 — 1 씩 준다) · 사기 · 불굴(세기 — 겹마다, 안 준다)");
 {
   // 취약 — 받는 피해 +50%, 여러 번 치는 카드 한 장에 1
   const a = mk(), b = mk();
@@ -106,14 +129,15 @@ console.log("취약 · 약화 · 사기 · 불굴 — 수치와 줄어드는 때
   play(b, A, "적 1명에게 공격력 10% 피해");
   const d3 = lost(b.enemies[0], () => play(b, A, "적 1명에게 3회 × 공격력 100% 피해"));
   check(st(b.enemies[0], "취약") === 0 && d3 === da, `다 쓰면 그대로 (${d3})`);
-  // 사기 — 피해 카드 한 장에 1, 피해 없는 카드는 안 쓴다
-  const c = mk(), d = mk();
-  hero(d, A).status.사기 = 2;
+  // 사기 — 세기: 겹마다 주는 피해 +20%(사기 3 = +60%), 카드를 내도 줄지 않는다
+  const c = mk(), d = mk(), m3 = mk();
+  hero(d, A).status.사기 = 1; hero(m3, A).status.사기 = 3;
   const dc = lost(c.enemies[0], () => play(c, A, "적 1명에게 공격력 300% 피해"));
-  play(d, A, "방어력 100% 방어", { type: "스킬", target: "없음" });
-  check(st(hero(d, A), "사기") === 2, "사기 — 피해 없는 카드는 겹을 안 쓴다");
   const dd = lost(d.enemies[0], () => play(d, A, "적 1명에게 공격력 300% 피해"));
-  check(Math.abs(dd - dc * (1 + V.사기)) <= 1 && st(hero(d, A), "사기") === 1, `사기 — 주는 피해 +${V.사기 * 100}% (${dc} → ${dd}), 1 준다`);
+  check(Math.abs(dd - dc * (1 + V.사기)) <= 1 && st(hero(d, A), "사기") === 1, `사기 1 — 주는 피해 +${V.사기 * 100}% (${dc} → ${dd}), 줄지 않는다`);
+  const dd3 = lost(m3.enemies[0], () => play(m3, A, "적 1명에게 공격력 300% 피해"));
+  const dd3b = lost(m3.enemies[0], () => play(m3, A, "적 1명에게 공격력 300% 피해"));
+  check(Math.abs(dd3 - dc * (1 + 3 * V.사기)) <= 1 && dd3b === dd3 && st(hero(m3, A), "사기") === 3, `사기 3 — 주는 피해 +${Math.round(3 * V.사기 * 100)}% (${dc} → ${dd3} → 다음 장도 ${dd3b}), 3 그대로`);
   check(st(hero(d, Bh), "사기") === 0, "사기는 그 사도의 카드에만");
   // 약화(사도) — 주는 피해 -25%
   const e = mk(); hero(e, A).status.약화 = 1;
@@ -128,14 +152,15 @@ console.log("취약 · 약화 · 사기 · 불굴 — 수치와 줄어드는 때
   const hf = tank(f), hg = tank(g);
   C.endTurn(f); C.endTurn(g);
   check(hg - tank(g) < hf - tank(f) && st(g.enemies[0], "약화") === 1, `약화(적) — 세 번 치는 수 하나에 1 (${hf - tank(f)} → ${hg - tank(g)}, 남은 겹 ${st(g.enemies[0], "약화")})`);
-  // 불굴 — 받는 피해 -20%, 적의 수 하나에 1
-  const h = mk(), k = mk();
-  for (const x of [h, k]) { x.enemies[0].intent = { t: "attack", v: 50, say: "시험 — 친다", rush: 0 }; x.taunt = A; x.tauntLeft = 9; }
-  hero(k, A).status.불굴 = 2;
-  const hh = hero(h, A).hp, hk = hero(k, A).hp;
-  C.endTurn(h); C.endTurn(k);
-  const lh = hh - hero(h, A).hp, lk = hk - hero(k, A).hp;
-  check(Math.abs(lk - lh * (1 - V.불굴)) <= 1 && st(hero(k, A), "불굴") === 1, `불굴 — 받는 피해 -${V.불굴 * 100}% (${lh} → ${lk}), 1 준다`);
+  // 불굴 — 세기: 겹마다 받는 피해 -20%, 맞아도 줄지 않는다. 합쳐서 불굴Cap(-80%, 4겹 몫)까지
+  const h = mk(), k = mk(), k4 = mk(), k7 = mk();
+  for (const x of [h, k, k4, k7]) { x.enemies[0].intent = { t: "attack", v: 50, say: "시험 — 친다", rush: 0 }; x.taunt = A; x.tauntLeft = 9; }
+  hero(k, A).status.불굴 = 2; hero(k4, A).status.불굴 = 4; hero(k7, A).status.불굴 = 7;
+  const hh = hero(h, A).hp, hk = hero(k, A).hp, h4 = hero(k4, A).hp, h7 = hero(k7, A).hp;
+  for (const x of [h, k, k4, k7]) C.endTurn(x);
+  const lh = hh - hero(h, A).hp, lk = hk - hero(k, A).hp, l4 = h4 - hero(k4, A).hp, l7 = h7 - hero(k7, A).hp;
+  check(Math.abs(lk - lh * (1 - 2 * V.불굴)) <= 1 && st(hero(k, A), "불굴") === 2, `불굴 2 — 받는 피해 -${Math.round(2 * V.불굴 * 100)}% (${lh} → ${lk}), 줄지 않는다`);
+  check(Math.abs(l4 - lh * (1 - V.불굴Cap)) <= 1 && l7 === l4 && l7 > 0 && st(hero(k7, A), "불굴") === 7, `불굴 상한 — 4겹 · 7겹 모두 -${Math.round(V.불굴Cap * 100)}% (${l4} · ${l7}), 면역은 없다`);
   // 취약(사도) — 적이 건 것도 같은 규칙
   const m = mk(); m.enemies[0].intent = { t: "attack", v: 50, say: "시험", rush: 0 }; m.taunt = A; m.tauntLeft = 9;
   hero(m, A).status.취약 = 1;
@@ -152,12 +177,16 @@ console.log("손상 · 결의 · 결정화 · 고통 · 반격 · 표식");
   check(u.block === Math.round(u.def * 1 * (1 - V.손상)) && st(u, "손상") === 0, `손상 — 얻는 방어 -${V.손상 * 100}% (${u.block}), 1 준다`);
   play(s, A, "방어력 100% 방어", { type: "스킬", target: "없음" });
   check(u.block === Math.round(u.def * 0.5) + u.def, "다 쓰면 그대로");
+  // 결의 — 세기: 겹마다 얻는 방어 · 실드 +결의(얻을 때마다), 줄지 않는다. 결정화 — 턴 끝에 겹마다 방어력 20% 실드(결의도 붙는다)
   const t = mk(), w = hero(t, A);
-  w.status.결의 = 2; w.status.결정화 = 3;
+  w.status.결의 = 2;
+  play(t, A, "방어력 100% 방어", { type: "스킬", target: "없음" });
+  check(w.block === w.def + 2 * V.결의 && st(w, "결의") === 2, `결의 2 — 방어 ${w.block} (방어력 ${w.def} + ${2 * V.결의}), 줄지 않는다`);
+  w.status.결정화 = 3;
   const sh0 = w.shield || 0;
   C.endTurn(t);
-  const want = Math.round(w.def * V.결의) + Math.round(w.def * V.결정화 * 3);
-  check((w.shield || 0) - sh0 === want && st(w, "결의") === 1 && st(w, "결정화") === 3, `결의 ${V.결의 * 100}% · 결정화 3겹 ${V.결정화 * 100}%씩 — 턴 끝 실드 +${(w.shield || 0) - sh0} (결의 1 남음 · 결정화 그대로)`);
+  const want = Math.round(w.def * V.결정화 * 3) + 2 * V.결의;
+  check((w.shield || 0) - sh0 === want && st(w, "결의") === 2 && st(w, "결정화") === 3, `결정화 3겹 ${V.결정화 * 100}%씩 + 결의 2 — 턴 끝 실드 +${(w.shield || 0) - sh0} (둘 다 그대로)`);
   const p = mk(), e = p.enemies[0];
   e.status.고통 = 7;
   const h0 = e.hp;
@@ -380,30 +409,28 @@ console.log("능력치 상태 — 열의 · 강건 · 집중 · 온정(옛 공�
     check(!left && `${f.id}:${f.turns}:${f.target}` === w, `「${t}」 → ${f.id} ${f.turns} (${f.target})`);
   }
   check(!parseEffect("집중포화").fx.length && !parseEffect("모든 열의 영웅").fx.length, "낱말 속은 상태가 아니다(집중포화 · 모든 열의)");
-  // 열의 — 피해 카드 한 장(여러 번 쳐도)에 1, 그 장의 모든 타격이 덕을 본다
+  // 열의 — 세기: 겹마다 공격력 +20%, 카드를 내도 줄지 않는다
   const a = mk(), b = mk();
   hero(b, A).status.열의 = 2;
   const da = lost(a.enemies[0], () => play(a, A, "적 1명에게 3회 × 공격력 100% 피해"));
   const db = lost(b.enemies[0], () => play(b, A, "적 1명에게 3회 × 공격력 100% 피해"));
-  const atk0 = hero(a, A).atk, atk1 = Math.round(atk0 * (1 + V.열의));
-  check(db === Math.round(da / atk0 * atk1) || Math.abs(db - da * atk1 / atk0) <= 3, `열의 — 공격력 +${V.열의 * 100}% (${da} → ${db})`);
-  check(st(hero(b, A), "열의") === 1, "세 번 치는 카드 한 장에 열의 1 만 준다");
-  play(b, A, "방어력 100% 방어", { type: "스킬", target: "없음" });
-  check(st(hero(b, A), "열의") === 1, "피해 · 회복 없는 카드는 열의를 안 쓴다");
-  // 강건 — 방어 카드에 1, 방어력 +20%
+  const atk0 = hero(a, A).atk, atk1 = Math.round(atk0 * (1 + 2 * V.열의));
+  check(db === Math.round(da / atk0 * atk1) || Math.abs(db - da * atk1 / atk0) <= 3, `열의 2 — 공격력 +${Math.round(2 * V.열의 * 100)}% (${da} → ${db})`);
+  check(st(hero(b, A), "열의") === 2, "열의는 카드를 내도 줄지 않는다");
+  // 강건 — 세기: 겹마다 방어력 +20%
   const c = mk(), u = hero(c, A); u.status.강건 = 1;
   play(c, A, "방어력 100% 방어", { type: "스킬", target: "없음" });
-  check(u.block === Math.round(u.def * (1 + V.강건)) && st(u, "강건") === 0, `강건 — 방어 ${u.block} (방어력 ${u.def} +${V.강건 * 100}%), 1 준다`);
+  check(u.block === Math.round(u.def * (1 + V.강건)) && st(u, "강건") === 1, `강건 — 방어 ${u.block} (방어력 ${u.def} +${V.강건 * 100}%), 줄지 않는다`);
   // 집중 — 치명 확률 +20%p(statMod)
   const d = mk(), w = hero(d, A); w.status.집중 = 1;
   check(Math.abs(C.statOf(d, w, "crit") - V.집중) < 1e-9, `집중 — 치명 확률 +${V.집중 * 100}%p`);
   play(d, A, "적 1명에게 공격력 10% 피해");
-  check(st(w, "집중") === 0, "피해 카드 한 장에 집중 1 준다");
-  // 온정 — 회복 카드에 1(열의도 같이 쓴다)
+  check(st(w, "집중") === 1, "집중은 피해 카드를 내도 줄지 않는다");
+  // 온정 — 세기: 겹마다 회복력 +20%
   const e = mk(), x = hero(e, A); x.status.온정 = 1; x.hp = 100;
   play(e, A, "자신 HP 회복(회복력 100%)", { type: "스킬", target: "없음" });
   const want = Math.round(R.healStat(x.atk, x.role, x.healPlus) * (1 + V.온정));
-  check(x.hp - 100 === want && st(x, "온정") === 0, `온정 — 회복 ${x.hp - 100} (회복력 +${V.온정 * 100}%), 1 준다`);
+  check(x.hp - 100 === want && st(x, "온정") === 1, `온정 — 회복 ${x.hp - 100} (회복력 +${V.온정 * 100}%), 줄지 않는다`);
   // 저장
   const f = mk(); Object.assign(hero(f, A).status, { 열의: 2, 강건: 1, 집중: 3, 온정: 1 }); f.book = {};
   const back = unpackCombat(packCombat(f));
@@ -457,11 +484,11 @@ console.log("적의 새 수 — 깃발 · 강인도 되찾기 · 강건/손상 �
   b.enemies[0].tough = 1; b.enemies[1].tough = 0; b.enemies[1].broken = true;
   pull(b, b.enemies[0], { t: "guard", v: 5, tough: 1, say: "시험 — 굳히기", rush: 3 });
   check(b.enemies[0].tough === 2 && b.enemies[1].tough === 0 && b.enemies[1].broken, `tough 1 — 강인도 1 → ${b.enemies[0].tough}, 격파된 동료는 그대로 (${b.enemies[1].tough})`);
-  // 적이 얻는 방어 — 강건 +20% · 손상 -50%, 한 번에 1 준다
+  // 적이 얻는 방어 — 강건 +20%(세기 — 줄지 않는다) · 손상 -50%(횟수 — 한 번에 1 준다)
   const c = mk({ foes: [FOE, FOE, FOE] });
   c.enemies[1].status.강건 = 1; c.enemies[2].status.손상 = 1;
   pull(c, c.enemies[0], { t: "guard", v: 10, say: "시험 — 벽", rush: 3 });
-  check(c.enemies.map((e) => e.block).join(",") === `10,${Math.round(10 * (1 + V.강건))},${Math.round(10 * (1 - V.손상))}` && !st(c.enemies[1], "강건") && !st(c.enemies[2], "손상"),
+  check(c.enemies.map((e) => e.block).join(",") === `10,${Math.round(10 * (1 + V.강건))},${Math.round(10 * (1 - V.손상))}` && st(c.enemies[1], "강건") === 1 && !st(c.enemies[2], "손상"),
     `적 방어 — 그대로 · 강건 · 손상 (${c.enemies.map((e) => e.block).join(" · ")})`);
   // 연타 id — 한 대마다 상태 1, 고통은 층 피해 배율을 곱한다
   const d = mk(); d.enemies[0].dmgx = 2; d.taunt = A; d.tauntLeft = 9;
@@ -496,7 +523,7 @@ console.log("적의 새 수 — 깃발 · 강인도 되찾기 · 강건/손상 �
   play(r, A, "적 1명에게 공격력 10% 피해");
   check(re.broken && !st(re, "사기"), "의장대 격파 — 아직 사기 없음");
   C.endTurn(r);
-  check(!re.broken && st(re, "사기") === 2, `격파에서 일어서면 — 「의장대의 체면」 사기 ${st(re, "사기")}`);
+  check(!re.broken && st(re, "사기") === 1, `격파에서 일어서면 — 「의장대의 체면」 사기 ${st(re, "사기")}`);
   // 상태 카드 — 새로 넣은 볼제나 카드도 장부에 있고 글을 다 읽는다(위 「상태 카드 · 저주」 가 하나하나 본다). 쓰는 적이 있다
   const used = new Set(Object.values(ENEMIES).flatMap((d2) => moves(d2).filter((it) => it.t === "addCard").map((it) => it.id)));
   const idle = Object.keys(STATUS_CARDS).filter((ko) => !used.has(ko));

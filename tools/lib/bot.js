@@ -85,15 +85,15 @@ export function makeBots({ C, B, R, ENEMIES }) {
     if (st(e, "약화") > 0) m *= 1 - V.약화;
     if (st(e, "감전") > 0) m *= 0.9;
     if (st(e, "중독") > 0) m *= Math.max(0.7, 1 - 0.02 * st(e, "중독"));
-    const up = st(e, "사기") > 0 ? 1 + V.사기 : 1;
+    const up = 1 + R.stackEff("사기", st(e, "사기"));   // 사기 — 세기(겹마다 +20%, 줄지 않는다)
     return Math.max(0, Math.round((v + st(e, "힘")) * Math.max(0.5, m) * up));
   }
-  // left — 이번 적의 차례에 남은 취약 · 불굴 겹(사도마다). 적의 수 하나에 1 씩 쓴다(엔진 charge 와 같다)
+  // left — 이번 적의 차례에 남은 취약 겹(사도마다). 적의 수 하나에 1 씩 쓴다(엔진 charge 와 같다). 불굴은 세기라 줄지 않는다
   function hitTo(s, e, u, v, left) {
     if (u.invuln) return 0;
     const l = left && left.get(u);
-    const vul = l ? l.vul > 0 : st(u, "취약") > 0, fort = l ? l.fort > 0 : st(u, "불굴") > 0;
-    let d = Math.round(v * (vul ? 1 + V.취약 : 1) * (fort ? 1 - V.불굴 : 1));
+    const vul = l ? l.vul > 0 : st(u, "취약") > 0;
+    let d = Math.round(v * (vul ? 1 + V.취약 : 1) * (1 - R.stackEff("불굴", st(u, "불굴"))));
     if (!s.noNature) { const ed = R.natureEdge(C.natureOf(e.key), C.natureOf(u.key)); if (ed > 0) d = Math.round(d * (1 + R.NATURE_DMG)); else if (ed < 0) d = Math.round(d * (1 - R.NATURE_DEF)); }
     const m = (1 + C.statOf(s, e, "dealt")) * (1 + C.statOf(s, u, "taken"));
     return Math.max(0, Math.round(d * Math.max(0.1, m)));
@@ -112,11 +112,11 @@ export function makeBots({ C, B, R, ENEMIES }) {
   // 이번 적의 차례에 사도마다 빠질 HP(방어 · 실드 · 무적 · 도발 · 봉인 · 침묵을 넣고) + 다음 턴에 쏟을 힘
   function incoming(s) {
     const pool = new Map();       // 사도 → { hp, guard }
-    const left = new Map();       // 사도 → 남은 취약 · 불굴 겹
-    for (const u of s.party) if (!u.dead) { pool.set(u, { hp: u.hp, guard: (u.block || 0) + (u.shield || 0), lost: 0 }); left.set(u, { vul: st(u, "취약"), fort: st(u, "불굴") }); }
+    const left = new Map();       // 사도 → 남은 취약 겹
+    for (const u of s.party) if (!u.dead) { pool.set(u, { hp: u.hp, guard: (u.block || 0) + (u.shield || 0), lost: 0 }); left.set(u, { vul: st(u, "취약") }); }
     const live = () => [...pool.keys()].filter((u) => pool.get(u).hp > 0);
     let used = new Set();         // 이번 적의 수에 맞은 사도 — 수 하나가 끝나면 겹을 1 씩 뺀다
-    const done = () => { for (const u of used) { const l = left.get(u); l.vul = Math.max(0, l.vul - 1); l.fort = Math.max(0, l.fort - 1); } used = new Set(); };
+    const done = () => { for (const u of used) { const l = left.get(u); l.vul = Math.max(0, l.vul - 1); } used = new Set(); };
     const hit = (e, u, v) => {
       const p = pool.get(u); if (!p) return;
       used.add(u);
@@ -169,11 +169,17 @@ export function makeBots({ C, B, R, ENEMIES }) {
   const MOD_W = { atk: 12, dealt: 12, crit: 4, heal: 4, def: 6, taken: -14 };
   const BOON_W = 9;          // 판 내내 증감 — 3턴 몫(이번 전투) × 전투 셋
   const KNOWN = new Set(["취약", "약화", "감전", "중독", "힘", "침묵", "가시", "사기", "불굴", "결의", "결정화", "반격", "고통", "손상", "표식", "열의", "강건", "집중", "온정"]);
-  // 상태 한 겹의 값어치(HP 단위, 겹 규칙 — 한 번 돌면 1 준다). 적에게 건 것 · 아군에게 건 것
-  //   취약 한 겹 ≈ 카드 한 장 피해의 절반 · 약화(적) 첫 겹은 incoming 이 이미 센다 · 표식 ≈ 덤 타격 하나 + 강인도
-  //   고통 n 은 n + n/2 + … ≈ 2n · 사기 ≈ 카드 한 장의 +20% · 결의 · 반격 · 결정화는 방어력에 비례
-  const FOE_ST = { 취약: 5, 약화: 2, 고통: 1.9, 손상: 0.5, 표식: 9, 사기: -3, 불굴: -3, 결의: -2, 결정화: -3, 반격: -4 };
-  const ALLY_ST = { 사기: 3, 불굴: 2, 결의: 3, 결정화: 4, 반격: 5, 취약: -3, 약화: -3, 고통: -2, 손상: -1, 열의: 3, 강건: 1.5, 집중: 1.5, 온정: 1 };
+  // 상태 한 겹의 값어치(HP 단위). 적에게 건 것 · 아군에게 건 것
+  //   횟수(CHARGE_ST — 한 번 돌면 1 준다): 취약 한 겹 ≈ 카드 한 장 피해의 절반 · 약화(적) 첫 겹은 incoming 이 이미 센다 · 표식 ≈ 덤 타격 하나 + 강인도
+  //   고통 n 은 n + n/2 + … ≈ 2n
+  //   세기(INTENSITY_ST — 줄지 않는다, 전투 내내): 한 겹 = 그 증감 20% 를 남은 전투(≈ 3턴) 내내 — 증감 MOD_W × 0.2 × 3 언저리.
+  //     사기 · 열의 ≈ 12 × 0.2 × 3 ≈ 7 · 불굴 ≈ 14 × 0.2 × 3 ≈ 8 · 강건 ≈ 4 · 집중 · 온정 ≈ 2.5 · 결의 ≈ 얻을 때마다 +1 × 턴에 두 번 × 3턴 · 결정화 ≈ 턴마다 실드
+  //     겹은 쓸모 있는 만큼만 센다(rules.js stackEff 와 같은 상한 — 불굴은 4겹 몫까지)
+  const FOE_ST = { 취약: 5, 약화: 2, 고통: 1.9, 손상: 0.5, 표식: 9, 사기: -7, 불굴: -8, 강건: -3, 결의: -4, 결정화: -3, 반격: -4 };
+  const ALLY_ST = { 사기: 7, 불굴: 8, 결의: 5, 결정화: 4, 반격: 5, 취약: -3, 약화: -3, 고통: -2, 손상: -1, 열의: 7, 강건: 4, 집중: 2.5, 온정: 2.5 };
+  const INT_SET = new Set(R.INTENSITY_ST);
+  // 세기 상태는 상한 안의 겹만(불굴은 불굴Cap 몫까지)
+  const useful = (k, n) => (!INT_SET.has(k) ? n : R.STATUS_V[k] ? R.stackEff(k, n) / R.STATUS_V[k] : n);
   const TOUGH_W = 2, BROKEN_W = 4;   // 강인도 칸 하나 · 격파(HP 단위)
   // 판의 점수 — HP 단위. 높을수록 좋다.
   //   적: 깎은 HP(남은 HP 를 뺀다) · 처치(그 적의 아픔에 비례) · 다 잡으면 승리
@@ -187,7 +193,7 @@ export function makeBots({ C, B, R, ENEMIES }) {
       if (e.dead) { v += 12 + 3 * threatOf(e.key); continue; }
       v -= e.hp;
       v += 0.8 * st(e, "중독") + 1.5 * st(e, "감전") + 1 * st(e, "침묵") - 2 * st(e, "힘");
-      for (const [k, w] of Object.entries(FOE_ST)) v += w * Math.max(0, st(e, k) - (k === "약화" ? 1 : 0));
+      for (const [k, w] of Object.entries(FOE_ST)) v += w * useful(k, Math.max(0, st(e, k) - (k === "약화" ? 1 : 0)));
       for (const [k, n] of Object.entries(e.status || {})) if (!KNOWN.has(k)) v += 1.2 * n;
       // 강인도 — 깎은 칸마다 조금, 격파면 더(격파의 AP +1 은 potential 이, 덤 피해는 다음 수의 깎인 HP 가 센다).
       // 덜 깎인 칸은 다음 턴에도 남아 몰아 치면 격파로 이어진다
@@ -213,7 +219,7 @@ export function makeBots({ C, B, R, ENEMIES }) {
     for (const u of s.party) {
       if (u.dead) continue;
       v += 3 * st(u, "힘");
-      for (const [k, w] of Object.entries(ALLY_ST)) v += w * st(u, k) * (k === "사기" || k === "열의" || k === "집중" ? (u.role === "딜러" ? 1.4 : 0.8) : 1);
+      for (const [k, w] of Object.entries(ALLY_ST)) v += w * useful(k, st(u, k)) * (k === "사기" || k === "열의" || k === "집중" ? (u.role === "딜러" ? 1.4 : 0.8) : 1);
       const rw = u.role === "딜러" ? 1.4 : 0.8;
       // 「판 내내」(강화 카드 · m.run) — 이번 전투 끝까지에 다음 전투들까지 간다. 일찍 낼수록 이득이라 크게 친다(전투 셋 몫)
       for (const m of u.mods || []) v += (MOD_W[m.stat] || 0) * rw * m.v * (m.run ? BOON_W : Math.min(m.left, 3));

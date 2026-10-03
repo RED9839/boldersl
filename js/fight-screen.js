@@ -1564,7 +1564,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   // 칸은 판의 값 그대로다. 깎이는 순간에는 land 가 그 칸에 금 가는 몸짓(crack)을 건다
   const toughTip = (u) => u.broken
     ? `격파 — 다음 내 턴 시작에 강인도가 다 찹니다. 잔불 · 잔광 · 「파괴:」 카드가 더 아프게 듭니다`
-    : `강인도 ${u.tough}/${u.toughMax} — 공격 카드 한 장에 ${RULES.TOUGH.hit}칸(약점이면 ${RULES.TOUGH.hit + RULES.TOUGH.weak}칸). 0칸이면 격파: AP +${RULES.TOUGH.ap} · 즉시 행동 ${RULES.TOUGH.delay}장 늦춤 · 받는 피해 +${Math.round(RULES.STATUS_V.격파 * 100)}%`;
+    : `강인도 ${u.tough}/${u.toughMax} — 공격 카드 한 장에 ${RULES.TOUGH.hit}칸(약점이면 ${RULES.TOUGH.hit + RULES.TOUGH.weak}칸). 0칸이면 격파: AP +${RULES.TOUGH.ap} · 즉시 행동 ${RULES.TOUGH.delay}장 늦춤`;   // 격파 자체의 받는 피해 덤은 없앴다(카제나) — 더 들어가는 피해는 잔불 · 잔광 카드로
   function toughPips(u) {
     const box = el("div", "tpips" + (u.broken ? " broken" : ""));
     const wk = C.weakOf(u.key);
@@ -1591,18 +1591,21 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   // 겹으로 도는 상태(rules.js STACK_ST) — 칩의 숫자가 남은 턴이 아니라 겹(횟수 · 세기)이다
   const STACK_SET = new Set(RULES.STACK_ST);
   const pctTxt = (v) => `${v > 0 ? "+" : ""}${Math.round(v * 100)}%`;
-  // 겹 상태 한 줄 풀이 — 칩에 올리면(수치는 rules.js STATUS_V)
+  // 겹 상태 한 줄 풀이 — 칩에 올리면(수치는 rules.js STATUS_V). 세기 상태(INTENSITY_ST)는 겹을 곱한 값으로 — 「사기 3 — 주는 피해 +60% (전투 내내)」
   const SV = RULES.STATUS_V, P100 = (x) => Math.round(x * 100);
+  const INT_SET = new Set(RULES.INTENSITY_ST);
   const ST_HELP = {
-    취약: `받는 피해 +${P100(SV.취약)}% — 맞을 때마다 1 준다`, 약화: `주는 피해 -${P100(SV.약화)}% — 칠 때마다 1 준다`,
-    사기: `주는 피해 +${P100(SV.사기)}% — 칠 때마다 1 준다`, 불굴: `받는 피해 -${P100(SV.불굴)}% — 맞을 때마다 1 준다`,
-    손상: `얻는 방어 · 실드 -${P100(SV.손상)}% — 얻을 때마다 1 준다`, 결의: `턴 끝에 방어력 ${P100(SV.결의)}% 실드 — 그때 1 준다`,
-    결정화: `턴 끝에 겹마다 방어력 ${P100(SV.결정화)}% 실드 — 줄지 않는다`, 고통: `턴 끝에 겹만큼 고정 피해 — 그 뒤 절반`,
-    열의: `공격력 +${P100(SV.열의)}% — 피해 · 회복 카드마다 1 준다`, 강건: `방어력 +${P100(SV.강건)}% — 방어 · 실드 카드마다 1 준다`,
-    집중: `치명 확률 +${P100(SV.집중)}%p — 피해 카드마다 1 준다`, 온정: `회복력 +${P100(SV.온정)}% — 회복 카드마다 1 준다`,
-    반격: `적에게 맞으면 방어력 ${P100(SV.반격)}% 로 되친다 — 그때 1 준다`, 표식: `공격 카드에 맞으면 덤 타격 ${P100(SV.표식)}% · 강인도 1 — 그때 1 준다`,
+    취약: () => `받는 피해 +${P100(SV.취약)}% — 맞을 때마다 1 준다`, 약화: () => `주는 피해 -${P100(SV.약화)}% — 칠 때마다 1 준다`,
+    손상: () => `얻는 방어 · 실드 -${P100(SV.손상)}% — 얻을 때마다 1 준다`, 고통: () => `턴 끝에 겹만큼 고정 피해 — 그 뒤 절반`,
+    반격: () => `적에게 맞으면 방어력 ${P100(SV.반격)}% 로 되친다 — 그때 1 준다`, 표식: () => `공격 카드에 맞으면 덤 타격 ${P100(SV.표식)}% · 강인도 1 — 그때 1 준다`,
+    사기: (n) => `주는 피해 +${P100(RULES.stackEff("사기", n))}%`,
+    불굴: (n) => `받는 피해 -${P100(RULES.stackEff("불굴", n))}%${n * SV.불굴 > SV.불굴Cap ? ` (최대 -${P100(SV.불굴Cap)}%)` : ""}`,
+    결의: (n) => `얻는 방어 · 실드 +${Math.round(RULES.stackEff("결의", n))}`,
+    결정화: (n) => `턴 끝에 방어력 ${P100(RULES.stackEff("결정화", n))}% 실드`,
+    열의: (n) => `공격력 +${P100(RULES.stackEff("열의", n))}%`, 강건: (n) => `방어력 +${P100(RULES.stackEff("강건", n))}%`,
+    집중: (n) => `치명 확률 +${P100(RULES.stackEff("집중", n))}%p`, 온정: (n) => `회복력 +${P100(RULES.stackEff("온정", n))}%`,
   };
-  const stHelp = (id) => ST_HELP[id] || "";
+  const stHelp = (id, n = 1) => (ST_HELP[id] ? ST_HELP[id](n) + (INT_SET.has(id) ? " (전투 내내)" : "") : "");
   const turnTxt = (n) => (n != null && n >= RULES.BOON_TURNS ? "판 내내" : n == null || n >= 999 ? "이번 전투" : `${n}턴`);   // 판 내내 — 강화 카드(run.boons)
   // 키워드 1개당이 이 사람에게 주는 증감 — [{ id, stat, v, n }]
   function kwShares(u) {
@@ -1661,7 +1664,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         const k = x.stat || "#" + x.id;
         const g = by.get(k) || { ...x, v: 0, left: 999, src: [] };
         g.v += x.v; g.left = Math.min(g.left, x.left == null ? 999 : x.left);
-        g.src.push(x.stat ? `${STAT_KO[x.stat]} ${pctTxt(x.v)} · ${turnTxt(x.left)}${x.src ? " · " + x.src : ""}` : x.stack ? `${x.id} ${x.stack}겹 — ${stHelp(x.id)}` : `${x.id} ${turnTxt(x.left)}`);
+        g.src.push(x.stat ? `${STAT_KO[x.stat]} ${pctTxt(x.v)} · ${turnTxt(x.left)}${x.src ? " · " + x.src : ""}` : x.stack ? `${x.id} ${x.stack} — ${stHelp(x.id, x.stack)}` : `${x.id} ${turnTxt(x.left)}`);
         by.set(k, g);
       }
       // 칩 = 아이콘 · 값 · 남은 턴(js/fx-icons.js). 이름(clab)은 싸움터에서 숨기고 정보 창에서만 — 그림이 없는 것만 싸움터에도 이름
@@ -2520,7 +2523,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         const ic = x.stat ? fxIcon(x.stat, x.v > 0 ? "up" : "down") : fxIcon(x.id);     // 싸움터 칩과 같은 그림
         if (ic) nm.insertBefore(ic, nm.firstChild);
         r.appendChild(el("span", "bmturn", x.always ? "늘" : x.stack ? `${x.stack}겹` : turnTxt(x.left)));
-        const why = x.stat ? x.src : terms.get(x.id) || stHelp(x.id) || null;
+        const why = x.stat ? x.src : INT_SET.has(x.id) && x.stack ? `${x.id} ${x.stack} — ${stHelp(x.id, x.stack)}` : terms.get(x.id) || stHelp(x.id) || null;
         if (why) r.appendChild(el("span", "bmsrc", why));
         ul.appendChild(r);
       }

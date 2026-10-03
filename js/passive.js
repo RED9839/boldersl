@@ -23,7 +23,7 @@
 //                     1개당 자신 주는 피해 +N%. 1개당 턴 종료 시 공격력 N% 피해. 「X」가 N개가 되면: …
 
 import { parseEffect } from "./effects.js";
-import { healStat, STATUS_V, STAT_ST } from "./rules.js";
+import { healStat, STAT_ST, stackEff } from "./rules.js";
 
 // ── 읽기 ───────────────────────────────────────────────────────────────
 
@@ -259,9 +259,9 @@ export function stackOn(s, holder, id, owner) {
 export function statMod(s, u, stat) {
   if (!u) return 0;
   let v = 0;
-  // 능력치 상태(열의 · 강건 · 집중 · 온정) — 겹이 있으면, 또는 지금 이 일에서 막 쓴 것이면(같은 카드의 다음 타격도 덕을 본다 · combat charge)
+  // 능력치 상태(열의 · 강건 · 집중 · 온정) — 세기: 겹마다 +20%, 줄지 않는다(rules.js stackEff)
   const sid = STAT_ST[stat];
-  if (sid && (((u.status || {})[sid] || 0) > 0 || (s.actSeq && (u.stUse || {})[sid] === s.actSeq))) v += STATUS_V[sid];
+  if (sid) v += stackEff(sid, (u.status || {})[sid] || 0);
   for (const m of u.mods || []) if (m.stat === stat) v += m.v;
   // 「항상 HP가 50% 이하이면 …」 처럼 조건이 붙은 항상은 조건이 맞을 때만(주인 기준으로 본다)
   if (u.side === "party" && s.always) for (const m of s.always[u.key] || []) {

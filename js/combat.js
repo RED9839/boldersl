@@ -48,18 +48,21 @@ export function makeRng(seed = Date.now()) {
 // 걸리면 손해인 것 — 「디버프 해제」 가 이 차례로 지운다(rules.js BAD_ST)
 const BAD = R.BAD_ST;
 const st = (u, id) => (u.status && u.status[id]) || 0;
-// 겹은 더해진다(중첩). 고통 · 결정화는 최대가 있다(rules.js STATUS_V)
+// 겹은 더해진다(중첩). 고통 · 세기 상태는 최대가 있다(rules.js STATUS_V …Max) — 적의 세기 상태는 FOE_INT_MAX 까지
+const INT_SET = new Set(R.INTENSITY_ST);
 const addSt = (u, id, v) => {
   u.status = u.status || {};
   let n = Math.max(0, st(u, id) + v);
-  const cap = R.STATUS_V[id + "Max"];
-  if (cap != null) n = Math.min(cap, n);
+  let cap = R.STATUS_V[id + "Max"];
+  if (u.side === "enemy" && INT_SET.has(id)) cap = Math.min(cap ?? Infinity, R.FOE_INT_MAX);
+  if (cap != null && v > 0) n = Math.min(Math.max(cap, st(u, id)), n);
   u.status[id] = n; if (!u.status[id]) delete u.status[id];
 };
-// 횟수로 도는 상태(rules.js 겹 규칙) — 한 번의 일(s.actSeq)에 한 번만 1 줄인다. 그 일 안의 다음 타격도 같은 효과를 받는다.
-// 돌았으면 true. u.stUse — 상태마다 마지막으로 쓴 일 번호(저장에 남아도 해가 없다)
+// 횟수로 도는 상태(rules.js CHARGE_ST) — 한 번의 일(s.actSeq)에 한 번만 1 줄인다. 그 일 안의 다음 타격도 같은 효과를 받는다.
+// 돌았으면 true. u.stUse — 상태마다 마지막으로 쓴 일 번호(저장에 남아도 해가 없다). 세기 상태(INTENSITY_ST)는 줄지 않는다 — 걸려 있으면 true
 function charge(s, u, id) {
   if (!u) return false;
+  if (INT_SET.has(id)) return st(u, id) > 0;
   const seq = s.actSeq || 0;
   u.stUse = u.stUse || {};
   if (u.stUse[id] === seq && seq) return true;
@@ -408,20 +411,14 @@ export function endTurn(s) {
   return s;
 }
 
-// 턴 끝의 상태(rules.js STATUS_V) — 내 턴이 끝날 때 아군 · 적 모두. 결의 · 결정화는 실드, 고통은 고정 피해
+// 턴 끝의 상태(rules.js STATUS_V) — 내 턴이 끝날 때 아군 · 적 모두. 결정화는 실드(겹마다, 줄지 않는다), 고통은 고정 피해
 function statusTurnEnd(s) {
   const V = R.STATUS_V;
   for (const u of [...alive(s.party), ...alive(s.enemies)]) {
     s.actSeq = s.seqN = (s.seqN || 0) + 1;    // 사람마다 한 번의 일
     const defOf = () => Math.max(0, Math.round((u.def || 0) * (1 + P.statMod(s, u, "def"))));
-    if (st(u, "결의") > 0) {
-      const v = shieldGain(s, u, Math.max(1, Math.round(defOf() * V.결의)));
-      u.shield = (u.shield || 0) + v; gainCue(s, u, "shield", v);
-      addSt(u, "결의", -1);
-      say(s, `${u.ko}: 결의 — 실드 +${v}`);
-    }
     if (st(u, "결정화") > 0) {
-      const v = shieldGain(s, u, Math.max(1, Math.round(defOf() * V.결정화 * st(u, "결정화"))));
+      const v = shieldGain(s, u, Math.max(1, Math.round(defOf() * R.stackEff("결정화", st(u, "결정화")))));
       u.shield = (u.shield || 0) + v; gainCue(s, u, "shield", v);
       say(s, `${u.ko}: 결정화 ${st(u, "결정화")} — 실드 +${v}`);
     }
@@ -434,8 +431,9 @@ function statusTurnEnd(s) {
     }
   }
 }
-// 손상 — 얻는 방어 · 실드가 줄어든다(한 번의 일에 1 씩)
+// 얻는 방어 · 실드 — 결의(세기 — 겹마다 +결의, 줄지 않는다) 를 더한 뒤 손상(횟수 — 한 번의 일에 1 씩, -50%)
 function shieldGain(s, u, v) {
+  if (v > 0 && st(u, "결의") > 0) v += Math.round(R.stackEff("결의", st(u, "결의")));
   if (v > 0 && st(u, "손상") > 0 && charge(s, u, "손상")) return Math.max(0, Math.round(v * (1 - R.STATUS_V.손상)));
   return v;
 }
@@ -549,7 +547,7 @@ function actEnemy(s, e, it = e.intent, passive = false) {
     if (it.next) e.intent = null;          // 모으던 힘도 흩어진다
     return;
   }
-  // 적의 수 하나가 한 번의 일이다 — 취약 · 불굴 · 반격 · 약화 · 사기가 이 수에 한 번만 돈다(charge)
+  // 적의 수 하나가 한 번의 일이다 — 취약 · 반격 · 약화가 이 수에 한 번만 돈다(charge)
   const seq0 = s.actSeq; s.actSeq = s.seqN = (s.seqN || 0) + 1;
   try { foeAct(s, e, it); } finally { s.actSeq = seq0; }
 }
@@ -560,9 +558,9 @@ function foeStatus(s, e, t, id, n) {
   addSt(t, id, v); cue(s, "status", t, { id });
   return v;
 }
-// 적이 얻는 방어 — 강건이면 +20%(1 준다), 손상이면 -50%(shieldGain). 사도가 적에게 건 손상이 적의 방어 수를 깎는다
+// 적이 얻는 방어 — 강건이면 겹마다 +20%(줄지 않는다), 결의 · 손상은 shieldGain. 사도가 적에게 건 손상이 적의 방어 수를 깎는다
 function foeBlock(s, x, v) {
-  if (v > 0 && st(x, "강건") > 0 && charge(s, x, "강건")) v = Math.round(v * (1 + R.STATUS_V.강건));
+  if (v > 0 && st(x, "강건") > 0) v = Math.round(v * (1 + R.stackEff("강건", st(x, "강건"))));
   v = shieldGain(s, x, v);
   x.block += v; gainCue(s, x, "block", v);
   return v;
@@ -631,8 +629,8 @@ function foeAct(s, e, it) {
   }
   // tough N — 그 수와 함께 강인도를 되찾는다(guard · all 이면 적 전체)
   if (it.tough) for (const x of it.t === "guard" || it.all ? alive(s.enemies) : [e]) regainTough(s, x, it.tough);
-  // 공격하는 수는 적의 약화 · 사기를 한 번 쓴다(dealt 가 이미 넣었다)
-  if (FOE_HITS.includes(it.t)) { if (st(e, "약화") > 0) charge(s, e, "약화"); if (st(e, "사기") > 0) charge(s, e, "사기"); }
+  // 공격하는 수는 적의 약화를 한 번 쓴다(dealt 가 이미 넣었다). 사기는 세기라 줄지 않는다
+  if (FOE_HITS.includes(it.t) && st(e, "약화") > 0) charge(s, e, "약화");
 }
 
 // 앞줄이 먼저 맞는다. 뒤를 노리는 수(back)는 거꾸로 뒷줄부터.
@@ -661,7 +659,7 @@ function dealt(from, v) {
   if (st(from, "약화") > 0) m *= 1 - R.STATUS_V.약화;
   if (st(from, "감전") > 0) m *= 0.9;
   if (st(from, "중독") > 0) m *= Math.max(0.7, 1 - 0.02 * st(from, "중독"));
-  const up = st(from, "사기") > 0 ? 1 + R.STATUS_V.사기 : 1;   // 사기는 깎는 것들의 바닥과 따로 곱한다
+  const up = 1 + R.stackEff("사기", st(from, "사기"));   // 사기(세기 — 겹마다 +20%)는 깎는 것들의 바닥과 따로 곱한다
   return Math.max(0, Math.round((v + st(from, "힘")) * Math.max(CUT_FLOOR, m) * up));
 }
 
@@ -673,23 +671,23 @@ function natureMod(s, from, to) {
   if (e < 0) return 1 - R.NATURE_DEF;
   return 1;
 }
-// 맞는 쪽의 상태 — 취약 받는 피해 +50% · 불굴 -20%(카제나, rules.js STATUS_V). 한 번의 일에 1 씩 준다(charge)
+// 맞는 쪽의 상태 — 취약 받는 피해 +50%(횟수 — 한 번의 일에 1 씩, charge) · 불굴 겹마다 -20%(세기 — 줄지 않는다, 불굴Cap 까지)
 function taken(s, to, v) {
   let m = 1;
   if (st(to, "취약") > 0 && charge(s, to, "취약")) m *= 1 + R.STATUS_V.취약;
-  if (st(to, "불굴") > 0 && charge(s, to, "불굴")) m *= 1 - R.STATUS_V.불굴;
+  m *= 1 - R.stackEff("불굴", st(to, "불굴"));
   return Math.max(0, Math.round(v * m));
 }
 
 // tags — 카드의 키워드(분쇄 · 잔불 · 약점). 사도가 적을 칠 때 약점이면 상성 유리와 같은 +10%(rules.js NATURE_DMG)
-// card — 사도의 카드(고학년 포함)가 친 것. 사도의 사기 · 약화는 카드의 피해에만 붙고 카드 한 장에 1 씩 준다(패시브 · 지속 피해는 안 쓴다)
+// card — 사도의 카드(고학년 포함)가 친 것. 사도의 사기 · 약화는 카드의 피해에만 붙는다(패시브 · 지속 피해는 안 받는다). 약화는 카드 한 장에 1 씩 준다 · 사기는 줄지 않는다
 function hurt(s, u, v, { from, pure, crit, tags, card, counter } = {}) {
   if (u.invuln && !pure) { say(s, `${u.ko}에게 닿지 않는다`); return; }
   let d = pure ? v : taken(s, u, v);
   // 때리는 사도의 상태 — 적은 dealt 가 이미 넣었다(머리 위 숫자와 같게)
   if (!pure && card && from && from.side === "party") {
     let m = 1;
-    if (st(from, "사기") > 0 && charge(s, from, "사기")) m *= 1 + R.STATUS_V.사기;
+    m *= 1 + R.stackEff("사기", st(from, "사기"));
     if (st(from, "약화") > 0 && charge(s, from, "약화")) m *= 1 - R.STATUS_V.약화;
     if (m !== 1) d = Math.round(d * m);
   }
@@ -1404,10 +1402,8 @@ function fxApi(s) {
       hurt(s, t, v, { from: owner, tags: ctx.tags, card: true });
       if (!t.dead) toughHit(s, t, 1);
     },
-    // 손상 — 얻는 방어 · 실드를 줄인다
+    // 결의 · 손상 — 얻는 방어 · 실드를 늘린다 · 줄인다
     guardGain: (t, v) => shieldGain(s, t, v),
-    // 능력치 상태(열의 · 강건 · 집중 · 온정)를 이 일에 한 번 쓴다(rules.js STAT_ST)
-    use: (u, id) => { if (u && st(u, id) > 0) charge(s, u, id); },
     weak: (from, t, tags) => isWeakHit(s, from, t, tags),
     draw: (n) => draw(s, n),
     // 연출 쪽지 — 회복 · 방어 · 실드(run-fx 가 직접 채우는 것)
