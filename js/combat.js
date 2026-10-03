@@ -311,6 +311,8 @@ export function endTurn(s) {
     if (target) { target.block += v; say(s, `네르가 ${을를(target.ko)} 감싼다 (방어도 +${v})`); }
   }
   // 프리클의 가시 촉수 — 소멸 전까지 근처의 적을 친다(원작 그대로)
+  // v4 부터 촉수는 키워드 「가시 촉수」(기획서 규칙)로 돈다. 기획서 카드는 s.tentacles 를 안 쓴다 —
+  // 첫 판 카드(tools/check-cards.js 의 fricle_*)와 tools/balance.js 가 아직 이 길을 부르므로 남겨 둔다
   if (s.tentacles > 0) {
     for (let i = 0; i < s.tentacles; i++) {
       const t = alive(s.enemies)[0]; if (!t) break;
@@ -358,6 +360,7 @@ function enemyPhase(s) {
       if (e.intent && e.intent.next) e.intent = null;
       continue;
     }
+    if (e.rushedTurn) { say(s, `${e.ko}: 즉시 행동을 했다 — 이번에는 쉰다`); continue; }
     actEnemy(s, e);
     if (s.over) return;
   }
@@ -401,7 +404,9 @@ function rushEnemies(s) {
     s.rushedThisTurn = true;
     emit(s, "rush", { enemy: e });
     if (s.over) return;
-    if (!e.dead) { foePassives(s, "rushed", { target: e }); rollIntent(s, e); }
+    // 즉시 행동한 적은 이번 판(내 턴 + 적의 차례)에 할 일을 다 했다 — 새 수를 굴리지 않고, 적의 차례에도 쉰다(enemyPhase).
+    // 전에는 여기서 새 수를 굴려 턴 끝에 무작위 수를 또 했다(2026-10 사용자). 다음 수는 다음 내 턴에 굴린다(beginTurn)
+    if (!e.dead) { foePassives(s, "rushed", { target: e }); e.intent = null; }
     if (s.over) return;
   }
 }
@@ -997,7 +1002,7 @@ function applyFx(s, c, f, ctx) {
     // 티그 — 오버드라이브
     case "overdrive": s.overdrive = true; say(s, "티그: 오버드라이브"); break;
 
-    // 프리클 — 가시 촉수
+    // 프리클 — 가시 촉수(첫 판 카드용. v4 기획서는 키워드 「가시 촉수」 로 돈다 — 위 턴 끝 촉수 참고)
     case "tentacle": s.tentacles += f.v; say(s, `가시 촉수 ${s.tentacles}개`); break;
     case "tentacleBurst": {
       if (!s.tentacles) { say(s, "터뜨릴 촉수가 없다"); break; }

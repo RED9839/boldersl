@@ -1256,6 +1256,12 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
 
     // 의도 — 무엇을 하려는가. 카제나도 적 위에 붙인다.
     // 치는 수는 마름모에 숫자를 크게(힘·약화가 들어간 값) — 다음 턴에 얼마나 맞는지가 가장 먼저 읽혀야 한다.
+    // 즉시 행동을 마친 적 — 이번 적의 차례에는 쉰다. 비워 두면 「무엇을 하려나」 가 안 읽혀 표를 남긴다
+    if (!u.intent && !u.dead && u.rushedTurn) {
+      const done = el("div", "intent i-done");
+      done.appendChild(el("span", "idone", "⚡ 행동함 · 이번 턴 쉼"));
+      n.appendChild(done);
+    }
     if (u.intent && !u.dead) {
       const it = u.intent;
       const hitV = C.intentHit(u);

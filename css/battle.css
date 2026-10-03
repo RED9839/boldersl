@@ -369,10 +369,12 @@ main:has(.battle) { max-width: 1240px; }
 .foe.pvkill .art, .foe.pvkill canvas, .foe.pvkill img { filter: saturate(0.6) brightness(0.85); }
 
 /* 힘을 모으는 적 — 다음 턴에 크게 온다. 눈에 띄어야 대비한다 */
-.intent.i-charge .igem { background: linear-gradient(135deg, #ffb13c, #ff5a3c); animation: pvblink 0.7s ease-in-out infinite alternate; }
+.intent.i-charge .igem { animation: pvblink 0.7s ease-in-out infinite alternate; }
+.intent.i-charge .igem:before { background: linear-gradient(135deg, #ffb13c, #ff5a3c); border-color: #ffd9a0; }
 
-.intent.i-heal .igem { background: linear-gradient(135deg, #8fe39a, #3fa35a); }
-.intent.i-guard .igem { background: linear-gradient(135deg, #9cc8ff, #4a7fc0); }
+/* 색은 마름모(:before)에 — 네모 칸에 칠하면 마름모 밖으로 삐져나온다 */
+.intent.i-heal .igem:before { background: linear-gradient(135deg, #8fe39a, #3fa35a); border-color: #c8f5cf; }
+.intent.i-guard .igem:before { background: linear-gradient(135deg, #9cc8ff, #4a7fc0); border-color: #d2e6ff; }
 
 /* ══ 패시브 ═════════════════════════════════════════════════════════════
    발동하면 그 사도 위에 이름이 떠오른다 · 걸려 있는 증감은 칩 하나로 */
@@ -385,3 +387,6 @@ main:has(.battle) { max-width: 1240px; }
 @keyframes pfire { 0% { opacity: 0; transform: translate(-50%, 8px); } 15% { opacity: 1; transform: translate(-50%, 0); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -18px); } }
 .chip.mod.up { background: #1f3b2a; color: #9fe3b4; border-color: #2f5d40; }
 .chip.mod.down { background: #3b1f24; color: #ffb3b3; border-color: #5d2f36; }
+
+/* 즉시 행동을 마친 적 — 이번 적의 차례에는 쉰다 */
+.intent.i-done .idone { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px; color: #d9d2f2; background: #1a1528cc; border: 1px solid #ffffff2e; white-space: nowrap; }

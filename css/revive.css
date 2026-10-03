@@ -252,11 +252,11 @@
 .battle .stand .sname, .battle .foe .fname { text-shadow: none; }
 .battle .stand .sname > span, .battle .foe .fname .fnm {
   font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 16px; color: #fff; background: var(--rv-ink);
-  border: 2px solid #fff; border-radius: 99px; padding: 0 12px; box-shadow: 0 3px 0 #0008; line-height: 1.5;
+  border: 2px solid #fff; border-radius: 99px; padding: 0 12px; box-shadow: 0 2px 6px #0006; line-height: 1.5;
 }
 .battle .foe .fname .fnm { background: #6b2c42; }
 .battle .stand.dover .sname > span, .battle .foe.dover .fname .fnm, .battle .foe:hover .fname .fnm { background: var(--rv-sun); color: var(--rv-text); border-color: var(--rv-text); }
-.battle .stand .hpwrap .bar, .battle .foe .hpwrap .bar { height: 12px; border: 2.5px solid var(--rv-ink); border-radius: 99px; background: #221c33; box-shadow: 0 2px 0 #0008; }
+.battle .stand .hpwrap .bar, .battle .foe .hpwrap .bar { height: 12px; border: 2.5px solid var(--rv-ink); border-radius: 99px; background: #221c33; box-shadow: 0 1px 4px #0006; }
 .battle .stand .hpwrap .bar > i { background: linear-gradient(180deg, #8ff0c8, var(--rv-mint)) !important; }
 .battle .foe .hpwrap .bar > i { background: linear-gradient(180deg, #ff9aa6, var(--rv-coral)) !important; }
 .battle .stand.danger .hpwrap .bar > i { background: linear-gradient(180deg, #ff9aa6, #ff4a5e) !important; }
@@ -347,7 +347,9 @@ html.rv-nojua { --rv-w: 800; }
 .phone .bmodal .bmgear { grid-template-columns: 1fr; }
 .bmodal .bmgslot .bmgfx span { color: var(--rv-text); font-size: inherit; }
 .bmodal .bmghead { flex-direction: row; justify-content: flex-start; text-align: left; }
-.battle .ally > .agear { position: absolute; right: 8px; bottom: -10px; margin: 0; gap: 3px; padding: 2px 4px; border-radius: 99px; background: var(--rv-paper); border: 2px solid var(--rv-line); z-index: 2; }
+/* 장비 띠는 이름 · 고학년 줄 밑에 한 줄로 — 아래 테두리에 걸쳐 두니 고학년 이름을 가리고 칸 밖으로 삐져나왔고, 이름 옆에 두니 이름이 잘렸다 */
+.battle .ally > .agear { position: absolute; left: 70px; bottom: 5px; right: auto; top: auto; margin: 0; gap: 3px; padding: 0; border-radius: 0; background: none; border: 0; z-index: 2; }
+.battle .ally:has(> .agear), .phone .battle .ally:has(> .agear) { padding-top: 6px; padding-bottom: 28px; }
 .battle .ally > .agear > * { width: 18px !important; height: 18px !important; border: 0; background: transparent; }
 .battle .allies, .phone .battle .allies { gap: 14px; }
 .gslot .gfx { display: block; font-size: 11.5px; font-weight: 800; color: #ffcf3f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
