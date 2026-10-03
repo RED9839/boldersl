@@ -115,12 +115,12 @@ function reward() {
   const next = R.advance(run);             // 층이 바뀐다 — 사도 교체는 없다
   if (run.done === "clear") return end("clear");
   // 층 보스의 몫 — 가진 고유 카드 한 장이 복제됐다(run.js bossCopy) — 화면을 세운 뒤에 알린다
-  const copyNote = next.copied && CARDS[next.copied] ? `고유 카드 「${CARDS[next.copied].name}」 한 장이 더 생겼습니다` : "";
-  const back = copyNote ? `보스를 넘었습니다 — ${copyNote}` : "";
+  // 안내 한 줄은 못 보고 지나갔다 — 카드를 가운데 창으로 보여 준다(ui.js bossCopyNote)
+  const note = () => { if (next.copied && CARDS[next.copied]) ui.bossCopyNote(run, next.copied); };
   // 마지막 층의 보스를 넘으면 뿌리 깊은 곳 — 상점 없이 캠프 한 번, 떠나면 곧장 마지막 싸움(우로스). 그것을 이겨야 판을 깬다
-  if (next.final) { camp("final"); return ui.hint(back); }
+  if (next.final) { camp("final"); return note(); }
   mapStep();
-  ui.hint(back);
+  note();
 }
 
 // 지도 — 칸을 마칠 때마다 여기로 돌아와 다음 칸을 고른다(js/map.js · docs/10-지도.md).

@@ -2675,7 +2675,10 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     for (const n of document.querySelectorAll(".dtgt, .dover")) n.classList.remove("dtgt", "dover", ...(selCard >= 0 ? [] : ["tgt"]));
     if (cancel) { hint(""); paintSel(); }
   }
-  function endDrag() {
+  function endDrag(e) {
+    // 손을 뗀 자리로 대상을 한 번 더 잰다 — 빨리 휙 끌면 pointermove 가 대상에 닿기 전에 끝나(브라우저가 이벤트를 몰아서 준다)
+    // 카드가 그냥 손으로 돌아왔다(2026-10 사용자: 「카드를 너무 빨리 내면 씹힌다」). 못 내는 카드는 끌기를 시작하지 않는다(click 이 까닭을 말한다)
+    if (e && e.clientX != null && drag && (drag.on || !drag.locked)) moveDrag(e);
     const d = drag;
     if (!d || !d.on) return stopDrag(false);
     const over = d.over;

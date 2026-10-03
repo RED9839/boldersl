@@ -370,7 +370,7 @@ html.rv-nojua { --rv-w: 800; }
   position: fixed; inset: 0; z-index: 85; display: flex; align-items: center; justify-content: center; gap: 22px; padding: 24px;
   background: #07051099; backdrop-filter: blur(3px); animation: bmfade .14s ease-out; cursor: pointer;
 }
-.cardinspect .cibig { width: min(380px, 40vw, 52vh); flex: none; cursor: pointer; transform: none !important; box-shadow: 0 0 0 3px var(--rv-line), 0 8px 0 var(--rv-shadow), 0 30px 60px #000c; animation: cipop .18s cubic-bezier(.2, .9, .3, 1.2); }
+.cardinspect .cibig { width: min(380px, calc(var(--app-w, 100vw) * .4), calc(var(--app-h, 100vh) * .52)); flex: none; cursor: pointer; transform: none !important; box-shadow: 0 0 0 3px var(--rv-line), 0 8px 0 var(--rv-shadow), 0 30px 60px #000c; animation: cipop .18s cubic-bezier(.2, .9, .3, 1.2); }
 .cardinspect .cibig .gtext { font-size: 19px; line-height: 1.5; -webkit-line-clamp: unset; }
 .cardinspect .cibig .gtitle b { font-size: 24px; }
 @keyframes cipop { from { transform: scale(.85) !important; opacity: 0; } }

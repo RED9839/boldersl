@@ -292,6 +292,32 @@ function flashedCard(run, id) {
 // ── 보상 ───────────────────────────────────────────────────────────────
 // 얻는 것은 **그 사도의 고유 카드**다(기획서: 사도당 시작 4 + 고유 4).
 // 누구의 무슨 카드인지가 첫눈에 보여야 한다 — 이름만 떠 있으면 고를 수가 없다.
+// 층 보스의 몫 — 복제된 고유 카드를 가운데 창으로 보여 준다(run.js bossCopy).
+// 전에는 지도 밑 안내 한 줄뿐이라 못 보고 지나갔다(2026-10 사용자)
+export function bossCopyNote(run, id) {
+  const c0 = CARDS[id];
+  if (!c0) return;
+  const c = flashed(c0, (run.flash || {})[id]);
+  const box = centerModal("cardmodal");
+  const big = bigCard(c, CARDART.pic[id] || null);
+  big.onclick = null; big.title = "";
+  big.classList.add("bmcard");
+  box.appendChild(big);
+  const body = el("div", "bmbody");
+  body.appendChild(el("span", "bmkind", "보스를 넘었습니다 — 카드 복제"));
+  body.appendChild(el("h3", "bmname", c.name));
+  body.appendChild(el("p", "bmtext", `${HERO(c.hero).ko}의 고유 카드 「${c.name}」 한 장이 덱에 더 들어갔습니다. 신탁이 붙어 있었다면 그대로 따라옵니다.`));
+  const { action } = cardParts(c, c.hero);
+  body.appendChild(withKeywords(el("p", "bmtext"), action, c.hero));
+  const row = el("div", "bmbtns");
+  const ok = el("button", "bmuse", "확인");
+  ok.onclick = closeCenter;
+  row.appendChild(ok);
+  body.appendChild(row);
+  box.appendChild(body);
+  sfx.play("reward.card");
+}
+
 export function rewardScreen(run, onPick) {
   const s = screen();
   s.classList.add("rewardscreen");
