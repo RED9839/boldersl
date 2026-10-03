@@ -22,7 +22,8 @@ const needBless = args.includes("--bless");   // v3 — 고유 카드마다 「�
 // v4 시범 여섯(docs/15) — 고유 카드마다 축복 셋
 const V4_PILOT = new Set(["에르핀", "네르", "티그", "비비", "나이아", "엘레나"]);
 // --v4 — 넘긴 글의 사도를 모두 v4 로 본다(전체 리뉴얼 묶음 · tools/merge-v4.js 가 .omc/v4/*.md 를 넘긴다)
-const V4 = { has: (ko) => process.argv.includes("--v4") || V4_PILOT.has(ko) };
+// --design — 135명 모두 v4 로 들어왔다(docs/15). 기획서 전체를 볼 때는 누구나 v4 다.
+const V4 = { has: (ko) => args.includes("--v4") || args.includes("--design") || V4_PILOT.has(ko) };
 const only = args.includes("--only") ? (args[args.indexOf("--only") + 1] || "").split(",").filter(Boolean) : [];
 const files = args.includes("--design") ? [DESIGN] : args.filter((a) => a.endsWith(".md"));
 if (!files.length) { console.log("쓰는 법: node tools/check-hero.js 파일.md | --design"); process.exit(2); }

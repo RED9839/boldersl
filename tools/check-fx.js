@@ -143,8 +143,8 @@ console.log("X 코스트");
   const dealt = orig.reduce((a, v, i) => a + (v - Math.max(0, s.enemies[i].hp)), 0);
   r.ok ? ok("마력 난타를 낼 수 있다") : fail(`마력 난타를 못 낸다 (${r.why})`);
   s.ap === 0 ? ok("남은 AP 를 전부 쓴다") : fail(`AP 가 ${s.ap} 남았다`);
-  // (AP 3 + 왕마력 2) = 5회 × 공격력 70%
-  const one = Math.round(me.atk * 0.7);
+  // (AP 3 + 왕마력 2) = 5회 × 공격력 50% (v4 에서 70% → 50%, docs/15)
+  const one = Math.round(me.atk * 0.5);
   dealt >= one * 4 ? ok(`(AP+왕마력)회 때린다 — 준 피해 ${dealt} (한 대 ${one})`) : fail(`한두 번만 쳤다 — 준 피해 ${dealt}`);
   (me.mods || []).some((m) => m.stat === "taken" && m.v < 0) ? ok("받는 피해 감소는 자기에게") : fail("받는 피해 감소가 자기에게 안 들어왔다");
 }

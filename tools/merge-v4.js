@@ -16,7 +16,8 @@ const dir = opt("--dir") || ".omc/v4";
 const out = opt("--out");
 const dry = args.includes("--dry");
 
-const nameOf = (head) => head.replace(/^###\s+/, "").replace(/\s*\(.*$/, "").trim();
+// 「다야(퓨어샤인) (…)」 — 이격 이름의 괄호는 이름에 붙어 있고, 머리 묶음(성격 · 종족 …) 괄호 앞에만 빈칸이 있다
+const nameOf = (head) => head.replace(/^###\s+/, "").replace(/\s+\(.*$/, "").trim();
 const doc = fs.readFileSync(DESIGN_DOC, "utf8").replace(/\r\n/g, "\n");
 const lines = doc.split("\n");
 // 기획서의 사도 덩어리 — 「### 」 줄부터 다음 「### 」 · 「## 」 줄 앞까지
