@@ -419,7 +419,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
     deckSec.appendChild(deckBox);
     side.appendChild(deckSec);
     const go = el("button", "tm-fgo tf-go", "떠납니다");
-    go.onclick = () => { sfx.play("ui.start"); for (const k of picked) rows[k] = rows[k] || HERO_DATA[k].row; onStart(picked, rows); };
+    go.onclick = () => { sfx.play("ui.start"); if (picked.length) speak(picked[Math.floor(Math.random() * picked.length)], ["yes", "decksetting", "greeting"]); for (const k of picked) rows[k] = rows[k] || HERO_DATA[k].row; onStart(picked, rows); };
     side.appendChild(go);
     main.appendChild(side);
     s.appendChild(main);
@@ -430,13 +430,19 @@ export function partyScreen(onStart, onBack, opts = {}) {
     const add = (key) => { picked.push(key); rows[key] = rows[key] || HERO_DATA[key].row; speak(key, ["decksetting", "greeting"]); };
     const remove = (key) => { const i = picked.indexOf(key); if (i >= 0) picked.splice(i, 1); delete rows[key]; };
 
+    // 빈 칸의 이름 — 아직 아무도 안 선 열을 전열 · 중열 · 후열 차례로 붙인다(「1번째 자리」 대신, 2026-10 사용자).
+    // 열은 사도가 정하므로 이름은 안내일 뿐이다. 세 열이 다 찼으면 「남은」
+    const emptyRow = (i) => {
+      const open = C.ROWS.filter((r) => !picked.some((k) => rowOf(k) === r));
+      return ROWS_KO[open[i - picked.length]] || "남은";
+    };
     // 칸 하나 — 사도가 있으면 그 사도, 없으면 「+ 사도 넣기」
     function slotOf(key, i) {
       if (!key) {
         const n = el("button", "tf-slot empty");
         n.appendChild(el("span", "tf-plus", "+"));
         n.appendChild(el("b", null, "사도 넣기"));
-        n.appendChild(el("span", null, `${i + 1}번째 자리 · 눌러서 명단`));
+        n.appendChild(el("span", null, `${emptyRow(i)} 자리 · 눌러서 명단`));
         n.onclick = () => openPicker(null);
         return n;
       }

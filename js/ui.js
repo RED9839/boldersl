@@ -137,18 +137,7 @@ export function mapScreen(run, onEnter, onQuit) {
   }
   head.appendChild(party);
   // 장비 — 사도마다 무기 · 방어구 · 장신구. 전투 밖이면 지도에서도 끼고 바꿔 낀다(빼기는 없다 — 바꿔 끼면 낀 것은 팔린다)
-  const openGear = () => {
-    const box = centerModal("gearmodal");
-    const body = el("div", "bmbody");
-    body.appendChild(el("h3", "bmname", "장비"));
-    body.appendChild(el("span", "bmkind", "사도마다 무기 · 방어구 · 장신구 한 칸씩 · 끼기 · 바꿔 끼기(낀 것은 팔림) · 팔기 — 전투 밖이면 어디서든"));
-    const redraw = () => { const old = body.querySelector(".gearpanel"); const gp = gearPanel(run, "empty", () => { redraw(); }, hint); if (old) old.replaceWith(gp); else body.appendChild(gp); };
-    redraw();
-    const x = el("button", "bmclose", "닫기");
-    x.onclick = () => { closeCenter(); mapScreen(run, onEnter, onQuit); };
-    const row = el("div", "bmbtns"); row.appendChild(x); body.appendChild(row);
-    box.appendChild(body);
-  };
+  const openGear = () => openGearModal(run, { onClose: () => mapScreen(run, onEnter, onQuit) });
   const gearBtn = el("button", "mdeck", `장비${run.bag.length ? ` · 가방 ${run.bag.length}` : ""}`);
   gearBtn.onclick = openGear;
   const gold = goldLabel("span", "mgold", `${run.gold} 골드`);
@@ -514,6 +503,20 @@ function flashTarget(c, id, run) {
   return box;
 }
 
+// 장비 창 — 지도의 「장비」 단추 · 전투 중 떨어진 장비 띠(fight-screen)가 같이 쓴다
+export function openGearModal(run, { sub, onClose } = {}) {
+  const box = centerModal("gearmodal");
+  const body = el("div", "bmbody");
+  body.appendChild(el("h3", "bmname", "장비"));
+  body.appendChild(el("span", "bmkind", sub || "전투 밖이면 언제든 끼고 바꿀 수 있습니다"));
+  const redraw = () => { const old = body.querySelector(".gearpanel"); const gp = gearPanel(run, "empty", () => { redraw(); }, hint); if (old) old.replaceWith(gp); else body.appendChild(gp); };
+  redraw();
+  const x = el("button", "bmclose", "닫기");
+  x.onclick = () => { closeCenter(); if (onClose) onClose(); };
+  const row = el("div", "bmbtns"); row.appendChild(x); body.appendChild(row);
+  box.appendChild(body);
+}
+
 function gearPanel(run, mode, onChange, say) {
   const box = el("div", "gearpanel");
   const draw = () => {
@@ -539,6 +542,10 @@ function gearPanel(run, mode, onChange, say) {
           c.appendChild(el("b", null, e.ko));
           const st = statText(R.statsOf(id, k));
           c.appendChild(el("span", "gst", st + (e.affinity === k ? " · 애착" : "")));
+          // 하는 일 — 첫 줄만 짧게(이름: 글 → 이름). 다 보려면 누른다
+          const fx = String(e.effect || "").split(" · ").map((x) => (x.match(/^([^:]{1,14}):/) || [])[1]).filter(Boolean);
+          if (e.affinity === k && e.affinityPassive) fx.push("♥ " + ((String(e.affinityPassive).match(/^([^:]{1,14}):/) || [])[1] || "애착"));
+          if (fx.length) c.appendChild(el("span", "gfx", fx.join(" · ")));
           // 빼기는 없다 — 한 번 끼면 그대로. 누르면 자세히
           c.classList.add("eqtap");
           c.onclick = () => showEquip(id, { heroKey: k, note: `${h.ko}의 ${sl} · 낀 장비는 뺄 수 없습니다 — 이 칸에 다른 장비를 끼면 +${R.sellPrice(id)} 골드에 팔립니다` });
@@ -549,7 +556,7 @@ function gearPanel(run, mode, onChange, say) {
       rows.appendChild(r);
     }
     box.appendChild(rows);
-    box.appendChild(el("p", "gbagh", `한 번 낀 장비는 뺄 수 없습니다. 찬 칸에 다른 장비를 끼면 낀 것은 사는 값의 ${Math.round(RULES.EQUIP_SELL * 100)}% 에 팔립니다. 장비를 누르면 자세히 봅니다`));
+    box.appendChild(el("p", "gbagh", `낀 장비는 뺄 수 없고, 바꿔 끼면 ${Math.round(RULES.EQUIP_SELL * 100)}% 값에 팔립니다 · 누르면 자세히`));
     // 끼기 — 빈 칸이면 바로, 찬 칸이면 옛 장비를 판다고 묻고 나서
     const wear = (k, id) => {
       const e = EQUIP[id], h = HERO_DATA[k] || HERO(k);
@@ -573,7 +580,7 @@ function gearPanel(run, mode, onChange, say) {
     };
     // 가방
     if (run.bag.length) {
-      box.appendChild(el("p", "gbagh", `가방 — 누구에게 낄지 고릅니다(「바꾸기」 는 낀 것을 팝니다). 가방에서 팔면 사는 값의 ${Math.round(RULES.EQUIP_SELL * 100)}%`));
+      box.appendChild(el("p", "gbagh", "가방 — 누구에게 낄지 고르세요"));
       const bag = el("div", "rrow gbag");
       for (const id of run.bag.slice()) {
         const e = EQUIP[id];
