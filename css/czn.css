@@ -534,6 +534,11 @@ body:has(#screen.battle) #hint:not(:empty) { font-size: 16px; }
 .copypick .cpwho { font-size: 12.5px; color: #cfc7ea; }
 .copypick .bmuse:disabled { opacity: .5; cursor: default; }
 .phone .copypick .cpcell { flex-basis: 30%; padding: 4px; }
+/* 쓰지 못한 신탁 — 붙을 카드(.ftarget)가 맨 앞에 서면 넷이 한 줄로. 칸이 줄어들지 넘치지 않는다 */
+.copypick .cprow:has(> .ftarget) { flex-wrap: nowrap; align-items: flex-end; gap: 18px; }
+.copypick .cprow:has(> .ftarget) > .cpcell { flex: 1 1 0; min-width: 0; max-width: 210px; }
+.copypick .cprow > .ftarget { flex: 0 1 180px; min-width: 0; }
+.copypick .cprow > .ftarget .gcard { width: 100%; }
 .bmcard:hover { transform: none !important; }
 .bmbody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .bmkind { font-size: 13px; font-weight: 700; letter-spacing: .04em; color: #b9b2d6; }
@@ -1133,7 +1138,7 @@ body:has(#screen.mapscreen) .top { display: none; }
 .gearmodal :is(.eslot, .eoff) { background: #ffffff14; color: #b9b2d6; }
 .gearmodal :is(.egrade, .eblurb, .eeff) { color: #b9b2d6; }
 /* 신탁 — 붙을 카드를 줄 맨 앞에 */
-.flashrow { align-items: center; flex-wrap: nowrap; }
+.flashrow { align-items: flex-end; flex-wrap: nowrap; justify-content: center; gap: 22px; }   /* 가운데로 모아 고르게(2026-10 사용자: 왼쪽에 몰리고 오른쪽이 비었다) */
 /* 고를 신탁 — 신탁을 얹은 카드(ui.js flashPick). 이벤트 · 캠프 수련이 같이 쓴다 */
 .fpick { flex: 0 1 210px; min-width: 0; align-self: center; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 6px; background: none; border: 2px solid transparent; border-radius: 14px; cursor: pointer; transition: transform .12s, border-color .12s; color: inherit; }
 .fpick:hover { transform: translateY(-4px); }
@@ -1146,15 +1151,14 @@ body:has(#screen.mapscreen) .top { display: none; }
 .ftarget { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: none; }
 .ftarget .gcard { width: 170px; cursor: zoom-in; box-shadow: 0 0 0 2px #f6d58e, 0 0 22px #f6d58e66, 0 10px 22px #000a; }
 .ftlab { font-size: 12.5px; font-weight: 800; color: #f6d58e; text-shadow: 0 1px 3px #000; }
-.phone .ftarget .gcard { width: 130px; }
 /* 원래 효과 — 신탁을 고를 때 견줄 글(ui-common effectBox). 카드 그림 위 글은 작아서 한 번 더 */
 .fbase { box-sizing: border-box; width: 190px; padding: 7px 10px 8px; border-radius: 10px; background: #0b0816d9; border: 1px solid #f6d58e66; text-align: left; }
 .fbaselab { display: block; font-size: 11.5px; font-weight: 900; color: #f6d58e; letter-spacing: .02em; }
 .fbaselab em { display: block; font-style: normal; font-weight: 700; color: #cfc7ef; }
 .epibox > .fbase .fbaselab em { display: inline; margin-left: 6px; }
 .fbasetext { margin: 3px 0 0; font-size: 12.5px; line-height: 1.6; color: #f1edff; word-break: keep-all; }
-/* 휴대폰은 창 높이가 모자라 카드 그림을 빼고 글 상자만 — 그림 위 글은 어차피 잘려 읽히지 않았다 */
-.phone .ftarget .gcard { display: none; }
+/* 휴대폰 — 원래 효과 글상자를 뺀 뒤로는 붙을 카드도 작게 그대로 보인다 */
+.phone .ftarget .gcard { width: 110px; }
 .phone .fbase { width: 170px; padding: 6px 9px 7px; }
 .phone .fbasetext { font-size: 12px; line-height: 1.5; }
 .epibox > .fbase { width: auto; max-width: min(640px, 92vw); margin-top: -4px; text-align: center; }
