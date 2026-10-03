@@ -315,7 +315,12 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
     } else if (bodyAt) {
       // 발은 칸 바닥 조금 위, 머리 본은 칸 위에서 body 몫 — 가로는 머리가 가운데
       const H = canvas.height, foot = 0.03;
-      const fit = (H * (1 - body - foot) / bodyAt.y) * scale;
+      // 모자 · 뿔 · 왕관이 높으면 칸 위로 잘렸다 — 쉬는 자세의 꼭대기(off.y + size.y)가 칸 안에 들게 줄인다(2026-10 사용자: 「위로 너무 크면 짤린다」).
+      // 너무 작아지지 않게 0.72 배까지만(떠 있는 큰 무기 따위는 조금 잘려도 몸이 작아지는 것보다 낫다)
+      const want = (H * (1 - body - foot) / bodyAt.y) * scale;
+      const top = off.y + size.y, room = H * (1 - foot - 0.025);
+      const fit = top > 0 ? Math.max(want * 0.72, Math.min(want, room / top)) : want;
+      (globalThis.__topFit = globalThis.__topFit || {})[key] = +(fit / want).toFixed(3);   // 시험 도구가 얼마나 줄였는지 본다
       skeleton.scaleY = fit;
       skeleton.scaleX = flip ? -fit : fit;
       skeleton.x = (flip ? 1 : -1) * bodyAt.x * fit;
