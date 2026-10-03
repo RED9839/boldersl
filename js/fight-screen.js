@@ -1182,7 +1182,13 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     try {
       SFX.preload(["card.play", "hit.slash", "hit.magic", "hit.small", "hit.crit", "hurt", "block.gain", "heal", "ult.cutin",
         ...st.party.map((u) => "hero:" + u.key), ...st.enemies.map((e) => "enemy:" + e.key)]);
-      if (fresh) SFX.play(st.enemies.some((e) => e.boss) ? "boss.entry" : "battle.start");
+      if (fresh) {
+        SFX.play(st.enemies.some((e) => e.boss) ? "boss.entry" : "battle.start");
+        // 싸움에 들어서며 파티의 한 명이 한마디 — 등장 대사(spawn), 없으면 대답 · 인사
+        const up = st.party.filter((u) => !u.dead);
+        const who = up[Math.floor(Math.random() * up.length)];
+        if (who) speak(who.key, ["spawn", "yes", "greeting"], () => s.isConnected).catch(() => {});
+      }
     } catch { /* 소리 */ }
     if (!groundOk) return;
     preloadHits();

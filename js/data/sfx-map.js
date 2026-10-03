@@ -57,7 +57,9 @@ export const SFX = {
   // ── 전투 흐름 ──
   "turn.start":   { f: ["sfx_common_notification"], v: 0.4 },
   "turn.end":     { f: ["sfx_lobby_startbattlebuttondown"], v: 0.45 },
-  "battle.start": { f: ["sfx_lobby_startbattle"], v: 0.6 },
+  // 원작 「전투 시작」 단추 소리(sfx_lobby_startbattle)는 에르핀 목소리가 섞여 있다 — 누구를 데려가도 에르핀이 말했다(2026-10 사용자).
+  // 짧은 단추 소리만 남기고, 말은 파티의 사도가 한다(fight-screen openFx · party-screen 떠납니다)
+  "battle.start": { f: ["sfx_lobby_startbattlebuttondown"], v: 0.6 },
   "boss.entry":   { f: ["sfx_renewabossentry"], v: 0.8 },
   "victory":      { f: ["sfx_victory"], v: 0.8, gap: 2000 },
   "victory.star": { f: ["sfx_victorystar"], v: 0.7 },
@@ -73,7 +75,7 @@ export const SFX = {
   "ui.select":   { f: ["sfx_deck_selecthero"], v: 0.45 },
   "ui.deselect": { f: ["sfx_deck_unselecthero"], v: 0.45 },
   "ui.confirm":  { f: ["sfx_deck_selectedcharacter"], v: 0.45 },
-  "ui.start":    { f: ["sfx_lobby_startbattle"], v: 0.55, max: 1.4, fade: 0.3 },     // 떠납니다
+  "ui.start":    { f: ["sfx_lobby_startbattlebuttondown"], v: 0.55 },     // 떠납니다
   "map.step":    { f: ["sfx_selectstage"], v: 0.5 },
   "map.open":    { f: ["sfx_stage_open"], v: 0.45 },
   "reward":      { f: ["sfx_common_rewardpopup"], v: 0.6 },
