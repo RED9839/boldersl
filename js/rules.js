@@ -13,6 +13,8 @@ export const HAND_MAX = 10;
 // 이벤트 칸(docs/08-이벤트.md) — 층마다 1~2개. 둘째 칸이 생길 확률, 층 풀과 공용 풀의 몫
 export const EVENT_SECOND = 0.5;
 export const EVENT_FLOOR_SHARE = 0.7;
+// 카드 제거가 있는 이벤트는 그만큼 더 자주 뽑힌다(무게) — 1 이면 다른 이벤트와 같다. 덱을 깎을 길이 드물었다(2026-10 사용자: 「제거 이벤트 확률 많이 올려야」)
+export const EVENT_REMOVE_WEIGHT = 5;
 
 // 적 체력 배율 — 난이도 손잡이. enemies.js 의 수치에 곱한다.
 // 기준: 아무 생각 없는 손(tools/sim.js, 시작 덱)이 1층을 30~40% 완주하게. 사람은 이보다 훨씬 잘한다.

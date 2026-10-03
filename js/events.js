@@ -111,6 +111,10 @@ function eligible(run, ev) {
   return true;
 }
 
+// 카드 제거 선택지가 있는 이벤트인가(무게를 줄 때 본다)
+const REMOVE_EV = new Map();
+export const hasRemove = (e) => { if (!REMOVE_EV.has(e.id)) REMOVE_EV.set(e.id, JSON.stringify(e.options).includes("카드 제거")); return REMOVE_EV.get(e.id); };
+
 // 층 풀 70% · 공용 30%. 한쪽이 비면 다른 쪽에서. n 개를 겹치지 않게
 export function rollEvents(run, n = 1) {
   const out = [];
@@ -121,7 +125,11 @@ export function rollEvents(run, n = 1) {
     const common = left.filter((e) => e.pool === "공용");
     const from = !floorPool.length ? common : !common.length ? floorPool : run.rng() < R.EVENT_FLOOR_SHARE ? floorPool : common;
     if (!from.length) break;
-    out.push(from[Math.floor(run.rng() * from.length)]);
+    // 카드 제거가 있는 이벤트는 무게를 더 준다(rules.js EVENT_REMOVE_WEIGHT)
+    const w = from.map((e) => (hasRemove(e) ? R.EVENT_REMOVE_WEIGHT : 1));
+    let x = run.rng() * w.reduce((a, b) => a + b, 0), k = 0;
+    while (k < from.length - 1 && (x -= w[k]) >= 0) k++;
+    out.push(from[k]);
   }
   return out;
 }
