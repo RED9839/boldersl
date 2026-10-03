@@ -141,7 +141,7 @@ const HELP = [
     const d = el("div");
     d.appendChild(natureChart());
     d.appendChild(el("p", null, `화살표가 가리키는 쪽에 강합니다. 유리한 상대에게는 주는 피해 +${Math.round(RULES.NATURE_DMG * 100)}%, 받는 피해 -${Math.round(RULES.NATURE_DEF * 100)}%.`));
-    d.appendChild(el("p", null, "광기 → 순수 → 냉정 → 광기로 돌고, 활발과 우울은 서로에게 강합니다. 공명은 상성이 없습니다. 적에게도 성격이 있습니다."));
+    d.appendChild(el("p", null, "광기 → 순수 → 냉정 → 광기로 돌고, 활발과 우울은 서로에게 강합니다. 공명은 어느 상성에서나 유리한 쪽입니다 — 어느 적이든 약점으로 치고, 상성 덕을 봅니다. 적에게도 성격이 있습니다."));
     return d;
   }],
   ["파티", "파티 HP · 파티 상태", () => helpList([

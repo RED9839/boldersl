@@ -20,6 +20,7 @@ import { voiceCatsFor } from "./motion-voice.js";
 import { settingsPanel } from "./settings-panel.js";
 import { sfx } from "./sfx.js";
 import { nameMatch } from "./ko.js";
+import { uiIcon } from "./ui-common.js";
 
 const node = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
@@ -380,6 +381,10 @@ export function lobbyScreen(onStart, { onDex, onHelp, resume } = {}) {
     x.type = "button";
     head.appendChild(x);
     box.appendChild(head);
+    // 분류 — 성격 · 역할 칩(편성 명단과 같은 꼴, 2026-10 사용자: 「분류랑 검색 기능」). 같은 칩을 다시 누르면 풀린다
+    const filter = { nature: null, role: null };
+    const chips = node("div", "tm-fchips lb-chips");
+    box.appendChild(chips);
     const grid = node("div", "lb-grid");
     box.appendChild(grid);
     back.appendChild(box);
@@ -387,10 +392,33 @@ export function lobbyScreen(onStart, { onDex, onHelp, resume } = {}) {
     loadSpineManifest().then((m) => {
       const hasStand = (k) => !m || !m.standing || !!m.standing[k];
       const all = Object.entries(HERO_DATA).filter(([k]) => hasStand(k)).sort((a, b) => a[1].ko.localeCompare(b[1].ko));
+      const NATURES = ["순수", "광기", "냉정", "우울", "활발", "공명"].filter((v) => all.some(([, h]) => h.nature === v));
+      const ROLES = ["탱커", "딜러", "서포터"];
+      const fillChips = () => {
+        chips.replaceChildren();
+        const group = (vals, key, icon) => {
+          const any = node("button", "tm-fchip" + (filter[key] ? "" : " on"), "전체");
+          any.type = "button";
+          any.onclick = () => { filter[key] = null; fillChips(); draw(); };
+          chips.appendChild(any);
+          for (const v of vals) {
+            const b = node("button", "tm-fchip" + (filter[key] === v ? " on" : ""));
+            b.type = "button";
+            b.append(uiIcon(icon, v, "tm-fci", ""), node("span", null, v));
+            b.onclick = () => { filter[key] = filter[key] === v ? null : v; fillChips(); draw(); };
+            chips.appendChild(b);
+          }
+          chips.appendChild(node("span", "tm-fgap"));
+        };
+        group(NATURES, "nature", "성격");
+        group(ROLES, "role", "역할");
+      };
       const draw = () => {
         grid.replaceChildren();
         const f = (q.value || "").trim();
         for (const [k, h] of all) {
+          if (filter.nature && h.nature !== filter.nature) continue;
+          if (filter.role && h.role !== filter.role) continue;
           if (f && !findHero(h, f)) continue;   // 이름(초성으로도) · 열 — 편성 명단과 같은 찾기
           const b = node("button", "lb-pick" + (k === heroKey ? " on" : ""));
           b.type = "button";
@@ -402,6 +430,7 @@ export function lobbyScreen(onStart, { onDex, onHelp, resume } = {}) {
         if (!grid.children.length) grid.appendChild(node("p", "lb-none", "찾는 사도가 없습니다."));
       };
       q.oninput = draw;
+      fillChips();
       draw();
       q.focus && q.focus();
     });

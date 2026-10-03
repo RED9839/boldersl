@@ -2624,6 +2624,9 @@ body:has(#screen.lobby2) .top { display: none; }
 .lb-boxhead { display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-bottom: 1px solid #ffffff14; }
 .lb-boxhead b { font-size: 18px; font-weight: 900; margin-right: auto; }
 .lb-search { width: 180px; padding: 8px 12px; border-radius: 10px; border: 1px solid #ffffff2a; background: #0c0a12; color: #fff; font-size: 14px; }
+.lb-chips { margin: 0; padding: 10px 18px 2px; }   /* 메인 사도 바꾸기 — 성격 · 역할 칩 */
+.lb-chips i.tm-fci { display: inline-grid; place-items: center; flex: none; width: 18px; height: 18px; font-style: normal; }
+.lb-chips i.tm-fci > img { width: 100%; height: 100%; object-fit: contain; }
 .lb-modal .lb-x { min-height: 0; width: 36px; height: 36px; padding: 0; border-radius: 10px; font-size: 20px; background: transparent; border: 1px solid #ffffff22; color: #ddd; }
 .lb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); grid-auto-rows: 118px; gap: 10px; padding: 16px 18px 18px; overflow-y: auto; scrollbar-width: thin; }
 .lb-modal .lb-pick {
@@ -3825,11 +3828,15 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 .tpips { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 3px; line-height: 1; }
 .tpips .tcells { display: flex; gap: 3px; }
 .tpips .tcells i {
-  width: 16px; height: 9px; transform: skewX(-18deg); border-radius: 2px;
+  width: 20px; height: 11px; transform: skewX(-18deg); border-radius: 2px;
   background: #1a1726cc; border: 1px solid #000a; box-shadow: inset 0 0 0 1px #ffffff14;
 }
 .tpips .tcells i.on { background: linear-gradient(180deg, #f2f6ff, #a9b8d8); border-color: #2a3350; box-shadow: 0 0 4px #c9d8ff66; }
-.tpips .tcells i.on.half { background: linear-gradient(90deg, #f2f6ff 0 50%, transparent 50%); box-shadow: none; }   /* 반 칸(0.5) */
+/* 반 칸(0.5) — 왼쪽 반은 찬 칸과 같은 빛, 오른쪽 반은 빈 칸. 흐리게 그렸더니 통째로 빠진 칸처럼 보였다(2026-10 사용자) */
+.tpips .tcells i.on.half { background: linear-gradient(90deg, #f2f6ff 0, #c9d4ec 52%, #1a1726 52%, #1a1726 100%); border-color: #2a3350; box-shadow: 0 0 4px #c9d8ff66, inset 0 0 0 1px #ffffff40; }
+/* 칸마다 가운데 금 — 타격 한 번이 반 칸(0.5)이라 반쪽이 읽히게 */
+.tpips .tcells i { position: relative; }
+.tpips .tcells i::after { content: ""; position: absolute; left: 50%; top: 1px; bottom: 1px; width: 1.5px; margin-left: -0.75px; background: #0a081299; }
 .tpips .tcells i.pvcut { animation: pvblink 0.6s ease-in-out infinite alternate; background: linear-gradient(180deg, #ffe08a, #ff8a5c); }
 .tpips .tcells i.crack { animation: tcrack .42s ease-out; }
 .tpips .tcells i.refill { animation: trefill .5s ease-out; }

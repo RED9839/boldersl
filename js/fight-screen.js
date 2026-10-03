@@ -133,8 +133,14 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     tick.dataset.cost = String(cost);
     gaugeBar.appendChild(tick);
   }
+  // 50% 마다 가는 눈금 — 막대가 칸칸이 차오르는 것이 보인다
+  gaugeBar.appendChild(el("span", "gsegs"));
   gaugeBox.appendChild(el("span", "glabel", "고학년"));
   gaugeBox.appendChild(gaugeBar);
+  gaugeBox.setAttribute("role", "meter");
+  gaugeBox.setAttribute("aria-label", "고학년 게이지 — 파티가 함께 씁니다");
+  gaugeBox.setAttribute("aria-valuemin", "0");
+  gaugeBox.setAttribute("aria-valuemax", "300");
   // 누가 어디까지 차면 쓰는가 — 사도의 고학년 아이콘을 그 비용 높이에 붙인다
   const gaugeWho = el("div", "gwho");
   gaugeBar.appendChild(gaugeWho);
@@ -173,6 +179,9 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
 
   let selCard = -1;
   let selUlt = null;                        // 눌러서 고른 고학년(사도 key) — 대상을 누르면 쓴다
+  let partyEl = null;                       // 왼쪽 위 파티 칸(draw 마다 새로) — 적에게 맞으면 흔들리고 깎인 숫자가 튄다
+  const ultPctSeen = new Map();             // 사도 key → 지난번 그린 고리(%) — 고리가 차오르는 모습을 잇는다
+  const ultReadySeen = new Map();           // 사도 key → 지난번에 쓸 수 있었나 — 막 쓸 수 있게 된 칸을 한 번 번쩍인다
   let selHint = false;                      // 「대상을 누르거나 …」 를 띄워 두었나
   const goneFoes = new Set();              // 쓰러져 골드를 떨군 적 — 한 번만
 
@@ -738,7 +747,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
 
   // ── 적의 차례 — 누가 무엇을 하는지 먼저 보인다(2026-10 「적 차례가 1초 만에 지나가 누가 누굴 때렸는지 모른다」) ──
   const TELL = 300, TELL_FIRST = 640;
-  function foeTell(act, first) {
+  function foeTell(act, first, big) {
     const n = unitNode("enemy", act.idx), a = artOf(n);
     if (first) {
       const ban = el("div", "foeban");
@@ -747,14 +756,17 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       later(1000, () => ban.remove());
     }
     if (!n) return;
-    n.classList.remove("foeact");
+    n.classList.remove("foeact", "foebig");
     void n.offsetWidth;
     n.classList.add("foeact");
+    if (big) n.classList.add("foebig");    // 큰 공격 — 붉은 기운이 짙게 끓는다
     later(900, () => n.classList.remove("foeact"));
+    if (big) later(1400, () => n.classList.remove("foebig"));
     if ((!act.say && !act.rush) || !(a || n).getBoundingClientRect || !field.getBoundingClientRect) return;
     const r = (a || n).getBoundingClientRect(), fr = field.getBoundingClientRect(), z = zNow();
-    const tag = el("div", "foesay" + (act.rush ? " rush" : "") + (["attack", "back", "attackAll", "multi"].includes(act.t) ? " hit" : ""));
+    const tag = el("div", "foesay" + (act.rush ? " rush" : "") + (["attack", "back", "attackAll", "multi"].includes(act.t) ? " hit" : "") + (big ? " big" : ""));
     if (act.rush) tag.appendChild(el("small", null, "⚡ 즉시 행동"));
+    else if (big) tag.appendChild(el("small", null, "강한 공격"));
     if (act.say) tag.appendChild(el("b", null, act.say));
     tag.style.left = ((r.left + r.width / 2 - fr.left) / z) + "px";
     tag.style.top = ((r.top + r.height * 0.12 - fr.top) / z) + "px";
@@ -766,6 +778,117 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const v = el("div", "fxvig" + (heavy ? " big" : ""));
     field.appendChild(v);
     later(heavy ? 520 : 380, () => v.remove());
+  }
+  // ── 적의 공격 — 파티가 맞는 손맛(2026-10 사용자 「적의 공격 연출 개선」) ──
+  // 적의 치는 수(act.t) — attack 한 대 · back 관통(방어를 뚫는다) · attackAll 전체(파티를 한 번 크게) · multi 연타(여러 대)
+  const FOE_HIT_KO = { back: "관통", attackAll: "전체 공격" };
+  // 이번 적의 차례가 크게 아픈가 — 이 수로 파티가 받는 몫(막힌 몫 포함)이 파티 최대 HP 의 20% 이상
+  function foeBigOf(b) {
+    if (!b.act || b.act.side !== "enemy" || !st.pool) return false;
+    let sum = 0;
+    for (const h of b.hits) if (h.k === "hurt" && h.side === "party") sum += (h.v || 0) + (h.guard || 0);
+    return sum >= (st.pool.maxHp || 1) * 0.2;
+  }
+  // 적의 들이침 — 뒤로 움츠렸다가(hitIn ms 동안) 파티 쪽으로 튀어 나가 때리는 순간에 닿고, 잠깐 머문 뒤 돌아간다.
+  //   attack 몸을 던진다 · back(관통) 낮고 길게 찌르며 더 멀리 · attackAll 뛰어올라 내려찍는다 · multi 짧게 들이쳐 몇 번 더 찌른다(land 가 jab)
+  //   큰 공격이면 움츠림이 깊고 더 멀리. 마법 쓰는 적은 제자리에서 살짝만(지팡이 · 마법은 몸을 안 던진다)
+  function foeLunge(act, hitIn, big) {
+    const a = artOf(unitNode(act.side, act.idx));
+    if (!a || !a.animate) return;
+    const magic = hitKind(act) === "magic";
+    const k = (big ? 1.3 : 1) * (magic ? 0.4 : 1);
+    const t = act.t;
+    const reach = (t === "back" ? 62 : t === "attackAll" ? 40 : t === "multi" ? 30 : 42) * k;
+    const pull = (t === "back" ? 18 : 12) * k;
+    const lift = t === "attackAll" && !magic ? (big ? 46 : 34) : 0;
+    const go = Math.max(90, hitIn), hold = t === "back" ? 140 : 100, back = 300, all = go + hold + back;
+    const f = (x, y) => `${x.toFixed(1)}px ${y.toFixed(1)}px`;
+    // 적은 왼쪽(파티)을 본다 — 앞은 -x
+    a.animate(lift ? [
+      { translate: f(0, 0) },
+      { translate: f(pull, 4), offset: (go * 0.4) / all, easing: "cubic-bezier(.3,0,.6,1)" },
+      { translate: f(-reach * 0.6, -lift), offset: (go * 0.8) / all, easing: "cubic-bezier(.6,0,1,.6)" },
+      { translate: f(-reach, 6), offset: go / all },
+      { translate: f(-reach, 0), offset: (go + hold) / all, easing: "cubic-bezier(.3,.1,.3,1)" },
+      { translate: f(0, 0) },
+    ] : [
+      { translate: f(0, 0) },
+      { translate: f(pull, t === "back" ? 3 : 0), offset: (go * 0.6) / all, easing: "cubic-bezier(.5,0,.9,.4)" },
+      { translate: f(-reach, 0), offset: go / all },
+      { translate: f(-reach, 0), offset: (go + hold) / all, easing: "cubic-bezier(.3,.1,.3,1)" },
+      { translate: f(0, 0) },
+    ], { duration: all, composite: "add" });
+    // 움츠리는 동안 붉게 달아오른다(큰 공격은 짙게)
+    a.animate([{ filter: "none" }, { filter: big ? "brightness(1.35) drop-shadow(0 0 14px #ff3a3a)" : "brightness(1.18) drop-shadow(0 0 8px #ff5a5acc)", offset: (go * 0.9) / all }, { filter: "none" }],
+      { duration: all, easing: "ease-out" });
+  }
+  // 연타 — 두 번째 대부터 때릴 때마다 짧게 앞으로 찌른다
+  function foeJab(act) {
+    const a = artOf(unitNode(act.side, act.idx));
+    if (!a || !a.animate) return;
+    a.animate([{ translate: "0px 0px" }, { translate: "-14px 0px", offset: 0.3, easing: "cubic-bezier(.3,.6,.4,1)" }, { translate: "0px 0px" }], { duration: 170, composite: "add" });
+  }
+  // 파티가 맞았다 — 왼쪽 위 파티 칸이 흔들리고 붉게 번쩍, HP 막대 끝에서 깎인 숫자가 튄다(잇단 타격은 더해 간다).
+  // 깎인 몫은 css 가 하얗게 잠깐 남겼다가 줄인다(.lag). 막힌 몫(방어 · 실드)은 푸른 「막음」 으로 따로
+  let pbHit = null;                         // { el, sum, guard, t } — 잇단 타격을 한 숫자로 모은다
+  function partyHitFx(h, heavy, kind) {
+    const pb = partyEl && partyEl.isConnected ? partyEl : null;
+    if (!pb) return;
+    pb.classList.remove("phit", "phit2");
+    void pb.offsetWidth;
+    pb.classList.add(heavy ? "phit2" : "phit");
+    later(heavy ? 560 : 420, () => pb.classList.remove("phit", "phit2"));
+    const hp = pb.querySelector(".hpwrap");
+    if (!hp) return;
+    const now = performance.now();
+    const fresh = !pbHit || !pbHit.el.isConnected || now - pbHit.t > 900;
+    if (fresh) {
+      const box = el("div", "pbdmg");
+      box.appendChild(el("b"));
+      box.appendChild(el("small"));
+      hp.appendChild(box);
+      pbHit = { el: box, sum: 0, guard: 0, n: 0, t: now };
+    }
+    const p = pbHit;
+    p.sum += h.v || 0; p.guard += h.guard || 0; p.n += 1; p.t = now;
+    const P = st.pool || {};
+    p.el.style.left = Math.max(4, Math.min(96, ((h.to || 0) / (P.maxHp || 1)) * 100)).toFixed(1) + "%";
+    // 다 막았으면 큰 글자가 「막음 N」, 아니면 「-N」 밑에 막힌 몫
+    p.el.querySelector("b").textContent = p.sum > 0 ? `-${p.sum}` : `막음 ${p.guard}`;
+    const sub = [kind ? FOE_HIT_KO[kind] : null, p.n >= 2 ? `${p.n}연타` : null, p.guard > 0 && p.sum > 0 ? `막음 ${p.guard}` : null].filter(Boolean).join(" · ");
+    p.el.querySelector("small").textContent = sub;
+    p.el.classList.toggle("big", heavy || p.sum >= (P.maxHp || 1) * 0.2);
+    p.el.classList.toggle("blocked", p.sum <= 0);
+    p.el.classList.remove("bump");
+    void p.el.offsetWidth;
+    p.el.classList.add("bump");
+    clearTimeout(p.el.t);
+    p.el.t = later(1300, () => { p.el.remove(); if (pbHit === p) pbHit = null; });
+  }
+  // 관통 — 맞은 사도를 붉은 빛줄기가 꿰뚫고 지나간다 · 전체 공격 — 파티 쪽을 큰 반달 베기가 쓸고 간다
+  function pierceFx(side, idx) {
+    const pp = bodyOf(side, idx);
+    if (!pp || !field.getBoundingClientRect) return;
+    const fr = field.getBoundingClientRect(), z = zNow();
+    const l = el("div", "fxpierce");
+    l.style.left = ((pp.x - fr.left) / z) + "px";
+    l.style.top = ((pp.y - fr.top) / z) + "px";
+    l.style.width = (pp.w * 1.8 / z) + "px";
+    field.appendChild(l);
+    later(420, () => l.remove());
+  }
+  function sweepFx() {
+    const xs = st.party.filter((u) => !u.dead).map((u) => bodyOf("party", u.idx)).filter(Boolean);
+    if (!xs.length || !field.getBoundingClientRect) return;
+    const fr = field.getBoundingClientRect(), z = zNow();
+    const x0 = Math.min(...xs.map((p) => p.x - p.w / 2)), x1 = Math.max(...xs.map((p) => p.x + p.w / 2));
+    const y = xs.reduce((a, p) => a + p.y, 0) / xs.length;
+    const w = el("div", "fxsweep");
+    w.style.left = ((x0 - fr.left) / z) + "px";
+    w.style.top = ((y - fr.top) / z) + "px";
+    w.style.width = ((x1 - x0) / z) + "px";
+    field.appendChild(w);
+    later(520, () => w.remove());
   }
   // 연타 — 한 차례에 같은 적을 두 번 넘게 치면 「N HIT」 를 그 적 옆에 붙여 센다
   function comboTag(u, n) {
@@ -1121,11 +1244,31 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (h.k === "hurt") {
       hitFx(h);
       const ult = !!act && act.anim === "ult", heavy = h.v >= (u.side === "party" ? u.share || u.maxHp : u.maxHp) * 0.25;   // 사도는 제 몫(최대 HP 에 보탠 만큼) 기준
-      if (!h.v) { popNum(u, `막음 ${h.guard}`, "n-guard"); knock(h.side, h.idx, 4, 140); sfx("hit", (h.side === "party" ? "ally:" : "") + "guard", false, false); return; }
+      // 적이 파티를 쳤다 — 그 수의 갈래(관통 · 전체 · 연타)와 큰 공격(b.foeBig)
+      const foeHit = h.side === "party" && !!act && act.side === "enemy";
+      const fk = foeHit ? act.t : null, fbig = foeHit && !!(b && b.foeBig);
+      if (foeHit) partyHitFx(h, heavy || fbig, fk);
+      if (!h.v) {
+        popNum(u, `막음 ${h.guard}`, "n-guard" + (foeHit ? " n-gbig" : ""), null, foeHit ? fxIcon("방어") : undefined);
+        knock(h.side, h.idx, 4, 140); sfx("hit", (h.side === "party" ? "ally:" : "") + "guard", false, false);
+        if (foeHit) shake(0);
+        return;
+      }
       const kill = !!h.kill && h.side === "enemy";
-      popNum(u, String(h.v), "n-dmg" + (h.side === "party" ? " n-ally" : "") + (h.crit ? " n-crit" : "") + (heavy || kill ? " n-big" : "") + (kill ? " n-kill" : ""),
-        h.crit ? "치명타" : kill ? "처치" : null);
-      if (h.side === "party") vignette(heavy);
+      popNum(u, String(h.v), "n-dmg" + (h.side === "party" ? " n-ally" : "") + (h.crit ? " n-crit" : "") + (heavy || kill || fbig ? " n-big" : "") + (kill ? " n-kill" : ""),
+        h.crit ? "치명타" : kill ? "처치" : foeHit && FOE_HIT_KO[fk] ? FOE_HIT_KO[fk] : null);
+      // 방어 · 실드가 일부를 받아 냈다 — HP 로 들어간 숫자 밑에 푸른 「막음」 을 따로
+      if (foeHit && h.guard > 0) popNum(u, `막음 ${h.guard}`, "n-guard", null, fxIcon("방어"));
+      if (h.side === "party") vignette(heavy || fbig || fk === "attackAll");
+      if (foeHit) {
+        if (fk === "back") pierceFx(h.side, h.idx);
+        if (fk === "attackAll") {
+          // 전체 공격 — 서 있는 사도 모두가 한꺼번에 움찔한다(맞은 자리는 이미 위에서)
+          sweepFx();
+          for (const x of st.party) if (!x.dead && x.idx !== h.idx) { hitFx({ side: "party", idx: x.idx }); knock("party", x.idx, 9, 170); stopFx("party", x.idx, 90); }
+        }
+        if (fk === "multi" && b) { b.jabs = (b.jabs || 0) + 1; if (b.jabs >= 2) { foeJab(act); comboTag(u, b.jabs); } }
+      }
       if (h.side === "enemy" && b && act && act.side === "party") {
         b.combo = b.combo || {};
         const ck = ukey(u), cn = (b.combo[ck] = (b.combo[ck] || 0) + 1);
@@ -1135,7 +1278,9 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       const ms = kill ? 190 : Math.min(140, 70 + (heavy ? 25 : 0) + (h.crit ? 25 : 0) + (ult ? 30 : 0));
       stopFx(h.side, h.idx, ms);
       if (act && !ult && b && !b.stopped) { b.stopped = true; stopFx(act.side, act.idx, ms); }
-      if (ult) shake(2); else if (heavy || h.crit || kill) shake(1); else if (h.side === "party") shake(0);
+      if (ult) shake(2);
+      else if (foeHit) shake(fbig || (heavy && fk === "attackAll") ? 2 : heavy || fk === "back" || fk === "attackAll" ? 1 : 0);
+      else if (heavy || h.crit || kill) shake(1); else if (h.side === "party") shake(0);
       // 불꽃 · 밀려남 — 맞을 때마다. 화면 번쩍 · 당김은 세게 · 치명타 · 고학년만(고학년의 첫 타격은 사도 빛깔에 집중선까지)
       const kind = sparkFx(h, act, heavy, h.crit, ult, ult && b && !b.banged);
       knock(h.side, h.idx, Math.min(14, 6 + (heavy ? 4 : 0) + (h.crit ? 3 : 0) + (ult ? 3 : 0)), Math.min(190, 130 + (heavy || h.crit ? 30 : 0) + (ult ? 25 : 0)));
@@ -1149,6 +1294,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       else if (h.crit) { bang(p, "#fff4d0", 0.36, 70); punch(p, 1.035, 190); }
       else if (kill) { bang(p, "#ffffff", 0.42, 80); punch(p, 1.04, 220); }
       else if (heavy) { bang(p, h.side === "party" ? "#ffb0a0" : "#ffffff", 0.35, 60); punch(p, 1.025, 180); }
+      else if (fbig) { const q = bodyOf(h.side, h.idx); bang(q, "#ff9a8a", 0.32, 70); punch(q, 1.025, 180); }
       sfx("hit", (h.side === "party" ? "ally:" : "") + kind, heavy || ult, !!h.crit);
     } else if (h.k === "heal") { popNum(u, `+${h.v}`, "n-heal"); glowFx(h, "fxheal"); }
     else if (h.k === "block") { popNum(u, `방어 +${h.v}`, "n-blk", null, fxIcon("방어")); glowFx(h, "fxguard"); }
@@ -1199,7 +1345,8 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         b.told = true;
         const first = !told && !b.act.rush;
         told = true;
-        beat(t, () => foeTell(b.act, first));
+        b.foeBig = foeBigOf(b);
+        beat(t, () => foeTell(b.act, first, b.foeBig));
         t += first ? TELL_FIRST : TELL;
       }
       if (ult && !foe && !b.cut && cutAt < 0) {
@@ -1257,8 +1404,15 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       };
       // 내딛기 — 카드 · 적의 공격이 맞은편을 칠 때만(고학년은 제 동작 · 달리기가 있다). 때리는 순간에 앞발이 닿게
       if (go && b.act && !ult && b.hits.some((h) => h.k === "hurt" && h.side !== b.act.side)) {
-        const lead = Math.min(110, hitAt - t);
-        beat(hitAt - lead, () => lunge(b.act, lead));
+        if (foe) {
+          // 적의 공격 — 뒤로 움츠렸다가(예비 동작) 파티 쪽으로 들이친다. 큰 공격 · 관통 · 전체 공격은 꼴이 다르다(foeLunge).
+          // 때리는 순간(hitAt)은 그대로 — 움츠리는 몫만큼 일찍 시작한다(이 차례 시작보다 앞서지는 않는다)
+          const lead = Math.min(b.foeBig ? 300 : 210, hitAt - t);
+          beat(hitAt - lead, () => foeLunge(b.act, lead, b.foeBig));
+        } else {
+          const lead = Math.min(110, hitAt - t);
+          beat(hitAt - lead, () => lunge(b.act, lead));
+        }
       }
       let last = hitAt;
       for (const h of b.hits) {
@@ -1468,6 +1622,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   function partyNode(clickable) {
     const P = st.pool;
     const n = el("div", "partybox" + (clickable ? " tgt" : "") + (!P.dead && P.hp <= P.maxHp * 0.3 ? " danger" : "") + (P.invuln ? " invuln" : ""));
+    partyEl = n;
     const head = el("div", "pbhead");
     head.appendChild(el("b", null, "파티"));
     head.appendChild(el("span", "pbsub", P.invuln ? "무적 — 이번 적의 차례에 맞지 않습니다" : "HP · 방어 · 실드 · 상태는 파티가 함께 씁니다"));
@@ -1480,7 +1635,13 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     allyPv.set(-1, { n, pv, gain: hb.gain });
     const rep = () => st.party.find((x) => !x.dead) || st.party[0];
     n.dataset.idx = String((rep() || {}).idx || 0);      // 끌어 놓기 · 누르기 — 파티의 대표 자리(파티에 한 번 간다)
-    n.onclick = (e) => { stopEv(e); const u = rep(); if (u) tapUnit(u, "party"); };
+    // 고른 카드 · 고학년이 없으면 파티 정보 창(전에는 대표 사도 — 맨 뒤 사도의 정보가 떴다, 2026-10 사용자)
+    n.onclick = (e) => {
+      stopEv(e);
+      if (holdDone || st.over) return;
+      if (selCard < 0 && !selUlt) return openParty();
+      const u = rep(); if (u) tapUnit(u, "party");
+    };
     n.title = "파티 HP · 방어 · 실드 · 상태는 파티가 함께 씁니다 — 아군에게 쓰는 카드를 고른 채 누르면 냅니다";
     n.onmouseenter = () => {
       const u = rep(); if (!u || P.dead) return;
@@ -1536,7 +1697,14 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         const fi = img(ultPic);
         fi.draggable = false;              // 그림을 잡으면 브라우저가 그림 끌기를 먼저 시작해 우리 끌기가 취소된다
         face.appendChild(fi);
-        face.style.setProperty("--pct", Math.min(100, (st.gauge / ult.cost) * 100).toFixed(1));   // 둘레 고리가 이만큼 찬다
+        const pct = Math.min(100, (st.gauge / ult.cost) * 100);
+        face.style.setProperty("--pct", pct.toFixed(1));   // 둘레 고리가 이만큼 찬다
+        // 고리가 차오르는 모습 — 칸은 draw 마다 새로 그려지니 앞에 본 값에서 지금 값까지 돌린다(css 가 --pct 를 숫자로 등록해 둔다)
+        const p0 = ultPctSeen.get(u.key);
+        ultPctSeen.set(u.key, pct);
+        if (p0 != null && p0 !== pct && face.animate && groundOk && !calmNow()) {
+          try { face.animate([{ "--pct": p0.toFixed(1) }, { "--pct": pct.toFixed(1) }], { duration: 650, easing: "cubic-bezier(.2,.7,.3,1)" }); } catch { /* 등록 안 된 브라우저 — 바로 그 값 */ }
+        }
         if (!why) face.appendChild(el("i", "ubadge", "고학년!"));
         b.appendChild(face);
       } else if (!why) b.appendChild(el("i", "ubadge", "고학년!"));
@@ -1549,6 +1717,11 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       ubar.appendChild(ubi);
       ubar.appendChild(el("em", null, `${Math.min(st.gauge, ult.cost)} / ${ult.cost}`));
       b.appendChild(ubar);
+      // 얼마 남았나 — 막대 끝에 한 마디(다 찼으면 「사용 가능」)
+      b.appendChild(el("span", "uleft" + (why ? "" : " on"), why ? (st.gauge < ult.cost ? `${ult.cost - st.gauge}% 남음` : "사용 불가") : "사용 가능"));
+      // 막 쓸 수 있게 됐다 — 칸이 한 번 번쩍인다(다음 draw 부터는 숨 쉬는 빛만)
+      if (!why && ultReadySeen.get(u.key) === false && groundOk && !calmNow()) n.classList.add("ujust");
+      ultReadySeen.set(u.key, !why);
       // 카드처럼 쓴다 — 눌러 고르고 대상을 누르거나, 끌어다 놓는다(startUltDrag). 길게 누르기 · 오른쪽 클릭은 자세히.
       // 쓸 수 없으면 누르면 자세히(까닭이 보인다)
       b.title = why ? `${why} · 눌러서 자세히` : "눌러 고른 뒤 대상을 누르거나, 끌어다 놓으면 씁니다 · 길게 누르면 자세히";
@@ -2008,7 +2181,9 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     allyField.innerHTML = "";
     standEls.clear();
     allyPv.clear();
-    for (const u of [...st.party].sort((a, b) => C.ROWS.indexOf(b.row) - C.ROWS.indexOf(a.row))) {
+    // 싸움터에 선 차례(후열 → 전열, 왼쪽부터) — 왼쪽 아래 고학년 칸도 같은 차례로(2026-10 사용자: 「1 3 2 로 되어 있음」)
+    const fieldOrder = [...st.party].sort((a, b) => C.ROWS.indexOf(b.row) - C.ROWS.indexOf(a.row));
+    for (const u of fieldOrder) {
       const sn = standNode(u, need === "party", (t) => play(t.idx));
       standEls.set(u.key, sn);
       allyField.appendChild(sn);
@@ -2018,7 +2193,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     partySlot.appendChild(partyNode(need === "party"));   // 파티 HP — 왼쪽 위(머리 밑)
 
     allyZone.innerHTML = "";
-    for (const u of st.party) allyZone.appendChild(allyNode(u, need === "party", (t) => play(t.idx)));
+    for (const u of fieldOrder) allyZone.appendChild(allyNode(u, need === "party", (t) => play(t.idx)));
 
     // 덱 더미 — 가장자리에 둔다. 몇 장 남았는지가 판단에 들어간다.
     drawPile.innerHTML = "";
@@ -2099,16 +2274,25 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       const k = seen[ult.cost] = (seen[ult.cost] || 0) + 1;       // 같은 비용이면 옆으로 비껴 선다
       const g = el("span", "gface" + (st.gauge >= ult.cost ? " on" : ""));
       g.style.bottom = (ult.cost / 300) * 100 + "%";
+      g.style.setProperty("--at", (ult.cost / 300) * 100 + "%");   // 가로 게이지 — 그 비용 눈금 위에 선다
+      // 막 넘었다 — 그 얼굴이 한 번 튀어 오른다
+      if (gaugeSeen != null && gaugeSeen < ult.cost && st.gauge >= ult.cost && groundOk && !calmNow()) g.classList.add("pop");
       g.style.setProperty("--k", String(k - 1));
       g.title = `${u.ko} · ${ult.ko} (${ult.cost}%)`;
       const pic = CARDART.pic[u.key + "_ult"];
       if (pic) g.appendChild(img(pic));
       else g.appendChild(el("b", null, u.ko.slice(0, 1)));
+      // 이름 첫 글자 — 작은 얼굴(고학년 그림의 한 조각)만으로는 누구인지 안 읽혔다(2026-10)
+      if (pic) g.appendChild(el("span", "gfname", u.ko.slice(0, 1)));   // i 는 막대 칸(.gbar i)의 꾸밈을 받는다
       gaugeWho.appendChild(g);
     }
     gaugeNum.textContent = `${st.gauge}%`;
+    gaugeBox.setAttribute("aria-valuenow", String(st.gauge));
+    gaugeBox.setAttribute("aria-valuetext", `${st.gauge}%`);
     if (gaugeSeen != null && st.gauge > gaugeSeen) {
       bump(gaugeNum, st.gauge - gaugeSeen);
+      // 차오른다 — 막대 끝이 하얗게 번쩍인다
+      if (groundOk && !calmNow()) { gaugeBar.classList.remove("gup"); void gaugeBar.offsetWidth; gaugeBar.classList.add("gup"); later(650, () => gaugeBar.classList.remove("gup")); }
       // 고학년 비용을 막 넘었다 — 그 눈금이 한 번 번쩍인다
       for (const t of gaugeBar.querySelectorAll(".tick")) if (gaugeSeen < Number(t.dataset.cost) && st.gauge >= Number(t.dataset.cost)) {
         t.classList.remove("crossed"); void t.offsetWidth; t.classList.add("crossed");
@@ -2117,6 +2301,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     gaugeSeen = st.gauge;
     for (const t of gaugeBar.querySelectorAll(".tick")) t.classList.toggle("on", st.gauge >= Number(t.dataset.cost));
     gaugeBox.classList.toggle("ready", st.party.some((u) => !u.dead && C.canUlt(st, u.key) === null));
+    gaugeBox.classList.toggle("full", st.gauge >= 300);
 
     // 손패 — 사도 배치 순서로 줄 세운다
     hand.innerHTML = "";
@@ -2233,11 +2418,10 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
 
     fitChips();
     paintSel();
-    // 들어 올린 동안 한 줄 안내 — 내려놓거나 내면 지운다(다른 안내 · say 는 건드리지 않는다)
+    // 「대상을 누르거나 끌어 놓으세요」 안내는 뺐다 — 해 보면 안다(2026-10 사용자). 옛 안내가 남아 있으면 지운다
+    if (selHint) hint("");
+    selHint = false;
     const lifted = !st.over && (selCard >= 0 || !!selUlt);
-    if (lifted) hint(need ? "대상을 누르거나 끌어 놓으세요" : "싸움터를 누르거나 위로 끌어 놓으세요");
-    else if (selHint) hint("");
-    selHint = lifted;
     s.classList.toggle("lifted", lifted);
     later(0, paintLiftTips);                // 손패가 펼쳐진(부채꼴) 뒤 자리를 잰다
     runFx(fxq);
@@ -2921,6 +3105,46 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     }
     wrap.appendChild(gl);
     return wrap;
+  }
+  // 파티 정보 — 파티 HP · 방어 · 실드, 사도마다 보탠 몫, 파티 층 버프 · 디버프(풀이까지)
+  function openParty() {
+    const P = st.pool;
+    const box = openModal("heromodal partymodal");
+    const body = el("div", "bmbody");
+    body.appendChild(el("h3", "bmname", "파티"));
+    const hp = el("div", "fhp");
+    const bar = el("div", "fhpbar hero");
+    const fill = el("i");
+    fill.style.width = Math.max(0, Math.min(100, (P.hp / P.maxHp) * 100)) + "%";
+    bar.appendChild(fill);
+    hp.appendChild(bar);
+    hp.appendChild(el("span", "fhpn", `HP ${Math.max(0, P.hp)} / ${P.maxHp}`));
+    body.appendChild(hp);
+    const meter = el("div", "bmmeter");
+    meter.appendChild(el("span", null, st.party.map((u) => `${u.ko} ${u.share || 0}`).join(" · ")));
+    if (P.block > 0) meter.appendChild(el("b", "blk", `방어 ${P.block}`));
+    if (P.shield > 0) meter.appendChild(el("b", "blk", `실드 ${P.shield}`));
+    body.appendChild(meter);
+    body.appendChild(el("p", "bmsrc", "HP · 방어 · 실드와 사기를 뺀 상태는 셋이 함께 씁니다. 사도마다의 능력치 · 장비 · 패시브는 사도를 눌러 봅니다."));
+    effectSections(body, P);
+    // 파티가 함께 든 사도 키워드(아군 표식 — 「은총」 같은 것)
+    const keys = effectsOf(P).keys;
+    if (keys.length) {
+      body.appendChild(el("span", "bmsub", `파티 키워드 ${keys.length}`));
+      const kl = el("dl", "bmterms");
+      for (const k of keys) {
+        const oh = HERO(k.owner);
+        kl.appendChild(el("dt", null, `${k.id} ${k.n} · ${oh.ko}`));
+        kl.appendChild(kwText(el("dd"), (oh.keyword || {}).text || ""));
+      }
+      body.appendChild(kl);
+    }
+    box.appendChild(body);
+    const row = el("div", "bmbtns");
+    const x = el("button", "bmclose", "닫기");
+    x.onclick = closeModal;
+    row.appendChild(x);
+    box.appendChild(row);
   }
   function openHero(u) {
     const h = HERO(u.key);

@@ -504,19 +504,13 @@ body { font-family: var(--rv-body); }
 :where(.gcard) .gtext { font-size: 11.5px; }
 :where(.gcard) .gtitle b { font-size: 13px; }
 .cardinspect .cibig .gcost { font-size: 22px; }
-/* 카드 종류는 셋 — 공격 · 스킬 · 강화. 강화는 금빛 테와 「한 장만 · 전투 내내」 꼬리표(카제나의 강화 카드처럼) */
+/* 카드 종류는 셋 — 공격 · 스킬 · 강화. 강화는 금빛 테로만 가른다(「한 장만 · 전투 내내」 꼬리표는 뺐다 — 2026-10 사용자. 규칙은 카드 풀이의 「유일」 · 「강화 카드」 가 말한다) */
 .gtype i { font-style: normal; }
 .gcard.k-atk .gtype i { color: #ff8a9c; }
 .gcard.k-skill .gtype i { color: #c7b2ff; }
 .gcard.k-buff .gtype i { color: var(--ui-sun); }
 .gcard.k-buff { box-shadow: inset 0 0 0 2px #ffcf3fcc, inset 0 0 22px #ffcf3f33, 0 6px 16px #0006; }
 .gcard.k-buff .gtype { flex-wrap: wrap; }
-/* 꼬리표 — 카드 글(js)이 따로 붙이면(.gonce) 이 줄은 물러난다 */
-.gcard.k-buff:not(:has(.gonce)) .gtype::after {
-  content: "한 장만 · 전투 내내"; margin-left: 4px; padding: 0 6px; border-radius: 99px; font-size: .95em; line-height: 1.5;
-  color: var(--rv-ink); background: var(--ui-sun); text-shadow: none; white-space: nowrap;
-}
-.gonce { display: inline-block; padding: 0 6px; border-radius: 99px; font-size: var(--fs-2xs); color: var(--rv-ink); background: var(--ui-sun); }
 
 /* ── 작은 글자 끌어올리기 — 배율이 걸리면 9~10px 은 실제 화면에서 8px 아래로 내려갔다 ── */
 #screen.dexscreen .dsub, #screen.dexscreen .rname, #screen.dexscreen .decho, #screen.dexscreen .dmark { font-size: var(--fs-2xs); }
@@ -633,23 +627,96 @@ body { font-family: var(--rv-body); }
 .phone #screen.battle :is(.stand, .foe) > .chips { max-height: 38px; gap: 2px; }
 .phone #screen.battle :is(.stand, .foe) > .chips .chip svg, .phone #screen.battle :is(.stand, .foe) > .chips .chip img { width: 13px; height: 13px; }
 
-/* ── 왼쪽 아래 — 고학년 게이지(가로, 파티 공용) 밑에 사도 칸 셋 ── */
+/* ── 왼쪽 아래 — 고학년 판(파티 공용 게이지) 밑에 사도 칸 셋 ──
+   [고학년 / 120%] [얼굴 ◉ ◉ ◉ — 그 사도의 비용 눈금 위]
+                   [■■■■■■■■□□□│□□□□│□□□□]  50% 마다 가는 칸, 비용 눈금은 굵게 · 넘으면 해바라기빛
+                     150      250   300
+   한눈에 「누가 지금 쓸 수 있나(얼굴이 켜짐) · 얼마 남았나(칸)」. 사도 칸과 같은 판 · 같은 테두리로 이어 붙인다 */
+#screen.battle { --gh: 74px; }
+.phone #screen.battle { --gh: 46px; }
 #screen.battle .gauge {
-  left: 16px; bottom: calc(var(--al-b) + 3 * var(--al-h) + 2 * var(--al-gap) + 10px); width: var(--al-w); height: 30px; padding: 0;
-  flex-direction: row; align-items: center; gap: 10px;
+  left: 16px; bottom: calc(var(--al-b) + 3 * var(--al-h) + 3 * var(--al-gap)); width: var(--al-w); height: var(--gh);
+  box-sizing: border-box; padding: 0 16px 0 10px; display: grid; grid-template-columns: 64px minmax(0, 1fr); grid-template-rows: 1fr 1fr;
+  column-gap: 10px; align-items: center;
+  background: linear-gradient(180deg, #2a2240, var(--rv-paper) 60%); border: 3px solid var(--rv-line); border-radius: 16px;
+  box-shadow: 0 4px 0 var(--rv-shadow), 0 10px 22px #0008; transition: border-color .3s, box-shadow .3s;
 }
-.phone #screen.battle .gauge { left: 8px; width: var(--al-w); height: 22px; gap: 6px; bottom: calc(var(--al-b) + 3 * var(--al-h) + 2 * var(--al-gap) + 6px); }
-#screen.battle .gauge .glabel { display: block; writing-mode: horizontal-tb; font-size: 15px; letter-spacing: 0; flex: none; }
-#screen.battle .gauge .gbar { flex: 1; width: auto; height: 14px; }
-#screen.battle .gauge .gbar i:not(.tick) { left: 0; top: 0; bottom: 0; right: auto; height: auto; width: var(--g, 0%) !important; transition: width .3s; background: linear-gradient(90deg, var(--rv-sky), var(--rv-lilac) 55%, var(--rv-sun)); }
-#screen.battle .gauge .gbar .tick { left: var(--at) !important; right: auto; top: -5px; bottom: -5px; width: 3px; height: auto !important; border-radius: 2px; transform: translateX(-50%); }
-#screen.battle .gauge .gbar .tick:after { left: 50%; top: auto; bottom: calc(100% + 1px); transform: translateX(-50%); font-size: 11px; }
-#screen.battle .gauge .gwho { display: none; }
-#screen.battle .gauge .gnum { flex: none; min-width: 52px; text-align: right; font-size: 18px; }
-.phone #screen.battle .gauge .glabel { display: block; font-size: 12px; -webkit-text-stroke: 3px var(--rv-ink); }
-.phone #screen.battle .gauge .gbar { height: 10px; border-width: 2px !important; }
+#screen.battle .gauge .glabel {
+  grid-column: 1; grid-row: 1; align-self: end; display: block; writing-mode: horizontal-tb; text-align: center; letter-spacing: .04em;
+  font-size: 14px; line-height: 1; color: var(--rv-ink2); -webkit-text-stroke: 0; text-shadow: none;
+}
+#screen.battle .gauge .gnum {
+  grid-column: 1; grid-row: 2; align-self: start; min-width: 0; text-align: center; margin-top: 2px;
+  font-size: 25px; line-height: 1; color: #fff; -webkit-text-stroke: 5px var(--rv-ink); paint-order: stroke fill; letter-spacing: -.02em;
+}
+#screen.battle .gauge.ready .gnum { color: var(--rv-sun); }
+/* 대롱 — 아래쪽에 앉고, 위는 얼굴, 밑은 비용 숫자 */
+#screen.battle .gauge .gbar {
+  grid-column: 2; grid-row: 1 / span 2; align-self: end; margin-bottom: 18px; flex: none; width: auto; height: 18px; border-radius: 99px;
+  background: #120d1c !important; border: 3px solid var(--rv-line) !important; box-shadow: inset 0 3px 0 #0007, 0 2px 0 var(--rv-shadow);
+}
+#screen.battle .gauge .gbar i:not(.tick) {
+  position: absolute; z-index: 0; left: 0; top: 0; bottom: 0; right: auto; height: auto; width: var(--g, 0%) !important; overflow: hidden; border-radius: 99px;
+  background: linear-gradient(90deg, var(--rv-sky), var(--rv-lilac) 55%, var(--rv-sun));
+  box-shadow: inset 0 3px 0 #ffffff59, inset 0 -3px 0 #0000002e; transition: width .55s cubic-bezier(.2, .7, .3, 1);
+}
+/* 차오른다 — 끝이 하얗게 번쩍. 쓸 수 있으면 빛 줄기가 막대 위를 지나간다 */
+#screen.battle .gauge .gbar.gup i:not(.tick) { animation: gup .65s ease-out; }
+@keyframes gup { 0% { filter: brightness(1); } 25% { filter: brightness(1.7) saturate(1.2); box-shadow: inset 0 3px 0 #fff9, 0 0 16px #fff; } 100% { filter: brightness(1); } }
+#screen.battle .gauge.ready .gbar i:not(.tick)::before {
+  content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 35%, #ffffffb0 48%, transparent 60%) no-repeat;
+  background-size: 60% 100%; animation: gshine 2.2s ease-in-out infinite;
+}
+@keyframes gshine { 0% { background-position: -120% 0; } 60%, 100% { background-position: 260% 0; } }
+#screen.battle .gauge .gsegs {
+  position: absolute; z-index: 1; inset: 0; border-radius: 99px; pointer-events: none;
+  background: repeating-linear-gradient(90deg, transparent 0 calc(100% / 6 - 2px), #120d1c8c calc(100% / 6 - 2px) calc(100% / 6));
+}
+/* 비용 눈금 — 굵은 기둥이 대롱을 뚫고 위 얼굴까지 닿는다. 넘으면 해바라기빛으로 켜진다 */
+#screen.battle .gauge .gbar .tick {
+  z-index: 2; left: var(--at) !important; right: auto; top: -7px; bottom: -6px; width: 4px; height: auto !important; border-radius: 3px;
+  transform: translateX(-50%); background: var(--rv-line); box-shadow: 0 0 0 1.5px var(--rv-ink); transition: background .25s, box-shadow .25s;
+}
+#screen.battle .gauge .gbar .tick:last-of-type[style*="100%"] { transform: translateX(-100%); }
+#screen.battle .gauge .gbar .tick.on { background: var(--rv-sun); box-shadow: 0 0 0 1.5px var(--rv-ink), 0 0 10px #ffcf3fcc; }
+#screen.battle .gauge .gbar .tick:after {
+  content: attr(data-cost); left: 50%; top: calc(100% + 3px); bottom: auto; right: auto; transform: translateX(-50%);
+  font-family: var(--rv-font); font-weight: var(--rv-w); font-style: normal; font-size: 12px; line-height: 1; color: var(--rv-ink2); text-shadow: none;
+}
+#screen.battle .gauge .gbar .tick.on:after { color: var(--rv-sun); }
+/* 얼굴 — 그 사도의 비용 눈금 위. 못 쓰면 잿빛, 넘으면 금테가 켜지고 한 번 튄다 */
+#screen.battle .gauge .gwho { display: block; z-index: 3; }
+#screen.battle .gauge .gface {
+  top: auto; bottom: calc(100% + 6px); left: calc(var(--at) - 15px - var(--k, 0) * 26px); width: 30px; height: 30px; transform: none;
+  border: 2.5px solid var(--rv-line); background: #1a1628; box-shadow: 0 2px 0 var(--rv-shadow);
+  filter: grayscale(.75) brightness(.78); transition: filter .3s, border-color .3s, box-shadow .3s;
+  font-family: var(--rv-font); font-size: 13px;
+}
+#screen.battle .gauge .gface img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 50%; border-radius: 50%; }
+/* 이름 첫 글자 — 얼굴 위 작은 알약(같은 비용이면 얼굴이 겹쳐도 글자는 보이게 위로 뺀다) */
+#screen.battle .gauge .gface { overflow: visible; }
+#screen.battle .gauge .gface .gfname {
+  position: absolute; left: 50%; top: -11px; transform: translateX(-50%); z-index: 1;
+  min-width: 15px; padding: 0 3px; border-radius: 99px; line-height: 14px; text-align: center;
+  font-style: normal; font-family: var(--rv-font); font-size: 10.5px; color: var(--rv-text);
+  background: #1a1628; border: 1.5px solid var(--rv-line); filter: none;
+}
+#screen.battle .gauge .gface.on .gfname { color: var(--rv-ink); background: var(--rv-sun); border-color: var(--rv-sun); }
+.phone #screen.battle .gauge .gface .gfname { top: -9px; font-size: 8.5px; line-height: 11px; min-width: 12px; }
+#screen.battle .gauge .gface.on { filter: none; border-color: var(--rv-sun); box-shadow: 0 2px 0 var(--rv-shadow), 0 0 0 2px #ffcf3f40, 0 0 12px #ffcf3fbb; }
+#screen.battle .gauge .gface.pop { animation: gfacepop .7s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes gfacepop { 0% { transform: scale(1); } 30% { transform: translateY(-6px) scale(1.45); box-shadow: 0 0 0 4px #ffcf3f, 0 0 26px #ffe9a0; } 100% { transform: none; } }
+/* 쓸 수 있다 — 판 테두리가 해바라기빛. 300% 꽉 차면 숨 쉬듯 빛난다 */
+#screen.battle .gauge.ready { border-color: var(--rv-sun-dk); box-shadow: 0 4px 0 #5a3c06, 0 0 0 2px #ffcf3f33, 0 0 20px #ffcf3f40; }
+#screen.battle .gauge.full { border-color: var(--rv-sun); animation: gfull 1.3s ease-in-out infinite alternate; }
+@keyframes gfull { from { box-shadow: 0 4px 0 #5a3c06, 0 0 0 2px #ffcf3f55, 0 0 14px #ffcf3f55; } to { box-shadow: 0 4px 0 #5a3c06, 0 0 0 3px #ffcf3f99, 0 0 30px #ffcf3fa0; } }
+.phone #screen.battle .gauge { left: 8px; padding: 0 9px 0 5px; grid-template-columns: 42px minmax(0, 1fr); column-gap: 6px; border-width: 2px; border-radius: 12px; }
+.phone #screen.battle .gauge .glabel { font-size: 10px; }
+.phone #screen.battle .gauge .gnum { font-size: 16px; -webkit-text-stroke: 3.5px var(--rv-ink); margin-top: 1px; }
+.phone #screen.battle .gauge .gbar { height: 11px; margin-bottom: 7px; border-width: 2px !important; }
+.phone #screen.battle .gauge .gbar .tick { top: -5px; bottom: -4px; width: 3px; }
 .phone #screen.battle .gauge .gbar .tick:after { display: none; }
-.phone #screen.battle .gauge .gnum { min-width: 38px; font-size: 13px; -webkit-text-stroke: 3px var(--rv-ink); }
+.phone #screen.battle .gauge .gface { width: 19px; height: 19px; bottom: calc(100% + 4px); left: calc(var(--at) - 9.5px - var(--k, 0) * 12px); border-width: 1.5px; font-size: 10px; }
 
 #screen.battle .allies { left: 16px; bottom: var(--al-b); width: var(--al-w); gap: var(--al-gap); flex-direction: column; }
 .phone #screen.battle .allies { left: 8px; }
@@ -666,16 +733,37 @@ body { font-family: var(--rv-body); }
 #screen.battle .ally .nm { font-size: 18px; line-height: 1.1; }
 #screen.battle .ally .atop .nature { display: none; }
 #screen.battle .ally > .agear { left: auto; right: 10px; top: 6px; bottom: auto; }
-#screen.battle .ally .ultbtn.grad { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 6px; row-gap: 2px; align-items: center; font-size: 13px; }
+#screen.battle .ally .ultbtn.grad { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 6px; row-gap: 3px; align-items: center; font-size: 13px; }
+#screen.battle .ally .ultbtn.grad .uname { grid-column: 2 / -1; }
 #screen.battle .ally .ultbtn.grad .ucost { font-size: 14px; }
 #screen.battle .ally .ultbtn.grad .uname { font-size: 13px; }
 #screen.battle .ally .ultbtn .ubar {
-  grid-column: 1 / -1; position: relative; display: block; height: 9px; border-radius: 99px; overflow: hidden;
-  background: #120d1c; border: 1.5px solid var(--rv-line);
+  grid-column: 1 / 3; position: relative; display: block; height: 10px; border-radius: 99px; overflow: hidden;
+  background: #120d1c; border: 2px solid var(--rv-line); box-shadow: inset 0 2px 0 #0007;
 }
-#screen.battle .ally .ultbtn .ubar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; background: linear-gradient(90deg, var(--rv-lilac), var(--rv-sun)); transition: width .3s; }
+#screen.battle .ally .ultbtn .ubar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; background: linear-gradient(90deg, var(--rv-lilac), var(--rv-sun)); box-shadow: inset 0 2px 0 #ffffff4d; transition: width .55s cubic-bezier(.2, .7, .3, 1); }
 #screen.battle .ally .ultbtn:not(.no) .ubar { border-color: var(--rv-sun); box-shadow: 0 0 8px #ffcf3f88; }
+#screen.battle .ally .ultbtn:not(.no) .ubar i { background: linear-gradient(90deg, #ffe7a8, var(--rv-sun)); }
 #screen.battle .ally .ultbtn .ubar em { display: none; }
+/* 얼마 남았나 — 막대 오른쪽 끝에 한 마디. 쓸 수 있으면 해바라기빛 「사용 가능」 */
+#screen.battle .ally .ultbtn .uleft {
+  grid-column: 3; justify-self: end; white-space: nowrap; font-family: var(--rv-font); font-weight: var(--rv-w); font-style: normal;
+  font-size: 12.5px; line-height: 1; color: var(--rv-ink2);
+}
+#screen.battle .ally .ultbtn .uleft.on { color: var(--rv-sun); text-shadow: 0 0 8px #ffcf3f88; }
+/* 쓸 수 있는 사도 칸 — 테두리가 해바라기빛으로 켜지고 빛 줄기가 가끔 지나간다. 막 켜진 순간은 한 번 크게 번쩍 */
+#screen.battle .ally.uready { border-color: var(--rv-sun-dk); background: linear-gradient(90deg, #3a2c14, var(--rv-paper) 70%); box-shadow: 0 4px 0 #5a3c06, 0 0 0 2px #ffcf3f30, 0 0 16px #ffcf3f40; }
+#screen.battle .ally.uready::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(100deg, transparent 40%, #fff3c640 50%, transparent 60%) no-repeat; background-size: 50% 100%;
+  animation: allyshine 3.2s ease-in-out infinite;
+}
+@keyframes allyshine { 0%, 55% { background-position: -100% 0; } 100% { background-position: 250% 0; } }
+#screen.battle .ally.usel { border-color: var(--rv-sun); }
+#screen.battle .ally.ujust { animation: allyjust .8s ease-out; }
+@keyframes allyjust { 0% { filter: none; } 20% { filter: brightness(1.6); box-shadow: 0 4px 0 #5a3c06, 0 0 0 4px #ffcf3f, 0 0 34px #ffe9a0; } 100% { filter: none; } }
+/* 고리(--pct)를 숫자로 등록 — 차오를 때 고리가 돌며 찬다(js 가 앞 값에서 지금 값까지 돌린다) */
+@property --pct { syntax: "<number>"; inherits: true; initial-value: 0; }
 #screen.battle .ally .atop { gap: 8px; }
 #screen.battle .ally .nm { flex: none; max-width: 60%; }
 #screen.battle .ally .achips { display: flex; flex: 1 1 auto; flex-wrap: nowrap; justify-content: flex-start; gap: 3px; max-width: none; overflow: hidden; min-width: 0; min-height: 0; margin: 0; }
@@ -691,11 +779,12 @@ body { font-family: var(--rv-body); }
 .phone #screen.battle .ally > .agear > * { width: 15px !important; height: 15px !important; }
 .phone #screen.battle .ally .ultbtn.grad { font-size: 11px; column-gap: 4px; row-gap: 1px; }
 .phone #screen.battle .ally .ultbtn.grad .ucost, .phone #screen.battle .ally .ultbtn.grad .uname { font-size: 11px; }
-.phone #screen.battle .ally .ultbtn .ubar { height: 6px; border-width: 1px; }
+.phone #screen.battle .ally .ultbtn .ubar { height: 7px; border-width: 1.5px; }
+.phone #screen.battle .ally .ultbtn .uleft { font-size: 10px; }
 .phone #screen.battle .ally .achips .chip { font-size: 10px; line-height: 14px; padding: 0 4px; }
 .phone #screen.battle .ally .achips .chip svg, .phone #screen.battle .ally .achips .chip img { width: 11px; height: 11px; }
 /* 고학년 처음 안내 — 사도 칸 위로 */
-#screen.battle .ulttip { left: 24px; bottom: calc(var(--al-b) + 3 * var(--al-h) + 2 * var(--al-gap) + 50px); }
+#screen.battle .ulttip { left: 24px; bottom: calc(var(--al-b) + 3 * var(--al-h) + 3 * var(--al-gap) + var(--gh) + 12px); }
 
 /* ── 아래 한 줄 — [뽑을 더미 / AP] 손패 [버린 더미 / 턴 넘기기] ── */
 /* 손패 폭(--hw)을 정하고 가운데에 둔다. 화면이 넓으면 AP · 더미 · 턴 넘기기가 손패 곁으로 다가온다(좁으면 가장자리에서 멈춘다) */
@@ -767,3 +856,80 @@ body:has(#screen.battle) .bottom { top: 84px; }
 /* 휴대폰 — 파티 칸에 상태 칩이 붙으면 HP 막대가 손톱만 해지고 「방어」 숫자를 덮었다. 칩은 밑 줄로 */
 .phone #screen.battle .bhead .partybox { flex-wrap: wrap; row-gap: 2px; }
 .phone #screen.battle .partybox .chips { flex: 1 0 100%; max-width: 100%; order: 3; }
+
+/* ═══ ⑩ 적의 공격 — 파티가 맞는 손맛(2026-10 사용자 「적의 공격 연출 개선」, js/fight-screen.js foeLunge · partyHitFx) ═══
+   적은 움츠렸다 들이치고(js), 맞는 쪽은 사도 몸이 번쩍 · 밀리고, 왼쪽 위 파티 칸이 흔들리며 HP 막대 끝에서 깎인 숫자가 튄다.
+   깎인 몫은 하얗게 잠깐 남았다가 줄어든다. 막힌 몫(방어 · 실드)은 푸른 「막음」 으로 따로. 움직임 줄이기(calm)면 js 가 아예 안 건다 */
+#screen.battle .partybox .hpwrap { position: relative; }
+/* 깎인 몫 — 하얗게 남았다가 조금 뒤에 따라 줄어든다 */
+#screen.battle .partybox .hpwrap .bar > .lag { background: linear-gradient(180deg, #ffffff, #ffe3e3); transition: width .5s cubic-bezier(.5, 0, .7, .4) .5s; }
+/* 맞은 파티 칸 — 흔들림 · 붉은 테 · 막대가 붉게 번쩍 */
+#screen.battle .partybox.phit, #screen.battle .partybox.phit2 { animation: pbhit .42s cubic-bezier(.3, .7, .3, 1); }
+#screen.battle .partybox.phit2 { animation: pbhit2 .56s cubic-bezier(.3, .7, .3, 1); }
+#screen.battle .partybox.phit .hpwrap .bar, #screen.battle .partybox.phit2 .hpwrap .bar { animation: pbbar .45s ease-out; }
+@keyframes pbhit {
+  0% { transform: none; border-color: #ff5a6a; box-shadow: 0 4px 0 var(--rv-shadow), 0 0 0 3px #ff3b4f88, 0 0 26px #ff2d2d88; }
+  15% { transform: translate(-5px, 2px); }
+  35% { transform: translate(4px, -1px); }
+  55% { transform: translate(-2px, 0); }
+  100% { transform: none; }
+}
+@keyframes pbhit2 {
+  0% { transform: none; border-color: #ff3b4f; background: #4a1622; box-shadow: 0 4px 0 var(--rv-shadow), 0 0 0 4px #ff3b4fcc, 0 0 40px #ff2d2dbb; }
+  12% { transform: translate(-9px, 3px) rotate(-.6deg); }
+  28% { transform: translate(8px, -2px) rotate(.5deg); }
+  45% { transform: translate(-5px, 1px); }
+  65% { transform: translate(3px, 0); }
+  100% { transform: none; }
+}
+@keyframes pbbar { 0% { filter: brightness(2.2) saturate(0); box-shadow: 0 0 0 2px #fff, 0 0 18px #ff2d2d; } 30% { filter: none; box-shadow: 0 0 0 2px #ff3b4f, 0 0 16px #ff2d2dcc; } 100% { filter: none; box-shadow: none; } }
+/* 막대 끝에서 튀는 「-N」 — 잇단 타격은 더해 가며 다시 튄다. 밑에 갈래 · 연타 · 막음 */
+#screen.battle .pbdmg {
+  position: absolute; z-index: 5; top: -4px; transform: translate(-50%, -100%); pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; white-space: nowrap; line-height: 1;
+  animation: pbdmg 1.3s ease-out forwards;
+}
+#screen.battle .pbdmg b {
+  font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 30px; color: #ff6b7d; letter-spacing: -.02em;
+  -webkit-text-stroke: 5px #2a0507; paint-order: stroke fill; text-shadow: 0 0 16px #ff2d2d99;
+}
+#screen.battle .pbdmg.big b { font-size: 40px; color: #ff4a5e; }
+#screen.battle .pbdmg.blocked b { color: #9fd4ff; -webkit-text-stroke-color: #071a2a; text-shadow: 0 0 12px #3aa0ff88; }
+#screen.battle .pbdmg small { margin-top: 1px; font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 13px; color: #ffe0e4; -webkit-text-stroke: 3px #2a0507; paint-order: stroke fill; }
+#screen.battle .pbdmg small:empty { display: none; }
+#screen.battle .pbdmg.bump b { animation: pbbump .26s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes pbdmg { 0% { opacity: 0; translate: 0 10px; } 10% { opacity: 1; translate: 0 -6px; } 22% { translate: 0 0; } 75% { opacity: 1; } 100% { opacity: 0; translate: 0 -14px; } }
+@keyframes pbbump { 0% { transform: scale(1.7); } 100% { transform: scale(1); } }
+.phone #screen.battle .pbdmg b { font-size: 20px; -webkit-text-stroke-width: 3.5px; }
+.phone #screen.battle .pbdmg.big b { font-size: 26px; }
+.phone #screen.battle .pbdmg small { font-size: 10px; -webkit-text-stroke-width: 2.5px; }
+/* 다 막았다 — 푸른 「막음」 을 피해 숫자만큼 크게 */
+.fxnum.n-gbig b { font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 26px; color: #bfe6ff; -webkit-text-stroke: 4px #071a2a; paint-order: stroke fill; text-shadow: 0 0 12px #3aa0ffaa; }
+.fxnum.n-gbig b .fxic { width: 22px; height: 22px; }
+/* 큰 공격 예고 — 나서는 적이 붉은 기운으로 끓고, 머리 위 말풍선 위에 「강한 공격」 */
+#screen.battle .foe.foebig > .art { animation: foeact .9s cubic-bezier(.3, .7, .3, 1), foebig .3s ease-in-out .2s 4 alternate; }
+@keyframes foebig { from { filter: brightness(1.1) drop-shadow(0 0 6px #ff3a3a99); } to { filter: brightness(1.3) drop-shadow(0 0 18px #ff2020); } }
+.foesay.big b { font-size: 17px; border-width: 2.5px; border-color: #ff4a5e; background: #5a0d18f0; box-shadow: 0 0 18px #ff2d2d99, 0 4px 12px #000a; }
+.foesay.big small { color: #ffb0b8; text-shadow: 0 1px 2px #000, 0 0 8px #ff2d2d; letter-spacing: .1em; }
+/* 관통 — 맞은 사도를 꿰뚫는 붉은 빛줄기(적 쪽에서 들어와 뒤로 빠진다) */
+.fxpierce {
+  position: absolute; z-index: 9; height: 10px; margin-top: -5px; pointer-events: none; transform-origin: 100% 50%;
+  translate: -50% 0; border-radius: 99px;
+  background: linear-gradient(90deg, #ff2d4a00, #ff4a5ecc 30%, #fff 70%, #ffe0e4);
+  box-shadow: 0 0 14px #ff2d4a, 0 0 30px #ff2d4a88;
+  animation: fxpierce .4s cubic-bezier(.2, .8, .3, 1) forwards;
+}
+@keyframes fxpierce { 0% { transform: scaleX(0); opacity: 1; } 35% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1) scaleY(.2); opacity: 0; } }
+/* 전체 공격 — 파티 쪽을 쓸고 가는 반달 베기 */
+.fxsweep {
+  position: absolute; z-index: 9; height: 120px; margin-top: -60px; pointer-events: none;
+  border-radius: 50%; border-top: 10px solid #ffe0e4; filter: drop-shadow(0 0 10px #ff2d4a) drop-shadow(0 0 22px #ff2d4a99);
+  clip-path: inset(0 100% 0 0); animation: fxsweep .5s cubic-bezier(.2, .8, .3, 1) forwards;
+}
+@keyframes fxsweep { 0% { clip-path: inset(0 0 0 100%); opacity: 1; } 45% { clip-path: inset(0 0 0 0); opacity: 1; } 100% { clip-path: inset(0 0 0 0); opacity: 0; transform: translateY(10px); } }
+@media (prefers-reduced-motion: reduce) {
+  #screen.battle .partybox.phit, #screen.battle .partybox.phit2, #screen.battle .foe.foebig > .art, .fxpierce, .fxsweep,
+  #screen.battle .gauge.full, #screen.battle .gauge.ready .gbar i:not(.tick)::before, #screen.battle .gauge .gface.pop,
+  #screen.battle .ally.uready::after, #screen.battle .ally.ujust { animation: none; }
+}
+.calm .fxpierce, .calm .fxsweep, .calm #screen.battle .pbdmg { display: none; }

@@ -169,8 +169,10 @@ export const BASIC_TERMS = new Set(["파티", "방어", "실드", "회복", "치
 export function cardParts(card, heroKey) {
   const full = shortText(card.text).replace(COST_HEAD, "");
   const m = full.match(LOCAL);
-  const power = !!(card.unique && card.hero && card.type === "강화");
-  const action = m ? `${m[1]} ${m[2]}` : full;
+  const power = !!(card.unique && card.hero && (card.type === "강화" || /^강화\s*카드\./.test(String(card.text || ""))));
+  // 강화 카드는 유일이다(rules.js isOnly) — 카드 면 글 앞에 「유일.」 을 붙여 보인다(데이터에는 없다, 2026-10 사용자: 「유일이 안 붙은 강화 카드」)
+  const action0 = m ? `${m[1]} ${m[2]}` : full;
+  const action = power && !/(^|[.\s])유일\./.test(action0) ? `유일. ${action0}` : action0;
   const terms = [];
   const seen = new Set();
   const push = (ko, text, kind) => { if (ko && !seen.has(ko) && !(BASIC_TERMS.has(ko) && kind !== "이 카드" && kind !== "전용")) { seen.add(ko); terms.push({ ko, text, kind }); } };

@@ -281,7 +281,8 @@ export const KILL_AP = 0;
 export const TOUGH = { fight: 4, elite: 5, boss: 6, hit: 0.5, weak: 0.5, ap: 1, glow: 1 };
 
 // ── 성격 상성 ─────────────────────────────────────────────────────────
-// 광기 → 순수 → 냉정 → 광기. 활발 ↔ 우울은 서로. 공명은 상성이 없다.
+// 광기 → 순수 → 냉정 → 광기. 활발 ↔ 우울은 서로. 공명은 어느 상성에서나 유리한 쪽을 가져간다(칠 때도 맞을 때도 — 2026-10 사용자).
+// 공명끼리는 상성이 없다.
 // 유리하면 주는 피해 +10%, 받는 피해 -5%.
 const BEATS = { 광기: "순수", 순수: "냉정", 냉정: "광기", 활발: "우울", 우울: "활발" };
 export const NATURE_DMG = 0.10;
@@ -291,6 +292,8 @@ export const NATURE_DEF = 0.05;
 export const weakTo = (nature) => Object.keys(BEATS).filter((k) => BEATS[k] === nature);
 export function natureEdge(attacker, defender) {
   if (!attacker || !defender) return 0;
+  if (attacker === "공명" && defender !== "공명") return 1;   // 공명은 늘 유리
+  if (defender === "공명" && attacker !== "공명") return -1;
   if (BEATS[attacker] === defender) return 1;    // 내가 유리
   if (BEATS[defender] === attacker) return -1;   // 상대가 유리
   return 0;

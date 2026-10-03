@@ -979,7 +979,8 @@ function hurt(s, u, v, { from, pure, crit, tags, card, counter, pierce, fixed, d
 export function isWeakHit(s, from, to, tags) {
   if (!from || !to || from.side !== "party" || to.side !== "enemy") return false;
   if (tags && tags.약점) return true;
-  return !s.noNature && weakOf(to.key).includes(natureOf(from.key));
+  // 공명 사도는 어느 적에게나 약점 공격이다(어느 상성에서나 유리한 쪽 — rules.js natureEdge)
+  return !s.noNature && (natureOf(from.key) === "공명" || weakOf(to.key).includes(natureOf(from.key)));
 }
 // 강인도를 n 깎는다(0.5 단위). 0 이 되면 격파 — AP +1 · 다음 차례 행동 불가. 격파된 적 · 쓰러진 적은 더 안 깎인다
 function toughHit(s, e, n) {

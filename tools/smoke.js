@@ -874,7 +874,7 @@ console.log("AP · 고학년 게이지 · 상성 (기획서 규칙)");
   check(R.natureEdge("광기", "순수") === 1, "광기가 순수에 유리");
   check(R.natureEdge("순수", "광기") === -1, "순수는 광기에 불리");
   check(R.natureEdge("활발", "우울") === 1 && R.natureEdge("우울", "활발") === 1, "활발과 우울은 서로 유리");
-  check(R.natureEdge("공명", "순수") === 0, "공명은 상성이 없다");
+  check(R.natureEdge("공명", "순수") === 1 && R.natureEdge("광기", "공명") === -1 && R.natureEdge("공명", "공명") === 0, "공명은 어느 상성에서나 유리 · 공명끼리는 없다");
 
   // 취약 · 약화는 카제나 수치(+50% / -25%, 2026-10 사용자) — rules.js STATUS_V 한 표
   check(R.STATUS_V.취약 === 0.5 && R.STATUS_V.약화 === 0.25, `취약 +${R.STATUS_V.취약 * 100}% · 약화 -${R.STATUS_V.약화 * 100}%`);
