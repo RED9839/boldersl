@@ -495,7 +495,7 @@ function ownRandom(run, c) {
 // 강화 카드(rules.js isPower)도 한 장만 — 복제할 수 없다. run 을 주면 「강화 카드.」 신탁을 붙인 카드도 막는다
 // 복제 — 유일(rules.js isOnly)과 금기(rules.js isTaboo — v6 카제나)는 안 된다
 // 복제는 사도 고유 카드만 — 기본 카드 · 교주 카드 · 골칫거리는 안 된다(2026-10 사용자)
-export function dupeOk(id, run) { const c = CARDS[id]; return !!c && !!c.hero && !!c.unique && !R.isOnly(run ? flashed(c, (run.flash || {})[id]) : c) && !R.isTaboo(c); }
+export function dupeOk(id, run) { const c = CARDS[id]; return !!c && !isCopy(id) && !!c.hero && !!c.unique && !R.isOnly(run ? flashed(c, (run.flash || {})[id]) : c) && !R.isTaboo(c); }
 export function dupeExtra(run, id) { return (run.flash || {})[id] || (run.shin || {})[id] ? R.DUPE_FLASH_EXTRA : 0; }
 
 // 이벤트를 닫는다 — 다음 칸으로

@@ -523,7 +523,7 @@ export function advance(run) {
 // 내놓은 셋은 판에 적어 둔다(run.copyOffer) — 고르다 새로고침해도 같은 셋이다
 const copyable = (run) => [...new Set(run.deck)].filter((id) => {
   const c = CARDS[id];
-  if (!c || !c.unique || !c.hero) return false;
+  if (!c || !c.unique || !c.hero || c.copy) return false;   // 복제본은 다시 복제하지 않는다(2026-10 사용자) — 원본이 후보에 남는다
   return !R.isOnly(flashed(c, (run.flash || {})[id]));
 });
 export function bossCopyOffer(run) {

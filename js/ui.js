@@ -1847,7 +1847,7 @@ export function eventScreen(run, onDone, onFight) {
       const grid = el("div", "ev2-cards");
       // 사도별로(파티 차례) 기본 → 고유, 그 뒤 교주 카드 · 골칫거리(ui-common deckSections).
       // 복제는 사도 고유 카드만 — 기본 카드 · 교주 카드는 내놓지 않는다(2026-10 사용자, events.js dupeOk)
-      const secs = deckSections(run, run.deck).map((sec) => (p.k === "dupe" ? { ...sec, ids: sec.ids.filter((id) => CARDS[id].hero && CARDS[id].unique) } : sec)).filter((sec) => sec.ids.length);
+      const secs = deckSections(run, run.deck).map((sec) => (p.k === "dupe" ? { ...sec, ids: sec.ids.filter((id) => CARDS[id].hero && CARDS[id].unique && !CARDS[id].copy) } : sec)).filter((sec) => sec.ids.length);
       for (const sec of secs) for (const [k, id] of sec.ids.entries()) {
         if (k === 0) grid.appendChild(deckSecHead(sec));
         if (!CARDS[id]) continue;
