@@ -131,7 +131,7 @@ export function mapScreen(run, onEnter, onQuit) {
     info.appendChild(el("span", "mhp", (run.hp[k] || 0) <= 0 ? "주말농장" : `${run.hp[k]} / ${run.maxHp[k]}`));
     cell.appendChild(info);
     cell.appendChild(gearStrip(run, k, 22));
-    cell.title = "눌러서 장비 보기";
+    cell.title = "눌러서 장비 보기" + (boonText(run, k) ? " · " + boonText(run, k) : "");
     cell.onclick = () => openGear();
     party.appendChild(cell);
   }
@@ -517,6 +517,13 @@ export function openGearModal(run, { sub, onClose } = {}) {
   box.appendChild(body);
 }
 
+// 그 사도의 「판 내내」 버프 한 줄 — 「판 내내 공격력 +10% 「백호 비전서」」. 없으면 ""
+const BOON_KO = { dealt: "주는 피해", taken: "받는 피해", atk: "공격력", def: "방어력", crit: "치명", heal: "회복력" };
+function boonText(run, k) {
+  const list = (run.boons || {})[k] || [];
+  return list.length ? "판 내내 " + list.map((b) => `${BOON_KO[b.stat] || b.stat} ${b.v > 0 ? "+" : ""}${Math.round(b.v * 100)}%${b.src ? " " + b.src : ""}`).join(" · ") : "";
+}
+
 function gearPanel(run, mode, onChange, say) {
   const box = el("div", "gearpanel");
   const draw = () => {
@@ -530,6 +537,9 @@ function gearPanel(run, mode, onChange, say) {
       const who = el("div", "gwho");
       who.appendChild(art.portrait(k, { ko: h.ko, tint: TINT(k), size: 28, slot: "battle", still: true }));
       who.appendChild(el("b", null, h.ko));
+      // 강화 카드가 남긴 「판 내내」 버프 — 출처 카드와 함께(run.boons)
+      const bn = boonText(run, k);
+      if (bn) who.appendChild(el("span", "gboon", bn));
       r.appendChild(who);
       const slots = el("div", "gslots");
       for (const sl of RULES.SLOTS) {
@@ -1556,7 +1566,7 @@ export function eventScreen(run, onDone, onFight) {
         const n = run.deck.filter((x) => x === id).length;
         if (n > 1) w.appendChild(el("span", "ev2-n", `×${n}`));
         // 복제 — 덱에 1장만 카드는 못 고르고, 신탁 · 기적이 붙은 카드는 골드를 더 받는다
-        const locked = p.k === "dupe" && !EV.dupeOk(id);
+        const locked = p.k === "dupe" && !EV.dupeOk(id, run);
         const extra = p.k === "dupe" ? EV.dupeExtra(run, id) : 0;
         if (locked) { w.disabled = true; w.classList.add("off"); w.appendChild(el("span", "ev2-n", "1장만")); }
         else if (extra) w.appendChild(el("span", "ev2-n", `+${extra}골드`));

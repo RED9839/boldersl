@@ -41,8 +41,9 @@ export function screen() {
 }
 export const NTINT = { 순수: "#7fd3a8", 광기: "#d9737f", 냉정: "#7fd6f5", 우울: "#9a8cc0", 활발: "#f5dc5a", 공명: "#c9c9d6" };
 // 카드 타입 — 원작 도감처럼 한 글자 표시와 빛깔을 준다
-export const TMARK = { 공격: "✕", 스킬: "◈", 방어: "⬢", 쉴드: "⬢", 회복: "✚", 강화: "▲", 기술: "◆" };
-export const TKIND = { 공격: "atk", 스킬: "skill", 방어: "def", 쉴드: "def", 회복: "heal", 강화: "buff", 기술: "skill" };
+// 카드 종류는 셋(공격 · 스킬 · 강화, 2026-10). 쉴드 · 기술은 옛 손 카드(js/data/cards.js)의 것
+export const TMARK = { 공격: "✕", 스킬: "◈", 쉴드: "⬢", 강화: "▲", 기술: "◆" };
+export const TKIND = { 공격: "atk", 스킬: "skill", 쉴드: "def", 강화: "buff", 기술: "skill" };
 
 // 원작에서 꺼낸 작은 표들 — assets/uiicons/성격_순수.png 꼴이다.
 // 그림이 없으면 글자 한 자로 떨어진다. 꺼낸 것이 없어도 화면은 그대로 돈다.
@@ -280,7 +281,7 @@ export function withNumbers(node, text, heroKey, calc) {
     const v = calc(p.kind, p.pct / 100);
     if (v == null) { withKeywords(node, p.t, heroKey); continue; }
     const n = el("span", "cnum n-" + p.kind);
-    withKeywords(n, p.label + " ", heroKey);
+    if (p.label) withKeywords(n, p.label + " ", heroKey);
     n.appendChild(el("b", "cnv", p.hits ? `${v}×${p.hits}` : String(v)));
     n.appendChild(el("small", "cnp", `${p.pct}%`));
     n.title = `${p.t} — 지금 능력치로 센 값(맞는 쪽의 취약 · 상성은 빼고)`;
@@ -498,7 +499,7 @@ export const BATTLE_BG = {
 //   mode "empty" — 보상·상점: 가방의 장비를 **빈 칸에만** 끼운다
 //   mode "camp"  — 캠프: 바꿔 끼고 뺄 수 있다
 // 지금 도는 것은 스탯 줄과 애착 Lv.3 스탯뿐이다. 효과 줄은 글만 보여 주고 「아직 안 돈다」고 적는다.
-const STAT_KO = { hp: "HP", atk: "공격", def: "방어", crit: "치명", heal: "회복력" };
+const STAT_KO = { hp: "HP", atk: "공격력", def: "방어력", crit: "치명", heal: "회복력" };
 export const statText = (st) => Object.entries(st || {}).filter(([, v]) => v).map(([k, v]) => `${STAT_KO[k]} +${v}${k === "crit" ? "%" : ""}`).join(" · ");
 
 // ── 장비 아이콘 ─────────────────────────────────────────────────────────

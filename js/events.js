@@ -7,9 +7,9 @@
 
 import { EVENTS, CURSES } from "./data/events.js";
 import { 은는, 을를, josa } from "./ko.js";
-import { CARDS, NEUTRAL_IDS, EQUIP, HERO_DATA } from "./cardbook.js";
+import { CARDS, NEUTRAL_IDS, EQUIP, HERO_DATA, flashed } from "./cardbook.js";
 import * as R from "./rules.js";
-import { rewardCards, offerFlash, offerEquip, offerEquipSlot, forgetCard, divineKindsFor } from "./run.js";
+import { rewardCards, offerFlash, offerEquip, offerEquipSlot, forgetCard, divineKindsFor, powerWhy, powerCard, flashOk } from "./run.js";
 
 export { EVENTS };
 const koOf = (k) => (HERO_DATA[k] || {}).ko || k;
@@ -286,8 +286,8 @@ export function apply(run, ops) {
         if (o.swap) {
           // 이미 신탁을 붙인 카드 하나 — 지금 것을 뺀 넷에서 다시 고른다(없으면 보통 신탁)
           const had = Object.keys(run.flash || {}).filter((id) => CARDS[id] && (CARDS[id].flash || []).length === 5);
-          if (had.length) { const id = had[Math.floor(run.rng() * had.length)]; offer = { cardId: id, picks: [1, 2, 3, 4, 5].filter((n) => n !== run.flash[id]), swap: true }; }
-        } else if (o.all && offer) offer.picks = [1, 2, 3, 4, 5];
+          if (had.length) { const id = had[Math.floor(run.rng() * had.length)]; offer = { cardId: id, picks: [1, 2, 3, 4, 5].filter((n) => n !== run.flash[id] && flashOk(run, id, n)), swap: true }; }
+        } else if (o.all && offer) offer.picks = [1, 2, 3, 4, 5].filter((n) => flashOk(run, offer.cardId, n));
         if (offer) E.pending.push({ k: "flash", offer });
         else E.log.push("신탁을 붙일 고유 카드가 없습니다 — 고유 카드를 먼저 얻으세요");
         break;
@@ -396,6 +396,7 @@ export function resolve(run, value) {
     }
     case "dupe": {
       if (!run.deck.includes(value)) return "덱에 없는 카드입니다";
+      if (powerCard(run, value)) return "강화 카드는 한 장만 — 복제할 수 없습니다";
       if (!dupeOk(value)) return "덱에 1장만 넣는 카드는 복제할 수 없습니다";
       const extra = dupeExtra(run, value);
       if (extra) {
@@ -409,6 +410,7 @@ export function resolve(run, value) {
     case "card": {
       if (value == null) { E.log.push(`${p.label} — 받지 않았습니다`); break; }
       if (!p.cards.includes(value)) return "고를 수 없는 카드입니다";
+      { const why = powerWhy(run, value); if (why) return why; }
       run.deck.push(value);
       E.log.push(`「${CARDS[value].name}」 — 덱에`);
       break;
@@ -487,7 +489,8 @@ function ownRandom(run, c) {
   const own = R.blessKeys(c);
   return own.length ? own[Math.floor(run.rng() * own.length)] : null;
 }
-export function dupeOk(id) { const c = CARDS[id]; return !!c && !c.oneOnly; }
+// 강화 카드(rules.js isPower)도 한 장만 — 복제할 수 없다. run 을 주면 「강화 카드.」 신탁을 붙인 카드도 막는다
+export function dupeOk(id, run) { const c = CARDS[id]; return !!c && !c.oneOnly && !R.isPower(run ? flashed(c, (run.flash || {})[id]) : c); }
 export function dupeExtra(run, id) { return (run.flash || {})[id] || (run.shin || {})[id] ? R.DUPE_FLASH_EXTRA : 0; }
 
 // 이벤트를 닫는다 — 다음 칸으로

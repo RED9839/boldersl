@@ -286,7 +286,19 @@ export function card(c, heroKey, { motion = false } = {}) {
   play("card.play");
   if (motion) return;
   if (c.type === "공격" && heroKey) hero(heroKey, "attack", { v: 0.8 });
-  else play("card." + c.type);
+  else play(cardKey(c));
+}
+// 카드 종류 소리의 이름 — 종류는 셋(공격 · 스킬 · 강화)이다. 스킬은 하는 일로 가른다:
+// 피해 없이 회복(회복력 증감)하면 「card.회복」, 방어 · 실드 · 무적 · 받는 피해 감소를 주면 「card.방어」, 해제만 하면 「card.회복」, 나머지는 「card.스킬」(옛 방어 · 회복 카드가 내던 소리 그대로)
+export function cardKey(c) {
+  if (!c) return "card.스킬";
+  if (c.type !== "스킬") return "card." + c.type;
+  const fx = c.fx || [], has = (...k) => fx.some((f) => k.includes(f.k));
+  if (has("dmg")) return "card.스킬";
+  if (has("heal", "healMod")) return "card.회복";
+  if (has("block", "shield", "invuln", "blockAll", "blockAlly", "takenMod", "defMod")) return "card.방어";
+  if (has("cleanse")) return "card.회복";
+  return "card.스킬";
 }
 // 맞는 순간(fight-screen 의 land(h, act)) — h.k: hurt · heal · block · shield · status · die
 //   hero · enemy  때린 쪽(사도 key · 적 key), ult  고학년 타격, heavy  크게 맞음(최대 HP 25% 이상). 맞은 쪽(h.side)으로 소리를 조금 민다
@@ -362,7 +374,7 @@ export const status = () => ({
   trace: trace.slice(),
 });
 
-export const sfx = { play, hero, enemy, card, land, ult, action, at, preload, stopAll, stopPending, status };
+export const sfx = { play, hero, enemy, card, land, ult, action, at, preload, stopAll, stopPending, status, cardKey };
 export default sfx;
 
 // 음량을 밀면 울리는 중인 것에도 바로

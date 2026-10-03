@@ -432,17 +432,13 @@ export function partyScreen(onStart, onBack, opts = {}) {
 
     // 빈 칸의 이름 — 아직 아무도 안 선 열을 전열 · 중열 · 후열 차례로 붙인다(「1번째 자리」 대신, 2026-10 사용자).
     // 열은 사도가 정하므로 이름은 안내일 뿐이다. 세 열이 다 찼으면 「남은」
-    const emptyRow = (i) => {
-      const open = C.ROWS.filter((r) => !picked.some((k) => rowOf(k) === r));
-      return ROWS_KO[open[i - picked.length]] || "남은";
-    };
     // 칸 하나 — 사도가 있으면 그 사도, 없으면 「+ 사도 넣기」
-    function slotOf(key, i) {
+    function slotOf(key, i, row) {
       if (!key) {
         const n = el("button", "tf-slot empty");
         n.appendChild(el("span", "tf-plus", "+"));
         n.appendChild(el("b", null, "사도 넣기"));
-        n.appendChild(el("span", null, `${emptyRow(i)} 자리 · 눌러서 명단`));
+        n.appendChild(el("span", null, `${row ? ROWS_KO[row] : "남은"} 자리 · 눌러서 명단`));
         n.onclick = () => openPicker(null);
         return n;
       }
@@ -482,7 +478,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
       plate.appendChild(el("b", null, h.ko));
       plate.appendChild(el("span", "tf-sub", `${ROWS_KO[rowOf(key)]} ${h.role} · ${h.race}${h.anyRow ? " · 모든 열" : ""}`));
       const st = el("div", "tf-stats");
-      for (const [k, v] of [["HP", h.hp], ["공격", h.atk], ["방어", h.def], ["회복", RULES.healStat(h.atk, h.role)]]) { const d = el("span"); d.appendChild(el("small", null, k)); d.appendChild(el("b", null, String(v))); st.appendChild(d); }
+      for (const [k, v] of [["HP", h.hp], ["공격력", h.atk], ["방어력", h.def], ["회복력", RULES.healStat(h.atk, h.role)]]) { const d = el("span"); d.appendChild(el("small", null, k)); d.appendChild(el("b", null, String(v))); st.appendChild(d); }
       plate.appendChild(st);
       n.appendChild(plate);
       n.title = `${h.ko} — 눌러서 다른 사도로 바꾸기`;
@@ -618,13 +614,19 @@ export function partyScreen(onStart, onBack, opts = {}) {
     function fill() {
       // 칸 — 고른 사도를 열 차례(후열 → 전열)로, 같은 열은 편성 순서대로. 빈 자리는 뒤에
       slots.innerHTML = "";
-      const order = ROW_ORDER.flatMap((r) => picked.filter((k) => rowOf(k) === r));
-      order.forEach((k, i) => {
-        if (i && rowOf(order[i - 1]) === rowOf(k)) slots.appendChild(swapBtn(order[i - 1], k));
+      // 빈 칸은 아직 아무도 안 선 열의 자리에 끼운다 — 「전열 자리」 는 전열 쪽(오른쪽)에(2026-10 사용자: 전열 · 후열이 뒤바뀌어 보였다).
+      // 열은 사도가 정하므로 이름은 안내다. 세 열이 다 찼으면 「남은 자리」 를 맨 오른쪽에
+      const open = ROW_ORDER.filter((r) => !picked.some((k) => rowOf(k) === r));
+      const empties = Array.from({ length: Math.max(0, 3 - picked.length) }, (_, j) => open[j] || null);
+      const rank = (r) => (r ? ROW_ORDER.indexOf(r) : 99);
+      const order = [...picked.map((k) => ({ k, r: rowOf(k) })), ...empties.map((r) => ({ k: null, r }))]
+        .sort((a, b) => rank(a.r) - rank(b.r) || (a.k ? picked.indexOf(a.k) : 9) - (b.k ? picked.indexOf(b.k) : 9));
+      order.forEach((o, i) => {
+        const prev = order[i - 1];
+        if (i && o.k && prev.k && prev.r === o.r) slots.appendChild(swapBtn(prev.k, o.k));
         else if (i) slots.appendChild(el("span", "tf-gap"));
-        slots.appendChild(slotOf(k, i));
+        slots.appendChild(slotOf(o.k, i, o.r));
       });
-      for (let i = order.length; i < 3; i++) { if (i) slots.appendChild(el("span", "tf-gap")); slots.appendChild(slotOf(null, i)); }
       count.textContent = `${picked.length} / 3`;
       go.disabled = picked.length !== 3;
       go.textContent = picked.length === 3 ? "떠납니다" : `사도 ${3 - picked.length}명 더`;
@@ -793,7 +795,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
     info.appendChild(el("p", "stblurb", h.blurb));
     const g = el("div", "statgrid");
     // 회복력 = 공격력 + 역할 몫(rules.js) — 회복 카드는 이 값을 본다
-    for (const [ko, v] of [["체력", h.hp], ["공격", h.atk], ["방어", h.def], ["치명", h.crit + "%"], ["회복력", RULES.healStat(h.atk, h.role)]]) {
+    for (const [ko, v] of [["체력", h.hp], ["공격력", h.atk], ["방어력", h.def], ["치명", h.crit + "%"], ["회복력", RULES.healStat(h.atk, h.role)]]) {
       const c = el("div", "statc");
       c.appendChild(el("small", null, ko));
       c.appendChild(el("strong", null, String(v)));
@@ -818,8 +820,23 @@ export function partyScreen(onStart, onBack, opts = {}) {
   function line(label, text, cls, heroKey) {
     const d = el("section", "ability " + (cls || ""));
     d.appendChild(el("h3", null, label));
-    d.appendChild(withKeywords(el("p"), shortText(text), heroKey));
+    d.appendChild(label === "패시브" ? passiveText(el("p"), text, heroKey) : withKeywords(el("p"), shortText(text), heroKey));
     return d;
+  }
+  // 패시브 — 「이름: 효과 · 이름: 효과」. 이름은 밑줄 없이 굵게(「사제장의 무적권」 의 무적이 낱말로 잡히던 것), 효과만 낱말 풀이.
+  // 효과 글에도 「 · 」 가 있으니(「회복 100% · 디버프 해제」) 이름은 맨 앞이나 「 · 」 바로 뒤의 「…: 」 만 본다
+  function passiveText(node, text, heroKey) {
+    const t = String(text || "");
+    const heads = [...t.matchAll(/(^|\s·\s)([^·:]{1,30}):\s/g)];
+    if (!heads.length) return withKeywords(node, shortText(t), heroKey);
+    heads.forEach((m, i) => {
+      const from = m.index + m[0].length;
+      const to = i + 1 < heads.length ? heads[i + 1].index : t.length;
+      if (i) node.appendChild(document.createTextNode(" · "));
+      node.appendChild(el("b", "pname", m[2] + ": "));
+      withKeywords(node, shortText(t.slice(from, to)), heroKey);
+    });
+    return node;
   }
 
   function cardPane(key, h, kit, CA, picFor) {

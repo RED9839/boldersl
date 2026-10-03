@@ -21,7 +21,7 @@ export const CARDS = {
   //       리더 스킬은 후열 아군의 피해량을 올리고 받는 피해를 줄인다
   erpin_tap:    { hero: "erpin", name: "평타", cost: 0, type: "공격", target: "적", pierce: true, fx: [A(5)], text: "피해 5. 자주 나간다 — 에르핀은 이걸로 SP를 번다." },
   erpin_charge: { hero: "erpin", name: "강화 평타", cost: 1, type: "공격", target: "적", pierce: true, fx: [A(10)], text: "피해 10." },
-  erpin_god:    { hero: "erpin", name: "무적", cost: 2, type: "방어", target: "자신", fx: [{ k: "invuln" }, DRAW(1)], text: "이번 턴 에르핀이 받는 피해를 전부 무시한다. 1장 뽑기." },
+  erpin_god:    { hero: "erpin", name: "무적", cost: 2, type: "스킬", target: "자신", fx: [{ k: "invuln" }, DRAW(1)], text: "이번 턴 에르핀이 받는 피해를 전부 무시한다. 1장 뽑기." },
   erpin_crown:  { hero: "erpin", name: "여왕의 위엄", cost: 2, type: "공격", target: "전체", pierce: true, fx: [AOE(6), ST("약화", 1)], text: "적 전체에 피해 6, 약화 1." },
   erpin_rear:   { hero: "erpin", name: "뒷줄에 호령", cost: 2, type: "기술", target: "없음", fx: [{ k: "rearBuff", v: 2 }], text: "이번 전투 동안 뒷줄 아군의 공격 +2." },
   erpin_cake:   { hero: "erpin", name: "아이스크림 케이크", cost: 1, type: "기술", target: "자신", snack: true, fx: [HEAL(5), ST("힘", 1, "self")], text: "체력 5 회복. 힘 +1. (간식)" },
@@ -35,8 +35,8 @@ export const CARDS = {
   ner_crit:     { hero: "ner", name: "치명의 기도", cost: 2, type: "기술", target: "없음", fx: [{ k: "crit", v: 35 }], text: "이번 전투 동안 아군 전체의 피해 +35%." },
   ner_axe:      { hero: "ner", name: "세계수의 도끼", cost: 2, type: "공격", target: "적", need: { row: "front" }, fx: [A(20)], text: "피해 20. 앞줄에서만." },
   ner_judge:    { hero: "ner", name: "심판의 빛", cost: 3, type: "공격", target: "전체", pierce: true, fx: [AOE(9), { k: "crit", v: 10 }], text: "적 전체에 마법 피해 9. 아군 피해 +10%." },
-  ner_guard:    { hero: "ner", name: "사제장의 벽", cost: 1, type: "방어", target: "자신", fx: [B(9)], text: "방어도 9." },
-  ner_cover:    { hero: "ner", name: "감싸기", cost: 1, type: "방어", target: "아군", fx: [{ k: "blockAlly", v: 10 }], text: "아군 하나에게 방어도 10." },
+  ner_guard:    { hero: "ner", name: "사제장의 벽", cost: 1, type: "스킬", target: "자신", fx: [B(9)], text: "방어도 9." },
+  ner_cover:    { hero: "ner", name: "감싸기", cost: 1, type: "스킬", target: "아군", fx: [{ k: "blockAlly", v: 10 }], text: "아군 하나에게 방어도 10." },
   ner_candy:    { hero: "ner", name: "숨겨 둔 사탕", cost: 0, type: "기술", target: "자신", snack: true, fx: [HEAL(2), DRAW(1)], text: "체력 2 회복, 1장 뽑기. 못 본 걸로 해 주세요. (간식)" },
   ner_pledge:   { hero: "ner", name: "각서 한 장", cost: 1, type: "기술", target: "없음", fx: [DRAW(2), { k: "nextCheaper", v: 1 }], text: "2장 뽑기. 다음 카드 값 -1. 어디 서명하셨더라." },
 
@@ -71,9 +71,9 @@ export const CARDS = {
   ashur_burst:  { hero: "ashur", name: "입자 폭발", cost: 3, type: "공격", target: "전체", pierce: true, fx: [AOE(5), { k: "stunAll" }], text: "적 전체에 피해 5, 기절." },
   ashur_theory: { hero: "ashur", name: "입자 이론", cost: 1, type: "기술", target: "없음", fx: [DRAW(3)], text: "3장 뽑기. 아무도 안 듣는다." },
   ashur_oven:   { hero: "ashur", name: "화덕 열기", cost: 1, type: "기술", target: "없음", fx: [{ k: "addCard", id: "bread", v: 2 }], text: "갓 구운 빵 2장을 손에 넣는다." },
-  ashur_sigh:   { hero: "ashur", name: "한숨", cost: 0, type: "방어", target: "자신", fx: [B(3), DRAW(1)], text: "방어도 3, 1장 뽑기." },
+  ashur_sigh:   { hero: "ashur", name: "한숨", cost: 0, type: "스킬", target: "자신", fx: [B(3), DRAW(1)], text: "방어도 3, 1장 뽑기." },
   ashur_school: { hero: "ashur", name: "마법 학교 간판", cost: 2, type: "기술", target: "없음", fx: [{ k: "blockAll", v: 8 }], text: "아군 전체 방어도 8. 빵집 아니다." },
-  ashur_field:  { hero: "ashur", name: "입자 결계", cost: 2, type: "방어", target: "없음", fx: [{ k: "blockAll", v: 8 }], text: "아군 전체 방어도 8." },
+  ashur_field:  { hero: "ashur", name: "입자 결계", cost: 2, type: "스킬", target: "없음", fx: [{ k: "blockAll", v: 8 }], text: "아군 전체 방어도 8." },
   ashur_bill:   { hero: "ashur", name: "이번 달 월세", cost: 1, type: "공격", target: "적", pierce: true, fx: [{ k: "rentDue", v: 6 }], text: "피해 6. 이 카드를 낼 때마다 값이 3씩 오른다." },
 
   // ── 마요 · 후열 물리 ──────────────────────────────────────────────────
@@ -96,7 +96,7 @@ export const CARDS = {
   tig_slash:    { hero: "tig", name: "가르기", cost: 1, type: "공격", target: "적", need: { row: "front" }, fx: [A(12)], text: "피해 12. 앞줄에서만." },
   tig_gale:     { hero: "tig", name: "검풍", cost: 2, type: "공격", target: "전체", pierce: true, fx: [AOE(8)], text: "적 전체에 피해 8." },
   tig_taunt:    { hero: "tig", name: "시비 걸기", cost: 0, type: "기술", target: "적", fx: [ST("취약", 1), { k: "taunt" }], text: "취약 1. 이쪽을 보게 만든다." },
-  tig_stance:   { hero: "tig", name: "기척 읽기", cost: 1, type: "방어", target: "자신", fx: [B(5), ST("힘", 1, "self")], text: "방어도 5, 힘 +1." },
+  tig_stance:   { hero: "tig", name: "기척 읽기", cost: 1, type: "스킬", target: "자신", fx: [B(5), ST("힘", 1, "self")], text: "방어도 5, 힘 +1." },
   tig_finish:   { hero: "tig", name: "검성의 일격", cost: 3, type: "공격", target: "적", need: { row: "front" }, fx: [A(28)], text: "피해 28. 앞줄에서만." },
   tig_doubt:    { hero: "tig", name: "그거 거짓 아니냐", cost: 1, type: "기술", target: "적", fx: [{ k: "purge" }, ST("취약", 2)], text: "그 적이 쌓아 둔 좋은 것을 지우고 취약 2." },
 
@@ -114,7 +114,7 @@ export const CARDS = {
 
   // ── 교주(공용) · 임시 카드 ────────────────────────────────────────────
   cult_strike:  { hero: null, name: "교주의 지시", cost: 1, type: "공격", target: "적", fx: [A(9)], text: "피해 9." },
-  cult_guard:   { hero: null, name: "교주의 비호", cost: 1, type: "방어", target: "아군", fx: [{ k: "blockAlly", v: 10 }], text: "아군 하나에게 방어도 10." },
+  cult_guard:   { hero: null, name: "교주의 비호", cost: 1, type: "스킬", target: "아군", fx: [{ k: "blockAlly", v: 10 }], text: "아군 하나에게 방어도 10." },
   cult_rally:   { hero: null, name: "호령", cost: 1, type: "기술", target: "없음", fx: [DRAW(3)], text: "3장 뽑기." },
   bread:        { hero: "ashur", name: "갓 구운 빵", cost: 0, type: "기술", target: "아군", temp: true, snack: true, fx: [{ k: "healAlly", v: 5 }], text: "아군 하나가 체력 5 회복. 쓰면 사라진다. (간식)" },
 

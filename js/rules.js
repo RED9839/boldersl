@@ -67,7 +67,8 @@ export const DIVINE = 0.1;
 // 겨우살이의 축복(옛 이름 「기적」) — 기획서 「겨우살이의 축복」 탭의 카드 종류별 풀. 카드에 쓸모 있는 것만 뜬다(divineKindsFor)
 export const DIVINE_KINDS = {
   공격: ["power", "cost", "weakSpot", "frost", "thorn"],
-  스킬: ["ap", "draw", "cost", "heal", "guard"], 방어: ["ap", "draw", "cost", "heal", "guard"], 회복: ["ap", "draw", "cost", "heal", "guard"],
+  // 카드 종류는 셋(공격 · 스킬 · 강화, 2026-10) — 옛 방어 · 회복 카드는 스킬이다. 회복 · 방어 축복은 divineKindsFor 가 효과(fx)를 보고 거른다
+  스킬: ["ap", "draw", "cost", "heal", "guard"],
   강화: ["atkUp", "defUp", "cost"],
 };
 export const DIVINE_KO = {
@@ -224,3 +225,14 @@ export function finalDamage({ stat, ratio, flash = 0, shin = false, global = 0, 
 
 // 배율은 기획서에 % 로 적혀 있다(공격력 100%) — 0~1 이 아니라 1.0 이다
 export const pct = (n) => n / 100;
+
+// ── 강화 카드 — 사도마다 한 장(docs/15 §7) ──────────────────────────────
+// 그 사도의 고유 카드 가운데 종류가 「강화」 인 것. 카제나의 강화 카드처럼:
+//   한 장만   덱에 한 장까지 — 은총 · 이벤트 · 상점이 이미 가진(또는 써 버린) 것을 다시 내놓지 않고, 복제도 안 된다
+//   쓰면 사라짐  내면 이 전투에서 사라지고(소멸), 판의 덱(run.deck)에서도 빠진다. 이 판에서는 다시 안 나온다(run.spent)
+//   판 내내   글의 「판 내내 자신 공격력 +10%」 는 그 자리에서 걸리고, 판이 끝날 때까지 다음 전투마다 다시 걸린다(run.boons)
+// 교주 카드의 「강화」(사기진작 따위)는 사도 카드가 아니라 이 규칙 밖이다 — 그쪽은 「덱에 1장만.」(oneOnly)이 따로 있다
+// 고유 카드의 신탁 하나가 「강화 카드.」 로 시작하면 그 신탁을 고른 카드도 강화 카드다 — c 에 신탁을 얹은 카드(cardbook flashed)를 넘긴다
+export const isPower = (c) => !!(c && c.unique && c.hero && c.type === "강화");
+// 판 내내 증감이 남는 턴 — 전투 하나보다 길게(999 는 「이번 전투 동안」). 화면은 이 값 이상이면 「판 내내」 라고 적는다
+export const BOON_TURNS = 9999;

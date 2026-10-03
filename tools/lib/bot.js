@@ -154,6 +154,7 @@ export function makeBots({ C, B, R, ENEMIES }) {
   }
 
   const MOD_W = { atk: 12, dealt: 12, crit: 4, heal: 4, def: 6, taken: -14 };
+  const BOON_W = 9;          // 판 내내 증감 — 3턴 몫(이번 전투) × 전투 셋
   const KNOWN = new Set(["취약", "약화", "감전", "중독", "힘", "침묵", "가시"]);
   // 판의 점수 — HP 단위. 높을수록 좋다.
   //   적: 깎은 HP(남은 HP 를 뺀다) · 처치(그 적의 아픔에 비례) · 다 잡으면 승리
@@ -190,7 +191,8 @@ export function makeBots({ C, B, R, ENEMIES }) {
       if (u.dead) continue;
       v += 3 * st(u, "힘") - 2 * (st(u, "약화") + st(u, "취약"));
       const rw = u.role === "딜러" ? 1.4 : 0.8;
-      for (const m of u.mods || []) v += (MOD_W[m.stat] || 0) * rw * m.v * Math.min(m.left, 3);
+      // 「판 내내」(강화 카드 · m.run) — 이번 전투 끝까지에 다음 전투들까지 간다. 일찍 낼수록 이득이라 크게 친다(전투 셋 몫)
+      for (const m of u.mods || []) v += (MOD_W[m.stat] || 0) * rw * m.v * (m.run ? BOON_W : Math.min(m.left, 3));
     }
     for (const bag of Object.values(s.stacks || {})) for (const n of Object.values(bag)) v += 1.5 * n;
     v += 0.06 * s.gauge;

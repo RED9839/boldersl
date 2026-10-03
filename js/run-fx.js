@@ -125,7 +125,7 @@ export function runFx(s, fxList, ctx, api) {
       }
       // 회복은 회복력 기준 — 낸 사도의 회복력
       case "heal": if (owner) for (const t of resolve(s, ctx, f.target)) {
-        // 넘친 만큼(over)도 넘긴다 — 「회복이 넘치면」 패시브(passive.js overheal)
+        // 넘친 만큼(over)도 넘긴다 — 「회복량이 최대 HP를 초과하면」 패시브(passive.js overheal)
         const h0 = t.hp, v = healAmount(api, owner, f.ratio, ctx.shin);
         t.hp = Math.min(t.maxHp, t.hp + v);
         if (api.heal) api.heal(t, h0, Math.max(0, h0 + v - t.maxHp));
@@ -138,7 +138,8 @@ export function runFx(s, fxList, ctx, api) {
         // 「자신」 이라고 적었으면 그대로 자신이다 — 스스로 거는 벌칙(이번 턴 자신 주는 피해 -20%)이 있다.
         let tg = f.target || "auto";
         if (tg === "auto") tg = (f.k === "takenMod" && f.v > 0) || (f.k === "dealtMod" && f.v < 0) ? "oneEnemy" : "self";
-        for (const t of resolve(s, ctx, tg)) api.addMod && api.addMod(t, stat, f.v, f.turns || 1);
+        // 「판 내내」(f.run) — 강화 카드의 버프. 엔진이 판에 적어 다음 전투에도 건다(combat fxApi addMod · run.js afterFight)
+        for (const t of resolve(s, ctx, tg)) api.addMod && api.addMod(t, stat, f.v, f.turns || 1, !!f.run);
         break;
       }
 

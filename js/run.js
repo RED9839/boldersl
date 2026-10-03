@@ -32,6 +32,8 @@ export function newRun(partyKeys, rows, seed = Date.now()) {
     floor: 0, node: 0,            // node 0..2 전투, 3 보스, 4 마지막 층 너머의 마지막 보스(isFinal)
     bench: Object.keys(HERO_DATA).filter((k) => !partyKeys.includes(k)),
 
+    boons: {},                    // 강화 카드가 남긴 「판 내내」 버프 — { 사도키: [{ stat, v, src }] }. 전투를 열 때마다 다시 건다
+    spent: [],                    // 써 버린 강화 카드 — 덱에서 빠졌고, 이 판에서는 다시 안 나온다(rules.js isPower)
     where: null,                  // 지금 어느 화면에 있나 — 이어하기가 그 자리로 돌아간다(js/main.js · js/save.js)
     done: null,
   };
@@ -66,6 +68,7 @@ export function openFight(run, { hpx = 1, dmgx = 1 } = {}) {
     enemyIds: currentEnemies(run), hp: run.hp, maxHp: run.maxHp, traits: run.traits, gear: gearStats(run), gearFx: gearPassives(run), flash: run.flash,
     enemyHp: foeScaleOf(run).hp * hpx, enemyDmg: foeScaleOf(run).dmg * dmgx,   // 층마다 · 엘리트 칸(이벤트 엘리트도) 체력 ×1.5
     next, shin: run.shin, gauge: run.gauge || 0,   // 기적이 붙은 카드 · 고학년 게이지는 전투 사이에 이어진다
+    boons: run.boons || {},                        // 강화 카드의 「판 내내」 버프 — 판이 끝날 때까지 전투마다
     glow: run.forceGlow || rollEpiphany(run),   // 신탁 — 이 전투에서 빛날 카드(카제나). forceGlow 는 시험 도구가 정해 넣는 것
     seed: (run.seed + run.floor * 101 + run.node * 7 + (run.step || 0) * 13 + (run.eventFight ? 555 : 0)) >>> 0,
   });
@@ -77,8 +80,15 @@ export function openFight(run, { hpx = 1, dmgx = 1 } = {}) {
 // 전투가 끝난 뒤 — 체력을 남기고, 만난 짝을 적어 둔다
 export function afterFight(run, combat) {
   const g = combat.gained || { cards: [], flash: [] };
-  for (const id of g.cards) if (!run.deck.includes(id)) run.deck.push(id);
+  for (const id of g.cards) if (!run.deck.includes(id) && !powerWhy(run, id)) run.deck.push(id);
   for (const f of g.flash) { run.flash[f.cardId] = f.n; if (f.shin) (run.shin = run.shin || {})[f.cardId] = f.shin; }
+  // 강화 카드 — 낸 것은 판의 덱에서 빠지고(같은 id 가 둘이어도 모두) 다시 안 나온다. 건 「판 내내」 버프는 판에 남는다
+  for (const id of g.spent || []) {
+    run.deck = run.deck.filter((x) => x !== id);
+    run.spent = run.spent || [];
+    if (!run.spent.includes(id)) run.spent.push(id);
+  }
+  for (const b of g.boons || []) ((run.boons = run.boons || {})[b.hero] = run.boons[b.hero] || []).push({ stat: b.stat, v: b.v, src: b.src });
   run.lastGained = { cards: g.cards.slice(), flash: g.flash.slice() };
   for (const u of combat.party) {
     run.hp[u.key] = u.dead ? 0 : u.hp;
@@ -127,7 +137,7 @@ export function rollEpiphany(run) {
   if (lit.length) run.rewardFlash = false;
   for (const cardId of lit) {
     const c = CARDS[cardId];
-    const options = draw3([1, 2, 3, 4, 5].filter((n) => (c.flash || [])[n - 1])).sort((a, b) => a - b).map((n) => ({ n, shin: null }));
+    const options = draw3([1, 2, 3, 4, 5].filter((n) => (c.flash || [])[n - 1] && flashOk(run, cardId, n))).sort((a, b) => a - b).map((n) => ({ n, shin: null }));
     // 기적 — 셋 가운데 하나에 드물게
     if (options.length && run.rng() < R.DIVINE) {
       // 「비용 -1」은 신탁을 얹은 뒤에도 비용이 1 이상인 선택지에만(①경량은 이미 0 일 수 있다)
@@ -143,7 +153,7 @@ export function rollEpiphany(run) {
 // 아직 얻을 수 있는 고유 카드 — 덱에 있는 것 · 한 번 빼 버린 것(run.dropped)은 빠진다.
 // 은총 · 상점이 같이 쓴다. 빼 버린 카드가 은총으로 다시 돌아오지 않게(사용자가 정한 규칙)
 export function uniquesLeft(run, heroKey) {
-  const gone = new Set(run.dropped || []);
+  const gone = new Set([...(run.dropped || []), ...(run.spent || [])]);     // 써 버린 강화 카드도(rules.js isPower)
   return uniqueIdsOf(heroKey).filter((id) => !run.deck.includes(id) && !gone.has(id));
 }
 // 덱에서 카드를 뺄 때 — 고유 카드면 적어 둔다
@@ -180,8 +190,26 @@ export function rollReward(run) {
   return run.reward;
 }
 
+// 강화 카드를 덱에 넣을 수 없는 까닭 — 이미 한 장 있거나 이 판에서 써 버렸으면. 넣을 수 있으면 null.
+// 은총 · 이벤트 · 보상이 덱에 카드를 넣는 곳마다 본다(rules.js isPower)
+// 이 판에서 그 카드가 강화 카드인가 — 기본이 강화이거나, 「강화 카드.」 신탁을 붙였거나
+export const powerCard = (run, cardId) => !!CARDS[cardId] && R.isPower(flashed(CARDS[cardId], (run.flash || {})[cardId]));
+// 신탁 n 을 이 카드에 붙여도 되나 — 「강화 카드.」 신탁은 덱에 그 카드가 한 장일 때만 내놓는다
+// (복제로 둘 이상 든 카드가 강화 카드가 되면 「한 장만」 이 깨진다 — 고르게 하지 않는 쪽을 택했다)
+export function flashOk(run, cardId, n) {
+  const c = CARDS[cardId];
+  if (!c || !R.isPower(flashed(c, n)) || R.isPower(c)) return true;
+  return run.deck.filter((x) => x === cardId).length <= 1;
+}
+export function powerWhy(run, cardId) {
+  if (!powerCard(run, cardId)) return null;
+  if ((run.spent || []).includes(cardId)) return "이 판에서 이미 쓴 강화 카드입니다 — 강화 카드는 쓰면 사라집니다";
+  if (run.deck.includes(cardId)) return "강화 카드는 덱에 한 장만 넣을 수 있습니다";
+  return null;
+}
+
 export function takeReward(run, cardId) {
-  if (cardId) run.deck.push(cardId);
+  if (cardId && !powerWhy(run, cardId)) run.deck.push(cardId);
   // 골드는 카드를 안 골라도 받는다 — 한 번만
   if (run.reward && !run.reward.goldTaken) { run.gold += run.reward.gold || 0; run.reward.goldTaken = true; }
 }
@@ -344,14 +372,14 @@ export function offerFlash(run) {
   const able = flashTargets(run);
   if (!able.length) return null;                       // 고유 카드가 없으면 신탁도 없다
   const cardId = able[Math.floor(run.rng() * able.length)];
-  const all = [1, 2, 3, 4, 5];
+  const all = [1, 2, 3, 4, 5].filter((n) => flashOk(run, cardId, n));
   const picks = [];
   while (picks.length < 3 && all.length) picks.push(...all.splice(Math.floor(run.rng() * all.length), 1));
   return { cardId, picks: picks.sort((a, b) => a - b) };
 }
 
 export function takeFlash(run, pick) {
-  if (!pick || !pick.cardId || !pick.n) return false;
+  if (!pick || !pick.cardId || !pick.n || !flashOk(run, pick.cardId, pick.n)) return false;
   run.flash[pick.cardId] = pick.n;
   return true;
 }

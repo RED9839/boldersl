@@ -222,7 +222,7 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
       switch (p.k) {
         case "remove": val = smart ? worstCard(run) : run.deck[0]; break;
         case "dupe": {
-          const ok = [...new Set(run.deck)].filter((id) => EV.dupeOk(id) && run.gold >= EV.dupeExtra(run, id));
+          const ok = [...new Set(run.deck)].filter((id) => EV.dupeOk(id, run) && run.gold >= EV.dupeExtra(run, id));
           val = smart ? ok.sort((a, b) => deckEff(run, b) - deckEff(run, a))[0] : ok[0];
           break;
         }

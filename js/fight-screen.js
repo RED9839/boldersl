@@ -1142,7 +1142,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
               const sn = p && p.snd;
               if (p) b.act.group = sn ? sn.group : null;
               if (sn && sn.group) SFX.action(pk, sn.group, sn.evs, { cast: sn.group, v: 0.85 });
-              else if (p) SFX.play("card." + b.act.card.type);
+              else if (p) SFX.play(SFX.cardKey(b.act.card));
               else SFX.card(b.act.card, pk);
             }).catch(() => {});
           }
@@ -1470,7 +1470,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   const STAT_KO = { dealt: "주는 피해", taken: "받는 피해", atk: "공격력", def: "방어력", crit: "치명", heal: "회복력" };
   const BAD_ST = ["취약", "약화", "감전", "중독", "기절", "침묵", "화상", "출혈"];
   const pctTxt = (v) => `${v > 0 ? "+" : ""}${Math.round(v * 100)}%`;
-  const turnTxt = (n) => (n == null || n >= 999 ? "이번 전투" : `${n}턴`);
+  const turnTxt = (n) => (n != null && n >= RULES.BOON_TURNS ? "판 내내" : n == null || n >= 999 ? "이번 전투" : `${n}턴`);   // 판 내내 — 강화 카드(run.boons)
   // 키워드 1개당이 이 사람에게 주는 증감 — [{ id, stat, v, n }]
   function kwShares(u) {
     const out = [];
@@ -1966,9 +1966,13 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         // 눌러서는 어떤 카드도 안 나간다 — 잘못 눌러 나가 버리는 일이 잦았다(방어 · 버프부터, 공격도 같게).
         // 들어 올려 보여 주기만 하고, 끌어 놓아야 쓴다(startDrag → dropCard).
         // 이제는 들어 올린 뒤 대상을 누르면 낸다(끌어 놓기도 된다) — 실수로 나가지 않게 한 번 더 누르는 셈이다
-        selCard = selCard === i ? -1 : i;
+        // 누르면 카드를 크게 보여 준다(카제나식, 2026-10 사용자) — 들어 올린 채로 두니 닫고 대상을 누르면 낸다.
+        // 들어 올린 카드를 다시 누르면 내려놓는다(크게 보기 없이)
+        const lift = selCard !== i;
+        selCard = lift ? i : -1;
         selUlt = null;
         draw();
+        if (lift) openCard(id, { lifted: true });
       };
       hand.appendChild(b);
       if (!left || !(left.get(id) > 0)) fresh.push(b); else left.set(id, left.get(id) - 1);
@@ -2840,7 +2844,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     }
     return box;
   }
-  function openCard(id) {
+  function openCard(id, { lifted = false } = {}) {
     const c = C.cardOf(st, id);
     if (!c) return;
     closeModal();
@@ -2858,7 +2862,9 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const tips = cardTips(id, c);
     if (tips.length) side.appendChild(tipBox(tips));
     else side.appendChild(el("p", "cinone", "따로 풀이할 낱말이 없는 카드입니다"));
-    side.appendChild(el("small", "cihint", "아무 데나 누르면 닫힙니다"));
+    side.appendChild(el("small", "cihint", lifted && !C.canPlay(st, id)
+      ? (targetsNeeded(id) ? "끌어서 대상에 놓거나, 닫고 대상을 누르면 냅니다 · 아무 데나 누르면 닫힙니다" : "끌어서 싸움터에 놓거나, 닫고 싸움터를 누르면 냅니다 · 아무 데나 누르면 닫힙니다")
+      : "아무 데나 누르면 닫힙니다"));
     back.appendChild(side);
     const close = () => { back.remove(); if (modal === back) modal = null; document.removeEventListener?.("keydown", esc); };
     const esc = (e) => { if (e.key === "Escape") close(); };

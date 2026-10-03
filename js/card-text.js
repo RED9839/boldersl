@@ -30,7 +30,10 @@ const SHORT = [
   // 기획서 글의 「2턴간 …」 · 「이번 전투 동안 …」 · 「이번 턴 …」 을 뒤로 옮긴다(이어 적은 「공격력 +10% · 방어력 +10%」 는 통째로)
   [new RegExp(`(\\d+)턴간 ${DUR_TGT} (${DUR_CHAIN})`, "g"), "$2 $3 $1턴"],
   [new RegExp(`이번 전투 동안 ${DUR_TGT} (${DUR_CHAIN})`, "g"), "$1 $2 전투 내내"],
+  [new RegExp(`판 내내 ${DUR_TGT} (${DUR_CHAIN})`, "g"), "$1 $2 판 내내"],       // 강화 카드(rules.js isPower)
   [new RegExp(`이번 턴 ${DUR_TGT} (${DUR_CHAIN})`, "g"), "$1 $2 이번 턴"],
+  // 같은 것을 이어 한 번 더 — 「회복 70% → 회복 40%」 는 「회복 70% → 40%」(대상은 앞의 것 · 최저 아군은 그때 다시 고른다)
+  [/(피해|회복|방어|실드) (\d+)% → \1 (\d+)%/g, "$1 $2% → $3%"],
   // ↓ main(ui/revive)의 줄이기 — 「HP 최저 아군」 은 낱말 풀이 이름이라 그대로 둔다
   // 패시브 · 키워드 풀이의 긴 말버릇(2026-10 「글이 많고 길다」) — 숫자는 하나도 건드리지 않는다
   [/적의 차례가 끝나면 (\d+) 감소/g, "적 차례 뒤 -$1"],
@@ -55,14 +58,18 @@ export { SHORT };
 // 카드 면의 수치 조각 — 「피해 100%」 「4회 × 피해 30%」 「방어 200%」 「실드 …」 「회복 …」(줄인 글 기준).
 // 전투 화면은 낸 사도의 지금 능력치로 숫자를 크게, % 를 작게 얹는다(ui-common withNumbers). 싸움 밖은 % 그대로.
 // 돌려주는 것: [{ t } | { t, kind: dmg · block · shield · heal, label, pct, hits }] — t 를 이으면 원래 글
-const NUM = /(?:(\d+)회 × )?(마법 피해|피해|방어|실드|회복) (\d+)%/g;
+// 「회복 70% → 40%」 — 화살표 뒤의 숫자는 앞과 같은 갈래(줄인 글이 낱말을 한 번만 적는다)
+const NUM = /(?:(\d+)회 × )?(마법 피해|피해|방어|실드|회복) (\d+)%|(?<=→ )(\d+)%/g;
 const NUM_KIND = { "마법 피해": "dmg", 피해: "dmg", 방어: "block", 실드: "shield", 회복: "heal" };
 export function numParts(text) {
   const t = String(text || ""), out = [];
   let at = 0;
+  let last = null;
   for (const m of t.matchAll(NUM)) {
+    if (m[4] && !last) continue;                     // 앞에 갈래가 없는 「→ N%」 는 글 그대로
     if (m.index > at) out.push({ t: t.slice(at, m.index) });
-    out.push({ t: m[0], kind: NUM_KIND[m[2]], label: m[2], pct: Number(m[3]), hits: m[1] ? Number(m[1]) : 0 });
+    if (m[4]) out.push({ t: m[0], kind: last.kind, label: "", pct: Number(m[4]), hits: 0 });
+    else { last = { kind: NUM_KIND[m[2]] }; out.push({ t: m[0], kind: last.kind, label: m[2], pct: Number(m[3]), hits: m[1] ? Number(m[1]) : 0 }); }
     at = m.index + m[0].length;
   }
   if (at < t.length) out.push({ t: t.slice(at) });
@@ -146,10 +153,13 @@ export function polite(t) {
 // 신탁 글머리의 「코스트 N.」 — 카드 머리의 코스트 칸이 같은 값을 보이니 카드 면에서는 뺀다(데이터는 그대로)
 const COST_HEAD = /^코스트\s*\d+\s*\.\s*/;
 
+// 사도의 강화 카드(rules.js isPower) — 카드 면 맨 앞에 규칙 꼬리표. 「강화 카드」 는 낱말 풀이가 붙는다(build-keywords)
+export const POWER_TAG = "강화 카드: 한 장만 · 쓰면 사라짐 · 판 내내.";
 export function cardParts(card, heroKey) {
   const full = shortText(card.text).replace(COST_HEAD, "");
   const m = full.match(LOCAL);
-  const action = m ? `${m[1]} ${m[2]}` : full;
+  const power = !!(card.unique && card.hero && card.type === "강화");
+  const action = (power ? POWER_TAG + " " : "") + (m ? `${m[1]} ${m[2]}` : full);
   const terms = [];
   const seen = new Set();
   const push = (ko, text, kind) => { if (ko && !seen.has(ko)) { seen.add(ko); terms.push({ ko, text, kind }); } };

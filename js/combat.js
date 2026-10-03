@@ -48,7 +48,8 @@ const addSt = (u, id, v) => { u.status[id] = Math.max(0, st(u, id) + v); if (!u.
 // ── 전투 시작 ──────────────────────────────────────────────────────────
 // gauge — 지난 전투에서 남은 고학년 게이지(run.gauge). 전투가 끝나도 이어진다
 // enemyHp · enemyDmg — 적 체력 · 피해 배율(run.js openFight 가 rules.js foeScale 로 층마다 정한다). 없으면 ENEMY_HP · 1
-export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noNature, traits, gear, gearFx, flash, enemyHp, enemyDmg, next, shin, glow, gauge }) {
+// boons — 강화 카드가 남긴 「판 내내」 버프(run.boons: { 사도키: [{ stat, v, src }] }). 전투를 열 때 늘 걸린 증감으로 다시 건다
+export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noNature, traits, gear, gearFx, flash, enemyHp, enemyDmg, next, shin, glow, gauge, boons }) {
   const rng = makeRng(seed);
   const party = partyKeys.map((key, i) => {
     // 스탯은 기획서가 원본이다. 기획서에 없는 사도만 옛 heroes.js 를 본다.
@@ -130,7 +131,11 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
   if (opening.length) s.draw = [...s.draw.filter((id) => !opening.includes(id)), ...opening];
   // 신탁 — 빛나는 카드(run.js rollEpiphany). 내는 순간 화면이 셋 중 하나를 고르게 하고 applyEpiphany 로 건다
   s.glow = JSON.parse(JSON.stringify(glow || {}));
-  s.gained = { cards: [], flash: [] };     // 이 전투에서 얻은 것 — 끝나면 run.js afterFight 가 판에 남긴다
+  // 이 전투에서 얻은 것 — 끝나면 run.js afterFight 가 판에 남긴다.
+  // spent — 낸 강화 카드(판의 덱에서 빠진다) · boons — 그 카드가 건 「판 내내」 버프(다음 전투에도 걸린다)
+  s.gained = { cards: [], flash: [], spent: [], boons: [] };
+  // 지난 전투들에서 쓴 강화 카드의 「판 내내」 버프 — 처음부터 걸려 있다(정보 창에 출처 카드와 「판 내내」)
+  for (const u of party) for (const b of (boons && boons[u.key]) || []) P.addMod(u, b.stat, b.v, R.BOON_TURNS, b.src || null, true);
   s.freeOnce = {};                          // 신탁이 붙은 카드 — 이번에 내는 것은 비용 0
   s.freeTurn = {};                          // 은총으로 얻은 카드 — 그 턴 비용 0
   // 이벤트가 걸어 둔 「다음 전투」 효과(docs/08-이벤트.md) — 이 전투에서 한 번
@@ -320,6 +325,10 @@ export function endTurn(s) {
   s.hand.push(...keep);
   checkOver(s); if (s.over) return s;
 
+  // 적의 차례에 사도에게 새로 걸린 상태 — 이번에는 줄이지 않는다(2026-10 사용자: 「약화 1턴」 이 걸리자마자 풀려 아무 일도 안 했다).
+  // 걸린 뒤 내 턴을 한 번 거치고 나서 줄어든다. 적에게 건 것은 그대로(내 턴에 걸고 → 적의 차례를 거쳐 → 줄어든다)
+  const TICK = ["취약", "약화", "감전", "침묵", "중독"];
+  const before = new Map(s.party.map((u) => [u, Object.fromEntries(TICK.map((id) => [id, st(u, id)]))]));
   foePassives(s, "turnEnd");
   checkOver(s); if (s.over) return s;
   enemyPhase(s);
@@ -329,10 +338,12 @@ export function endTurn(s) {
   if (s.taunt && s.tauntLeft != null && --s.tauntLeft <= 0) { s.taunt = null; s.tauntLeft = null; }
 
   for (const u of [...alive(s.party), ...alive(s.enemies)]) {
-    for (const id of ["취약", "약화", "감전", "침묵"]) if (st(u, id) > 0) addSt(u, id, -1);
+    const was = before.get(u);
+    const fresh = (id) => was && st(u, id) > was[id];       // 방금 적이 건 것
+    for (const id of ["취약", "약화", "감전", "침묵"]) if (st(u, id) > 0 && !fresh(id)) addSt(u, id, -1);
     // 중독은 천천히 풀린다. 안 풀리게 뒀더니 쌓이기만 해서 적이 내내 반토막 났다(완주율 76%).
     // 이제는 계속 덧발라야 한다 — 그게 마요를 굴리는 맛이기도 하다.
-    if (st(u, "중독") > 0) addSt(u, "중독", -1);
+    if (st(u, "중독") > 0 && !fresh("중독")) addSt(u, "중독", -1);
   }
   beginTurn(s);
   return s;
@@ -771,6 +782,7 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   const ctx = { owner, combo: null, targetIdx, allyIdx: opts.ally, x: c.xcost ? paid : 0, shin: R.shinKindOf(CARDS[cardId], sh) };
   s.acting = c.hero || null;
   s.modSrc = `${owner ? owner.ko + " " : ""}「${c.name}」`;   // 버프 · 디버프의 출처(정보 창)
+  s.boonSrc = `「${c.name}」`;                                  // 「판 내내」 버프의 출처 — 판에 적는다(run.boons)
   cue(s, "act", owner, { anim: c.type === "공격" ? "attack" : "skill", card: c });   // card — 화면이 카드에 맞는 동작을 고른다(js/data/card-motion.js)
   try {
     if (c.built) {
@@ -782,7 +794,7 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
     // 그 카드만의 축복 — 고른 축복의 덤 효과가 카드 효과 뒤에 돈다(배율은 ctx.shin 이 이미 실었다)
     const bl = R.blessOf(CARDS[cardId], sh);
     if (bl && bl.fx && bl.fx.length) { say(s, `겨우살이의 축복 「${bl.ko}」`); runFx(s, bl.fx, { ...ctx, shin: null }, fxApi(s)); }
-  } finally { s.discardPick = null; }       // 고른 버릴 카드는 이 카드의 효과에서만 쓴다
+  } finally { s.discardPick = null; s.boonSrc = null; }       // 고른 버릴 카드 · 판 내내의 출처는 이 카드의 효과에서만 쓴다
   // 티그의 오버드라이브 — 평타 계수를 바꾸고 공속을 올린다(원작). 여기선 한 번 더 들어간다.
   if (s.overdrive && c.hero === "tig" && c.type === "공격") {
     say(s, "오버드라이브 — 한 번 더");
@@ -805,7 +817,10 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
     if (coffer) { s.ap += coffer; say(s, `곳간 — AP +${coffer}`); }
   }
 
-  if (c.temp || hasTag(c, "소멸") || (owner && owner.dead)) s.gone.push(cardId); else s.discard.push(cardId);
+  // 강화 카드(rules.js isPower) — 내면 이 전투에서 사라지고, 판의 덱에서도 빠진다(afterFight 가 gained.spent 를 본다)
+  const spent = R.isPower(c);                 // c — 신탁을 얹은 카드. 「강화 카드.」 신탁을 고른 카드도 강화 카드다
+  if (spent) { (s.gained.spent = s.gained.spent || []).push(cardId); say(s, `강화 카드 「${c.name}」 — 판에서 사라진다`); }
+  if (c.temp || spent || hasTag(c, "소멸") || (owner && owner.dead)) s.gone.push(cardId); else s.discard.push(cardId);
   // 겨우살이의 축복 — 낼 때 붙는 것(피해 · 회복 · 방어 · 맞은 적 상태는 run-fx 가 본다)
   if (sh === "draw") draw(s, 1);                 // 끝없는 이야기 — 내면 드로우 1
   if (sh === "ap") s.ap += 1;                     // 발맞추기 — 내면 AP +1(비용 1 이상 카드만 뜬다)
@@ -1067,7 +1082,7 @@ function fxApi(s) {
     hurt: (t, v, o) => hurt(s, t, v, o),
     draw: (n) => draw(s, n),
     // 연출 쪽지 — 회복 · 방어 · 실드(run-fx 가 직접 채우는 것)
-    // 넘친 회복(over > 0) — 「회복이 넘치면」 패시브(passive.js). 누가 채웠는지는 지금 움직이는 사람(acting)
+    // 넘친 회복(over > 0) — 「회복량이 최대 HP를 초과하면」 패시브(passive.js). 누가 채웠는지는 지금 움직이는 사람(acting)
     heal: (t, h0, over) => { healCue(s, t, h0); if (over > 0 && t.side === "party" && !t.dead && s.acting) emit(s, "overheal", { by: s.acting, who: t, over }); },
     // 아군에게 방어 · 실드가 붙으면 「방어나 실드를 얻으면」 패시브(passive.js matches "guard")
     gain: (t, k, v) => { gainCue(s, t, k, v); if (v > 0 && t.side === "party" && !t.dead) emit(s, "guard", { who: t, k }); },
@@ -1088,8 +1103,11 @@ function fxApi(s) {
       if (t.side === "enemy" && v > 0) { emit(s, "debuff", { by: s.acting, target: t, id, seq: s.actSeq }); foePassives(s, "debuffed", { target: t }); }
     },
     statOf: (u, stat) => P.statMod(s, u, stat),
-    addMod: (t, stat, v, turns) => {
-      P.addMod(t, stat, v, turns, s.modSrc || null);
+    // run — 「판 내내」(강화 카드). 아군에게 건 것만 판에 적는다(gained.boons → run.js afterFight → run.boons)
+    addMod: (t, stat, v, turns, run) => {
+      const boon = !!run && t.side === "party" && !!s.boonSrc;
+      P.addMod(t, stat, v, boon ? R.BOON_TURNS : turns, s.modSrc || null, boon);
+      if (boon) (s.gained.boons = s.gained.boons || []).push({ hero: t.key, stat, v, src: s.boonSrc });
       // 연출 쪽지 — 「공격력 +10%」 꼬리표와 강화 · 약화 소리. up 은 걸린 쪽에 좋은가(받는 피해는 줄어야 좋다)
       const pct = Math.round(v * 100);
       if (pct) cue(s, "status", t, { id: `${MOD_KO[stat] || stat} ${pct > 0 ? "+" : ""}${pct}%`, up: stat === "taken" ? pct < 0 : pct > 0, mod: stat });

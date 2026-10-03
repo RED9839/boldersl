@@ -109,10 +109,13 @@ function hitsOf(text) {
 // 남은 AP 를 전부 쓰고 그 수만큼(+키워드 스택만큼) 때린다. 전에는 못 읽어서 1회만 쳤다.
 // 증감이 얼마나 가는가 — 「이번 전투」 · 「전투 내내」 는 끝까지, 「N턴간」 · 뒤에 붙은 「N턴」 은 N턴, 아무 말 없으면 이번 턴
 function durOf(t) {
-  if (/이번\s*전투|전투\s*내내/.test(t)) return 999;   // 끝까지 — JSON 에 Infinity 가 안 들어가서 999 턴으로 둔다
+  if (/이번\s*전투|전투\s*내내|판\s*내내/.test(t)) return 999;   // 끝까지 — JSON 에 Infinity 가 안 들어가서 999 턴으로 둔다
   const m = t.match(/(\d+)\s*턴\s*(?:간|동안)?/);
   return m ? Number(m[1]) : 1;
 }
+// 「판 내내」 — 강화 카드의 버프(rules.js isPower). 이 전투 끝까지에 더해, 판이 끝날 때까지 다음 전투마다 다시 걸린다(run.boons).
+// 증감 조각에 run: true 를 붙인다 — 엔진(combat fxApi addMod)이 그것을 보고 판에 적는다
+function boonOf(t) { return /판\s*내내/.test(t) ? { run: true } : {}; }
 
 function xOf(clause) {
   const m = clause.match(/\(\s*AP\s*(?:\+\s*([가-힣]+))?\s*\)\s*회|\bX\s*회/);
@@ -120,15 +123,17 @@ function xOf(clause) {
 }
 
 const RULES = [
+  // 「강화 카드.」 — 신탁 글머리. 그 신탁을 고르면 카드가 강화 카드가 된다(rules.js isPower · cardbook flashed). 태그로 읽는다
+  { re: /^\s*강화\s*카드\s*\.\s*/g, make: () => ({ k: "tag", id: "강화" }) },
   // 「다음 카드 코스트 -1」 — 이번 턴에 다음에 내는 카드 한 장이 싸진다(combat nextCheaper). 「코스트 -1」(신탁 코스트)보다 먼저 읽는다
   { re: /다음\s*카드\s*(?:의\s*)?코스트\s*-\s*(\d+)/g, make: (m) => ({ k: "nextCheaper", v: Number(m[1]) }) },
   // 능력치 증감 — 「공격력 +10%」「방어력 +20%」「치명 확률 +10%」. 피해 규칙보다 먼저 읽는다
   // (「공격력 +10%」 는 피해가 아니다). 얼마나 가는지는 곁의 말(이번 턴 · N턴간 · 이번 전투)로 정한다.
-  { re: /공격력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "atkMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), target: pickTarget(text, "self", m, "atkMod") }) },
-  { re: /방어력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "defMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), target: pickTarget(text, "self", m, "defMod") }) },
-  { re: /치명\s*(?:확률)?\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "critMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), target: pickTarget(text, "self", m, "critMod") }) },
+  { re: /공격력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "atkMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "self", m, "atkMod") }) },
+  { re: /방어력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "defMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "self", m, "defMod") }) },
+  { re: /치명\s*(?:확률)?\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "critMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "self", m, "critMod") }) },
   // 「회복력 +20%」 — 회복을 주는 쪽의 회복력(run-fx healOf). 「HP 회복(회복력 40%)」 의 배율과는 + 로 갈린다
-  { re: /회복력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "healMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), target: pickTarget(text, "self", m, "healMod") }) },
+  { re: /회복력\s*\+\s*(\d+)\s*%/g, make: (m, text) => ({ k: "healMod", v: Number(m[1]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "self", m, "healMod") }) },
   // 피해 — 공격력 N% 피해
   {
     re: /공격력\s*(\d+)\s*%\s*(?:의\s*)?피해/g,
@@ -194,8 +199,8 @@ const RULES = [
   // 배율 — "배율 +30%p"
   { re: /배율\s*([+\-])\s*(\d+)\s*%p/g, make: (m) => ({ k: "ratioDelta", v: (m[1] === "-" ? -1 : 1) * Number(m[2]) / 100 }) },
   // 주는/받는 피해 ±N%
-  { re: /받는\s*피해\s*([+\-])\s*(\d+)\s*%/g, make: (m, text) => ({ k: "takenMod", v: (m[1] === "-" ? -1 : 1) * Number(m[2]) / 100, turns: durOf(near(text, m)), target: pickTarget(text, "auto", m, "takenMod") }) },
-  { re: /주는\s*피해\s*([+\-])\s*(\d+)\s*%/g, make: (m, text) => ({ k: "dealtMod", v: (m[1] === "-" ? -1 : 1) * Number(m[2]) / 100, turns: durOf(near(text, m)), target: pickTarget(text, "auto", m, "dealtMod") }) },
+  { re: /받는\s*피해\s*([+\-])\s*(\d+)\s*%/g, make: (m, text) => ({ k: "takenMod", v: (m[1] === "-" ? -1 : 1) * Number(m[2]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "auto", m, "takenMod") }) },
+  { re: /주는\s*피해\s*([+\-])\s*(\d+)\s*%/g, make: (m, text) => ({ k: "dealtMod", v: (m[1] === "-" ? -1 : 1) * Number(m[2]) / 100, turns: durOf(near(text, m)), ...boonOf(near(text, m)), target: pickTarget(text, "auto", m, "dealtMod") }) },
   // 카드 생성 — 「초고」 2장 생성
   { re: /「(.+?)」\s*(\d+)\s*장\s*생성/g, make: (m) => ({ k: "make", id: m[1], v: Number(m[2]) }) },
   // 무적 · 부활 · 디버프 해제
@@ -230,7 +235,7 @@ const RULES = [
   // "다음 카드 코스트 -1" 은 이미 costDelta 가 잡는다. 여기선 "카드 사용 불가"
   { re: /카드\s*사용\s*불가/g, make: (m, t) => ({ k: "lockCards", target: pickTarget(t, "self", m, "lockCards") }) },
   // "소멸" 은 tag 가 잡는다. "이번 전투" 는 지속을 뜻한다
-  { re: /이번\s*전투(?:\s*동안)?|전투\s*내내/g, make: () => null },   // 증감의 길이(999턴)로 이미 읽었다
+  { re: /이번\s*전투(?:\s*동안)?|전투\s*내내|판\s*내내/g, make: () => null },   // 증감의 길이(999턴)로 이미 읽었다
 
   // ── 고학년 게이지를 쓰는 꼴 ────────────────────────────────────────
   // "게이지 300%를 써서" 는 비용 설명이다 — 비용은 ult.cost 가 이미 들고 있으니 효과로 세지 않는다
@@ -313,7 +318,7 @@ export function parseEffect(text, { keyword, keywords } = {}) {
   // 대상 말(적 1명·아군 전원…)과 타수(4회 ×)는 효과가 이미 가져갔다 — 못 읽은 것으로 세지 않는다
   for (const [re] of TARGETS) left = left.replace(new RegExp(re.source, "g"), (x) => " ".repeat(x.length));
   // 길이 말(2턴간 · 이번 턴 · 이번 전투 동안)은 증감·상태가 이미 가져갔다
-  left = left.replace(/\(\s*AP\s*(?:\+\s*[가-힣 ]+?)?\s*\)\s*회\s*[×x]?|\bX\s*회\s*[×x]?|\d+\s*회\s*[×x]|\bHP\b|\d+\s*턴\s*(?:간|동안)?|이번\s*전투\s*동안|전투\s*내내|이번\s*턴/g, (x) => " ".repeat(x.length));
+  left = left.replace(/\(\s*AP\s*(?:\+\s*[가-힣 ]+?)?\s*\)\s*회\s*[×x]?|\bX\s*회\s*[×x]?|\d+\s*회\s*[×x]|\bHP\b|\d+\s*턴\s*(?:간|동안)?|이번\s*전투\s*동안|전투\s*내내|판\s*내내|이번\s*턴/g, (x) => " ".repeat(x.length));
 
   // 남은 글자에서 조사·이음말을 걷어 내면, 진짜로 못 읽은 것만 남는다
   const rest = left

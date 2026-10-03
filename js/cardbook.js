@@ -106,9 +106,12 @@ export function flashed(card, n) {
     if (x.k === "costDelta") cost = Math.max(0, cost + x.v);
   }
   const fx = (f.fx || []).filter((x) => x.k !== "costSet" && x.k !== "costDelta");
+  // 「강화 카드.」 로 시작하는 신탁 — 고르면 이 카드가 강화 카드가 된다(js/rules.js isPower). 글머리는 카드 면의 꼬리표(card-text POWER_TAG)가 대신한다
+  const power = fx.some((x) => x.k === "tag" && x.id === "강화");
   return {
     ...card, cost,
-    text: f.text,
+    ...(power ? { type: "강화" } : {}),
+    text: power ? f.text.replace(/^\s*강화\s*카드\s*\.\s*/, "") : f.text,
     fx,
     // 대상도 신탁의 글로 다시 정한다 — 전에는 기본 카드의 것을 그대로 써서, 신탁이 「적 1명 기절」 을 붙여도
     // 화면이 적을 고르게 하지 않았다(맨 앞 적에게 갔다). 신탁 488개가 그랬다

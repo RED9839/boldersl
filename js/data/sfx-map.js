@@ -17,6 +17,7 @@ export const SFX = {
   "card.공격":    { f: ["scenario/sfx_swing", "scenario/sfx_swing_2"], v: 0.5 },   // 휘두르는 바람(둘이 거의 같다)
   "card.스킬":    { f: ["sfx_ingame_manausing"], v: 0.45 },
   "card.기술":    { f: ["sfx_ingame_manausing"], v: 0.45 },
+  // 방어 · 회복은 카드 종류가 아니라 하는 일의 소리다 — 스킬 카드가 방어 · 실드 · 무적을 주거나 회복하면(js/sfx.js cardKey)
   "card.방어":    { f: ["sfx_ingame_battleitemuse"], v: 0.45 },
   "card.회복":    { f: ["sfx_ingame_managet"], v: 0.45 },
   "card.강화":    { f: ["sfx_ingame_artifactequip"], v: 0.45 },

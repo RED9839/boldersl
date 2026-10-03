@@ -48,7 +48,7 @@ console.log("스탯 기반 계산 (기획서)");
 }
 {
   const h = B.heroes["에르핀"];
-  const card = B.cards[B.starter["에르핀"].find((id) => B.cards[id].type === "방어")];
+  const card = B.cards[B.starter["에르핀"].find((id) => (B.cards[id].fx || []).some((f) => f.k === "block"))];
   const { s, me } = run("에르핀", card.fx);
   const want = Math.max(1, Math.round(h.def * 2.0));
   me.block === want ? ok(`${card.ko} — 방어력 ${h.def} × 200% = ${me.block}`) : fail(`${card.ko} ${me.block} (${want} 이어야 한다)`);

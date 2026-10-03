@@ -3,6 +3,7 @@
 //   node tools/check-hero.js 파일.md [파일2.md …]     새로 쓴 사도 글(### 로 시작)
 //   node tools/check-hero.js --design                  기획서 전체 (저장소 맨 위 트릭컬_기획서_전체.md)
 //   node tools/check-hero.js --design --only 네르,티그
+//   node tools/check-hero.js .omc/v4/란.md --bless --v4   v4 리뉴얼 글(축복 셋 · 강화 길 하나)
 //
 // 패시브·키워드는 js/passive.js 가, 카드는 js/effects.js 가 읽는다. 여기서 못 읽은 말은
 // 게임에서 아무 일도 안 한다 — 글로만 있는 패시브를 다시 만들지 않으려고 이 검사가 있다.
@@ -19,14 +20,16 @@ const args = process.argv.slice(2);
 const DESIGN = DESIGN_DOC;
 const needBless = args.includes("--bless");   // v3 — 고유 카드마다 「✦ 축복」 이 있어야 한다
 // v4 시범 여섯(docs/15) — 고유 카드마다 축복 셋
-const V4 = new Set(["에르핀", "네르", "티그", "비비", "나이아", "엘레나"]);
+const V4_PILOT = new Set(["에르핀", "네르", "티그", "비비", "나이아", "엘레나"]);
+// --v4 — 넘긴 글의 사도를 모두 v4 로 본다(전체 리뉴얼 묶음 · tools/merge-v4.js 가 .omc/v4/*.md 를 넘긴다)
+const V4 = { has: (ko) => process.argv.includes("--v4") || V4_PILOT.has(ko) };
 const only = args.includes("--only") ? (args[args.indexOf("--only") + 1] || "").split(",").filter(Boolean) : [];
 const files = args.includes("--design") ? [DESIGN] : args.filter((a) => a.endsWith(".md"));
 if (!files.length) { console.log("쓰는 법: node tools/check-hero.js 파일.md | --design"); process.exit(2); }
 
 const STATUS = ["취약", "약화", "기절", "도발", "침묵", "감전", "중독", "힘"];
 const ULT_COST = [150, 200, 250, 300];
-const TYPES = ["공격", "스킬", "강화", "방어", "회복"];
+const TYPES = ["공격", "스킬", "강화"];   // 카드 종류는 셋(2026-10 — 방어 · 회복 카드는 스킬)
 const FLASH = ["강화", "경량", "연계", "변형", "각성"];
 // 원작에 SP 회복기가 있는 사도(docs/11 §2-1 · §3-2) — 파티 SP 를 주던 사도와 자기 SP 를 채우던 사도. 이들만 0코 신탁을 둔다
 const SP_HEROES = new Set(["스피키", "바리에", "캬롯", "우이", "오르", "죠안", "키샤", "뮤트", "아멜리아", "포셔", "우이(기억)",
@@ -213,6 +216,7 @@ for (const file of files) {
 
     // ── 모양 ──
     if (h.ult && !ULT_COST.includes(h.ult.cost)) errs.push(`고학년 스킬 비용 ${h.ult.cost}% — 150·200·250·300 가운데 하나`);
+    for (const c of h.start) if (!TYPES.includes(c.type)) errs.push(`시작 「${c.ko}」 타입 「${c.type}」 — 공격·스킬·강화 가운데 하나(방어 · 회복은 스킬)`);
     for (const u of h.unique) {
       if (!TYPES.includes(u.type)) errs.push(`고유 「${u.ko}」 타입 「${u.type}」 — 공격·스킬·강화 가운데 하나`);
       // 자유 신탁(분류 없음 — 카드마다 다른 다섯 갈래)이면 다섯 모두 자유여야 한다. 아니면 옛 틀의 차례대로
@@ -253,6 +257,42 @@ for (const file of files) {
           notes.push(`축복 ${u.ko} → ${bl.ko}: ${b.kind || "-"}${b.fx.length ? " + " + b.fx.map(fxLabel).join(", ") : ""}`);
         }
       }
+    }
+    // ── 강화 카드(js/rules.js isPower · docs/15 §7) — 사도마다 한 장까지, 버프는 「판 내내」 ──
+    // 한 장만 · 쓰면 사라짐(판의 덱에서도) · 판 내내. 그래서 기본 카드와 신탁 다섯이 모두 「판 내내 …」 증감을 하나는 든다.
+    // 「판 내내」 는 강화 카드에만 쓴다 — 다른 카드 · 패시브 · 고학년 · 축복에 쓰면 판에 쌓인다
+    {
+      const pe = (t) => parseEffect(t, { keywords: kws }).fx;
+      const MODS = ["dealtMod", "takenMod", "atkMod", "defMod", "critMod", "healMod"];
+      const boons = (fx) => fx.filter((f) => MODS.includes(f.k) && f.run);
+      // 강화 길 — 기본이 강화인 고유 카드, 또는 신탁 하나가 「강화 카드.」 로 시작하는 고유 카드(그 신탁을 고르면 강화 카드가 된다)
+      const marked = (t) => pe(t).some((f) => f.k === "tag" && f.id === "강화");
+      const paths = [...h.unique.filter((u) => u.type === "강화").map((u) => `「${u.ko}」`),
+        ...h.unique.filter((u) => u.type !== "강화").flatMap((u) => u.flash.filter((f) => marked(f.text)).map((f) => `「${u.ko}」 신탁 「${f.ko}」`))];
+      if (paths.length > 1) errs.push(`강화 길이 ${paths.length}개(${paths.join(" · ")}) — 사도마다 하나까지(기본 카드 하나 또는 신탁 하나)`);
+      if (paths.length) notes.push(`강화 카드: ${paths[0]}`);
+      for (const u of h.unique) {
+        const list = [{ text: u.text, at: `고유 「${u.ko}」`, power: u.type === "강화" }, ...u.flash.map((f) => ({ text: f.text, at: `「${u.ko}」 「${f.ko}」`, power: u.type === "강화" || marked(f.text) }))];
+        for (const x of list) {
+          const b = boons(pe(x.text));
+          if (u.type === "강화" && marked(x.text)) errs.push(`${x.at} — 이미 강화 카드다. 「강화 카드.」 를 적지 않는다`);
+          if (!x.power) { if (b.length || /판\s*내내/.test(x.text)) errs.push(`${x.at} — 「판 내내」 는 강화 카드에만`); continue; }
+          if (!b.length) errs.push(`${x.at} — 강화 카드는 「판 내내 자신 …+N%」 증감을 하나 든다(신탁도)`);
+          if (b.length > 2) errs.push(`${x.at} — 판 내내 증감이 ${b.length}개(둘까지)`);
+          for (const f of b) {
+            // 강화 카드는 자기 자신만 강화한다(2026-10 사용자) — 아군 전원 · 다른 아군에게 거는 판 내내는 안 된다
+            const cap = 0.2;
+            if (f.v < 0 ? f.k !== "takenMod" : f.k === "takenMod") errs.push(`${x.at} — 판 내내는 제 편에 좋은 것만(${fxLabel(f)})`);
+            if (Math.abs(f.v) > cap + 1e-9) errs.push(`${x.at} — 판 내내 ${fxLabel(f)} 는 크다(자신 20% 까지 — 판 끝까지 쌓인다)`);
+            if (f.target !== "self") errs.push(`${x.at} — 강화 카드의 판 내내는 자신에게만(${f.target})`);
+          }
+          if (pe(x.text).some((f) => f.k === "tag" && f.id === "소멸") || (u.type === "강화" && u.tags.includes("소멸"))) errs.push(`${x.at} — 강화 카드는 쓰면 사라진다. 「소멸」 을 따로 적지 않는다`);
+        }
+        if (u.type === "강화") for (const bl of u.blesses || (u.bless ? [u.bless] : [])) if (/판\s*내내/.test(bl.text)) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 축복에는 「판 내내」 를 쓰지 않는다(덤은 이번 전투 것)`);
+      }
+      for (const c of [...h.start, ...(h.ult ? [h.ult] : [])]) if (/판\s*내내/.test(c.text || "")) errs.push(`「${c.ko}」 — 「판 내내」 는 강화 카드에만`);
+      if (/판\s*내내/.test(h.passive || "") || /판\s*내내/.test((h.keyword && h.keyword.text) || "")) errs.push("패시브 · 키워드 — 「판 내내」 는 강화 카드에만");
+      for (const u of h.unique) if (u.type !== "강화") for (const bl of u.blesses || (u.bless ? [u.bless] : [])) if (/판\s*내내/.test(bl.text)) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 「판 내내」 는 강화 카드에만`);
     }
     // 「(턴당 N회)」 는 카드 · 고학년 스킬 글에도 쓰지 않는다(2026-10 사용자)
     for (const c of cards) if (/턴당\s*\d+\s*회/.test(c.text || "")) errs.push(`${c.where} — 「턴당 N회」 를 쓰지 않는다`);
@@ -331,12 +371,12 @@ function fxLabel(f) {
     case "spend": return `${f.id} ${f.v === "all" ? "전부" : f.v} 소모`;
     case "status": return `${f.id} ${f.turns}턴${t}`;
     case "dealtMod": case "takenMod": case "atkMod": case "defMod": case "critMod": case "healMod":
-      return `${{ dealtMod: "주는 피해", takenMod: "받는 피해", atkMod: "공격력", defMod: "방어력", critMod: "치명", healMod: "회복력" }[f.k]} ${f.v > 0 ? "+" : ""}${Math.round(f.v * 100)}%${f.turns >= 999 ? " 전투 내내" : f.turns > 1 ? ` ${f.turns}턴` : ""}${t}`;
+      return `${{ dealtMod: "주는 피해", takenMod: "받는 피해", atkMod: "공격력", defMod: "방어력", critMod: "치명", healMod: "회복력" }[f.k]} ${f.v > 0 ? "+" : ""}${Math.round(f.v * 100)}%${f.run ? " 판 내내" : f.turns >= 999 ? " 전투 내내" : f.turns > 1 ? ` ${f.turns}턴` : ""}${t}`;
     default: return f.k + (f.v != null ? " " + f.v : "");
   }
 }
 function whenLabel(w) {
-  return { fightStart: "전투 시작", turnStart: "턴 시작", turnEnd: "턴 끝", play: `${w.sig ? "시그니처 " : ""}카드${w.type ? "(" + w.type + ")" : ""}${w.who === "any" ? "(파티)" : w.every ? "(자기)" : ""}${w.minCost ? ` ${w.minCost}코 이상` : ""}${w.every ? ` ${w.every}장마다` : ""}${w.nth ? ` ${w.nth}장째` : ""}`, kill: w.mine ? "처치" : "적 쓰러짐", hurt: w.who === "any" ? "아군 피격" : "피격", lowHp: `HP ${Math.round(w.pct * 100)}% 이하`, allyDown: "아군 쓰러짐", ult: "고학년 스킬", combo: "연계", rush: "적 즉시 행동", guard: `${w.who === "any" ? "아군 " : ""}${w.kind === "block" ? "방어" : w.kind === "shield" ? "실드" : "방어·실드"} 얻음`, debuff: "디버프 걺", overheal: "회복 넘침", stackReach: `${w.id} ${w.n}개`, always: "항상" }[w.on] || w.on;
+  return { fightStart: "전투 시작", turnStart: "턴 시작", turnEnd: "턴 끝", play: `${w.sig ? "시그니처 " : ""}카드${w.type ? "(" + w.type + ")" : ""}${w.who === "any" ? "(파티)" : w.every ? "(자기)" : ""}${w.minCost ? ` ${w.minCost}코 이상` : ""}${w.every ? ` ${w.every}장마다` : ""}${w.nth ? ` ${w.nth}장째` : ""}`, kill: w.mine ? "처치" : "적 쓰러짐", hurt: w.who === "any" ? "아군 피격" : "피격", lowHp: `HP ${Math.round(w.pct * 100)}% 이하`, allyDown: "아군 쓰러짐", ult: "고학년 스킬", combo: "연계", rush: "적 즉시 행동", guard: `${w.who === "any" ? "아군 " : ""}${w.kind === "block" ? "방어" : w.kind === "shield" ? "실드" : "방어·실드"} 얻음`, debuff: "디버프 걺", overheal: "회복량 초과", stackReach: `${w.id} ${w.n}개`, always: "항상" }[w.on] || w.on;
 }
 function condLabel(c) {
   return c.c === "stack" ? `${c.id} ${c.n}+` : c.c === "hp" ? `HP ${Math.round(c.pct * 100)}% 이하` : c.c === "hpMin" ? `HP ${Math.round(c.pct * 100)}% 이상` : c.c === "foes" ? `적 ${c.n}명+`

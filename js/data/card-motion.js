@@ -76,7 +76,7 @@ export function cardMotion(c, { role, key, has = () => true } = {}) {
   // 방어 — 탱커는 막아서는 스킬, 서포터는 시전(보호 주문 · 기도). 딜러는 아군에게 거는 것(아군 전원 방어 · 버프)이면 승리 동작으로 북돋우고,
   // 제 몸만 지키면 등장 자세(무기를 고쳐 쥐고 선다)
   const ally = (c.fx || []).some((f) => /all(y|ies)/i.test(f.target || "")) || c.target === "아군";
-  const guard = c.type === "방어" || (c.fx || []).some((f) => GUARD_FX.has(f.k));
+  const guard = (c.fx || []).some((f) => GUARD_FX.has(f.k));   // 카드 종류가 아니라 효과로(옛 방어 카드는 이제 스킬이다)
   if (guard) {
     if (look === "guard" && skill) return go(skill, "skill", "guard");
     if (look === "cast" && skill) return go(skill, "skill", "cast");

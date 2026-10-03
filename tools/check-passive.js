@@ -114,7 +114,7 @@ console.log("본보기 — 나이아 「물보라」(넘친 회복을 모아 쏜
   const wash = idOf("나이아", "그게 씻은거야?");
   const heals = (CARDS[wash].fx || []).filter((f) => f.k === "heal").length;
   play(s, wash);
-  check(splash() === heals, `다 찬 아군을 씻기면 「회복이 넘치면」 — 회복 ${heals}번에 「물보라」 +${heals} (지금 ${splash()})`);
+  check(splash() === heals, `다 찬 아군을 씻기면 「회복량이 최대 HP를 초과하면」 — 회복 ${heals}번에 「물보라」 +${heals} (지금 ${splash()})`);
   check(s.log.some((l) => l.includes("나이아 · 퓨퓨~")), "발동하면 기록에 이름이 남는다");
   // 다친 파티면 넘치지 않는다
   const t = fight(["나이아", "네르", "티그"]); tough(t);
