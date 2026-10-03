@@ -58,12 +58,22 @@ console.log("스탯 기반 계산 (기획서)");
 console.log("");
 console.log("타수와 대상");
 {
-  // 마력탄 폭주: 무작위 적 4회 × 공격력 50%
+  // 마력탄 폭주(v4, docs/15): 무작위 적 4회 × 공격력 N%, 「케이크」 1당 무작위 적 한 발 더, 「케이크」 전부 소모.
+  // 배율 · 타수는 카드에서 읽는다(수치를 손봐도 시험이 깨지지 않게)
   const card = Object.values(B.cards).find((c) => c.ko === "마력탄 폭주");
-  // 간식이 없을 때 — 조건(ifStack) 뒤의 추가 한 발은 안 나간다. 조건째로 넘겨야 막힌다
-  const { s, h } = run("에르핀", card.fx);
-  const want = Math.round(B.heroes["에르핀"].atk * 0.5) * 4;
-  s.dealt === want ? ok(`마력탄 폭주 — 4회 × 50% = ${s.dealt}`) : fail(`마력탄 폭주 ${s.dealt} (${want} 이어야 한다)`);
+  const [burst, extra] = card.fx.filter((f) => f.k === "dmg");
+  const one = (r) => Math.round(B.heroes["에르핀"].atk * r);
+  // 케이크가 없을 때 — 「1당」 뒤의 한 발은 0 번 나간다
+  const { s } = run("에르핀", card.fx);
+  const want = one(burst.ratio) * burst.hits;
+  s.dealt === want ? ok(`마력탄 폭주 — 케이크 0: ${burst.hits}회 × ${Math.round(burst.ratio * 100)}% = ${s.dealt}`) : fail(`마력탄 폭주 ${s.dealt} (${want} 이어야 한다)`);
+  // 케이크 3 — 세 발 더, 그리고 케이크는 다 쓴다
+  const b = board("에르핀");
+  b.s.stacks = { 에르핀: { 케이크: 3 } };
+  runFx(b.s, card.fx, { owner: b.me, targetIdx: 0 }, b.api);
+  const want3 = want + one(extra.ratio) * 3;
+  b.s.dealt === want3 ? ok(`마력탄 폭주 — 케이크 3: 세 발 더 = ${b.s.dealt}`) : fail(`마력탄 폭주(케이크 3) ${b.s.dealt} (${want3} 이어야 한다)`);
+  b.s.stacks["에르핀"]["케이크"] === 0 ? ok("쏜 케이크는 전부 소모된다") : fail(`쏜 뒤 케이크 ${b.s.stacks["에르핀"]["케이크"]}`);
 }
 {
   const { s } = run("에르핀", [{ k: "dmg", ratio: 1, target: "allEnemies", hits: 1 }]);
@@ -75,18 +85,18 @@ console.log("타수와 대상");
 console.log("");
 console.log("사도 전용 키워드");
 {
-  const { s, me } = run("에르핀", [{ k: "stack", id: "간식", v: 2 }]);
-  (s.stacks["에르핀"]["간식"] === 2) ? ok("간식 +2 가 쌓인다") : fail(`간식 ${JSON.stringify(s.stacks)}`);
+  const { s, me } = run("에르핀", [{ k: "stack", id: "케이크", v: 2 }]);
+  (s.stacks["에르핀"]["케이크"] === 2) ? ok("케이크 +2 가 쌓인다") : fail(`케이크 ${JSON.stringify(s.stacks)}`);
 }
 {
   const { s, me, h } = board("에르핀");
-  runFx(s, [{ k: "stack", id: "간식", v: 2 }], { owner: me, targetIdx: 0 }, { hurt() {}, draw() {}, addStatus() {}, cleanse() {}, trigger() {}, discard() {} });
-  runFx(s, [{ k: "spend", id: "간식", v: "all" }], { owner: me, targetIdx: 0 }, { hurt() {}, draw() {}, addStatus() {}, cleanse() {}, trigger() {}, discard() {} });
-  s.stacks["에르핀"]["간식"] === 0 ? ok("전부 소모하면 0 이 된다") : fail(`소모 후 ${s.stacks["에르핀"]["간식"]}`);
+  runFx(s, [{ k: "stack", id: "케이크", v: 2 }], { owner: me, targetIdx: 0 }, { hurt() {}, draw() {}, addStatus() {}, cleanse() {}, trigger() {}, discard() {} });
+  runFx(s, [{ k: "spend", id: "케이크", v: "all" }], { owner: me, targetIdx: 0 }, { hurt() {}, draw() {}, addStatus() {}, cleanse() {}, trigger() {}, discard() {} });
+  s.stacks["에르핀"]["케이크"] === 0 ? ok("전부 소모하면 0 이 된다") : fail(`소모 후 ${s.stacks["에르핀"]["케이크"]}`);
 }
 {
-  // ifStack — 간식이 없으면 그 뒤가 안 돈다
-  const { s } = run("에르핀", [{ k: "ifStack", id: "간식", v: 1 }, { k: "dmg", ratio: 1, target: "oneEnemy", hits: 1 }]);
+  // ifStack — 케이크가 없으면 그 뒤가 안 돈다
+  const { s } = run("에르핀", [{ k: "ifStack", id: "케이크", v: 1 }, { k: "dmg", ratio: 1, target: "oneEnemy", hits: 1 }]);
   !s.dealt ? ok("조건이 거짓이면 뒤가 안 돈다") : fail(`조건이 거짓인데 ${s.dealt} 들어갔다`);
 }
 

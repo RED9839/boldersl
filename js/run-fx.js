@@ -125,9 +125,10 @@ export function runFx(s, fxList, ctx, api) {
       }
       // 회복은 회복력 기준 — 낸 사도의 회복력
       case "heal": if (owner) for (const t of resolve(s, ctx, f.target)) {
-        const h0 = t.hp;
-        t.hp = Math.min(t.maxHp, t.hp + healAmount(api, owner, f.ratio, ctx.shin));
-        if (api.heal) api.heal(t, h0);
+        // 넘친 만큼(over)도 넘긴다 — 「회복이 넘치면」 패시브(passive.js overheal)
+        const h0 = t.hp, v = healAmount(api, owner, f.ratio, ctx.shin);
+        t.hp = Math.min(t.maxHp, t.hp + v);
+        if (api.heal) api.heal(t, h0, Math.max(0, h0 + v - t.maxHp));
       } break;
 
       // ── 능력치 증감 — 주는/받는 피해 · 공격력 · 방어력 · 치명 (이번 턴 · N턴간 · 이번 전투) ──

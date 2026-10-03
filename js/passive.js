@@ -11,7 +11,7 @@
 //           파티가 이번 턴 카드를 N장째 낼 때 · 아군이 카드를 낼 때마다 · 시그니처 카드를 내면 ·
 //           적을 처치하면 · 적이 쓰러지면 · 피해를 받으면 · 아군이 피해를 받으면 · 방어나 실드를 얻으면 ·
 //           HP가 N% 이하가 되면 · 아군이 쓰러지면 · 고학년 스킬을 쓰면 · 적이 즉시 행동하면 ·
-//           적에게 디버프를 걸면 · 「X」가 N개가 되면 · 항상
+//           적에게 디버프를 걸면 · 회복이 넘치면 · 「X」가 N개가 되면 · 항상
 //     조건  「X」가 있으면 · 「X」가 N개 이상이면 · HP가 N% 이하이면 · HP가 N% 이상이면 · 적이 N명 이상이면 ·
 //           적이 N명뿐이면 · 파티가 이번 턴 카드를 N장 이상(이하로) 냈으면 · 이번 턴 에르핀의 카드를 내지 않았으면 ·
 //           AP가 남았으면 · 고학년 게이지가 N% 이상이면 · 실드가 있으면 · 적이 즉시 행동했으면
@@ -63,6 +63,8 @@ const TRIGGERS = [
   [/적이\s*즉시\s*행동하면/, () => ({ on: "rush" })],
   [/(?:고학년\s*스킬을|궁극기를)\s*쓰면/, () => ({ on: "ult" })],   // 옛 이름(궁극기)도 읽는다
   [/적에게\s*(?:취약|약화|기절|디버프)을?를?\s*걸면/, () => ({ on: "debuff" })],
+  // 「회복이 넘치면」 — 이 사도의 회복이 대상의 최대 HP 를 넘었을 때(넘친 만큼이 있을 때). 회복 효과 하나 · 대상 하나에 한 번(나이아, v4)
+  [/회복이\s*넘치면/, () => ({ on: "overheal" })],
   [/「(.+?)」\s*(?:이|가)?\s*(\d+)\s*개?\s*가?\s*되면/, (m) => ({ on: "stackReach", id: m[1], n: Number(m[2]) })],
   [/항상/, () => ({ on: "always" })],
 ];
@@ -341,6 +343,7 @@ function matches(s, owner, w, ev, info, kwOf) {
     case "allyDown": return info.who !== owner;
     case "ult": return info.hero === owner.key || (info.heroes || []).includes(owner.key);
     case "debuff": return info.by === owner.key;
+    case "overheal": return info.by === owner.key;
     case "stackReach": return w.id === info.id && info.before < w.n && info.after >= w.n && (!info.owner || info.owner === owner.key);
     default: return true;
   }

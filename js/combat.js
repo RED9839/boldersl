@@ -1064,7 +1064,8 @@ function fxApi(s) {
     hurt: (t, v, o) => hurt(s, t, v, o),
     draw: (n) => draw(s, n),
     // 연출 쪽지 — 회복 · 방어 · 실드(run-fx 가 직접 채우는 것)
-    heal: (t, h0) => healCue(s, t, h0),
+    // 넘친 회복(over > 0) — 「회복이 넘치면」 패시브(passive.js). 누가 채웠는지는 지금 움직이는 사람(acting)
+    heal: (t, h0, over) => { healCue(s, t, h0); if (over > 0 && t.side === "party" && !t.dead && s.acting) emit(s, "overheal", { by: s.acting, who: t, over }); },
     // 아군에게 방어 · 실드가 붙으면 「방어나 실드를 얻으면」 패시브(passive.js matches "guard")
     gain: (t, k, v) => { gainCue(s, t, k, v); if (v > 0 && t.side === "party" && !t.dead) emit(s, "guard", { who: t, k }); },
     // 상태 — 「취약 2턴」 은 2턴 간다(전에는 몇 턴이든 1턴이었다).

@@ -1004,10 +1004,11 @@ console.log("아군 미리보기 · 버릴 카드 고르기");
   check(s.party[0].hp - hp0 === ph[0].heal, "미리보기 값 그대로 찬다");
 
   // 버리기 — 「무작위」 가 없으면 낸 사람이 고른다
-  const s2 = C.newCombat({ partyKeys: ["에르핀", "네르", "벨라"], rows: {}, deck: ["에르핀_u3", "네르_s2", "벨라_u1", "벨라_u2", "네르_s3", "벨라_s2", "에르핀_u3", "벨라_s3", "네르_s2", "벨라_s2", "네르_s3", "벨라_s3"], enemyIds: ["fairymobcloserange"], seed: 4 });   // 뽑을 더미가 넉넉해야 버린 카드가 다시 섞여 들지 않는다
+  // 손패 2장을 고르는 카드 — 앨리스 「밑장 빼기」(v4 에서 에르핀의 「컨닝 페이퍼」 가 빠졌다, docs/15)
+  const s2 = C.newCombat({ partyKeys: ["앨리스", "네르", "벨라"], rows: {}, deck: ["앨리스_u3", "네르_s2", "벨라_u1", "벨라_u2", "네르_s3", "벨라_s2", "앨리스_u3", "벨라_s3", "네르_s2", "벨라_s2", "네르_s3", "벨라_s3"], enemyIds: ["fairymobcloserange"], seed: 4 });   // 뽑을 더미가 넉넉해야 버린 카드가 다시 섞여 들지 않는다
   s2.ap = 9;
-  const ci = s2.hand.indexOf("에르핀_u3");
-  check(C.discardChoice(s2, ci) === 2, "컨닝 페이퍼 — 버릴 카드 2장을 고른다");
+  const ci = s2.hand.indexOf("앨리스_u3");
+  check(C.discardChoice(s2, ci) === 2, "밑장 빼기 — 버릴 카드 2장을 고른다");
   const keep = s2.hand.filter((id, i) => i !== ci);
   const pickIds = [keep[1], keep[3]];
   C.playCard(s2, ci, 0, { discard: pickIds });

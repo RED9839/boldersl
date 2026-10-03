@@ -34,7 +34,7 @@ const hits = (s) => s.log.filter((l) => l === "실비아 · 초청객").length;
 
 const SIG = idOf("실비아", "궁극의 유희");      // 2코 스킬 — 아군 전원 「초청객」 +2
 const POUT = idOf("실비아", "볼 빵빵");         // 1코 스킬 — 도발 · 방어(피해 없음)
-const PRAY = idOf("네르", "기도입니다, 잠 아니고요");   // 네르의 1코 스킬 — 피해 없음
+const PRAY = idOf("네르", "꿈으로 올리는 기도");   // 네르의 1코 스킬 — 피해 없음
 const SLAP = CARDS["실비아_s0"] ? "실비아_s0" : kit("실비아").find((id) => CARDS[id].type === "공격");
 for (const [n, id] of Object.entries({ SIG, POUT, PRAY, SLAP })) if (!id) fail(`카드를 못 찾았다: ${n}`);
 

@@ -28,78 +28,171 @@ const tough = (s) => { for (const e of s.enemies) { e.maxHp = e.hp = 5000; } };
 const idOf = (hero, ko) => Object.keys(CARDS).find((id) => CARDS[id].hero === hero && CARDS[id].name === ko);
 const play = (s, id, t = 0) => { s.hand.unshift(id); s.ap = Math.max(s.ap, 3); return playCard(s, 0, t); };
 
-if (!HERO_DATA["에르핀"] || !/와구와구/.test(HERO_DATA["에르핀"].passive || "")) {
-  console.log("본보기(에르핀·네르)가 새 글이 아니다 — node tools/merge-redesign.js 후 parse-design·build-cards 를 먼저 돌린다");
+if (!HERO_DATA["에르핀"] || !/달달한 게 최고야/.test(HERO_DATA["에르핀"].passive || "")) {
+  console.log("본보기(에르핀·네르)가 v4 글이 아니다 — parse-design · build-cards 를 먼저 돌린다(docs/15)");
 }
 
-console.log("본보기 — 에르핀");
+// v4(docs/15) 시범 여섯 — 사도마다 「다르게 노는 한 가지」 가 실제로 도는지 본다. 수치는 카드 글에서 읽는다
+const stackOf = (s, key, id) => (((s.stacks || {})[key] || {})[id]) || 0;
+const foeHp = (s) => s.enemies.reduce((a, e) => a + Math.max(0, e.hp), 0);
+
+console.log("본보기 — 에르핀 「케이크」(모아 쏘거나, 다섯이면 먹는다)");
 {
   const s = fight(["에르핀", "네르", "티그"]); tough(s);
-  const shot = idOf("에르핀", "마력탄");
-  const stack = () => ((s.stacks || {})["에르핀"] || {})["간식"] || 0;
-  for (let i = 0; i < 3; i++) play(s, shot);
-  check(stack() === 1, `공격 카드 세 장마다 「간식」 +1 (지금 ${stack()})`);
-  check(s.log.some((l) => l.includes("에르핀 · 와구와구")), "발동하면 기록에 이름이 남는다");
+  const cake = () => stackOf(s, "에르핀", "케이크");
+  // 「달달한 게 최고야!」 — AP 를 남기고 턴을 넘기면 케이크 +2 · 다 쓰면 없다
+  s.ap = 1; endTurn(s);
+  check(cake() === 2, `AP 를 남기고 턴을 넘기면 「케이크」 +2 (지금 ${cake()})`);
+  check(s.log.some((l) => l.includes("에르핀 · 달달한 게 최고야!")), "발동하면 기록에 이름이 남는다");
+  s.ap = 0; endTurn(s);
+  check(cake() === 2, `AP 를 다 쓰면 케이크가 늘지 않는다 (지금 ${cake()})`);
+  // 마력탄 폭주 — 케이크를 전부 탄알로 쓴다
+  const hp0 = foeHp(s);
+  play(s, idOf("에르핀", "마력탄 폭주"));
+  check(cake() === 0 && foeHp(s) < hp0, `「마력탄 폭주」 — 케이크를 전부 쏜다 (남은 케이크 ${cake()})`);
+  // 다섯이 되면 먹는다 — AP +2 · 회복
   const me = s.party.find((u) => u.key === "에르핀");
-  // 1개당 수치는 기획서에서 읽는다(리뉴얼로 바뀐다)
-  const per = +((/「간식」[^\n]*?1개당[^\n]*?주는 피해 \+(\d+)%/.exec(fs.readFileSync(DESIGN_DOC, "utf8")) || [])[1] || 0) / 100;
-  // 다른 아군이 건 것(네르의 「계시」 — 턴 시작 시 아군 전원)은 빼고 「간식」 하나의 몫만 본다
-  const snack1 = statMod(s, me, "dealt"); s.stacks["에르핀"]["간식"] = 0; const snack0 = statMod(s, me, "dealt"); s.stacks["에르핀"]["간식"] = 1;
-  check(per > 0 && Math.abs(snack1 - snack0 - per) < 1e-9, `「간식」 1개당 주는 피해 +${per * 100}% (${(snack1 - snack0).toFixed(2)})`);
-  // 셋이 되면 먹는다
-  const cake = idOf("에르핀", "친구 몰래 케이크");
-  s.ap = 3; const ap0 = s.ap; const hand0 = s.hand.length;
-  play(s, cake);          // 간식 1 + 케이크 2 = 3 → 먹는다
-  check(stack() === 0, `「간식」 3개가 되면 전부 먹는다 (지금 ${stack()})`);
-  check(s.log.some((l) => l.includes("에르핀 · 간식")), "먹을 때 키워드 규칙이 기록에 남는다");
-  // 항상 — 아군 전원 받는 피해 -5%
-  const ner = s.party.find((u) => u.key === "네르");
-  // 「순수 케이크 공격」 — 턴 시작 시 「간식」이 있으면 그 턴 아군 전원 받는 피해 -10% (늘 켜진 % 는 없앴다)
-  s.stacks["에르핀"]["간식"] = 1; endTurn(s);
-  check(statMod(s, ner, "taken") <= -0.1 + 1e-9, `「순수 케이크 공격」 — 간식을 챙긴 턴엔 아군 전원 받는 피해 -10% (${statMod(s, ner, "taken").toFixed(2)})`);
+  s.stacks["에르핀"]["케이크"] = 4; me.hp = 10; s.ap = 3;
+  play(s, idOf("에르핀", "무한의 케이크"));            // 1코 · 케이크 +2 → 5 에 닿는다
+  check(cake() === 0, `「케이크」 다섯 — 전부 먹는다 (지금 ${cake()})`);
+  check(s.ap === 3 - 1 + 2 && me.hp > 10, `먹으면 AP +2 · HP 회복 (AP ${s.ap}, HP ${me.hp})`);
+  // 무전취식 — 처치하면 +1
+  s.enemies[0].hp = 1;
+  play(s, idOf("에르핀", "마력탄"), s.enemies[0].idx);
+  check(s.enemies[0].dead && cake() === 1, `「무전취식」 — 적을 처치하면 「케이크」 +1 (지금 ${cake()})`);
 }
 
 console.log("");
-console.log("본보기 — 네르");
+console.log("본보기 — 네르 「기도」(셋이 차는 그 턴에 계시)");
 {
   const s = fight(["에르핀", "네르", "티그"]); tough(s);
-  const reveal = idOf("네르", "세계수의 계시");
-  play(s, reveal);
+  const pray = () => stackOf(s, "네르", "기도");
   const tig = s.party.find((u) => u.key === "티그");
-  // v3(docs/14): 패시브 「세계수의 이름으로!」 는 파티가 이번 턴 카드를 3장째 낼 때 +1 — 첫 장(시그니처)만 낸 지금은 카드 몫뿐이다
-  // 시그니처가 주는 「계시」 수와 그 턴 파티 버프는 카드 글에서 읽는다(수치를 손볼 때마다 시험이 깨지지 않게)
-  const sig = CARDS[reveal];
-  const give = (sig.fx || []).filter((f) => f.k === "stack" && f.id === "계시").reduce((a, f) => a + f.v, 0);
-  const extra = (sig.fx || []).filter((f) => f.k === "dealtMod" && f.target === "allAllies").reduce((a, f) => a + f.v, 0);
-  const rev = tig.status["계시"] || 0;
-  check(rev === Math.min(4, give), `「세계수의 계시」 — 아군 전원에게 「계시」 (티그 ${rev}, 카드 +${give})`);
-  check(Math.abs(statMod(s, tig, "dealt") - (0.10 * rev + extra)) < 1e-9, `「계시」 1개당 주는 피해 +10% (${statMod(s, tig, "dealt").toFixed(2)})`);
-  // 계시는 적의 차례가 끝나면 하나 준다
+  check(pray() === 1, `「잠이 아니라 기도」 — 첫 턴 시작부터 「기도」 +1 (지금 ${pray()})`);
+  const d0 = statMod(s, tig, "dealt"), b0 = tig.block || 0;
+  // 기도 카드를 먼저 내면 셋이 차 그 턴 파티 피해가 오른다 — 수치는 기획서 키워드 줄에서 읽는다
+  const burst = +((/「기도」가 3개가 되면:[^\n]*?주는 피해 \+(\d+)%/.exec(fs.readFileSync(DESIGN_DOC, "utf8")) || [])[1] || 0) / 100;
+  play(s, idOf("네르", "꿈으로 올리는 기도"));
+  check(pray() === 0, `셋이 차면 「기도」 를 다 쓴다 (지금 ${pray()})`);
+  check(burst > 0 && Math.abs(statMod(s, tig, "dealt") - d0 - burst) < 1e-9 && (tig.block || 0) > b0, `계시 — 이번 턴 아군 전원 주는 피해 +${Math.round(burst * 100)}% · 방어 (티그 ${statMod(s, tig, "dealt").toFixed(2)} · 방어 ${tig.block})`);
+  check(s.log.some((l) => l.includes("네르 · 기도")), "계시가 내리면 키워드 규칙이 기록에 남는다");
   endTurn(s);
-  check((tig.status["계시"] || 0) === Math.max(0, rev - 1), `「계시」 는 적의 차례가 끝나면 1 감소 (${tig.status["계시"] || 0})`);
-  // 맞으면 걱정한다
-  check(s.log.some((l) => l.includes("네르 · 여왕님 걱정")), "아군이 맞으면 「여왕님 걱정」 이 방어를 준다");
-  // 도발 — 적이 네르만 친다
+  check(Math.abs(statMod(s, tig, "dealt") - d0) < 1e-9 && pray() === 1, `계시는 그 턴(적의 차례까지)만 — 다음 턴엔 풀리고 기도는 다시 1 (${statMod(s, tig, "dealt").toFixed(2)} · 기도 ${pray()})`);
+  // 시그니처 — 2턴간 아군 전원 주는 피해(카드 글에서 읽는다)
+  const sigId = idOf("네르", "세계수의 계시");
+  const give = (CARDS[sigId].fx || []).filter((f) => f.k === "dealtMod" && f.target === "allAllies").reduce((a, f) => a + f.v, 0);
+  const d1 = statMod(s, tig, "dealt");
+  play(s, sigId);
+  check(give > 0 && Math.abs(statMod(s, tig, "dealt") - d1 - give) < 1e-9, `「세계수의 계시」 — 아군 전원 주는 피해 +${Math.round(give * 100)}%`);
+  // 도발 — 적이 네르만 친다 · 무적은 적의 차례까지 막는다(「여왕님 앞은 못 지나가요」)
   const s2 = fight(["에르핀", "네르", "티그"], ["fairymoblongrange"]); tough(s2);
   for (const u of s2.party) { u.maxHp = u.hp = 999; }
-  play(s2, idOf("네르", "여왕님께 손대지 마세요!"));
-  s2.enemies[0].intent = { t: "back", v: 7, say: "뒤로 파고든다" };
+  const nerU = s2.party.find((u) => u.key === "네르");
+  play(s2, idOf("네르", "여왕님 앞은 못 지나가요"));
+  s2.enemies[0].intent = { t: "back", v: 30, say: "뒤로 파고든다" };
+  const hp0 = nerU.hp;
   endTurn(s2);
-  // 방어가 막아 체력이 안 깎일 수 있다 — 누구를 노렸는지는 기록으로 본다
   const line = s2.log.find((l) => l.includes("뒤로 파고든다 →")) || "";
   check(/→ 네르/.test(line), `도발 — 뒷줄을 노리던 적도 네르를 친다 (${line})`);
-  // 무적은 적의 차례까지 간다
-  const s3 = fight(["에르핀", "네르", "티그"], ["fairymobcloserange"]); tough(s3);
-  const nerU = s3.party.find((u) => u.key === "네르");
-  const awake = Object.keys(CARDS).find((id) => CARDS[id].hero === "네르" && CARDS[id].name === "여왕님께 손대지 마세요!");
-  s3.book = s3.book || {};
-  const inv = { ...CARDS[awake], fx: [{ k: "invuln", target: "self" }, { k: "status", id: "도발", v: 1, turns: 1, target: "self" }] };
-  s3.book[awake] = inv;
-  play(s3, awake);
-  s3.enemies[0].intent = { t: "attack", v: 30, say: "달려든다" };
-  const hp0 = nerU.hp;
-  endTurn(s3);
   check(nerU.hp === hp0, `무적은 적의 차례까지 막는다 (${hp0} → ${nerU.hp})`);
+  // 「사제장의 무적권」 — 맞으면 조금 회복한다
+  const s3 = fight(["에르핀", "네르", "티그"], ["fairymobcloserange"]); tough(s3);
+  const n3 = s3.party.find((u) => u.key === "네르");
+  n3.hp = Math.round(n3.maxHp / 2);
+  s3.taunt = "네르"; s3.tauntLeft = 1;
+  s3.enemies[0].intent = { t: "attack", v: 8, say: "달려든다" };
+  endTurn(s3);
+  check(s3.log.some((l) => l.includes("네르 · 사제장의 무적권")), "「사제장의 무적권」 — 피해를 받으면 HP 회복");
+}
+
+console.log("");
+console.log("본보기 — 나이아 「물보라」(넘친 회복을 모아 쏜다)");
+{
+  const s = fight(["나이아", "네르", "티그"]); tough(s);
+  const splash = () => stackOf(s, "나이아", "물보라");
+  // 다 찬 파티를 씻기면 넘친다 — 회복 한 번 · 대상 하나에 「물보라」 +1
+  const wash = idOf("나이아", "그게 씻은거야?");
+  const heals = (CARDS[wash].fx || []).filter((f) => f.k === "heal").length;
+  play(s, wash);
+  check(splash() === heals, `다 찬 아군을 씻기면 「회복이 넘치면」 — 회복 ${heals}번에 「물보라」 +${heals} (지금 ${splash()})`);
+  check(s.log.some((l) => l.includes("나이아 · 퓨퓨~")), "발동하면 기록에 이름이 남는다");
+  // 다친 파티면 넘치지 않는다
+  const t = fight(["나이아", "네르", "티그"]); tough(t);
+  for (const u of t.party) u.hp = 1;
+  play(t, wash);
+  check(stackOf(t, "나이아", "물보라") === 0, `다친 아군을 채우면 넘치지 않는다 (${stackOf(t, "나이아", "물보라")})`);
+  // 남이 넘치게 채운 것은 세지 않는다 — 네르의 회복
+  const u = fight(["나이아", "네르", "티그"]); tough(u);
+  play(u, kitOf("네르").start.find((c) => c.fx.some((f) => f.k === "heal")).id, 0);
+  check(stackOf(u, "나이아", "물보라") === 0, "다른 사도의 넘친 회복은 나이아의 「물보라」 가 아니다");
+  // 다섯이 되면 물총 — 다 쓰고 적을 친다
+  s.stacks["나이아"]["물보라"] = 4;
+  const hp0 = foeHp(s);
+  play(s, wash);
+  check(splash() <= heals && foeHp(s) < hp0, `「물보라」 다섯 — 물총으로 쏘고 비운다 (남은 ${splash()} · 적 HP ${hp0} → ${foeHp(s)})`);
+  // 「얼굴에 물총」 — 모은 물보라를 탄알로
+  s.stacks["나이아"]["물보라"] = 3;
+  play(s, idOf("나이아", "얼굴에 물총"));
+  check(splash() === 0, `「얼굴에 물총」 — 「물보라」 를 전부 쏜다 (${splash()})`);
+}
+
+console.log("");
+console.log("본보기 — 티그 「연격」(셋째 칼)");
+{
+  const s = fight(["티그", "에르핀", "네르"]); tough(s);
+  const beat = () => stackOf(s, "티그", "연격");
+  const slash = kitOf("티그").start.find((c) => c.type === "공격" && c.cost === 1).id;
+  play(s, slash); play(s, slash);
+  check(beat() === 2, `티그의 1코 이상 공격 카드마다 「연격」 +1 (지금 ${beat()})`);
+  s.ap = 3; const hp0 = foeHp(s);
+  play(s, slash);
+  check(beat() === 0 && s.ap === 3 - 1 + 1 && foeHp(s) < hp0, `셋째 칼 — 「연격」 을 다 쓰고 적 전체 피해 · AP +1 (AP ${s.ap})`);
+  // 장작 패기 — 모인 박자를 한 명에게 쏟는다(카드가 먼저 다 쓰고, 그 뒤 패시브가 +1)
+  play(s, slash); play(s, slash);
+  play(s, idOf("티그", "장작 패기"));
+  check(beat() === 1, `「장작 패기」 — 「연격」 을 다 쓴 뒤 그 장으로 +1 (지금 ${beat()})`);
+  // 에르핀의 공격 카드는 티그의 박자에 들지 않는다
+  const t = fight(["티그", "에르핀", "네르"]); tough(t);
+  const shot = kitOf("에르핀").start.find((x) => x.type === "공격").id;
+  for (let i = 0; i < 3; i++) play(t, shot);
+  check(stackOf(t, "티그", "연격") === 0, "에르핀의 공격 카드 세 장 — 티그의 「연격」 은 그대로 0");
+}
+
+console.log("");
+console.log("본보기 — 비비 「수은」(쌓일수록 중독, 다섯에 터진다)");
+{
+  const s = fight(["비비", "에르핀", "네르"]); tough(s);
+  for (const e of s.enemies) { e.intent = null; e.sealed = true; }
+  const merc = (e) => (e.status || {})["수은"] || 0;
+  play(s, idOf("비비", "소녀에게 오시려구요?"));
+  check(s.enemies.every((e) => merc(e) === 1), `시그니처 — 적 전체 「수은」 +1 (${s.enemies.map(merc)})`);
+  const hp0 = s.enemies.map((e) => e.hp);
+  endTurn(s);
+  check(s.enemies.every((e) => merc(e) === 2), `「수은 보호막」 — 실드를 든 채 턴을 넘기면 적 전체 +1 (${s.enemies.map(merc)})`);
+  check(s.enemies.every((e, i) => e.hp < hp0[i]), `「수은」 은 턴 끝에 중독 피해를 준다 (${hp0} → ${s.enemies.map((e) => e.hp)})`);
+  // 다섯이 되면 터진다 — 그 적의 받는 피해가 오른다
+  const e0 = s.enemies[0];
+  e0.status["수은"] = 4;
+  const t0 = statMod(s, e0, "taken");
+  play(s, idOf("비비", "소녀에게 오시려구요?"));
+  check(merc(e0) === 0 && statMod(s, e0, "taken") - t0 >= 0.3 - 1e-9, `「수은」 다섯 — 다 터지고 받는 피해 +30% (받는 피해 ${t0.toFixed(2)} → ${statMod(s, e0, "taken").toFixed(2)})`);
+}
+
+console.log("");
+console.log("본보기 — 엘레나 「드론」(깔아 두면 턴 끝마다, 자폭 한 번에)");
+{
+  const s = fight(["엘레나", "에르핀", "네르"]); tough(s);
+  for (const e of s.enemies) { e.intent = null; e.sealed = true; }
+  const drone = () => stackOf(s, "엘레나", "드론");
+  play(s, idOf("엘레나", "냥이 드론 출격"));
+  check(drone() === 2, `「드론」 +2 (지금 ${drone()})`);
+  const hp0 = s.enemies.map((e) => e.hp);
+  endTurn(s);
+  check(s.enemies.every((e, i) => e.hp < hp0[i]) && s.log.some((l) => l.includes("엘레나 · 드론")), `턴 끝 — 드론마다 적 전체 펄스파 (${hp0} → ${s.enemies.map((e) => e.hp)})`);
+  check(s.enemies.every((e) => e.rushCnt === -1), `「코드 기능 개선」 — 드론이 둘 이상이면 턴 시작에 적 전체 즉시 행동 -1 (${s.enemies.map((e) => e.rushCnt)})`);
+  const hp1 = foeHp(s);
+  play(s, idOf("엘레나", "쓸데없는 자폭 기능"));
+  check(drone() === 0 && foeHp(s) < hp1, `「쓸데없는 자폭 기능」 — 드론을 전부 들이받게 한다 (남은 드론 ${drone()})`);
 }
 
 console.log("");
@@ -138,7 +231,7 @@ console.log("");
 console.log("카드 태그");
 {
   const s = fight(["에르핀", "네르", "티그"]); tough(s);
-  const id = idOf("에르핀", "친구 몰래 케이크");
+  const id = idOf("에르핀", "무한의 케이크");
   s.book = s.book || {};
   s.book[id] = { ...CARDS[id], flashOn: 2, fx: [...CARDS[id].fx, { k: "tag", id: "보존" }] };
   s.hand = [id]; endTurn(s);
@@ -246,7 +339,7 @@ console.log("장수 기준 — 그 사도 것만(「에르핀의 …」) · 파�
   const s = fight(["에르핀", "네르", "티그"]); tough(s);
   const tigShot = kitOf("티그").start.find((x) => x.type === "공격");
   for (let i = 0; i < 3; i++) play(s, tigShot.id);
-  check(!(((s.stacks || {})["에르핀"] || {})["간식"]), "티그의 공격 카드 세 장 — 에르핀의 「간식」 은 그대로 0");
+  check(!(((s.stacks || {})["에르핀"] || {})["케이크"]), "티그의 공격 카드 세 장 — 에르핀의 「케이크」 는 그대로 0");
 }
 
 console.log("");
