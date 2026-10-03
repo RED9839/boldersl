@@ -102,6 +102,7 @@ export function splitKeywords(text, heroKey) {
       const after = t[i + w.length] || "";
       if ((KW.notAfter[w] || []).includes(after)) continue;
       if (((KW.notBefore || {})[w] || []).includes(t[i - 1] || "")) continue;   // 「충격파」 안의 「격파」 따위
+      if ((KW.numAfter || []).includes(w) && (!/^\s*\d/.test(t.slice(i + w.length)) || /[가-힣]/.test(t[i - 1] || ""))) continue;   // 「열의 2」 처럼 겹이 붙을 때만
       if (plain) { out.push({ t: plain }); plain = ""; }
       const kw = mine && w === mine.ko ? { ko: mine.ko, text: mine.text, kind: "전용" }
         : mine && mine.subs && w in mine.subs ? { ko: w, text: mine.subs[w], kind: "전용" }

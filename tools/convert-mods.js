@@ -18,12 +18,21 @@ import * as R from "../js/rules.js";
 const DRY = process.argv.includes("--dry");
 const V = R.STATUS_V;
 const LONG = 6;                                    // 「이번 전투 동안」 — 한 전투 평균 턴
-const R_OF = { 사기: { ally: 0.7, foe: 1 }, 불굴: { ally: 1, foe: 1 }, 취약: { ally: 1, foe: 2 }, 약화: { ally: 0.7, foe: 1 } };
-const KIND = (word, sign) => (word === "주는" ? (sign === "+" ? "사기" : "약화") : (sign === "-" ? "불굴" : "취약"));
+// 능력치 넷(2026-10 사용자 — 공격력 열의 · 방어력 강건 · 치명 확률 집중 · 회복력 온정)도 같은 셈. r — 한 턴에 그 사도가 그 상태를 쓸 횟수:
+//   열의 · 집중 0.7(피해 카드) · 강건 0.6(방어 · 실드를 얻는 카드) · 온정 0.5(회복 카드)
+const R_OF = { 사기: { ally: 0.7, foe: 1 }, 불굴: { ally: 1, foe: 1 }, 취약: { ally: 1, foe: 2 }, 약화: { ally: 0.7, foe: 1 },
+  열의: { ally: 0.7, foe: 0.7 }, 강건: { ally: 0.6, foe: 0.6 }, 집중: { ally: 0.7, foe: 0.7 }, 온정: { ally: 0.5, foe: 0.5 } };
+const STAT_ST = { 공격력: "열의", 방어력: "강건", "치명 확률": "집중", 회복력: "온정" };
+const KIND = (word, sign) => {
+  const w = word.replace(/\s+/g, " ");
+  if (STAT_ST[w]) return sign === "+" ? STAT_ST[w] : null;          // 능력치를 깎는 글은 없다 — 있으면 % 그대로
+  return w === "주는 피해" ? (sign === "+" ? "사기" : "약화") : (sign === "-" ? "불굴" : "취약");
+};
+const ST_NAMES = "사기|불굴|취약|약화|열의|강건|집중|온정";
 const DUR_LEAD = /(\d+)\s*턴\s*(?:간|동안)|이번\s*턴|이번\s*전투(?:\s*동안)?|전투\s*내내/g;
 const DUR_TAIL = /^\s*(?:(\d+)\s*턴(?:\s*(?:간|동안))?|이번\s*턴|이번\s*전투(?:\s*동안)?|전투\s*내내)/;
 const turnsOf = (t) => { const m = t.match(/(\d+)\s*턴/); return m ? Number(m[1]) : /전투/.test(t) ? LONG : 1; };
-const MOD = /(주는|받는)\s*피해\s*([+\-])\s*(\d+)\s*%/g;
+const MOD = /(주는\s*피해|받는\s*피해|공격력|방어력|치명\s*확률|회복력)\s*([+\-])\s*(\d+)\s*%/g;
 const OLD_ST = /(?<![가-힣「])(취약|약화)\s*(\d+)\s*턴(?!\s*(?:간|동안))/g;
 // 안 바꾸는 자리 — 마디(쉼표 사이) 안의 「판 내내」 · 「N개당」 · 「겹마다」, 문장(규칙 하나)의 「항상」 · 첫머리 「1개당」(키워드 세기 규칙)
 const SKIP = /개\s*당|1\s*당|겹마다|판\s*내내/;
@@ -74,7 +83,7 @@ function convertClause(clause, sentencePre, cat) {
   if (!MOD.test(clause)) return clause;
   MOD.lastIndex = 0;
   // 앞의 길이 말 — 마디 안에서 증감 앞
-  const firstMod = clause.search(/(주는|받는)\s*피해\s*[+\-]\s*\d+\s*%/);
+  const firstMod = clause.search(/(주는\s*피해|받는\s*피해|공격력|방어력|치명\s*확률|회복력)\s*[+\-]\s*\d+\s*%/);
   let lead = null;
   for (const m of clause.slice(0, firstMod).matchAll(DUR_LEAD)) lead = { at: m.index, end: m.index + m[0].length, text: m[0] };
   let out = "", last = 0;
@@ -83,6 +92,7 @@ function convertClause(clause, sentencePre, cat) {
     const pre = clause.slice(0, m.index);
     if (SKIP.test(pre)) { continue; }
     const kind = KIND(m[1], m[2]);
+    if (!kind) continue;
     const X = Number(m[3]);
     // 뒤에 붙은 길이 말
     const tail = clause.slice(m.index + m[0].length).match(DUR_TAIL);
@@ -107,7 +117,7 @@ function convertClause(clause, sentencePre, cat) {
   // 앞의 길이 말을 걷어 낸다 — 남은 % 증감이 없고, 길이 말과 상태 사이에 대상 말만 있을 때(「2턴간 안개: …」 같은 이름표는 둔다)
   if (lead) {
     const after = out.slice(lead.end);
-    const stIdx = after.search(/(사기|불굴|취약|약화)\s*\d/);
+    const stIdx = after.search(new RegExp(String.raw`(${ST_NAMES})\s*\d`));
     if (!PCT_LEFT.test(out) && stIdx >= 0 && TGT_ONLY.test(after.slice(0, stIdx)) && !/^\s*[가-힣]{2,5}\s*[:：]/.test(after))
       out = (out.slice(0, lead.at) + after.replace(/^\s+/, "")).replace(/(\S)\s{2,}/g, "$1 ");
   }
@@ -129,7 +139,8 @@ function convertOldStatus(text, cat) {
 // 같은 대상의 같은 상태가 잇달면 하나로 — 「적 전체 약화 1, 적 전체 약화 1」(옛 「약화 N턴」 과 「주는 피해 -N%」 가 한 카드에 같이 있던 곳)
 const merge = (t) => {
   let prev;
-  do { prev = t; t = t.replace(/((?:아군\s*전원|아군\s*1\s*명|적\s*전체|적\s*1\s*명|자신)\s*)(사기|불굴|취약|약화)\s*(\d+)\s*,\s*\1\2\s*(\d+)/g, (a, who, id, x, y) => `${who}${id} ${Number(x) + Number(y)}`); } while (t !== prev);
+  const re = new RegExp(String.raw`((?:아군\s*전원|아군\s*1\s*명|적\s*전체|적\s*1\s*명|자신)\s*)(${ST_NAMES})\s*(\d+)\s*,\s*\1\2\s*(\d+)`, "g");
+  do { prev = t; t = t.replace(re, (a, who, id, x, y) => `${who}${id} ${Number(x) + Number(y)}`); } while (t !== prev);
   return t;
 };
 function convertLine(line, cat) {
@@ -192,6 +203,10 @@ if (process.argv.includes("--fix")) {
     ["- **웹트래핑** (3·스킬, 시그니처) 적 1명에게 「홀로그램」 +7, 적 1명 취약 1,", "- **웹트래핑** (3·스킬, 시그니처) 적 1명에게 「홀로그램」 +7, 적 1명 취약 2,"],
     ["- **장갑 던지기** (2·스킬) 적 전체 약화 1, 적 전체 취약 1,", "- **장갑 던지기** (2·스킬) 적 전체 약화 2, 적 전체 취약 2,"],
     ["*수은 정화*: 코스트 3. 적 전체 약화 1, 적 전체 취약 1,", "*수은 정화*: 코스트 3. 적 전체 약화 3, 적 전체 취약 3,"],
+    // 능력치 상태(열의 · 강건 · 집중 · 온정) 뒤 — 기본 카드에 강건이 붙어 신탁이 뒤처진 곳 · 1코 체급을 넘은 곳 · 축복 덤이 커진 곳
+    ["*아이들 먼저*: 자신 도발 1턴, 방어력 250% 실드, 아군 전원 방어력 100% 실드", "*아이들 먼저*: 자신 도발 1턴, 방어력 250% 실드, 아군 전원 방어력 120% 실드"],
+    ["- **돈까스 시장, 로네!** (1·공격, 시그니처) 무작위 적 4회 × 공격력 35% 피해,", "- **돈까스 시장, 로네!** (1·공격, 시그니처) 무작위 적 4회 × 공격력 30% 피해,"],
+    ["*신성한 치명타*: 아군 전원 집중 1", "*신성한 치명타*: 자신 집중 1"],
     ["*공포의 유령*: 적 1명 약화 1", "*공포의 유령*: 적 1명 약화 2"],
     ["*눈가림 탄*: 적 1명 약화 1", "*눈가림 탄*: 적 1명 약화 2"],
     ["*맹세의 무게*: 적 1명에게 「언약의 매듭」 +1, 적 1명 약화 1", "*맹세의 무게*: 적 1명 약화 1"],
@@ -202,7 +217,7 @@ if (process.argv.includes("--fix")) {
   ];
   for (const [a, b] of HAND) { if (doc.includes(a)) { doc = doc.replace(a, b); } else console.log(`  ! 손으로 고칠 곳을 못 찾았다: ${a}`); }
   fs.writeFileSync(DESIGN_DOC, doc);
-  const ST = /(사기|불굴|취약|약화)\s*(\d+)/g;
+  const ST = new RegExp(String.raw`(${ST_NAMES})\s*(\d+)`, "g");
   const fixes = [];
   const rulesOf = (u, kws, list) => {
     const pe = (t) => parseEffect(t, { keywords: kws }).fx;
@@ -261,6 +276,34 @@ if (process.argv.includes("--fix")) {
         else text = c.text;
       }
       ST.lastIndex = 0;
+      // 너무 싸진 곳(반올림으로 겹이 커져 값이 기준의 1.6배 · 신탁 1.9배를 넘는다 — check-gear) — 가장 큰 겹부터 하나씩 내린다(1 아래로는 안 내린다)
+      const cut = (t, cap) => {
+        for (let k = 0; k < 6 && val(t) > cap; k++) {
+          const ms = [...t.matchAll(ST)].filter((m) => Number(m[2]) > 1).sort((x, y) => Number(y[2]) - Number(x[2]));
+          if (!ms.length) break;
+          const m = ms[0];
+          t = t.slice(0, m.index) + `${m[1]} ${Number(m[2]) - 1}` + t.slice(m.index + m[0].length);
+        }
+        return t;
+      };
+      if (c.cost !== "X" && val(text) > base * 1.6) {
+        const t = cut(text, base * 1.6);
+        if (t !== text) { doc = doc.replace(text, t); fixes.push(`교주 「${c.ko}」(싸다): ${text} → ${t}`); text = t; }
+      }
+      for (const f of c.flash || []) {
+        const ffx = pe(f.text), fc = flashCost(c.cost, ffx);
+        if (c.cost === "X" || typeof fc !== "number") continue;
+        const fv = (t) => { const x = pe(t); return cardValue(x.filter((y) => y.k !== "costSet" && y.k !== "costDelta"), tagsOf(x)); };
+        if (fv(f.text) <= baseValue(fc) * 1.9) continue;
+        let t = f.text;
+        for (let k = 0; k < 6 && fv(t) > baseValue(fc) * 1.9; k++) {
+          const ms = [...t.matchAll(ST)].filter((m) => Number(m[2]) > 1).sort((x, y) => Number(y[2]) - Number(x[2]));
+          if (!ms.length) break;
+          const m = ms[0];
+          t = t.slice(0, m.index) + `${m[1]} ${Number(m[2]) - 1}` + t.slice(m.index + m[0].length);
+        }
+        if (t !== f.text && doc.includes(`*${f.ko}*: ${f.text}`)) { doc = doc.replace(`*${f.ko}*: ${f.text}`, `*${f.ko}*: ${t}`); fixes.push(`교주 「${c.ko}」 「${f.ko}」(싸다): ${f.text} → ${t}`); f.text = t; }
+      }
       const fx = pe(text), tags = [...(c.tags || []), ...tagsOf(fx)];
       const list = (c.flash || []).map((f) => ({ ...f }));
       const badOf = (l) => oracleRules({ fx, cost: c.cost, tags }, l.map((f, i) => ({ fx: pe(f.text), at: String(i) })))
@@ -281,6 +324,11 @@ if (process.argv.includes("--fix")) {
       }
     }
   }
+  // 맞추기 뒤에 손으로 — 「싸다」(1.9배)와 「기본보다 낫다」(1.15배)가 겹으로는 함께 안 맞는 교주 신탁 둘
+  for (const [x, y] of [
+    ["*난장판*: 아군 전원 열의 1, 드로우 2, 적 전체 즉시 행동 1장 늦춤.", "*난장판*: 아군 전원 열의 1, 드로우 2, 적 전체 즉시 행동 2장 늦춤."],
+    ["*강철 피부*: 아군 1명 무적, 아군 전원 강건 1, 소멸.", "*강철 피부*: 아군 1명 무적, 아군 전원 강건 2, 아군 전원 불굴 1, 소멸."],
+  ]) { if (doc.includes(x)) { doc = doc.replace(x, y); fixes.push(`손: ${x} → ${y}`); } else console.log(`  ! 손으로 고칠 곳을 못 찾았다: ${x}`); }
   console.log(`신탁 값 지키기 ${fixes.length}곳 (상태 겹 · 없으면 배율을 올림)`);
   for (const x of fixes) console.log("    " + x);
   if (!DRY) fs.writeFileSync(DESIGN_DOC, doc);

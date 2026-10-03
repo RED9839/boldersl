@@ -143,7 +143,7 @@ const RULES = [
   { re: /(?<![가-힣]\s?)사용\s*불가(?=\s*(?:[.,]|$))/g, make: () => ({ k: "tag", id: "사용불가" }) },
   // 상태(rules.js STATUS_V · 겹 규칙) — 숫자는 겹(횟수 · 세기). 「사기 2」 「아군 전원 불굴 2」 「적 1명 고통 3」 「자신 사기 1」.
   // 버프(사기 · 불굴 · 결의 · 결정화 · 반격)는 대상 말이 없으면 자신, 디버프(고통 · 손상 · 표식)는 고른 적. 「사기 2턴」 의 턴도 겹으로 읽는다(옛 글)
-  { re: /(?<![가-힣「])(사기|불굴|결의|결정화|반격)\s*(\d+)\s*(?:턴|겹)?/g, make: (m, text) => ({ k: "status", id: m[1], v: 1, turns: Number(m[2]), target: pickTarget(text, "self", m, "atkMod") }) },
+  { re: /(?<![가-힣「])(사기|불굴|결의|결정화|반격|열의|강건|집중|온정)\s*(\d+)\s*(?:턴|겹)?/g, make: (m, text) => ({ k: "status", id: m[1], v: 1, turns: Number(m[2]), target: pickTarget(text, "self", m, "atkMod") }) },
   { re: /(?<![가-힣「])(고통|손상|표식)\s*(\d+)\s*(?:턴|겹)?/g, make: (m, text) => ({ k: "status", id: m[1], v: 1, turns: Number(m[2]), target: pickTarget(text, "oneEnemy", m, "status") }) },
   // 「다음 카드 코스트 -1」 — 이번 턴에 다음에 내는 카드 한 장이 싸진다(combat nextCheaper). 「코스트 -1」(신탁 코스트)보다 먼저 읽는다
   { re: /다음\s*카드\s*(?:의\s*)?코스트\s*-\s*(\d+)/g, make: (m) => ({ k: "nextCheaper", v: Number(m[1]) }) },

@@ -8,6 +8,7 @@
 //   - 전투가 터지지 않는가(예외)
 //   - 패시브 규칙이 한 번이라도 발동하는가
 // 를 센다. 드문 조건(HP 50% 이하·아군이 쓰러지면)은 안 떠도 경고만 한다.
+import { STATUS_V } from "../js/rules.js";
 import { newCombat, endTurn, playCard, canPlay, useUlt, canUlt, cardOf, previewUlt, previewAllies } from "../js/combat.js";
 import { CARDS, kitOf, HERO_DATA, NEUTRAL_IDS, EQUIP } from "../js/cardbook.js";
 import { statsOf } from "../js/run.js";
@@ -314,9 +315,10 @@ console.log("회복력 — 회복은 공격력이 아니라 회복력(공격력 
   if (eid) {
     const s = newCombat({ partyKeys: [dealer, healer], rows: {}, deck: [dealer, healer].flatMap(kit), enemyIds: ["gluttonbear"], seed: 3 });
     s.hand.unshift(eid); s.ap = 5;
-    const hm = CARDS[eid].fx.find((f) => f.k === "healMod");
+    // 옛 「2턴간 아군 전원 회복력 +30%」 → 「아군 전원 온정 N」(tools/convert-mods.js) — 온정 한 겹이 회복력 +20%(rules.js STATUS_V)
+    const hm = CARDS[eid].fx.find((f) => f.k === "status" && f.id === "온정");
     playCard(s, 0, 0);
-    check(hm && s.party.every((u) => Math.abs(statMod(s, u, "heal") - hm.v) < 1e-9), `「효율적인 회복」 — 회복력 +${Math.round((hm ? hm.v : 0) * 100)}% 가 아군 전원에게 붙는다`);
+    check(hm && s.party.every((u) => (u.status || {})["온정"] === hm.turns && Math.abs(statMod(s, u, "heal") - STATUS_V.온정) < 1e-9), `「효율적인 회복」 — 온정 ${hm && hm.turns} 이 아군 전원에게 붙는다(회복력 +${Math.round(STATUS_V.온정 * 100)}%)`);
   } else fail("교주 「효율적인 회복」 을 못 찾았다");
 }
 

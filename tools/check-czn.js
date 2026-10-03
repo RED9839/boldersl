@@ -371,6 +371,63 @@ console.log("약점 — 원작 설정에서 다시 고름(enemies.js weak)");
 }
 
 console.log("");
+console.log("능력치 상태 — 열의 · 강건 · 집중 · 온정(옛 공격력 · 방어력 · 치명 · 회복력 +N%)");
+{
+  check(V.열의 === 0.2 && V.강건 === 0.2 && V.집중 === 0.2 && V.온정 === 0.2, "열의 공격력 +20% · 강건 방어력 +20% · 집중 치명 +20%p · 온정 회복력 +20%");
+  for (const [t, w] of [["자신 열의 2", "열의:2:self"], ["아군 전원 강건 1", "강건:1:allAllies"], ["아군 1명 집중 2", "집중:2:oneAlly"], ["HP 최저 아군 온정 1", "온정:1:lowAlly"]]) {
+    const { fx, left } = parseEffect(t); const f = fx[0] || {};
+    check(!left && `${f.id}:${f.turns}:${f.target}` === w, `「${t}」 → ${f.id} ${f.turns} (${f.target})`);
+  }
+  check(!parseEffect("집중포화").fx.length && !parseEffect("모든 열의 영웅").fx.length, "낱말 속은 상태가 아니다(집중포화 · 모든 열의)");
+  // 열의 — 피해 카드 한 장(여러 번 쳐도)에 1, 그 장의 모든 타격이 덕을 본다
+  const a = mk(), b = mk();
+  hero(b, A).status.열의 = 2;
+  const da = lost(a.enemies[0], () => play(a, A, "적 1명에게 3회 × 공격력 100% 피해"));
+  const db = lost(b.enemies[0], () => play(b, A, "적 1명에게 3회 × 공격력 100% 피해"));
+  const atk0 = hero(a, A).atk, atk1 = Math.round(atk0 * (1 + V.열의));
+  check(db === Math.round(da / atk0 * atk1) || Math.abs(db - da * atk1 / atk0) <= 3, `열의 — 공격력 +${V.열의 * 100}% (${da} → ${db})`);
+  check(st(hero(b, A), "열의") === 1, "세 번 치는 카드 한 장에 열의 1 만 준다");
+  play(b, A, "방어력 100% 방어", { type: "스킬", target: "없음" });
+  check(st(hero(b, A), "열의") === 1, "피해 · 회복 없는 카드는 열의를 안 쓴다");
+  // 강건 — 방어 카드에 1, 방어력 +20%
+  const c = mk(), u = hero(c, A); u.status.강건 = 1;
+  play(c, A, "방어력 100% 방어", { type: "스킬", target: "없음" });
+  check(u.block === Math.round(u.def * (1 + V.강건)) && st(u, "강건") === 0, `강건 — 방어 ${u.block} (방어력 ${u.def} +${V.강건 * 100}%), 1 준다`);
+  // 집중 — 치명 확률 +20%p(statMod)
+  const d = mk(), w = hero(d, A); w.status.집중 = 1;
+  check(Math.abs(C.statOf(d, w, "crit") - V.집중) < 1e-9, `집중 — 치명 확률 +${V.집중 * 100}%p`);
+  play(d, A, "적 1명에게 공격력 10% 피해");
+  check(st(w, "집중") === 0, "피해 카드 한 장에 집중 1 준다");
+  // 온정 — 회복 카드에 1(열의도 같이 쓴다)
+  const e = mk(), x = hero(e, A); x.status.온정 = 1; x.hp = 100;
+  play(e, A, "자신 HP 회복(회복력 100%)", { type: "스킬", target: "없음" });
+  const want = Math.round(R.healStat(x.atk, x.role, x.healPlus) * (1 + V.온정));
+  check(x.hp - 100 === want && st(x, "온정") === 0, `온정 — 회복 ${x.hp - 100} (회복력 +${V.온정 * 100}%), 1 준다`);
+  // 저장
+  const f = mk(); Object.assign(hero(f, A).status, { 열의: 2, 강건: 1, 집중: 3, 온정: 1 }); f.book = {};
+  const back = unpackCombat(packCombat(f));
+  check(JSON.stringify(back.party.find((y) => y.key === A).status) === JSON.stringify(hero(f, A).status), "저장했다 이어도 능력치 상태가 그대로");
+  // 기획서에 옛 능력치 증감이 「판 내내」 · 「1개당」 · 「항상」 밖에 안 남았다(장비 · 교주의 작은 증감 몇 곳 빼고)
+  const left = [];
+  for (const c2 of Object.values(B.cards)) for (const t2 of [c2.text, ...(c2.flash || []).map((y) => y.text)])
+    for (const cl of t2.split(/[,.]/)) if (/(공격력|방어력|치명 확률|회복력|주는 피해|받는 피해)\s*[+\-]\s*\d+\s*%/.test(cl) && !/판 내내|개당|항상/.test(cl)) left.push(cl.trim());
+  check(left.length === 0, `사도 카드 · 신탁에 옛 % 증감이 없다 (${left.length}${left.length ? " — " + left.slice(0, 3).join(" | ") : ""})`);
+}
+
+console.log("");
+console.log("docs/16 베껴 쓰는 줄 — 엔진이 모두 읽는다");
+{
+  const fs = await import("node:fs");
+  const t = fs.readFileSync(new URL("../docs/16-카제나전투.md", import.meta.url), "utf8");
+  const sec = t.slice(t.indexOf("## 6."), t.indexOf("## 7."));
+  const lines = sec.split("```").filter((_, i) => i % 2).flatMap((b) => b.split(/\r?\n/).filter(Boolean));
+  const bad = lines.filter((l) => { const r = parseEffect(l); return r.left || !r.fx.length; });
+  check(lines.length >= 50 && !bad.length, `${lines.length}줄 모두 읽힌다${bad.length ? " — 못 읽음: " + bad.join(" | ") : ""}`);
+  const pct = lines.filter((l) => /(주는 피해|받는 피해|공격력|방어력|치명 확률|회복력)\s*[+\-]\s*\d+\s*%/.test(l) && !/판 내내/.test(l));
+  check(!pct.length, `% 증감은 「판 내내」 밖에 없다${pct.length ? " — " + pct.join(" | ") : ""}`);
+}
+
+console.log("");
 console.log("스마트 봇 — 새 수를 셈한다");
 {
   const bot = makeBots({ C, B, R, ENEMIES });

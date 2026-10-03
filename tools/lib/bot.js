@@ -168,12 +168,12 @@ export function makeBots({ C, B, R, ENEMIES }) {
 
   const MOD_W = { atk: 12, dealt: 12, crit: 4, heal: 4, def: 6, taken: -14 };
   const BOON_W = 9;          // 판 내내 증감 — 3턴 몫(이번 전투) × 전투 셋
-  const KNOWN = new Set(["취약", "약화", "감전", "중독", "힘", "침묵", "가시", "사기", "불굴", "결의", "결정화", "반격", "고통", "손상", "표식"]);
+  const KNOWN = new Set(["취약", "약화", "감전", "중독", "힘", "침묵", "가시", "사기", "불굴", "결의", "결정화", "반격", "고통", "손상", "표식", "열의", "강건", "집중", "온정"]);
   // 상태 한 겹의 값어치(HP 단위, 겹 규칙 — 한 번 돌면 1 준다). 적에게 건 것 · 아군에게 건 것
   //   취약 한 겹 ≈ 카드 한 장 피해의 절반 · 약화(적) 첫 겹은 incoming 이 이미 센다 · 표식 ≈ 덤 타격 하나 + 강인도
   //   고통 n 은 n + n/2 + … ≈ 2n · 사기 ≈ 카드 한 장의 +20% · 결의 · 반격 · 결정화는 방어력에 비례
   const FOE_ST = { 취약: 5, 약화: 2, 고통: 1.9, 손상: 0.5, 표식: 9, 사기: -3, 불굴: -3, 결의: -2, 결정화: -3, 반격: -4 };
-  const ALLY_ST = { 사기: 3, 불굴: 2, 결의: 3, 결정화: 4, 반격: 5, 취약: -3, 약화: -3, 고통: -2, 손상: -1 };
+  const ALLY_ST = { 사기: 3, 불굴: 2, 결의: 3, 결정화: 4, 반격: 5, 취약: -3, 약화: -3, 고통: -2, 손상: -1, 열의: 3, 강건: 1.5, 집중: 1.5, 온정: 1 };
   const TOUGH_W = 2, BROKEN_W = 4;   // 강인도 칸 하나 · 격파(HP 단위)
   // 판의 점수 — HP 단위. 높을수록 좋다.
   //   적: 깎은 HP(남은 HP 를 뺀다) · 처치(그 적의 아픔에 비례) · 다 잡으면 승리
@@ -213,7 +213,7 @@ export function makeBots({ C, B, R, ENEMIES }) {
     for (const u of s.party) {
       if (u.dead) continue;
       v += 3 * st(u, "힘");
-      for (const [k, w] of Object.entries(ALLY_ST)) v += w * st(u, k) * (k === "사기" ? (u.role === "딜러" ? 1.4 : 0.8) : 1);
+      for (const [k, w] of Object.entries(ALLY_ST)) v += w * st(u, k) * (k === "사기" || k === "열의" || k === "집중" ? (u.role === "딜러" ? 1.4 : 0.8) : 1);
       const rw = u.role === "딜러" ? 1.4 : 0.8;
       // 「판 내내」(강화 카드 · m.run) — 이번 전투 끝까지에 다음 전투들까지 간다. 일찍 낼수록 이득이라 크게 친다(전투 셋 몫)
       for (const m of u.mods || []) v += (MOD_W[m.stat] || 0) * rw * m.v * (m.run ? BOON_W : Math.min(m.left, 3));

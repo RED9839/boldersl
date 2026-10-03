@@ -45,6 +45,11 @@ const ICONS = {
   표식: { c: "#ff5a5a", ko: "표식", g: S("M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18", 2) + S("M12 7.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9", 1.8) + F("M12 10.6a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8") },
   실드: { c: "#6ff0ff", ko: "실드", g: S("M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18", 2) + F("M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18", 0.2) + S("M8 8.5a5 5 0 0 1 3.5-2", 2) },
 };
+// 능력치 상태(열의 · 강건 · 집중 · 온정) — 그 능력치의 그림(칩 숫자가 겹)
+ICONS.열의 = { ...ICONS.atk, ko: "열의" };
+ICONS.강건 = { ...ICONS.def, ko: "강건" };
+ICONS.집중 = { ...ICONS.crit, ko: "집중" };
+ICONS.온정 = { ...ICONS.heal, ko: "온정" };
 // ▲ · ▼ — 오른쪽 아래, 어두운 테두리를 둘러 그림 위에서도 보이게
 const ARROW = {
   up: `<path d="M18.5 14.5l5 7h-10z" fill="#fff" stroke="#0a0812" stroke-width="1.6" stroke-linejoin="round" paint-order="stroke"/>`,

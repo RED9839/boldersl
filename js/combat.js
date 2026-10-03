@@ -1355,7 +1355,7 @@ function applyFx(s, c, f, ctx) {
 }
 
 // 좋은 상태 — 적에게 걸려도 「디버프를 걸면」 이 아니다
-const BUFF_ST = new Set(["사기", "불굴", "결의", "반격", "결정화"]);
+const BUFF_ST = new Set(["사기", "불굴", "결의", "반격", "결정화", "열의", "강건", "집중", "온정"]);
 // run-fx 가 쓰는 손잡이 — 엔진 속을 그쪽에 통째로 넘기지 않으려고 좁게 연다
 function fxApi(s) {
   return {
@@ -1374,6 +1374,8 @@ function fxApi(s) {
     },
     // 손상 — 얻는 방어 · 실드를 줄인다
     guardGain: (t, v) => shieldGain(s, t, v),
+    // 능력치 상태(열의 · 강건 · 집중 · 온정)를 이 일에 한 번 쓴다(rules.js STAT_ST)
+    use: (u, id) => { if (u && st(u, id) > 0) charge(s, u, id); },
     weak: (from, t, tags) => isWeakHit(s, from, t, tags),
     draw: (n) => draw(s, n),
     // 연출 쪽지 — 회복 · 방어 · 실드(run-fx 가 직접 채우는 것)
