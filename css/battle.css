@@ -357,6 +357,11 @@ main:has(.battle) { max-width: 1240px; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0f2a12; background: #9be08a; border-radius: 4px; padding: 1px 6px; box-shadow: 0 1px 4px #0008;
 }
 .pshin::before { content: "✿ "; }
+/* 신탁도 붙은 카드면 축복 꼬리표는 신탁 꼬리표 바로 밑(오른쪽 위 둘이 나란히 — 2026-10 사용자) */
+.gcard.oracle.blessed .pshin { left: auto; right: 4px; bottom: auto; top: 22px; max-width: 70%; }
+/* 축복 효과 — 카드 설명 밑 한 줄 */
+.gshinline { color: #9be08a; font-weight: 800; }
+.gshinline::before { content: "✿ "; }
 /* 복제본 — 그림을 좌우로 뒤집는다(카제나처럼). 꼬리표는 그림 칸 왼쪽 위 */
 .gcard.copied .gart > img, .gcard.copied .gart > .art, .gcard.copied .gart canvas { transform: scaleX(-1); }
 .pcopy {

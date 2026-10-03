@@ -1267,11 +1267,6 @@ body:has(#screen.mapscreen) .top { display: none; }
 .epibox.waiting { visibility: hidden; }
 .phone .divgod { width: 150px; height: 150px; }
 .phone .divintro .epititle { font-size: 42px; }
-/* 신 번뜩임 선택지 — 코스트 밑 깃발 */
-.epiflag { position: absolute; top: 40px; left: 10px; z-index: 6; width: 26px; height: 32px; display: grid; place-items: center;
-  background: linear-gradient(180deg, #b48cff, #ff6fd8); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%); box-shadow: 0 0 10px #b48cff; }
-.epiflag .mtico { width: 18px; height: 18px; margin-top: -4px; }
-.epiflag .mtico img { width: 100%; height: 100%; border-radius: 50%; }
 .epibox { display: flex; flex-direction: column; align-items: center; gap: 10px; animation: bmpop .25s ease-out; }
 .epititle {
   font-size: 54px; font-weight: 900; letter-spacing: .04em; color: #fff4c8;
@@ -4112,3 +4107,25 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 .heroSheet .hsCard .ev2-n { position: absolute; top: -6px; right: -6px; z-index: 2; }
 .gwho.canzoom { cursor: pointer; }
 .gwho.canzoom:hover { filter: brightness(1.15); }
+
+/* ══ 신 번뜩임 고르기 — 여느 신탁 창과 같은 꼴(2026-10 사용자: 번뜩임과 똑같은 형태로) ═══════════
+   제목 · 원래 효과 · 카드 크기 · 줄은 그대로. 다른 것은 셋: 제목이 「신 번뜩임!」(보랏빛), 기적이 붙은 선택지의 보랏빛 테 · 깃발 · 꼬리표.
+   빛살은 겨우살이가 내려오는 등장 때만 — 고르는 동안은 거둔다 */
+.epimodal.divine .epirays { opacity: 0; transition: opacity .5s; }
+.epimodal.divine:has(.divintro:not(.gone)) .epirays { opacity: .5; }
+.epimodal.divine .epibox > .epititle.divtitle { font-size: 54px; }
+.epimodal.divine .epiopt.shin .gcard {
+  animation: divring 2.4s ease-in-out infinite;
+  box-shadow: 0 0 0 3px #e7d4ff, 0 0 26px #b48cffcc, 0 14px 30px #000c;
+}
+@keyframes divring { 50% { box-shadow: 0 0 0 3px #fff, 0 0 36px #c9a8ff, 0 0 60px #ff6fd855, 0 14px 30px #000c; } }
+.epimodal.divine .epiopt.shin .epikind { color: #f1e6ff; text-shadow: 0 0 10px #b48cff, 0 1px 3px #000; }
+.epimodal.divine .epishin {
+  background: linear-gradient(90deg, #7b4fe0, #c25fd0); color: #fff; font-size: 12px; font-weight: 800; padding: 4px 12px;
+  box-shadow: 0 0 14px #9a6cff99; max-width: 220px; white-space: normal; text-align: center; line-height: 1.4; animation: none;
+}
+.epimodal.divine .epishin::before { content: none; }
+/* 꼬리표는 카드 밑에 떠 있게 — 세 카드의 줄이 여느 신탁 창처럼 가지런하다 */
+.epimodal.divine .epiopt.shin .epishin { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 8px; width: max-content; }
+.phone .epimodal.divine .epibox > .epititle.divtitle { font-size: 40px; }
+.calm .epimodal.divine .epiopt.shin .gcard { animation: none; }

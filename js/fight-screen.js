@@ -3440,7 +3440,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const div = g.kind === "card" && g.options.some((o) => o.shin);
     const back = el("div", "bmodal epimodal" + (div ? " divine" : ""));
     // 신 번뜩임 — 손패에서는 여느 신탁과 같고, 터지는 순간만 다르다(카제나: 신이 내려와 번뜩임을 준다 — 2026-10 사용자).
-    // 우리는 겨우살이가 빛살 속에 내려와 「신 번뜩임」 을 찍고, 그 뒤에 선택지가 뜬다. 누르면 건너뛴다 · 움직임 줄이기면 없다
+    // 우리는 겨우살이가 빛살 속에 내려와 「축복」 을 찍고, 그 뒤에 선택지가 뜬다. 누르면 건너뛴다 · 움직임 줄이기면 없다
     const box = el("div", "epibox");
     if (div) {
       back.appendChild(el("div", "epirays"));
@@ -3450,7 +3450,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         const im = document.createElement("img"); im.src = MISTLETOE.still; im.alt = "겨우살이";
         god.appendChild(im);
         intro.appendChild(god);
-        intro.appendChild(el("div", "epititle divtitle", "신 번뜩임"));
+        intro.appendChild(el("div", "epititle divtitle", "축복"));
         intro.appendChild(el("p", "episub", "겨우살이가 축복을 내립니다"));
         back.appendChild(intro);
         box.classList.add("waiting");
@@ -3463,7 +3463,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     }
     back.appendChild(box);
     const base = CARDS[cardId];
-    box.appendChild(el("div", "epititle" + (div ? " divtitle" : ""), g.kind === "hero" ? "은총!" : div ? "신 번뜩임!" : "신탁!"));
+    box.appendChild(el("div", "epititle" + (div ? " divtitle" : ""), g.kind === "hero" ? "은총!" : div ? "축복!" : "신탁!"));
     box.appendChild(el("p", "episub", g.kind === "hero"
       ? `${HERO(g.hero).ko}에게 신탁 — 고유 카드 하나를 얻습니다. 이번 턴에는 코스트 0`
       : `「${base.name}」에 신탁 — 하나를 고르면 카드가 바뀌고, 이번에는 코스트 0`));
@@ -3479,16 +3479,11 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       if (g.kind === "hero") card = bigCard(CARDS[opt], CARDART.pic[opt] || null);
       else {
         const f = (base.flash || [])[opt.n - 1] || {};
-        card = bigCard(flashed(base, opt.n), CARDART.pic[cardId] || null);
+        // 축복이 얹힌 선택지 — 축복 이름은 신탁 꼬리표 밑에, 축복 효과는 카드 설명 밑에 한 줄(2026-10 사용자). 따로 뜨던 꼬리표는 없앴다
+        const [shKo, shLine] = opt.shin ? (RULES.shinLabel(base, opt.shin) || "").split(" — ") : [];
+        card = bigCard(opt.shin ? { ...flashed(base, opt.n), shinKo: shKo, shinLine: shLine || "" } : flashed(base, opt.n), CARDART.pic[cardId] || null);
         cell.appendChild(el("span", "epikind", f.kind || f.ko || ""));   // 자유 신탁은 분류 대신 이름
-        if (opt.shin) {
-          cell.classList.add("shin");
-          const tag = el("span", "epishin"); tag.appendChild(mistletoeIcon()); tag.appendChild(document.createTextNode(`겨우살이의 축복 · ${RULES.shinLabel(base, opt.shin)}`));
-          cell.appendChild(tag);
-          // 카제나처럼 코스트 밑에 깃발 — 셋 가운데 어느 것이 신 번뜩임인지 카드만 봐도 안다
-          const flag = el("span", "epiflag"); flag.title = "신 번뜩임 — 겨우살이의 축복"; flag.appendChild(mistletoeIcon());
-          card.appendChild(flag);
-        }
+        if (opt.shin) cell.classList.add("shin");
       }
       card.onclick = null; card.title = "";
       cell.appendChild(card);

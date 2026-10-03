@@ -571,6 +571,8 @@ export function bigCard(c, pic, calc) {
 
   const body = el("p", "gtext");
   withNumbers(body, cardParts(c, c.hero).action, c.hero, calc);
+  // 겨우살이의 축복 — 카드 설명 밑에 한 줄 더(무엇이 덧붙는지 — 2026-10 사용자)
+  if (c.shinKo && c.shinLine) { body.appendChild(document.createElement("br")); body.appendChild(el("span", "gshinline", c.shinLine)); }
   n.appendChild(body);
   // 신탁이 붙은 카드 — 오른쪽 위에 금빛 꼬리표(신탁 이름). 그냥 카드와 갈라 보이게(2026-10 사용자)
   if (c.flashOn) { n.classList.add("oracle"); artBox.appendChild(el("span", "pflash", c.flashKind || c.flashKo || "신탁")); }
