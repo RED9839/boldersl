@@ -139,7 +139,7 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
     if (next.gauge) { s.gauge = Math.min(R.GAUGE_MAX, s.gauge + next.gauge); say(s, `이벤트 — 고학년 게이지 +${next.gauge}%`); }
     if (next.hand) { s.opening = (s.opening || 0) + next.hand; say(s, `이벤트 — 첫 손패 +${next.hand}`); }
     if (next.weak) { for (const u of s.party) if (!u.dead) addSt(u, "약화", next.weak); say(s, `이벤트 — 아군 전원 약화 ${next.weak}턴`); }
-    if (next.rush) { s.firstRushDown = next.rush; say(s, `이벤트 — 첫 턴 적 전체 즉시 행동 -${next.rush}`); }
+    if (next.rush) { s.firstRushDown = next.rush; say(s, `이벤트 — 첫 턴 적 전체 즉시 행동 ${next.rush}장 늦춤`); }
     if (next.foeVuln) { for (const e of alive(s.enemies)) addSt(e, "취약", next.foeVuln); say(s, `이벤트 — 적 전체 취약 ${next.foeVuln}턴`); }
     if (next.quiet) { s.foeQuiet = next.quiet; say(s, `이벤트 — 적 패시브가 ${next.quiet}턴 동안 잠잠하다`); }
     if (next.hpCut) { for (const u of s.party) if (!u.dead) u.hp = Math.max(1, u.hp - Math.round(u.maxHp * next.hpCut)); say(s, `이벤트 — 시작하자마자 오작동, 파티 전원 HP -${Math.round(next.hpCut * 100)}%`); }
@@ -236,7 +236,7 @@ function beginTurn(s) {
   // 원작의 중독은 지속 피해가 아니라 공격력을 깎는 것이다. 그래서 턴 시작에 아무 일도 안 한다.
   // 촉수는 턴이 끝날 때 때린다(프리클) — 아래 endTurn 에 있다.
   for (const e of alive(s.enemies)) { rollIntent(s, e); e.rushCnt = 0; e.rushedTurn = false; }
-  // 이벤트 「첫 턴 적 전체 즉시 행동 -N」 — 카운트는 턴마다 0 으로 돌아가니 첫 턴에 걸어야 산다
+  // 이벤트 「첫 턴 적 전체 즉시 행동 N장 늦춤」 — 카운트는 턴마다 0 으로 돌아가니 첫 턴에 걸어야 산다
   if (s.turn === 1 && s.firstRushDown) for (const e of alive(s.enemies)) e.rushCnt -= s.firstRushDown;
   resetFoePassives(s);
   foePassives(s, "turnStart");
@@ -610,9 +610,10 @@ function checkOver(s) {
 // 이 판에서 그 카드가 실제로 무엇인가 — 신탁을 골랐으면 바뀐 쪽이다.
 export const cardOf = (s, id) => (s.book && s.book[id]) || CARDS[id];
 
-// 그 카드만의 축복(✦)에 붙은 태그 — 「✦ *이름*: 보존」 처럼. 축복을 받은 카드(run.shin[id] = "own")만(docs/14 §5)
+// 그 카드만의 축복(✦)에 붙은 태그 — 「✦ *이름*: 보존」 처럼. 축복을 받은 카드(run.shin[id] = "own" · "own1" · "own2")만,
+// 고른 그 축복의 것만(docs/14 §5)
 export function blessTag(s, cardId, id) {
-  const b = s.shin && s.shin[cardId] === "own" && CARDS[cardId] && CARDS[cardId].bless;
+  const b = s.shin && R.blessOf(CARDS[cardId], s.shin[cardId]);
   return !!(b && (b.fx || []).some((f) => f.k === "tag" && f.id === id));
 }
 
@@ -776,8 +777,8 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
     } else {
       for (const f of c.fx) applyFx(s, c, f, ctx);
     }
-    // 그 카드만의 축복 — 덤 효과가 카드 효과 뒤에 돈다(배율은 ctx.shin 이 이미 실었다)
-    const bl = sh === "own" && CARDS[cardId] && CARDS[cardId].bless;
+    // 그 카드만의 축복 — 고른 축복의 덤 효과가 카드 효과 뒤에 돈다(배율은 ctx.shin 이 이미 실었다)
+    const bl = R.blessOf(CARDS[cardId], sh);
     if (bl && bl.fx && bl.fx.length) { say(s, `겨우살이의 축복 「${bl.ko}」`); runFx(s, bl.fx, { ...ctx, shin: null }, fxApi(s)); }
   } finally { s.discardPick = null; }       // 고른 버릴 카드는 이 카드의 효과에서만 쓴다
   // 티그의 오버드라이브 — 평타 계수를 바꾸고 공속을 올린다(원작). 여기선 한 번 더 들어간다.

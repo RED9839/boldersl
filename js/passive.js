@@ -110,7 +110,7 @@ const LIMIT = /\(?\s*(턴당|전투당)\s*(\d+)\s*회\s*\)?/;
 const bare = (t) => t.replace(/「([^」]+)」/g, "$1");
 
 function durationOf(t) {
-  if (/이번\s*전투/.test(t)) return 999;   // 끝까지 — JSON 에 Infinity 가 안 들어가서 999 턴으로 둔다
+  if (/이번\s*전투|전투\s*내내/.test(t)) return 999;   // 끝까지 — JSON 에 Infinity 가 안 들어가서 999 턴으로 둔다
   const m = t.match(/(\d+)\s*턴\s*(?:간|동안)?/);
   if (m) return Number(m[1]);
   return 1;
@@ -187,7 +187,8 @@ export function parseKeyword(id, text, keywords = []) {
   sentences.forEach((s, i) => {
     if (i === 0) return;
     const meta = /최대\s*\d+|(?:턴\s*종료\s*시|적의\s*차례가\s*끝나면)\s*(?:\d+\s*(?:씩\s*)?(?:감소|줄어)|(?:전부|모두)\s*사라)|(?:적|아군)에게\s*(?:거는|붙는|쌓는|새기는|주는|나눠\s*주는|씌우는)/;
-    const per = s.match(/1\s*개\s*당\s*(.+)/);
+    // 「1개당 …」 으로 시작하는 문장만 — 「턴 종료 시 「드론」 1개당 …」 은 규칙 문장이다(뒤의 피해를 쌓인 수만큼)
+    const per = s.match(/^1\s*개\s*당\s*(.+)/);
     if (per) {
       const body = per[1];
       const who = /아군\s*(?:전원|전체)/.test(body) ? "allies" : "holder";

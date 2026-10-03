@@ -36,7 +36,8 @@ for (const [id, c] of Object.entries(BUILT.cards)) {
     unique: !!c.unique,
     signature: !!c.signature,
     flash: c.flash || null,
-    bless: c.bless || null,                 // 그 카드만의 겨우살이의 축복(✦) — docs/14 §5
+    bless: c.bless || null,                 // 그 카드만의 겨우살이의 축복(✦) 첫째 — docs/14 §5
+    blesses: c.blesses || (c.bless ? [c.bless] : null),   // 전부(셋까지) — run.shin 의 "own" · "own1" · "own2"
     tags: c.tags || [],
     unparsed: c.unparsed || null,
   };

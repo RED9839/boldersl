@@ -3,13 +3,13 @@ import { CARDS } from "./cardbook.js";
 import { ENEMIES, FLOORS } from "./data/enemies.js";
 import { HERO_DATA, kitOf, EQUIP, NEUTRAL_IDS } from "./cardbook.js";
 import CARDART from "./data/cardart.js";
-import { shortText } from "./card-text.js";
+import { shortText, blessLine } from "./card-text.js";
 import * as C from "./combat.js";
 import * as RULES from "./rules.js";
 import * as art from "./art.js";
 import { speak } from "./voice.js";
 import { sfx } from "./sfx.js";
-import { el, hint, screen, NTINT, uiIcon, goldLabel, mistletoeIcon, openHelp, fsButton, img, withKeywords, showCard, showPiles, bigCard, BATTLE_BG, GRADE_COLOR, emptySlotIcon, equipCard } from "./ui-common.js";
+import { el, hint, screen, NTINT, uiIcon, goldLabel, mistletoeIcon, openHelp, fsButton, img, withKeywords, kwText, showCard, showPiles, bigCard, BATTLE_BG, GRADE_COLOR, emptySlotIcon, equipCard } from "./ui-common.js";
 
 // ── 편성 ───────────────────────────────────────────────────────────────
 // 카제나의 「요원 도감 → 상세 정보」 얼개다.
@@ -51,6 +51,8 @@ export function partyScreen(onStart, onBack, opts = {}) {
   let tab = "능력치";                    // 사도 정보에서 먼저 뜨는 갈피
   let dexTab = "사도";                    // 도감의 갈피 — 사도 · 교주 카드 · 장비
   const book = { grade: null, slot: null, open: new Set() };   // 교주 카드 · 장비 도감의 거르개, 신탁을 펼친 카드
+  // 그 카드가 받은 고유 축복이 몇 번째인가 — 이어할 판의 run.shin(opts.shin)에서. -1 이면 아직(그러면 전부 보인다)
+  const blessChosen = (id) => RULES.blessIdx((opts.shin || {})[id]);
   const rows = {};
   const filter = { race: null, nature: null, role: null, q: "" };
   let sort = "성급", desc = true;
@@ -310,12 +312,14 @@ export function partyScreen(onStart, onBack, opts = {}) {
           n.appendChild(withKeywords(el("p"), f.text, null));
           box.appendChild(n);
         }
-        if (c.bless) {                       // 신탁 위에 얹히는 그 카드만의 축복
-          const n = el("div", "cbf cbbless");
-          const bn = el("b"); bn.appendChild(mistletoeIcon()); bn.appendChild(document.createTextNode(c.bless.ko)); n.appendChild(bn);
-          n.appendChild(withKeywords(el("p"), `겨우살이의 축복 — ${c.bless.text}`, null));
+        // 신탁 위에 얹히는 그 카드만의 축복 — 받기 전엔 전부, 받았으면 고른 것을 밝힌다
+        const chosen = blessChosen(c.id);
+        RULES.blessList(c).forEach((b, i) => {
+          const n = el("div", "cbf cbbless" + (chosen === i ? " on" : chosen >= 0 ? " off" : ""));
+          const bn = el("b"); bn.appendChild(mistletoeIcon()); bn.appendChild(document.createTextNode(b.ko)); n.appendChild(bn);
+          n.appendChild(withKeywords(el("p"), `겨우살이의 축복 — ${blessLine(b)}`, null));
           box.appendChild(n);
-        }
+        });
       };
       btn.onclick = () => { if (book.open.has(c.id)) book.open.delete(c.id); else book.open.add(c.id); fill(); };
       fill();
@@ -795,7 +799,12 @@ export function partyScreen(onStart, onBack, opts = {}) {
 
     // 능력 글은 오른쪽 기둥에 잇는다 — 입상은 왼쪽에 서 있고 글만 내려 읽는다
     if (h.passive) info.appendChild(line("패시브", h.passive, "", key));
-    if (h.keyword) info.appendChild(line(h.keyword.ko, h.keyword.text, "key", key));
+    if (h.keyword) {
+      // 전용 키워드 — 소개 한 줄 + 규칙 줄(최대 · 1개당 · 다 차면)
+      const d = el("section", "ability key");
+      d.appendChild(el("h3", null, h.keyword.ko));
+      info.appendChild(kwText(d, h.keyword.text));
+    }
     // 원작 대조(h.source)와 고른 사도와의 사이는 싣지 않는다 — 사이는 편성 화면 「함께 가면」에 있다
     return w;
   }
@@ -849,7 +858,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
 
   function flashPane(kit, CA, picFor) {
     const w = el("div", "pane");
-    w.appendChild(el("p", "note", "고유 카드마다 신탁이 다섯 — 싸우다 카드가 빛나면 그 가운데 셋이 뜨고, 하나를 고르면 카드가 그 글로 바뀝니다."));
+    w.appendChild(el("p", "note", "고유 카드마다 신탁이 다섯 — 싸우다 카드가 빛나면 그 가운데 셋이 뜨고, 하나를 고르면 카드가 그 글로 바뀝니다. 아래 ✦ 는 그 카드만의 겨우살이의 축복 — 받을 때 하나를 골라 신탁 위에 얹습니다."));
     kit.unique.forEach((c) => {
       const box = el("section", "flashbox");
       const head = el("div", "fhead");
@@ -867,14 +876,21 @@ export function partyScreen(onStart, onBack, opts = {}) {
         n.appendChild(withKeywords(el("p"), shortText(f.text), c.hero));
         g.appendChild(n);
       }
-      if (c.bless) {
-        const n = el("div", "flash fbless");
-        n.appendChild(el("span", "fkind", "축복"));
-        const bn = el("b"); bn.appendChild(mistletoeIcon()); bn.appendChild(document.createTextNode(c.bless.ko)); n.appendChild(bn);
-        n.appendChild(withKeywords(el("p"), shortText(c.bless.text), c.hero));
-        g.appendChild(n);
-      }
       box.appendChild(g);
+      // 그 카드만의 축복 — 따로 한 줄. 받기 전엔 전부(받을 때 하나를 고른다), 받았으면 고른 것을 밝힌다
+      const bl = RULES.blessList(c);
+      if (bl.length) {
+        const chosen = blessChosen(c.id);
+        const bg = el("div", "flashgrid blessgrid");
+        bl.forEach((b, i) => {
+          const n = el("div", "flash fbless" + (chosen === i ? " on" : chosen >= 0 ? " off" : ""));
+          n.appendChild(el("span", "fkind", chosen === i ? "받은 축복" : bl.length > 1 ? `축복 ${i + 1}` : "축복"));
+          const bn = el("b"); bn.appendChild(mistletoeIcon()); bn.appendChild(document.createTextNode(b.ko)); n.appendChild(bn);
+          n.appendChild(withKeywords(el("p"), blessLine(b), c.hero));
+          bg.appendChild(n);
+        });
+        box.appendChild(bg);
+      }
       w.appendChild(box);
     });
     return w;
@@ -892,7 +908,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
     info.appendChild(el("div", "egolabel", "고학년 스킬"));
     info.appendChild(el("h2", null, h.ult.ko));
     info.appendChild(withKeywords(el("p", "egotext"), shortText(h.ult.text), key));
-    info.appendChild(el("p", "note", `게이지 ${h.ult.cost}% 를 씁니다. 게이지는 파티가 함께 채우고(코스트 1당 10%), 같은 사도가 잇달아 쓸 수 없습니다.`));
+    info.appendChild(el("p", "note", `고학년 게이지 ${h.ult.cost}% 를 씁니다. 고학년 게이지는 파티가 함께 채우고(카드에 AP 를 1 쓸 때마다 +10%), 같은 사도가 잇달아 쓸 수 없습니다.`));
     big.appendChild(info);
     w.appendChild(big);
     return w;

@@ -1737,6 +1737,8 @@ body:has(#screen.dexscreen) .top, body:has(#screen.detailscreen) .top { display:
 #screen.detailscreen .fkind { font-size: 11px; color: #f6d58e; }
 #screen.detailscreen .flash b { font-size: 13px; }
 #screen.detailscreen .flash p { font-size: 11.5px; color: #cfc7ea; }
+#screen.detailscreen .blessgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#screen.detailscreen .fbless { border-top-color: #c9a227; }
 
 /* ── 고학년 스킬 ──────────────────────────────────── */
 #screen.detailscreen .ultbig {

@@ -46,12 +46,13 @@ const RULES_OUT = [
   [new RegExp(`^다음\\s*상점:\\s*장비\\s*\\((${GRADES})\\)$`), (m) => ({ k: "shopGift", grade: m[1] })],
   [/^다음\s*보상:\s*신탁\s*1$/, () => ({ k: "rewardFlash" })],
   [/^다음\s*전투:\s*첫\s*턴\s*AP\s*([+\-])\s*(\d+)$/, (m) => ({ k: "next", ap: (m[1] === "-" ? -1 : 1) * Number(m[2]) })],
-  [/^다음\s*전투:\s*게이지\s*\+\s*(\d+)\s*%$/, (m) => ({ k: "next", gauge: Number(m[1]) })],
+  [/^다음\s*전투:\s*(?:고학년\s*)?게이지\s*\+\s*(\d+)\s*%$/,(m) => ({ k: "next", gauge: Number(m[1]) })],
   [/^다음\s*전투:\s*첫\s*손패\s*\+\s*(\d+)$/, (m) => ({ k: "next", hand: Number(m[1]) })],
   [/^다음\s*전투:\s*아군\s*전원\s*약화\s*(\d+)\s*턴$/, (m) => ({ k: "next", weak: Number(m[1]) })],
   [/^다음\s*전투:\s*HP\s*-\s*(\d+)\s*%$/, (m) => ({ k: "next", hpCut: Number(m[1]) / 100 })],
-  // 새 적 규칙과 엮인 것(docs/12) — 첫 턴 즉시 행동 카운트 되돌리기 · 적 취약 · 적 패시브 잠재우기
-  [/^다음\s*전투:\s*첫\s*턴\s*적\s*전체\s*즉시\s*행동\s*-\s*(\d+)$/, (m) => ({ k: "next", rush: Number(m[1]) })],
+  // 새 적 규칙과 엮인 것(docs/12) — 첫 턴 즉시 행동 늦추기 · 적 취약 · 적 패시브 잠재우기.
+  // 글은 「즉시 행동 N장 늦춤」, 옛 글 「즉시 행동 -N」 도 읽는다
+  [/^다음\s*전투:\s*첫\s*턴\s*적\s*전체\s*즉시\s*행동\s*(?:-\s*(\d+)|(\d+)\s*장\s*늦춤)$/, (m) => ({ k: "next", rush: Number(m[1] || m[2]) })],
   [/^다음\s*전투:\s*적\s*전체\s*취약\s*(\d+)\s*턴$/, (m) => ({ k: "next", foeVuln: Number(m[1]) })],
   [/^다음\s*전투:\s*적\s*패시브\s*꺼짐\s*(\d+)\s*턴$/, (m) => ({ k: "next", quiet: Number(m[1]) })],
 ];
@@ -301,7 +302,7 @@ export function apply(run, ops) {
       }
       case "shinNow": {
         const ids = Object.keys(run.flash || {}).filter((id) => CARDS[id] && !(run.shin || {})[id]);
-        if (ids.length) { const id = ids[Math.floor(run.rng() * ids.length)]; run.shin = run.shin || {}; run.shin[id] = CARDS[id].bless ? "own" : true; E.log.push(`겨우살이의 축복! 「${CARDS[id].name}」 — ${R.shinLabel(CARDS[id], run.shin[id])}`); }
+        if (ids.length) { const id = ids[Math.floor(run.rng() * ids.length)]; run.shin = run.shin || {}; run.shin[id] = ownRandom(run, CARDS[id]) || true; E.log.push(`겨우살이의 축복! 「${CARDS[id].name}」 — ${R.shinLabel(CARDS[id], run.shin[id])}`); }
         else { E.shinChance = 1; E.log.push("축복을 얹을 신탁이 아직 없습니다 — 이번에 고르는 신탁에 얹힙니다"); }
         break;
       }
@@ -332,11 +333,11 @@ function hpChange(run, k, v, revive) {
 
 const nextLabel = (o) => "다음 전투: " + [
   o.ap != null && `첫 턴 AP ${o.ap > 0 ? "+" : ""}${o.ap}`,
-  o.gauge != null && `게이지 +${o.gauge}%`,
+  o.gauge != null && `고학년 게이지 +${o.gauge}%`,
   o.hand != null && `첫 손패 +${o.hand}`,
   o.weak != null && `아군 전원 약화 ${o.weak}턴`,
   o.hpCut != null && `파티 전원 HP -${Math.round(o.hpCut * 100)}%`,
-  o.rush != null && `첫 턴 적 전체 즉시 행동 -${o.rush}`,
+  o.rush != null && `첫 턴 적 전체 즉시 행동 ${o.rush}장 늦춤`,
   o.foeVuln != null && `적 전체 취약 ${o.foeVuln}턴`,
   o.quiet != null && `적 패시브 꺼짐 ${o.quiet}턴`,
 ].filter(Boolean).join(" · ");
@@ -367,6 +368,12 @@ export function resolve(run, value) {
     case "shinPick": {
       if (value == null) { E.log.push("겨우살이의 축복 — 받지 않았습니다"); break; }
       if (!shinAble(run, p.kind).includes(value)) return "축복을 얹을 수 없는 카드입니다";
+      // 그 카드만의 축복이 둘 이상이면 그 전부를 차례대로 보여 주고 고르게 한다(위력 · 비용을 정한 자리여도)
+      const own = R.blessKeys(CARDS[value]);
+      if (own.length > 1 || (!p.kind && own.length)) {
+        E.pending.splice(1, 0, { k: "shinKind", cardId: value, options: own });
+        break;
+      }
       if (!p.kind) {
         const all = divineKindsFor(CARDS[value]);
         const picks = [];
@@ -415,7 +422,7 @@ export function resolve(run, value) {
       // 기적 — 신탁 위에 드물게 한 줄 더(배율 ×1.3). 「꽃을 꺾으면」 이번 판은 안 뜬다
       if (E.shinChance && !run.noShin && run.rng() < E.shinChance) {
         run.shin = run.shin || {};
-        run.shin[p.offer.cardId] = CARDS[p.offer.cardId].bless ? "own" : true;
+        run.shin[p.offer.cardId] = ownRandom(run, CARDS[p.offer.cardId]) || true;
         E.log.push(`겨우살이의 축복! 신탁 위에 한 줄이 더 (${R.shinLabel(CARDS[p.offer.cardId], run.shin[p.offer.cardId])})`);
       }
       break;
@@ -474,6 +481,11 @@ export function shinAble(run, kind) {
   const ids = [...new Set(run.deck)].filter((id) => CARDS[id] && !CARDS[id].curse && !(run.shin || {})[id]);
   if (kind === "cost") return ids.filter((id) => typeof CARDS[id].cost === "number" && CARDS[id].cost >= 1);
   return kind ? ids : ids.filter((id) => divineKindsFor(CARDS[id]).length);
+}
+// 고르지 않고 받는 축복(「기적 1」 · 신탁 위 기적) — 그 카드만의 축복이 있으면 그 가운데 하나를 run.rng 로. 없으면 null
+function ownRandom(run, c) {
+  const own = R.blessKeys(c);
+  return own.length ? own[Math.floor(run.rng() * own.length)] : null;
 }
 export function dupeOk(id) { const c = CARDS[id]; return !!c && !c.oneOnly; }
 export function dupeExtra(run, id) { return (run.flash || {})[id] || (run.shin || {})[id] ? R.DUPE_FLASH_EXTRA : 0; }

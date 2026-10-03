@@ -16,7 +16,7 @@ export function makeBots({ C, B, R, ENEMIES }) {
   function simplePlay(s, r, only) {
     const D = only ? C.designOf(only) : null, KW = D && D.keyword && D.keyword.ko;
     const stackOf = (st) => (KW && ((st.stacks || {})[only] || {})[KW]) || 0;
-    const spendRe = KW ? new RegExp(`「${KW}」\\s*(전부|\\d)\\s*소모|「${KW}」\\s*1당`) : null;
+    const spendRe = KW ? new RegExp(`「${KW}」\\s*(전부|\\d)\\s*소모|「${KW}」\\s*1\\s*개?\\s*당`) : null;   // 「「X」 1개당」(옛 글 「1당」)
     const text = (id) => (C.cardOf(s, id) || {}).text || "";
     const target = () => { let t = 0, best = 1e9; s.enemies.forEach((e, j) => { if (!e.dead && e.hp < best) { best = e.hp; t = j; } }); return t; };
     let g = 0;

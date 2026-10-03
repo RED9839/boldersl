@@ -331,7 +331,7 @@ export function flashTargets(run) {
 // 이 카드에 쓸모 있는 축복 — 피해가 없으면 피해 쪽을, 회복이 없으면 회복 쪽을 빼고, 비용 -1 은 1코 이상만
 export function divineKindsFor(c) {
   if (!c) return [];
-  if (c.bless) return ["own"];          // 그 카드만의 축복이 있으면 그것 하나
+  if (c.bless) return R.blessKeys(c);   // 그 카드만의 축복이 있으면 그것들(셋까지 — "own" · "own1" · "own2")
 
   const fx = c.fx || [];
   const has = (k) => fx.some((f) => f.k === k || (k === "dmg" && f.k === "damage") || (k === "dmg" && f.k === "aoe"));

@@ -203,7 +203,10 @@ check(count(p, "gpic") + count(p, "gglyph") + count(p, "heroart") === 8,
 clickAll(p, (n) => n.classList.contains("sidebtn")).find((b) => b.textContent === "신탁").onclick();
 check(count(p, "flashbox") === 4, `신탁 갈피에 고유 넉 장 (${count(p, "flashbox")})`);
 check(count(p, "flash") - count(p, "fbless") === 20, `신탁 스무 개 (${count(p, "flash") - count(p, "fbless")})`);
-check(count(p, "fbless") === 4, `고유 카드마다 축복 ✦ 하나 (${count(p, "fbless")})`);
+// 에르핀은 v4 시범 사도 — 고유 카드마다 축복 ✦ 셋(받을 때 하나를 고른다). 받기 전이라 셋 다 보이고 밝힌 것은 없다
+check(count(p, "fbless") === 12, `고유 카드마다 축복 ✦ 셋 (${count(p, "fbless")})`);
+check(count(p, "blessgrid") === 4 && count(p, "off") === 0,
+  `축복은 카드마다 따로 한 줄 · 아직 고른 것이 없다 (${count(p, "blessgrid")})`);
 clickAll(p, (n) => n.classList.contains("sidebtn")).find((b) => b.textContent === "고학년 스킬").onclick();
 check(count(p, "ultbig") === 1, "고학년 스킬 갈피가 그려진다");
 check(/게이지 \d+% 를 씁니다/.test(p.textContent), "고학년 스킬에 게이지 값이 적힌다");

@@ -95,7 +95,7 @@ export function runFx(s, fxList, ctx, api) {
         let hits = f.xHits
           ? (ctx.x || 0) + (f.xStack ? stackOf(s, owner.key, f.xStack) : 0)
           : (f.hits || 1);
-        // 「「마탄」 1당 …」 — 바로 뒤의 피해 한 줄을 쌓인 수만큼 친다(0 이면 안 친다). 한 번 쓰면 풀린다
+        // 「「마탄」 1개당 …」 — 바로 뒤의 피해 한 줄을 쌓인 수만큼 친다(0 이면 안 친다). 한 번 쓰면 풀린다
         if (ctx.perStack) { hits *= stackOf(s, owner.key, ctx.perStack); ctx.perStack = null; }
         for (let i = 0; i < hits; i++) {
           const targets = resolve(s, ctx, f.target);

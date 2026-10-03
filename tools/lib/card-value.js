@@ -16,7 +16,7 @@ export function valueOf(fx) {
   for (const f of fx || []) {
     const n = f.hits || 1;
     switch (f.k) {
-      // 「「X」 1당 …」 은 바로 뒤 피해 한 줄을 쌓인 수만큼 친다 — 보통 쌓여 있는 셋으로 센다
+      // 「「X」 1개당 …」 은 바로 뒤 피해 한 줄을 쌓인 수만큼 친다 — 보통 쌓여 있는 셋으로 센다
       case "perStack": per = 3; break;
       case "dmg": v += f.ratio * n * 0.83 * area(f.target) * (f.xHits ? 3 : 1) * per; per = 1; break;
       case "block": case "shield": v += (f.ratio / 2) * 0.8 * (f.target === "allAllies" ? 2 : 1); break;

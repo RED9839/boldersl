@@ -22,7 +22,8 @@ const TARGETS = [
   [/적\s*전체|모든\s*적/g, "allEnemies"],
   [/무작위\s*적\s*1\s*명|무작위\s*적|무작위로?/g, "randomEnemy"],
   [/아군\s*(전원|전체)|파티\s*전원/g, "allAllies"],
-  [/HP\s*(?:비율이\s*)?(?:가장\s*)?(?:최저|낮은)\s*아군/g, "lowAlly"],
+  // 「HP 최저 아군」(이 꼴로 쓴다) · 옛 글 「HP 비율이 가장 낮은 아군」 · 「→ 다시 최저 아군」(앞에서 HP 를 이미 말했을 때)
+  [/HP\s*(?:비율이\s*|가\s*)?(?:가장\s*)?(?:최저|낮은)\s*아군|최저\s*아군/g, "lowAlly"],
   [/아군\s*1명|아군\s*한\s*명/g, "oneAlly"],
   [/자신|스스로/g, "self"],
   [/적\s*1명|적\s*한\s*명/g, "oneEnemy"],
@@ -106,9 +107,9 @@ function hitsOf(text) {
 
 // X 코스트 카드의 타수 — 「(AP+왕마력)회」「(AP)회」「X회」.
 // 남은 AP 를 전부 쓰고 그 수만큼(+키워드 스택만큼) 때린다. 전에는 못 읽어서 1회만 쳤다.
-// 증감이 얼마나 가는가 — 「이번 전투」 는 끝까지, 「N턴간」 은 N턴, 아무 말 없으면 이번 턴
+// 증감이 얼마나 가는가 — 「이번 전투」 · 「전투 내내」 는 끝까지, 「N턴간」 · 뒤에 붙은 「N턴」 은 N턴, 아무 말 없으면 이번 턴
 function durOf(t) {
-  if (/이번\s*전투/.test(t)) return 999;   // 끝까지 — JSON 에 Infinity 가 안 들어가서 999 턴으로 둔다
+  if (/이번\s*전투|전투\s*내내/.test(t)) return 999;   // 끝까지 — JSON 에 Infinity 가 안 들어가서 999 턴으로 둔다
   const m = t.match(/(\d+)\s*턴\s*(?:간|동안)?/);
   return m ? Number(m[1]) : 1;
 }
@@ -157,7 +158,7 @@ const RULES = [
   // AP
   { re: /AP\s*([+\-])\s*(\d+)/g, make: (m) => ({ k: "ap", v: (m[1] === "-" ? -1 : 1) * Number(m[2]) }) },
   // 고학년 게이지
-  { re: /게이지\s*([+\-])\s*(\d+)\s*%/g, make: (m) => ({ k: "gauge", v: (m[1] === "-" ? -1 : 1) * Number(m[2]) }) },
+  { re: /(?:고학년\s*)?게이지\s*([+\-])\s*(\d+)\s*%/g, make: (m) => ({ k: "gauge", v: (m[1] === "-" ? -1 : 1) * Number(m[2]) }) },
   // 상태 — 취약·약화 (N턴)
   {
     re: /(취약|약화)\s*(\d+)?\s*턴?/g,
@@ -165,6 +166,8 @@ const RULES = [
   },
   { re: /기절\s*(\d+)?\s*회?턴?/g, make: (m, text) => ({ k: "status", id: "기절", v: 1, turns: Number(m[1] || 1), target: pickTarget(text, "oneEnemy", m, "status") }) },
   // 즉시 행동 되돌리기 — 적이 예고한 수의 카운트를 N장 되돌린다(적 1명 · 적 전체). 새 적 규칙(docs/12)에 대한 답
+  // 글은 「즉시 행동 1장 늦춤」(그 적이 수를 당기려면 카드를 1장 더 내야 한다). 옛 글 「즉시 행동 -1」 도 같은 것으로 읽는다
+  { re: /즉시\s*행동\s*(\d+)\s*장\s*늦춤/g, make: (m, text) => ({ k: "rushDown", v: Number(m[1]), target: pickTarget(text, "oneEnemy", m, "status") }) },
   { re: /즉시\s*행동\s*-\s*(\d+)/g, make: (m, text) => ({ k: "rushDown", v: Number(m[1]), target: pickTarget(text, "oneEnemy", m, "status") }) },
   { re: /도발\s*(\d+)?\s*턴?/g, make: (m, text) => ({ k: "status", id: "도발", v: 1, turns: Number(m[1] || 1), target: "self" }) },
   // 공용 키워드
@@ -227,7 +230,7 @@ const RULES = [
   // "다음 카드 코스트 -1" 은 이미 costDelta 가 잡는다. 여기선 "카드 사용 불가"
   { re: /카드\s*사용\s*불가/g, make: (m, t) => ({ k: "lockCards", target: pickTarget(t, "self", m, "lockCards") }) },
   // "소멸" 은 tag 가 잡는다. "이번 전투" 는 지속을 뜻한다
-  { re: /이번\s*전투(?:\s*동안)?/g, make: () => null },   // 증감의 길이(999턴)로 이미 읽었다
+  { re: /이번\s*전투(?:\s*동안)?|전투\s*내내/g, make: () => null },   // 증감의 길이(999턴)로 이미 읽었다
 
   // ── 고학년 게이지를 쓰는 꼴 ────────────────────────────────────────
   // "게이지 300%를 써서" 는 비용 설명이다 — 비용은 ult.cost 가 이미 들고 있으니 효과로 세지 않는다
@@ -255,14 +258,17 @@ function stackRule(word) {
     R(`${w}(?:이|가)?\\s*(?:이미\\s*)?있으면`, () => ({ k: "ifStack", id: word, v: 1 })),
     // 「재채기 2회」 — 낱말 뒤에 횟수
     R(`${w}\\s*(\\d+)\\s*회`, (m) => ({ k: "trigger", id: word, v: Number(m[1]) })),
-    // 「간식 1당」 — 스택 비례
-    R(`${w}\\s*1?\\s*당`, () => ({ k: "perStack", id: word })),
+    // 「간식 1개당」 — 스택 비례(옛 글 「간식 1당」 도 읽는다)
+    R(`${w}\\s*(?:1\\s*개?)?\\s*당`, () => ({ k: "perStack", id: word })),
     // 「저장 최대 10」 · 「획득 상한 5」 — 상한
     R(`${w}[^.]{0,8}(?:최대치?|상한)\\s*(\\d+)`, (m) => ({ k: "capStack", id: word, v: Number(m[1]) })),
     // 낱말만 남은 꼴 — 못 읽은 것으로 세지 않도록 마지막에 걷는다
     R(w, () => null),
   ];
 }
+
+// 「… 2번」 으로 되풀이할 수 있는 효과
+const REPEAT = new Set(["dmg", "heal", "block", "shield"]);
 
 // 한 문장을 읽는다. { fx, left } — left 는 읽고 남은 글자다(못 읽은 만큼).
 export function parseEffect(text, { keyword, keywords } = {}) {
@@ -293,18 +299,26 @@ export function parseEffect(text, { keyword, keywords } = {}) {
       const got = r.make(m, text);
       if (got) { got._at = from; fx.push(got); }
       left = left.slice(0, from) + " ".repeat(to - from) + left.slice(to);
+      // 「아군 전원 HP 회복(회복력 40%) 2번」 — 같은 효과를 따로 N번 낸다(나이아의 넘친 회복은 번마다 센다).
+      // 「2회 ×」(한 효과의 타수)와 다르다. 같은 글을 두 번 잇달아 적지 않으려고 둔 꼴이다
+      const rep = got && REPEAT.has(got.k) && text.slice(to).match(/^\s*(\d+)\s*번(?=\s*(?:$|[,.·]))/);
+      if (rep && !overlaps(to, to + rep[0].length)) {
+        for (let i = 1; i < Number(rep[1]); i++) fx.push({ ...got, _at: from + i / 100 });
+        taken.push([to, to + rep[0].length]);
+        left = left.slice(0, to) + " ".repeat(rep[0].length) + left.slice(to + rep[0].length);
+      }
     }
   }
 
   // 대상 말(적 1명·아군 전원…)과 타수(4회 ×)는 효과가 이미 가져갔다 — 못 읽은 것으로 세지 않는다
   for (const [re] of TARGETS) left = left.replace(new RegExp(re.source, "g"), (x) => " ".repeat(x.length));
   // 길이 말(2턴간 · 이번 턴 · 이번 전투 동안)은 증감·상태가 이미 가져갔다
-  left = left.replace(/\(\s*AP\s*(?:\+\s*[가-힣 ]+?)?\s*\)\s*회\s*[×x]?|\bX\s*회\s*[×x]?|\d+\s*회\s*[×x]|\bHP\b|\d+\s*턴\s*(?:간|동안)?|이번\s*전투\s*동안|이번\s*턴/g, (x) => " ".repeat(x.length));
+  left = left.replace(/\(\s*AP\s*(?:\+\s*[가-힣 ]+?)?\s*\)\s*회\s*[×x]?|\bX\s*회\s*[×x]?|\d+\s*회\s*[×x]|\bHP\b|\d+\s*턴\s*(?:간|동안)?|이번\s*전투\s*동안|전투\s*내내|이번\s*턴/g, (x) => " ".repeat(x.length));
 
   // 남은 글자에서 조사·이음말을 걷어 내면, 진짜로 못 읽은 것만 남는다
   const rest = left
-    .replace(/[,.·—()「」『』%×x]/g, " ")
-    .replace(/(그리고|추가로|대신|이번|다음|사용|직전|하고|한다|된다|있으면|없으면|마다|만큼|전부|전원|전체|아군|적|자신|대상|무작위|매|턴|번|개|장|명|회|시|후|의|를|을|이|가|에게|에|로|으로|과|와|는|은|도|씩|최대|추가|동안|처음|그|더|및|또는|수|것|때|까지|부터|중|내|외)/g, " ")
+    .replace(/[,.·—()「」『』%×x→]/g, " ")
+    .replace(/(다시|이어서|그리고|추가로|대신|이번|다음|사용|직전|하고|한다|된다|있으면|없으면|마다|만큼|전부|전원|전체|아군|적|자신|대상|무작위|매|턴|번|개|장|명|회|시|후|의|를|을|이|가|에게|에|로|으로|과|와|는|은|도|씩|최대|추가|동안|처음|그|더|및|또는|수|것|때|까지|부터|중|내|외)/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 

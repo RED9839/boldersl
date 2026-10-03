@@ -4,9 +4,14 @@
 // 1,080장 가운데 525장이 그 꼴이라 이 한 줄만으로도 크게 줄어든다.
 //
 // **숫자를 하나라도 잃으면 안 된다.** 규칙을 잘못 쓰면 배율이 사라져도 글은 멀쩡해 보인다 —
-// tools/check-short.js 가 원문과 줄인 글의 숫자를 견줘서 그것만 본다.
+// tools/check-short.js 가 원문과 줄인 글의 숫자를 견줘서 그것만 본다(길이 「2턴」 을 뒤로 옮기니 차례는 안 보고 묶음으로 본다).
 //
 // 화면과 따로 둔 이유는 검사하려고다. ui.js 는 document 가 있어야 읽히지만 이 파일은 아니다.
+
+// 길이를 뒤로 옮길 수 있는 꼴 — 대상 + 능력치 증감(「주는 피해 +10%」 「공격력 +10% · 방어력 +10%」)
+const DUR_TGT = "(자신|아군 전원|아군 전체|아군 1명|파티 전원|적 전체|적 1명|무작위 적|HP 최저 아군)";
+const DUR_STAT = "(?:주는 피해|받는 피해|공격력|방어력|치명(?: 확률)?|회복력) [+-]\\d+%";
+const DUR_CHAIN = `${DUR_STAT}(?: · ${DUR_STAT})*`;
 
 const SHORT = [
   [/공격력 (\d+)% 마법 피해/g, "마법 피해 $1%"],
@@ -19,6 +24,13 @@ const SHORT = [
   [/HP 회복 (?:공격력|회복력) (\d+)%/g, "회복 $1%"],
   [/회복\((?:공격력|회복력) (\d+)%\)/g, "회복 $1%"],
   [/(?:공격력|회복력) (\d+)% 회복/g, "회복 $1%"],
+  // 대상 낱말 하나로 — 「HP 최저 아군」(풀이: 효과마다 그때 HP 비율이 가장 낮은 아군을 다시 고른다)
+  [/HP\s*(?:비율이|가)\s*가장\s*낮은\s*아군/g, "HP 최저 아군"],
+  // 길이는 늘 끝에 — 「약화 1턴」 「취약 2턴」 처럼 「아군 전원 주는 피해 +10% 2턴」.
+  // 기획서 글의 「2턴간 …」 · 「이번 전투 동안 …」 · 「이번 턴 …」 을 뒤로 옮긴다(이어 적은 「공격력 +10% · 방어력 +10%」 는 통째로)
+  [new RegExp(`(\\d+)턴간 ${DUR_TGT} (${DUR_CHAIN})`, "g"), "$2 $3 $1턴"],
+  [new RegExp(`이번 전투 동안 ${DUR_TGT} (${DUR_CHAIN})`, "g"), "$1 $2 전투 내내"],
+  [new RegExp(`이번 턴 ${DUR_TGT} (${DUR_CHAIN})`, "g"), "$1 $2 이번 턴"],
 ];
 
 export function shortText(t) {
@@ -139,4 +151,31 @@ export function cardParts(card, heroKey) {
   for (const t of terms.slice()) if (t.text) hunt(t.text);
 
   return { action, terms };
+}
+
+// ── 사도 전용 키워드 풀이를 「소개 + 규칙 줄」 로 ──────────────────────
+//
+// 기획서의 키워드 칸은 한 덩어리다 — "친구 몰래 챙겨 둔 케이크. 최대 5. 「케이크」가 5개가 되면: …".
+// 첫 문장은 소개(사람이 읽는 말, js/passive.js parseKeyword 도 첫 문장은 건너뛴다)이고 그 뒤가 규칙이다.
+// 화면은 소개를 한 줄로, 규칙(최대 · 1개당 · 다 차면)을 줄마다 따로 놓아 훑어 읽게 한다.
+// **글은 자르기만 한다.** 규칙 줄은 카드처럼 줄인 꼴(shortText)이다.
+export function keywordLines(text) {
+  const ss = String(text || "").split(/(?<=[.。])\s+/).map((s) => s.trim()).filter(Boolean);
+  const rule = (s) => shortText(s.replace(/[.。]$/, "")).replace(/^최대 (\d+)$/, "최대 $1개");
+  if (ss.length < 2) return { flavor: "", rules: ss.map(rule) };
+  const [flavor, ...rest] = ss;
+  return { flavor, rules: rest.map(rule) };
+}
+
+// ── 겨우살이의 축복 한 줄 ─────────────────────────────────────────────
+//
+// 축복 글은 「피해 ×1.3」 「보존」 「개전」 처럼 앞머리만 있는 것이 많다. 카드 아래 따로 놓이면
+// 무엇에 붙는 말인지 안 보인다 — 「이 카드 피해 ×1.3」 · 「이 카드: 보존」 으로 밝힌다(데이터는 그대로).
+const BLESS_HEAD = /^(?:취약(?:\s*상태)?인\s*적에게\s*피해|피해|회복(?:량)?|방어\s*·\s*실드|방어|실드)\s*×\s*[\d.]+|^코스트\s*-\s*\d+/;
+const BLESS_TAG = /^(?:보존|개전|소멸)(?=$|[\s.,])/;
+export function blessLine(b) {
+  const t = shortText(String((b && b.text) || "").trim());
+  if (BLESS_HEAD.test(t)) return "이 카드 " + t;
+  if (BLESS_TAG.test(t)) return "이 카드: " + t;
+  return t;
 }

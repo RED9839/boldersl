@@ -19,7 +19,7 @@ import { spineView } from "./spine-view.js";
 import { loadFx, preloadUltFx, playUltFx, ultImpactMs, ultLagMs, playFx, preloadFx } from "./fx-burst.js";
 import { speak } from "./voice.js";
 import { cardMotion } from "./data/card-motion.js";
-import { HERO, TINT, NTINT, el, kwNote, hint, screen, TMARK, TKIND, goldIcon, mistletoeIcon, openHelp, img, withKeywords, showCard, showPiles, natureClass, bigCard, effectBox, setStageBg, withNumbers, statText, equipIcon, emptySlotIcon, showEquip } from "./ui-common.js";
+import { HERO, TINT, NTINT, el, kwNote, hint, screen, TMARK, TKIND, goldIcon, mistletoeIcon, openHelp, img, withKeywords, kwText, showCard, showPiles, natureClass, bigCard, effectBox, setStageBg, withNumbers, statText, equipIcon, emptySlotIcon, showEquip } from "./ui-common.js";
 
 // 효과음 자리 — 전투 화면이 맞는 순간 · 고학년 · 카드 동작에 부른다. 효과음 모듈이 메서드를 갈아 끼운다(안 끼우면 조용하다).
 //   hit(kind, heavy, crit)  맞는 순간마다 — kind 는 타격 갈래(slash 베기 · shot 쏘기 · magic 마법 · blunt 둔기), 받는 쪽은 kind 앞에 "ally:"
@@ -2438,7 +2438,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         const self = ((st.stacks || {})[u.key] || {})[h.keyword.ko] || 0;
         const now = kw && kw.carrier !== "self" ? (held.length ? held.join(" · ") : "아무도 없음") : `${self}개`;
         kl.appendChild(el("dt", null, `${h.keyword.ko} · 내 것`));
-        const dd = el("dd", null, h.keyword.text || "");
+        const dd = kwText(el("dd"), h.keyword.text || "");
         dd.appendChild(el("span", "bmtag", `지금 ${now}`));
         kl.appendChild(dd);
       }
@@ -2446,7 +2446,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         if (mine && k.id === h.keyword.ko && k.owner === u.key) continue;
         const oh = HERO(k.owner);
         kl.appendChild(el("dt", null, `${k.id} ${k.n} · ${oh.ko}에게서`));
-        const dd = el("dd", null, (oh.keyword || {}).text || "");
+        const dd = kwText(el("dd"), (oh.keyword || {}).text || "");
         for (const sh of k.share) dd.appendChild(el("span", "bmtag", `${STAT_KO[sh.stat]} ${pctTxt(sh.v)}`));
         kl.appendChild(dd);
       }

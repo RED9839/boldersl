@@ -56,6 +56,18 @@ const EFFECTS = [
   ["무작위 적 1명 기절", ["status"]],
   ["HP 최저 아군 무적", ["invuln"]],
   ["아군 1명 무적", ["invuln"]],
+  // 같은 말 되풀이를 걷은 꼴 · 길이는 끝에 · 하나로 맞춘 낱말(옛 글도 읽는다 — 위의 「게이지 +20%」 · 「1당」)
+  ["아군 전원 HP 회복(회복력 40%) 2번", ["heal", "heal"]],
+  ["HP 최저 아군 HP 회복(회복력 70%) → 다시 최저 아군 HP 회복(회복력 40%), 디버프 1개 해제", ["heal", "heal", "cleanse"]],
+  ["적 1명에게 공격력 60% 피해 → 공격력 90% 피해", ["dmg", "dmg"]],
+  ["적 1명에게 공격력 120% 피해 · 취약 2턴", ["dmg", "status"]],
+  ["아군 전원 주는 피해 +10% · 받는 피해 -10% 2턴", ["dealtMod", "takenMod"]],
+  ["자신 받는 피해 -20% 이번 턴", ["takenMod"]],
+  ["자신 공격력 +15% · 치명 확률 +10% 전투 내내", ["atkMod", "critMod"]],
+  ["적 전체 즉시 행동 1장 늦춤", ["rushDown"]], ["적 1명 즉시 행동 -1", ["rushDown"]],
+  ["고학년 게이지 +40%", ["gauge"]],
+  ["무작위 적 3회 × 공격력 40% 피해, 「간식」 1개당 무작위 적 공격력 40% 피해", ["dmg", "perStack", "dmg"]],
+  ["무작위 적 3회 × 공격력 40% 피해, 「간식」 1당 무작위 적 공격력 40% 피해", ["dmg", "perStack", "dmg"]],
 ];
 for (const [t, want] of EFFECTS) {
   const { fx, left } = parseEffect(t, { keywords: kws });
@@ -73,6 +85,15 @@ const t3 = parseEffect("무작위 적 4회 × 공격력 50% 피해. 「간식」
 say(tgt("HP 최저 아군 무적", "invuln") === "lowAlly", "HP 최저 아군 무적 → 그 아군");
 say(tgt("적 1명에게 공격력 100% 피해, 자신 무적", "invuln") === "self", "자신 무적 → 자신 (적 말이 앞에 있어도)");
 say(parseEffect("적 1명 침묵 2턴", { keywords: kws }).fx[0].turns === 2, "침묵 2턴 → 2턴");
+{
+  const wash = parseEffect("HP 최저 아군 HP 회복(회복력 70%) → 다시 최저 아군 HP 회복(회복력 40%), 디버프 1개 해제", { keywords: kws }).fx;
+  say(wash.every((f) => f.target === "lowAlly"), "→ 다시 최저 아군 — 회복 둘 · 해제 모두 HP 최저 아군(효과마다 다시 고른다)");
+  const two = parseEffect("아군 전원 HP 회복(회복력 40%) 2번", { keywords: kws }).fx;
+  say(two.length === 2 && two.every((f) => f.ratio === 0.4 && f.target === "allAllies"), "회복 40% 2번 → 따로 두 번");
+  const late = parseEffect("아군 전원 주는 피해 +10% · 받는 피해 -10% 2턴", { keywords: kws }).fx;
+  say(late.every((f) => f.turns === 2 && f.target === "allAllies"), "끝에 붙은 「2턴」 이 앞의 둘 모두에");
+  say(parseEffect("자신 공격력 +10% 전투 내내", { keywords: kws }).fx[0].turns === 999, "전투 내내 → 끝까지");
+}
 say(t3[0].hits === 4 && t3[1].hits === 1, `타수는 제 마디에서 — ${t3.map((f) => f.hits).join(",")}`);
 const d2 = parseEffect("2턴간 아군 전원 받는 피해 -10%", { keywords: kws }).fx[0];
 say(d2.turns === 2, `「2턴간」 → 2턴 (${d2.turns})`);

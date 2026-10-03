@@ -18,6 +18,8 @@ import { valueOf, baseValue, flashCost, oracleRules, tagsOf } from "./lib/card-v
 const args = process.argv.slice(2);
 const DESIGN = DESIGN_DOC;
 const needBless = args.includes("--bless");   // v3 — 고유 카드마다 「✦ 축복」 이 있어야 한다
+// v4 시범 여섯(docs/15) — 고유 카드마다 축복 셋
+const V4 = new Set(["에르핀", "네르", "티그", "비비", "나이아", "엘레나"]);
 const only = args.includes("--only") ? (args[args.indexOf("--only") + 1] || "").split(",").filter(Boolean) : [];
 const files = args.includes("--design") ? [DESIGN] : args.filter((a) => a.endsWith(".md"));
 if (!files.length) { console.log("쓰는 법: node tools/check-hero.js 파일.md | --design"); process.exit(2); }
@@ -217,26 +219,39 @@ for (const file of files) {
       const free = u.flash.every((f) => !f.kind);
       if (!free) u.flash.forEach((f, i) => { if (f.kind !== FLASH[i]) errs.push(`「${u.ko}」 신탁 ${i + 1}번이 「${f.kind || "(분류 없음)"}」 — 「${FLASH[i]}」 여야 한다(자유 신탁이면 다섯 모두 분류 없이)`); });
     }
-    // ── 겨우살이의 축복(사도 고유, v3) — 「✦ *이름*: 효과」 ──
+    // ── 겨우살이의 축복(사도 고유, v3) — 「✦ *이름*: 효과」, 카드당 셋까지(받을 때 하나를 고른다) ──
+    // v4 사도(docs/15)는 카드마다 셋. 셋은 서로 다른 꼴이어야 고르는 맛이 난다(배율 · 태그/코스트 · 그 사도다운 덤)
     {
       const anyBless = h.unique.some((u) => u.bless);
       for (const u of h.unique) {
-        if (!u.bless) { if (needBless || anyBless) errs.push(`「${u.ko}」 — 축복 줄(「✦ *이름*: 효과」)이 없다`); continue; }
-        pieces++;
-        const b = parseBless(u.bless.text, { keywords: kws });
-        if (!b.kind && !b.fx.length) errs.push(`「${u.ko}」 축복 「${u.bless.ko}」 — 효과를 못 읽었다: ${u.bless.text}`); else read++;
-        if (b.left) errs.push(`「${u.ko}」 축복 「${u.bless.ko}」 — 못 읽은 말: 「${b.left}」`);
-        if (b.kind === "cost" && !(typeof u.cost === "number" && u.cost >= 2)) errs.push(`「${u.ko}」 축복 — 코스트 -1 은 2코 이상 카드만(0코가 되면 안 된다)`);
-        const base = valueOf(parseEffect(u.text, { keywords: kws }).fx) || 0.5;
-        // 축복의 보존 · 개전 — 그 카드가 손에 남는다 · 첫 손패에 든다(js/combat.js blessTag). 덤 0.3 으로 친다
-        const extra = valueOf(b.fx) + b.fx.filter((f) => f.k === "tag" && (f.id === "보존" || f.id === "개전")).length * 0.3;
-        if (b.fx.some((f) => f.k === "tag" && f.id === "소멸")) errs.push(`「${u.ko}」 축복 — 소멸은 축복에 붙이지 않는다`);
-        // 공용 풀이 ×1.3 이다 — 고유 축복도 그 언저리: 덤은 기본 카드 값의 15~60%, 배율과 덤을 같이 쓰면 덤은 30% 까지
-        const cap = b.kind ? 0.3 : 0.6;
-        if (extra > base * cap + 0.05) errs.push(`「${u.ko}」 축복 「${u.bless.ko}」 — 덤이 너무 크다 (값어치 ${extra.toFixed(2)} · 기본의 ${Math.round(cap * 100)}% = ${(base * cap).toFixed(2)} 까지)`);
-        if (!b.kind && extra < base * 0.1 - 0.05) errs.push(`「${u.ko}」 축복 「${u.bless.ko}」 — 덤이 너무 작다 (값어치 ${extra.toFixed(2)} · 기본의 10% 이상)`);
-        for (const f of b.fx) { sane(f, `「${u.ko}」 축복`, errs, false); if (f.k === "ap" && f.v > 0 && !(typeof u.cost === "number" && u.cost >= 1)) errs.push(`「${u.ko}」 축복 — 0코 카드에 AP 금지`); }
-        notes.push(`축복 ${u.ko} → ${u.bless.ko}: ${b.kind || "-"}${b.fx.length ? " + " + b.fx.map(fxLabel).join(", ") : ""}`);
+        const list = u.blesses || (u.bless ? [u.bless] : []);
+        if (!list.length) { if (needBless || anyBless) errs.push(`「${u.ko}」 — 축복 줄(「✦ *이름*: 효과」)이 없다`); continue; }
+        if (list.length > 3) errs.push(`「${u.ko}」 — 축복이 ${list.length}개(셋까지)`);
+        if (needBless && V4.has(h.ko) && list.length !== 3) errs.push(`「${u.ko}」 — v4 사도는 축복이 셋이어야 한다 (${list.length}개)`);
+        const shapes = new Set(), names = new Set();
+        for (const bl of list) {
+          pieces++;
+          if (names.has(bl.ko)) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 같은 카드에 같은 이름이 둘`);
+          names.add(bl.ko);
+          const b = parseBless(bl.text, { keywords: kws });
+          if (!b.kind && !b.fx.length) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 효과를 못 읽었다: ${bl.text}`); else read++;
+          if (b.left) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 못 읽은 말: 「${b.left}」`);
+          if (b.kind === "cost" && !(typeof u.cost === "number" && u.cost >= 2)) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 코스트 -1 은 2코 이상 카드만(0코가 되면 안 된다)`);
+          const base = valueOf(parseEffect(u.text, { keywords: kws }).fx) || 0.5;
+          // 축복의 보존 · 개전 — 그 카드가 손에 남는다 · 첫 손패에 든다(js/combat.js blessTag). 덤 0.3 으로 친다
+          const extra = valueOf(b.fx) + b.fx.filter((f) => f.k === "tag" && (f.id === "보존" || f.id === "개전")).length * 0.3;
+          if (b.fx.some((f) => f.k === "tag" && f.id === "소멸")) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 소멸은 축복에 붙이지 않는다`);
+          // 공용 풀이 ×1.3 이다 — 고유 축복도 그 언저리: 덤은 기본 카드 값의 15~60%, 배율과 덤을 같이 쓰면 덤은 30% 까지
+          const cap = b.kind ? 0.3 : 0.6;
+          if (extra > base * cap + 0.05) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 덤이 너무 크다 (값어치 ${extra.toFixed(2)} · 기본의 ${Math.round(cap * 100)}% = ${(base * cap).toFixed(2)} 까지)`);
+          if (!b.kind && extra < base * 0.1 - 0.05) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 덤이 너무 작다 (값어치 ${extra.toFixed(2)} · 기본의 10% 이상)`);
+          for (const f of b.fx) { sane(f, `「${u.ko}」 축복`, errs, false); if (f.k === "ap" && f.v > 0 && !(typeof u.cost === "number" && u.cost >= 1)) errs.push(`「${u.ko}」 축복 — 0코 카드에 AP 금지`); }
+          // 꼴 — 배율 + 덤 종류. 한 카드의 축복끼리 같은 꼴이면 고를 까닭이 없다
+          const shape = `${b.kind || "-"}|${b.fx.map((f) => f.k === "tag" ? "tag:" + f.id : f.k).sort().join(",")}`;
+          if (shapes.has(shape)) errs.push(`「${u.ko}」 축복 「${bl.ko}」 — 같은 카드의 다른 축복과 꼴이 같다(${shape})`);
+          shapes.add(shape);
+          notes.push(`축복 ${u.ko} → ${bl.ko}: ${b.kind || "-"}${b.fx.length ? " + " + b.fx.map(fxLabel).join(", ") : ""}`);
+        }
       }
     }
     // 「(턴당 N회)」 는 카드 · 고학년 스킬 글에도 쓰지 않는다(2026-10 사용자)
@@ -258,7 +273,7 @@ process.exit(bad ? 1 : 0);
 
 // ── 도우미 ──
 // 효과 수(docs/14 §2 「효과 셋까지」) — 읽은 조각을 센다. 쉼표 수가 아니다.
-//   안 센다: 태그(보존 · 개전 · 소멸 …) · 코스트 · 대상 범위 · 「「X」 1당」(뒤 피해의 배율)
+//   안 센다: 태그(보존 · 개전 · 소멸 …) · 코스트 · 대상 범위 · 「「X」 1개당」(뒤 피해의 배율)
 //   하나로 센다: 「방어·실드 전부 파괴 후 N% 피해」(파괴 + 피해) · 「손패 N장 버리고 드로우 M」(버리기 + 드로우)
 //   따로 센다: 「「X」가 있으면」(조건 하나) · 「「X」 N 소모」 · 그 뒤 덤 효과 하나하나 — 조건 덤도 효과다.
 //   그래서 「X. 「K」가 있으면 「K」 N 소모, Y」 는 넷이다

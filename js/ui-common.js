@@ -3,7 +3,7 @@
 import { HEROES } from "./data/heroes.js";
 import { HERO_DATA, EQUIP } from "./cardbook.js";
 import CARDART from "./data/cardart.js";
-import { shortText, splitKeywords, cardParts, numParts } from "./card-text.js";
+import { shortText, splitKeywords, cardParts, numParts, keywordLines } from "./card-text.js";
 import * as C from "./combat.js";
 import * as RULES from "./rules.js";
 import * as R from "./run.js";
@@ -152,9 +152,20 @@ const HELP = [
   ])],
   ["AP", "AP 와 고학년 게이지", () => helpList([
     `AP 는 파티 공용입니다. 매 턴 ${RULES.AP_PER_TURN}, 남으면 사라집니다.`,
-    `카드에 쓴 AP 1당 고학년 게이지 +${RULES.GAUGE_PER_AP}%(최대 ${RULES.GAUGE_MAX}%). 0코 카드는 게이지를 채우지 않습니다.`,
-    `고학년 스킬은 사도마다 게이지 ${RULES.ULT_COSTS.join(" · ")}% 가운데 하나를 씁니다. 사도의 둥근 얼굴 단추가 빛나면 쓸 수 있습니다.`,
+    `카드에 AP 를 1 쓸 때마다 고학년 게이지 +${RULES.GAUGE_PER_AP}%(최대 ${RULES.GAUGE_MAX}%). 0코 카드는 게이지를 채우지 않습니다.`,
+    `고학년 스킬은 사도마다 고학년 게이지 ${RULES.ULT_COSTS.join(" · ")}% 가운데 하나를 씁니다. 사도의 둥근 얼굴 단추가 빛나면 쓸 수 있습니다.`,
     `손패는 ${RULES.HAND_MAX}장까지입니다.`,
+  ])],
+  // 카드 글의 낱말 — 밑줄 풀이(js/data/keywords.js)와 같은 말을 한 곳에 모은다
+  ["낱말", "카드 글 읽기", () => helpList([
+    "방어 — 이번 턴만 막아 주는 보호막입니다. 적의 차례까지 버티고 다음 내 턴이 오면 사라집니다. 실드 — 사라지지 않고 남는 보호막입니다. 맞으면 방어가 먼저, 그다음 실드가 깎입니다.",
+    "「방어 150%」 · 「실드 300%」 의 % 는 방어력(능력치)에 곱합니다. 「방어력 +15%」 는 그 능력치를 올리는 것이라 방어와 다릅니다.",
+    "길이는 늘 끝에 붙습니다 — 「약화 1턴」 · 「주는 피해 +10% 2턴」 · 「받는 피해 -10% 이번 턴」 · 「공격력 +10% 전투 내내」. 「이번 턴」 은 적의 차례가 끝날 때까지 갑니다.",
+    "「2회 × 피해 40%」 는 한 번에 두 대, 「회복 40% 2번」 은 같은 효과를 따로 두 번 냅니다.",
+    "「HP 최저 아군」 은 남은 HP 비율이 가장 낮은 아군입니다. 효과마다 그때 다시 고릅니다 — 「→ 다시 최저 아군」 은 다른 사도일 수 있습니다.",
+    "「「케이크」 1개당 …」 은 쌓인 개수만큼 뒤의 효과를 냅니다.",
+    "즉시 행동 — 적 머리 위 ⚡숫자만큼 파티가 카드를 내면 적이 예고한 수를 바로 합니다. 「즉시 행동 1장 늦춤」 은 그 셈을 1장 되돌립니다.",
+    "디버프 해제 — 취약 · 약화 · 감전 · 중독 가운데 걸린 것을 차례로 지웁니다.",
   ])],
   // 장수를 누구 것으로 세는지 — 패시브 글이 「에르핀의 …」 「파티가 …」 로 밝힌다(js/passive.js)
   ["패시브", "패시브 — 장수 세기", () => helpList([
@@ -286,12 +297,25 @@ function showKeyword(kw) {
   head.appendChild(el("b", null, kw.ko));
   head.appendChild(el("span", "kwkind", kw.kind || ""));
   n.appendChild(head);
-  n.appendChild(el("p", null, kw.text || "기획서에 이름만 있고 풀이가 아직 없습니다."));
+  if (kw.kind === "전용" && kw.text) n.appendChild(kwText(el("div", "kwbody"), kw.text));
+  else n.appendChild(el("p", null, kw.text || "기획서에 이름만 있고 풀이가 아직 없습니다."));
   const x = el("button", "kwclose", "닫기");
   x.onclick = () => { n.remove(); kwNote = null; };
   n.appendChild(x);
   document.body.appendChild(n);
   kwNote = n;
+}
+
+// 사도 전용 키워드 풀이 — 소개 한 줄(흐리게) + 규칙 줄(최대 · 1개당 · 다 차면). card-text keywordLines
+export function kwText(node, text) {
+  const { flavor, rules } = keywordLines(text);
+  if (flavor) node.appendChild(el("p", "kwflav", flavor));
+  if (rules.length) {
+    const ul = el("ul", "kwrules");
+    for (const r of rules) ul.appendChild(el("li", null, r));
+    node.appendChild(ul);
+  }
+  return node;
 }
 
 // 카드 한 장을 펼친 쪽지 — 하는 일 한 줄과 그 아래 낱말 풀이.
@@ -309,7 +333,7 @@ export function showCard(c, heroKey) {
     const box = el("dl", "terms");
     for (const t of terms) {
       box.appendChild(el("dt", "t" + (t.kind === "이 카드" ? " here" : ""), t.ko));
-      box.appendChild(el("dd", null, t.text || "기획서에 이름만 있고 풀이가 아직 없습니다."));
+      box.appendChild(t.kind === "전용" && t.text ? kwText(el("dd"), t.text) : el("dd", null, t.text || "기획서에 이름만 있고 풀이가 아직 없습니다."));
     }
     n.appendChild(box);
   }

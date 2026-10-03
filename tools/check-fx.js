@@ -58,12 +58,12 @@ console.log("스탯 기반 계산 (기획서)");
 console.log("");
 console.log("타수와 대상");
 {
-  // 마력탄 폭주(v4, docs/15): 무작위 적 4회 × 공격력 N%, 「케이크」 1당 무작위 적 한 발 더, 「케이크」 전부 소모.
+  // 마력탄 폭주(v4, docs/15): 무작위 적 4회 × 공격력 N%, 「케이크」 1개당 무작위 적 한 발 더, 「케이크」 전부 소모.
   // 배율 · 타수는 카드에서 읽는다(수치를 손봐도 시험이 깨지지 않게)
   const card = Object.values(B.cards).find((c) => c.ko === "마력탄 폭주");
   const [burst, extra] = card.fx.filter((f) => f.k === "dmg");
   const one = (r) => Math.round(B.heroes["에르핀"].atk * r);
-  // 케이크가 없을 때 — 「1당」 뒤의 한 발은 0 번 나간다
+  // 케이크가 없을 때 — 「1개당」 뒤의 한 발은 0 번 나간다
   const { s } = run("에르핀", card.fx);
   const want = one(burst.ratio) * burst.hits;
   s.dealt === want ? ok(`마력탄 폭주 — 케이크 0: ${burst.hits}회 × ${Math.round(burst.ratio * 100)}% = ${s.dealt}`) : fail(`마력탄 폭주 ${s.dealt} (${want} 이어야 한다)`);

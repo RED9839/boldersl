@@ -91,12 +91,15 @@ export function parseHeroBlock(raw, warn = () => {}) {
       cur.flash.push({ n: "①②③④⑤".indexOf(f[1]) + 1, kind: f[2] || "", ko: f[3].trim(), text: strip(f[4]) });
       continue;
     }
-    // 「✦ *이름*: …」 — 그 카드만의 겨우살이의 축복(사도 고유, v3). 카드당 하나
+    // 「✦ *이름*: …」 — 그 카드만의 겨우살이의 축복(사도 고유, v3). 카드당 셋까지(v4 는 셋) — 받을 때 하나를 고른다.
+    // bless 는 첫째(옛 읽는 곳이 그대로 돈다), blesses 는 전부
     const b = line.match(/^\s+-\s*✦\s*\*(.+?)\*:\s*(.+)$/);
     if (b) {
       if (!cur) { warn(`${name} — 카드 없이 축복이 나왔다`); continue; }
-      if (cur.bless) warn(`${name}/${cur.ko} — 축복이 둘이다`);
-      cur.bless = { ko: b[1].trim(), text: strip(b[2]) };
+      cur.blesses = cur.blesses || [];
+      if (cur.blesses.length >= 3) warn(`${name}/${cur.ko} — 축복이 넷 이상이다(셋까지)`);
+      cur.blesses.push({ ko: b[1].trim(), text: strip(b[2]) });
+      cur.bless = cur.blesses[0];
       continue;
     }
     if (/^\s*-/.test(line)) warn(`${name} 고유 카드 — 못 읽은 줄: ${line.trim().slice(0, 40)}`);

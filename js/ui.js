@@ -4,7 +4,7 @@ import { CARDS, flashed } from "./cardbook.js";
 import { ENEMIES, FLOORS, foeLook } from "./data/enemies.js";
 import { HERO_DATA, EQUIP } from "./cardbook.js";
 import CARDART from "./data/cardart.js";
-import { shortText, cardParts, polite } from "./card-text.js";
+import { shortText, cardParts, polite, blessLine } from "./card-text.js";
 import { 을를, 과와, josa } from "./ko.js";
 import * as RULES from "./rules.js";
 import * as R from "./run.js";
@@ -16,7 +16,7 @@ import { getZoom } from "./stage.js";
 import { settingsPanel } from "./settings-panel.js";
 import { sfx } from "./sfx.js";
 import { writeSave, saveOk } from "./save.js";
-import { HERO, TINT, el, hint, screen, NTINT, goldIcon, goldLabel, mistletoeIcon, MISTLETOE, openHelp, fsButton, img, withKeywords, showCard, showPiles, bigCard, effectBox, setStageBg, BATTLE_BG, statText, equipIcon, emptySlotIcon, equipCard, showEquip, confirmPop } from "./ui-common.js";
+import { HERO, TINT, el, hint, screen, NTINT, goldIcon, goldLabel, mistletoeIcon, MISTLETOE, openHelp, fsButton, img, withKeywords, kwText, showCard, showPiles, bigCard, effectBox, setStageBg, BATTLE_BG, statText, equipIcon, emptySlotIcon, equipCard, showEquip, confirmPop } from "./ui-common.js";
 
 // 다른 파일로 옮긴 것도 ui.js 에서 그대로 꺼내 쓴다(main.js · tools/smoke.js)
 export { hint, openHelp, equipIcon } from "./ui-common.js";
@@ -76,7 +76,7 @@ function termDl(terms) {
   const dl = el("dl", "bmterms");
   for (const t of terms) {
     dl.appendChild(el("dt", null, t.ko));
-    dl.appendChild(el("dd", null, t.text || "풀이가 아직 없습니다."));
+    dl.appendChild(t.kind === "전용" && t.text ? kwText(el("dd"), t.text) : el("dd", null, t.text || "풀이가 아직 없습니다."));
   }
   return dl;
 }
@@ -1576,12 +1576,15 @@ export function eventScreen(run, onDone, onFight) {
       box.appendChild(ts.bar);
     } else if (p.k === "shinKind") {
       const c = CARDS[p.cardId];
-      head("겨우살이의 축복", `「${c.name}」 에 얹을 축복 — 셋 중 하나`, true);
+      const nOpt = p.options.length;
+      head("겨우살이의 축복", `「${c.name}」 에 얹을 축복 — ${nOpt > 1 ? `${["", "", "둘", "셋"][nOpt] || nOpt} 중 하나` : "이것 하나"}`, true);
       ts = twoStep(commit, { verb: "축복을 얹습니다" });
       const fr = el("div", "rrow flashrow");
       fr.appendChild(flashTarget(c, p.cardId));
       for (const k of p.options) {
-        const [nm, eff] = RULES.shinLabel(c, k).split(" — ");
+        // 그 카드만의 축복(own · own1 · own2)은 이름과 글을 그대로, 공용 풀은 「이름 — 효과」 를 갈라서
+        const own = RULES.blessOf(c, k);
+        const [nm, eff] = own ? [own.ko, blessLine(own)] : RULES.shinLabel(c, k).split(" — ");
         const b = el("button", "fcard shin");
         const hd = el("div", "fhead2"); hd.appendChild(mistletoeIcon()); hd.appendChild(el("b", null, nm)); b.appendChild(hd);
         b.appendChild(el("p", "ftext2", eff));

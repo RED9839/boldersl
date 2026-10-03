@@ -363,6 +363,12 @@
 .kwhead b { font-size: 15px; }
 .kwkind { font-size: 10px; letter-spacing: .12em; color: #b3a9d4; }
 .kwnote p { margin: 7px 0 0; font-size: 12.5px; line-height: 1.75; color: #d0c9e8; word-break: keep-all; }
+/* 사도 전용 키워드 — 소개 한 줄은 흐리게, 규칙은 줄마다(최대 · 1개당 · 다 차면) */
+.kwflav { margin: 0; font-size: .92em; opacity: .72; word-break: keep-all; }
+.kwnote .kwflav { margin-top: 7px; }
+.kwrules { margin: 4px 0 0; padding-left: 1.1em; list-style: "· "; word-break: keep-all; }
+.kwrules li { margin: 1px 0; line-height: 1.6; }
+.kwnote .kwrules { font-size: 12.5px; color: #efeaff; }
 .kwclose {
   margin-top: 12px; font-size: 11px; padding: 5px 12px; border-radius: 7px;
   background: #2a2340; border: 1px solid #4a3f74; color: #cfc7ea;
@@ -775,3 +781,7 @@ main:has(.endscreen), main:has(.swapscreen) { max-width: 1100px; }
 /* 겨우살이의 축복(사도 고유, docs/14 §5) */
 .cbbless b, .fbless b { color: #c9a227; }
 .fbless { border-color: #c9a22766; }
+/* 축복이 셋인 카드 — 받기 전엔 전부, 받았으면 고른 것만 밝게(.on), 나머지는 흐리게(.off) */
+.blessgrid { margin-top: 7px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.fbless.on, .cbbless.on { border-color: #c9a227; box-shadow: 0 0 0 1px #c9a227, 0 0 14px #f6d58e44; }
+.fbless.off, .cbbless.off { opacity: .45; }

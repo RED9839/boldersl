@@ -53,7 +53,8 @@ function start() {
   const go = (party, rows) => { S.clearSave(); run = R.newRun(party, rows); mapStep(); };
   const saved = S.readSave();
   lobbyScreen(() => ui.partyScreen(go, start), {
-    onDex: () => ui.partyScreen(go, start, { view: "도감", dexOnly: !!saved }),   // 로비에서 연 도감은 나가면 로비로 · 이어할 판이 있으면 편성으로 못 간다
+    // 로비에서 연 도감은 나가면 로비로 · 이어할 판이 있으면 편성으로 못 간다. 그 판에서 받은 축복(shin)은 도감에 밝혀 둔다
+    onDex: () => ui.partyScreen(go, start, { view: "도감", dexOnly: !!saved, shin: saved ? saved.run.shin || null : null }),
     onHelp: () => ui.openHelp("상성"),
     resume: saved ? { run: saved.run, go: () => resume(saved) } : null,
   });

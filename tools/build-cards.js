@@ -65,8 +65,16 @@ for (const h of wanted) {
         n: f.n, kind: f.kind, ko: f.ko, text: f.text,
         ...parse(f.text, kw, `${h.ko}/${u.ko}/${f.kind}`),
       })),
-      // 그 카드만의 겨우살이의 축복 — 신탁 위에 얹는 한 줄(kind 배율 + 덤 fx)
-      ...(u.bless ? { bless: (() => { const b = parseBless(u.bless.text, { keyword: kw }); if (b.left) nUnparsed++; return { ko: u.bless.ko, text: u.bless.text, kind: b.kind, fx: b.fx, unparsed: b.left || null }; })() } : {}),
+      // 그 카드만의 겨우살이의 축복 — 신탁 위에 얹는 한 줄(kind 배율 + 덤 fx). 카드당 셋까지, 받을 때 하나를 고른다.
+      // blesses 는 전부(run.shin 의 "own" · "own1" · "own2" 가 0 · 1 · 2 번째), bless 는 첫째(옛 읽는 곳)
+      ...(() => {
+        const list = (u.blesses || (u.bless ? [u.bless] : [])).map((x) => {
+          const b = parseBless(x.text, { keyword: kw });
+          if (b.left) nUnparsed++;
+          return { ko: x.ko, text: x.text, kind: b.kind, fx: b.fx, unparsed: b.left || null };
+        });
+        return list.length ? { bless: list[0], blesses: list } : {};
+      })(),
     };
   });
   starter[key] = mine;

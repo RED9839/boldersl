@@ -1,5 +1,6 @@
 // 전투 규칙의 수치 — 전부 기획서(트릭컬_리뉴얼_규칙.md)에서 온다.
 // 여기 있는 숫자는 내가 정한 것이 아니다. 기획서가 바뀌면 여기를 고친다.
+import { blessLine } from "./card-text.js";
 
 // ── AP ────────────────────────────────────────────────────────────────
 // 파티 공용, 매 턴 3, **남으면 사라진다**(이월 없음).
@@ -76,9 +77,16 @@ export const DIVINE_KO = {
   atkUp: "한 땀 한 땀 — 내면 이번 전투 이 사도 공격력 +10%", defUp: "꺾이지 않는 실 — 내면 이번 전투 이 사도 방어력 +10%",
 };
 export const DIVINE_NAME = "겨우살이의 축복";
-// 축복 풀이 — run.shin[id] 의 값: 공용 풀 이름 · true(옛 이벤트 = power) · "own"(그 카드만의 축복, card.bless)
-export const shinKindOf = (card, sh) => sh === true ? "power" : sh === "own" ? ((card && card.bless && card.bless.kind) || null) : (sh || null);
-export const shinLabel = (card, sh) => sh === "own" && card && card.bless ? `${card.bless.ko} — ${card.bless.text}` : (DIVINE_KO[sh === true ? "power" : sh] || "");
+// 축복 풀이 — run.shin[id] 의 값: 공용 풀 이름 · true(옛 이벤트 = power) · 그 카드만의 축복(card.blesses)
+//   "own" = 첫째(옛 저장도 그대로) · "own1" = 둘째 · "own2" = 셋째
+export const blessIdx = (sh) => sh === "own" ? 0 : sh === "own1" ? 1 : sh === "own2" ? 2 : -1;
+export const blessKey = (i) => (i ? `own${i}` : "own");
+export const blessList = (card) => (card && (card.blesses || (card.bless ? [card.bless] : []))) || [];
+export const blessOf = (card, sh) => { const i = blessIdx(sh); return i < 0 ? null : blessList(card)[i] || null; };
+// 그 카드가 받을 수 있는 고유 축복의 값들 — ["own", "own1", "own2"] 처럼(축복 수만큼)
+export const blessKeys = (card) => blessList(card).map((_, i) => blessKey(i));
+export const shinKindOf = (card, sh) => sh === true ? "power" : blessIdx(sh) >= 0 ? ((blessOf(card, sh) || {}).kind || null) : (sh || null);
+export const shinLabel = (card, sh) => { const b = blessOf(card, sh); return b ? `${b.ko} — ${blessLine(b)}` :(DIVINE_KO[sh === true ? "power" : sh] || ""); };
 
 // 기적은 기획서가 값을 적어 뒀다 — 「선택지 3개 중 1개가 낮은 확률(기본 5%)로」.
 // 아직 풀을 파서로 읽지 않아 쓰지는 않는다. 값만 여기 둔다.
