@@ -3716,3 +3716,87 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 .phone .phaseban b { font-size: 20px; }
 @keyframes phaseBan { 0% { opacity: 0; transform: scaleY(.3); } 12% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .battle .phaseban { animation: none; } }
+
+/* ══ 연출 손보기 (2026-10 fx/game-feel) ═════════════════════════════════════
+   적의 차례 — 띠 · 나서는 적 · 머리 위 「무엇을 하나」 */
+.foeban {
+  position: absolute; left: 50%; top: 16%; z-index: 9; pointer-events: none; transform: translate(-50%, -50%);
+  padding: 6px 34px; border-radius: 4px; white-space: nowrap;
+  background: linear-gradient(90deg, #4a0b1400, #4a0b14e6 20%, #4a0b14e6 80%, #4a0b1400);
+  animation: foeban 1s ease forwards;
+}
+.foeban b { font-size: 22px; font-weight: 900; letter-spacing: .3em; color: #ffd0d0; text-shadow: 0 2px 0 #2a0507, 0 0 14px #ff3b3b99; }
+@keyframes foeban {
+  0% { opacity: 0; transform: translate(-50%, -50%) scaleX(.4); }
+  18% { opacity: 1; transform: translate(-50%, -50%) scaleX(1.04); }
+  28% { transform: translate(-50%, -50%) scaleX(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -70%); }
+}
+/* 나서는 적 — 한 걸음 앞으로 나와 밝아지고, 의도 표가 한 번 튄다 */
+#screen.battle .foe.foeact { z-index: 4; }
+#screen.battle .foe.foeact > .art { animation: foeact .9s cubic-bezier(.3, .7, .3, 1); }
+#screen.battle .foe.foeact .intent { animation: foeint .5s ease-out; }
+@keyframes foeact {
+  0% { translate: 0 0; filter: none; }
+  25% { translate: -14px -4px; filter: brightness(1.25) drop-shadow(0 0 10px #ff5a5acc); }
+  70% { translate: -14px -4px; filter: brightness(1.1) drop-shadow(0 0 6px #ff5a5a88); }
+  100% { translate: 0 0; filter: none; }
+}
+@keyframes foeint { 0% { transform: scale(1); } 35% { transform: scale(1.35); } 100% { transform: scale(1); } }
+.foesay {
+  position: absolute; z-index: 9; pointer-events: none; white-space: nowrap; transform: translate(-50%, -100%);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  animation: foesay 1.15s cubic-bezier(.2, .8, .3, 1) forwards;
+}
+.foesay b {
+  font-size: 15px; font-weight: 900; color: #fff; padding: 4px 12px; border-radius: 99px;
+  background: #1c1424ee; border: 1.5px solid #b9a6d6; box-shadow: 0 4px 12px #000a;
+}
+.foesay.hit b { border-color: #ff7a7a; color: #ffe2e2; background: #3a0d14ee; }
+.foesay small { font-size: 12px; font-weight: 900; color: #ffe08a; text-shadow: 0 1px 2px #000, 0 0 8px #ff8a1c; }
+.foesay.rush b { border-color: #ffd23f; }
+@keyframes foesay {
+  0% { opacity: 0; transform: translate(-50%, -80%) scale(.7); }
+  14% { opacity: 1; transform: translate(-50%, -105%) scale(1.06); }
+  24% { transform: translate(-50%, -100%) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -125%); }
+}
+/* 아군이 맞으면 가장자리가 붉게 */
+.fxvig {
+  position: absolute; inset: 0; z-index: 8; pointer-events: none;
+  box-shadow: inset 0 0 60px 10px #ff1e1e66; animation: fxvig .38s ease-out forwards;
+}
+.fxvig.big { box-shadow: inset 0 0 90px 22px #ff1e1e99; animation-duration: .52s; }
+@keyframes fxvig { 0% { opacity: 0; } 18% { opacity: 1; } 100% { opacity: 0; } }
+/* 연타 — 「N HIT」 */
+.fxcombo {
+  position: absolute; z-index: 10; pointer-events: none; transform: translate(-50%, -50%) rotate(-8deg);
+  display: flex; align-items: baseline; gap: 3px; white-space: nowrap;
+}
+.fxcombo b { font-size: 30px; font-weight: 900; font-style: italic; color: #ffe08a; -webkit-text-stroke: 1px #5a2a00; text-shadow: 0 2px 0 #5a2a00, 0 0 12px #ff9c1c; }
+.fxcombo small { font-size: 13px; font-weight: 900; font-style: italic; color: #fff; text-shadow: 0 1px 2px #000; }
+.fxcombo.bump b { animation: fxcombo .22s ease-out; }
+@keyframes fxcombo { 0% { transform: scale(1.6); } 100% { transform: scale(1); } }
+/* 끝내는 한 방 — 「처치」 꼬리와 붉은 금빛 숫자 */
+.fxnum.n-kill b { color: #fff1d6; -webkit-text-stroke-color: #5a1400; text-shadow: 0 2px 0 #5a1400, 0 0 18px #ff5a1c; }
+.fxnum.n-kill small { color: #ffb08a; letter-spacing: .3em; }
+.fxnum.n-kill { animation-name: fxcrit; }
+/* 겨우살이의 축복 — 금빛 ✦ */
+.fxnum.n-bless b { color: #fff6d6; background: #3a2a08ee; border-color: #ffd23f; box-shadow: 0 0 14px #ffd23f88; }
+.fxbless {
+  position: absolute; z-index: 9; pointer-events: none; width: 120px; height: 120px; margin: -60px 0 0 -60px;
+  background: radial-gradient(circle, #fffbe6 0 10%, #ffd23fcc 26%, #ffd23f00 58%);
+  clip-path: polygon(50% 0%, 56% 44%, 100% 50%, 56% 56%, 50% 100%, 44% 56%, 0% 50%, 44% 44%);
+  animation: fxbless .9s cubic-bezier(.2, .8, .3, 1) forwards;
+}
+@keyframes fxbless { 0% { transform: scale(.2) rotate(-30deg); opacity: 0; } 25% { transform: scale(1.1) rotate(0deg); opacity: 1; } 100% { transform: scale(1.5) rotate(25deg); opacity: 0; } }
+/* 신탁 고르기 — 축복이 붙은 선택지는 금빛으로 일렁인다(✦ 와 같은 빛깔) */
+.epiopt.shin .gcard { box-shadow: 0 0 0 3px #ffd23f, 0 0 30px #ffbf1fcc, 0 14px 30px #000c; animation: epishin 1.6s ease-in-out infinite; }
+.epishin { background: linear-gradient(90deg, #b8860b, #ffd23f, #b8860b); color: #2a1a00; box-shadow: 0 0 16px #ffd23fcc; }
+.epishin::before { content: "✦ "; }
+@keyframes epishin { 0%, 100% { box-shadow: 0 0 0 3px #ffd23f, 0 0 22px #ffbf1f99, 0 14px 30px #000c; } 50% { box-shadow: 0 0 0 3px #fff1a8, 0 0 40px #ffd23fee, 0 14px 30px #000c; } }
+@media (prefers-reduced-motion: reduce) {
+  .foeban, .foesay, .fxvig, .fxcombo b, .fxbless, .epiopt.shin .gcard, #screen.battle .foe.foeact > .art, #screen.battle .foe.foeact .intent { animation: none; }
+}

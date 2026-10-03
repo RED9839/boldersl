@@ -616,6 +616,79 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     later(lv === 2 ? 260 : 200, () => field.classList.remove("shk" + lv));
   }
 
+  // ── 적의 차례 — 누가 무엇을 하는지 먼저 보인다(2026-10 「적 차례가 1초 만에 지나가 누가 누굴 때렸는지 모른다」) ──
+  const TELL = 300, TELL_FIRST = 640;
+  function foeTell(act, first) {
+    const n = unitNode("enemy", act.idx), a = artOf(n);
+    if (first) {
+      const ban = el("div", "foeban");
+      ban.appendChild(el("b", null, "적의 차례"));
+      field.appendChild(ban);
+      later(1000, () => ban.remove());
+    }
+    if (!n) return;
+    n.classList.remove("foeact");
+    void n.offsetWidth;
+    n.classList.add("foeact");
+    later(900, () => n.classList.remove("foeact"));
+    if ((!act.say && !act.rush) || !(a || n).getBoundingClientRect || !field.getBoundingClientRect) return;
+    const r = (a || n).getBoundingClientRect(), fr = field.getBoundingClientRect(), z = zNow();
+    const tag = el("div", "foesay" + (act.rush ? " rush" : "") + (["attack", "back", "attackAll", "multi"].includes(act.t) ? " hit" : ""));
+    if (act.rush) tag.appendChild(el("small", null, "⚡ 즉시 행동"));
+    if (act.say) tag.appendChild(el("b", null, act.say));
+    tag.style.left = ((r.left + r.width / 2 - fr.left) / z) + "px";
+    tag.style.top = ((r.top + r.height * 0.12 - fr.top) / z) + "px";
+    field.appendChild(tag);
+    later(1150, () => tag.remove());
+  }
+  // 아군이 맞으면 싸움터 가장자리가 붉게 — 세게 맞으면 짙게
+  function vignette(heavy) {
+    const v = el("div", "fxvig" + (heavy ? " big" : ""));
+    field.appendChild(v);
+    later(heavy ? 520 : 380, () => v.remove());
+  }
+  // 연타 — 한 차례에 같은 적을 두 번 넘게 치면 「N HIT」 를 그 적 옆에 붙여 센다
+  function comboTag(u, n) {
+    const node = unitNode(u.side, u.idx), a = artOf(node);
+    if (!node || !(a || node).getBoundingClientRect || !field.getBoundingClientRect) return;
+    const k = "combo:" + ukey(u);
+    let tag = comboEls.get(k);
+    if (!tag || !tag.isConnected) {
+      tag = el("div", "fxcombo");
+      field.appendChild(tag);
+      comboEls.set(k, tag);
+    }
+    const r = (a || node).getBoundingClientRect(), fr = field.getBoundingClientRect(), z = zNow();
+    tag.style.left = ((r.right - r.width * 0.12 - fr.left) / z) + "px";
+    tag.style.top = ((r.top + r.height * 0.22 - fr.top) / z) + "px";
+    tag.innerHTML = "";
+    tag.appendChild(el("b", null, String(n)));
+    tag.appendChild(el("small", null, "HIT"));
+    tag.classList.remove("bump");
+    void tag.offsetWidth;
+    tag.classList.add("bump");
+    clearTimeout(tag.t);
+    tag.t = later(900, () => { tag.remove(); comboEls.delete(k); });
+  }
+  const comboEls = new Map();
+  // 겨우살이의 축복이 붙은 카드를 냈다 — 주인 머리 위에 금빛 ✦ 와 그 축복 이름
+  function blessFx(card, sh) {
+    if (!card || !sh || !groundOk || calmNow()) return;
+    const u = card.hero ? st.party.find((x) => x.key === card.hero) : null;
+    if (!u) return;
+    const name = (RULES.shinLabel(card, sh) || "").split(" — ")[0];
+    popNum(u, `✦ ${name || "겨우살이의 축복"}`, "n-stt n-bless");
+    const p = bodyOf("party", u.idx);
+    if (p && field.getBoundingClientRect) {
+      const fr = field.getBoundingClientRect(), z = zNow();
+      const g = el("div", "fxbless");
+      g.style.left = ((p.x - fr.left) / z) + "px";
+      g.style.top = ((p.y - p.h * 0.2 - fr.top) / z) + "px";
+      field.appendChild(g);
+      later(900, () => g.remove());
+    }
+  }
+
   // ── 타격 임팩트 — 원작 타격 이펙트 · 밀려남 · 흰 번쩍임(css .fxhit/.fxflash 첫 두 프레임) · 화면 번쩍 · 카메라 당김 · 내딛기 ──
   // 움직임 줄이기면 runFx 가 아예 안 불러 여기까지 안 온다. 그림을 옮기는 것은 transform 낱개 속성(translate · scale)과
   // opacity 뿐이다 — 달리기(dashTick)가 쓰는 style.translate 와는 composite "add" 로 더해진다
@@ -926,15 +999,24 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       hitFx(h);
       const ult = !!act && act.anim === "ult", heavy = h.v >= u.maxHp * 0.25;
       if (!h.v) { popNum(u, `막음 ${h.guard}`, "n-guard"); knock(h.side, h.idx, 4, 140); sfx("hit", (h.side === "party" ? "ally:" : "") + "guard", false, false); return; }
-      popNum(u, String(h.v), "n-dmg" + (h.side === "party" ? " n-ally" : "") + (h.crit ? " n-crit" : "") + (heavy ? " n-big" : ""), h.crit ? "치명타" : null);
-      const ms = Math.min(140, 70 + (heavy ? 25 : 0) + (h.crit ? 25 : 0) + (ult ? 30 : 0));
+      const kill = !!h.kill && h.side === "enemy";
+      popNum(u, String(h.v), "n-dmg" + (h.side === "party" ? " n-ally" : "") + (h.crit ? " n-crit" : "") + (heavy || kill ? " n-big" : "") + (kill ? " n-kill" : ""),
+        h.crit ? "치명타" : kill ? "처치" : null);
+      if (h.side === "party") vignette(heavy);
+      if (h.side === "enemy" && b && act && act.side === "party") {
+        b.combo = b.combo || {};
+        const ck = ukey(u), cn = (b.combo[ck] = (b.combo[ck] || 0) + 1);
+        if (cn >= 2) comboTag(u, cn);
+      }
+      // 끝내는 한 방은 길게 멈춘다(고학년이 아니어도) — 쓰러뜨렸다는 손맛
+      const ms = kill ? 190 : Math.min(140, 70 + (heavy ? 25 : 0) + (h.crit ? 25 : 0) + (ult ? 30 : 0));
       stopFx(h.side, h.idx, ms);
       if (act && !ult && b && !b.stopped) { b.stopped = true; stopFx(act.side, act.idx, ms); }
-      if (ult) shake(2); else if (heavy || h.crit) shake(1); else if (h.side === "party") shake(0);
+      if (ult) shake(2); else if (heavy || h.crit || kill) shake(1); else if (h.side === "party") shake(0);
       // 불꽃 · 밀려남 — 맞을 때마다. 화면 번쩍 · 당김은 세게 · 치명타 · 고학년만(고학년의 첫 타격은 사도 빛깔에 집중선까지)
       const kind = sparkFx(h, act, heavy, h.crit, ult, ult && b && !b.banged);
       knock(h.side, h.idx, Math.min(14, 6 + (heavy ? 4 : 0) + (h.crit ? 3 : 0) + (ult ? 3 : 0)), Math.min(190, 130 + (heavy || h.crit ? 30 : 0) + (ult ? 25 : 0)));
-      const p = (heavy || h.crit || ult) && bodyOf(h.side, h.idx);
+      const p = (heavy || h.crit || ult || kill) && bodyOf(h.side, h.idx);
       if (ult && b && !b.banged) {
         b.banged = true;
         const hero = st.party.find((x) => x.idx === act.idx);
@@ -942,6 +1024,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         punch(p, 1.045, 240);
       } else if (ult) punch(p, 1.02, 160);
       else if (h.crit) { bang(p, "#fff4d0", 0.36, 70); punch(p, 1.035, 190); }
+      else if (kill) { bang(p, "#ffffff", 0.42, 80); punch(p, 1.04, 220); }
       else if (heavy) { bang(p, h.side === "party" ? "#ffb0a0" : "#ffffff", 0.35, 60); punch(p, 1.025, 180); }
       sfx("hit", (h.side === "party" ? "ally:" : "") + kind, heavy || ult, !!h.crit);
     } else if (h.k === "heal") popNum(u, `+${h.v}`, "n-heal");
@@ -973,15 +1056,29 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         if (n && n.classList.contains(e.side === "enemy" ? "dying" : "dead")) { n.classList.remove("dying", "dead"); n.classList.add("falling"); }
       }
     }
+    // 끝내는 한 방 — 같은 차례에 쓰러지는 사람의 마지막 피해(land 가 멈칫 · 숫자를 키운다)
+    for (const b of beats) for (const d of b.hits) if (d.k === "die") {
+      const last = [...b.hits].reverse().find((h) => h.k === "hurt" && h.side === d.side && h.idx === d.idx);
+      if (last) last.kill = true;
+    }
     playBeats(beats, 0);
   }
   // i0 번째 차례부터 지금을 0 으로 건다. 사도의 고학년 차례를 만나면 컷인을 띄우고 그 뒤는 시각만 잰다 —
   // 컷인이 끝나면(눌러 넘기면 바로) 그 차례부터 다시 건다. 새 수가 오면 걸어 둔 것과 함께 버려진다
   function playBeats(beats, i0) {
-    let t = 0, foes = false, cutAt = -1;
+    let t = 0, foes = false, cutAt = -1, told = false;
     for (let i = i0; i < beats.length; i++) {
       const b = beats[i];
       const foe = !!b.act && b.act.side === "enemy", ult = !!b.act && b.act.anim === "ult";
+      // 적의 수 — 먼저 그 적이 앞으로 나서며 무엇을 하는지 머리 위에 띄우고(foeTell), 그다음에 움직인다.
+      // 턴 끝의 첫 적이면 「적의 차례」 띠를 함께(즉시 행동은 「⚡ 즉시 행동」 으로 대신)
+      if (foe && cutAt < 0 && !b.told) {
+        b.told = true;
+        const first = !told && !b.act.rush;
+        told = true;
+        beat(t, () => foeTell(b.act, first));
+        t += first ? TELL_FIRST : TELL;
+      }
       if (ult && !foe && !b.cut && cutAt < 0) {
         b.cut = true;
         cutAt = t;
@@ -1048,7 +1145,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         last = Math.max(last, at);
         if (go) beat(at, () => land(h, b.act, b));
       }
-      t = last + (foe ? 380 : 120);
+      t = last + (foe ? 460 : 120);
       // 고학년 동작이 타격 뒤에도 조금 남으면(마무리 자세) 그만큼은 기다린다 — 이긴 판의 Victory 가 끊지 않게. 길어야 0.6초
       if (ult && s) t = Math.max(t, Math.min(t0 + s.total, last + 600));
       // 달려간 고학년은 그 자리에서 동작을 다 하고(에르핀 「억⋯?」) 제자리로 돌아올 때까지
@@ -1547,7 +1644,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (DEV && !st.over) {
       st.gauge = 300;
       st.lastUlt = null;                 // 시험 화면 — 같은 사도도 연달아 쓴다
-      if (!st.devHp) { st.devHp = true; for (const e of st.enemies) { e.maxHp *= 20; e.hp = e.maxHp; } }
+      if (!st.devHp) { st.devHp = true; for (const e of st.enemies) { e.maxHp = Math.max(1, Math.round(e.maxHp * (DEV.hp || 20))); e.hp = e.maxHp; } }
     }
     if (!st.over) writeSave(run, st);
     closeModal();
@@ -1607,11 +1704,12 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       const t0 = Date.now(), turn = st.turn;
       const show = () => {
         if (shownTurn !== turn || !field.isConnected) return;
-        if (field.querySelector && field.querySelector(".fxnum") && Date.now() - t0 < 1200) return setTimeout(show, 120);
+        // 적이 차례로 움직이는 동안(fxEnd)도 기다린다 — 둘째 적이 치는 사이에 「TURN 2」 가 끼어들었다. 길어야 4초
+        if (Date.now() - t0 < 4000 && (performance.now() < fxEnd - 200 || (field.querySelector && field.querySelector(".fxnum")))) return setTimeout(show, 120);
         field.appendChild(ban);
         setTimeout(() => ban.remove(), 1300);
       };
-      show();
+      setTimeout(show, 0);                  // 이 draw 의 몸짓(playBeats → fxEnd)이 걸린 뒤에 잰다
     }
 
     // 코스트 창 — 카제나는 여기가 손패의 핵심이다
@@ -2686,23 +2784,25 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         if (!ids) { selCard = -1; draw(); return; }       // 물렀다 — 카드는 손에 남는다
         const fly = cardFly(at, targetIdx);
         const played = C.cardOf(st, st.hand[at]);
+        const bsh = st.shin && st.shin[st.hand[at]], bcard = CARDS[st.hand[at]];
         const r = C.playCard(st, at, targetIdx, { ...opts, discard: ids });
         try { r.ok ? SFX.card(played, played && played.hero, { motion: groundOk && !calmNow() }) : SFX.play("card.cant"); } catch { /* 소리 */ }
         selCard = -1;
         if (!r.ok) say(r.why);
         draw();
-        if (r.ok) fly();
+        if (r.ok) { fly(); blessFx(bcard, bsh); }
       });
       return;
     }
     const fly = cardFly(selCard, targetIdx);
     const playedNow = C.cardOf(st, st.hand[selCard]);
+    const bsh = st.shin && st.shin[st.hand[selCard]], bcard = CARDS[st.hand[selCard]];
     const r = C.playCard(st, selCard, targetIdx, opts);
     try { r.ok ? SFX.card(playedNow, playedNow && playedNow.hero, { motion: groundOk && !calmNow() }) : SFX.play("card.cant"); } catch { /* 소리 */ }
     selCard = -1;
     if (!r.ok) say(r.why);
     draw();
-    if (r.ok) fly();
+    if (r.ok) { fly(); blessFx(bcard, bsh); }
   }
 
   // 버릴 카드 고르기 — 낸 카드를 뺀 손패에서 N장. 다 고르면 「버리기」, 「취소」 면 카드를 안 낸다
