@@ -38,6 +38,7 @@ function devFight() {
   const rows = {};
   for (const k of DEV.party) rows[k] = HERO_DATA[k].row;
   run = R.newRun(DEV.party, rows);
+  if (DEV.foes && DEV.foes.length) run.eventFight = { enemies: DEV.foes, name: "시험 싸움" };   // 시험 — 고른 적과
   fight();
 }
 
