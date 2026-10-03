@@ -7,6 +7,7 @@ import CARDART from "./data/cardart.js";
 import { shortText, cardParts, polite, blessLine } from "./card-text.js";
 import { 을를, 과와, josa } from "./ko.js";
 import * as RULES from "./rules.js";
+import { parsePassive } from "./passive.js";
 import * as R from "./run.js";
 import * as EV from "./events.js";
 import * as art from "./art.js";
@@ -16,7 +17,7 @@ import { getZoom } from "./stage.js";
 import { settingsPanel } from "./settings-panel.js";
 import { sfx } from "./sfx.js";
 import { writeSave, saveOk } from "./save.js";
-import { HERO, TINT, el, hint, screen, NTINT, goldIcon, goldLabel, mistletoeIcon, MISTLETOE, openHelp, fsButton, img, withKeywords, kwText, showCard, showPiles, bigCard, effectBox, setStageBg, BATTLE_BG, statText, equipIcon, emptySlotIcon, equipCard, showEquip, confirmPop, deckSections, deckSecHead, runCard } from "./ui-common.js";
+import { HERO, TINT, el, hint, screen, NTINT, goldIcon, goldLabel, mistletoeIcon, MISTLETOE, openHelp, fsButton, img, withKeywords, kwText, showCard, showPiles, bigCard, setStageBg, BATTLE_BG, statText, equipIcon, emptySlotIcon, equipCard, showEquip, confirmPop, deckSections, deckSecHead, runCard } from "./ui-common.js";
 
 // 다른 파일로 옮긴 것도 ui.js 에서 그대로 꺼내 쓴다(main.js · tools/smoke.js)
 export { hint, openHelp, equipIcon } from "./ui-common.js";
@@ -326,41 +327,132 @@ export function saveRecord(run, stage) {
   } catch (e) { console.warn("기록 저장 실패", e); }
 }
 
-// 사도 정보 — 전투 밖(장비 창 등)에서 한 사도를 펼쳐 본다. 가운데 창(centerModal)을 갈아 끼우지 않게 따로 위에 뜬다
+// 사도 정보 — 전투 밖(장비 창 등)에서 한 사도를 펼쳐 본다. 전투의 사도 창(fight-screen openHero)과 같은 꼴로 —
+// 얼굴 · 꼬리표 · 능력치(기본 +장비) · 장비 칸 · 패시브 · 키워드 · 고학년, 그리고 그 사도의 덱 카드(2026-10 사용자).
+// 가운데 창(centerModal)을 갈아 끼우지 않게 따로 위에 뜬다
 export function heroSheet(run, k) {
   const h = HERO_DATA[k];
   if (!h) return;
-  const back = el("div", "pilemodal onepi heroSheet");
-  const box = el("div", "pilebox");
+  const back = el("div", "bmodal heromodal heroSheet");
+  const box = el("div", "bmbox");
   back.appendChild(box);
   const close = () => back.remove();
   back.onclick = (e) => { if (e.target === back) close(); };
-  const head = el("div", "pilehead");
-  head.appendChild(art.portrait(k, { ko: h.ko, tint: TINT(k), size: 40, slot: "battle", still: true }));
-  const t = el("div", "hsTitle");
-  t.appendChild(el("b", null, h.ko));
-  t.appendChild(el("span", null, [h.role, { front: "전열", mid: "중열", back: "후열" }[h.row] || "", h.nature, h.race].filter(Boolean).join(" · ")));
-  head.appendChild(t);
-  const x = el("button", "kwclose", "닫기"); x.onclick = close; head.appendChild(x);
-  box.appendChild(head);
-  const body = el("div", "hsBody");
+  const face = el("div", "bmface hero");
+  face.appendChild(art.portrait(k, { ko: h.ko, tint: TINT(k), size: 0, slot: "event", still: true }));
+  box.appendChild(face);
+  const body = el("div", "bmbody");
+  const tags = el("div", "ftags rvtags");
+  if (h.nature) tags.appendChild(el("span", "ftag n" + h.nature, h.nature));
+  if (h.role) tags.appendChild(el("span", "ftag role", h.role));
+  const row = { front: "전열", mid: "중열", back: "후열" }[h.row];
+  if (row) tags.appendChild(el("span", "ftag", row));
+  if (h.race) tags.appendChild(el("span", "ftag", h.race));
+  if (h.eldain) tags.appendChild(el("span", "ftag eldain", "엘다인"));
+  body.appendChild(tags);
+  body.appendChild(el("h3", "bmname", h.ko));
+  // 능력치 — 기본에 장비 몫을 금빛으로(전투 창 statBlock 과 같은 꼴). 전투 밖이라 버프는 없다
   const g = (R.gearStats(run)[k]) || { hp: 0, atk: 0, def: 0, crit: 0 };
-  const stats = el("div", "hsStats");
-  for (const [ko, key, unit] of [["HP", "hp", ""], ["공격력", "atk", ""], ["방어력", "def", ""], ["치명", "crit", "%"]]) {
-    const c = el("div", "hsStat");
-    c.appendChild(el("span", null, ko));
-    c.appendChild(el("b", null, `${(h[key] || 0) + (g[key] || 0)}${unit}`));
-    if (g[key]) c.appendChild(el("i", null, `장비 +${g[key]}${unit}`));
-    stats.appendChild(c);
+  const sb = el("div", "bmstats");
+  const stat = (ko, base, gear, unit = "") => {
+    const r = el("div", "bmstat");
+    r.appendChild(el("span", "bslab", ko));
+    const v = el("span", "bsval");
+    const b0 = el("span", "bsbase", `${base}${unit}`);
+    if (gear) { b0.textContent = `${base}`; b0.appendChild(el("i", "bsgear", `+${gear}${unit}`)); }
+    v.appendChild(b0);
+    r.appendChild(v);
+    sb.appendChild(r);
+  };
+  stat("HP", h.hp || 0, g.hp || 0);
+  stat("공격력", h.atk || 0, g.atk || 0);
+  stat("방어력", h.def || 0, g.def || 0);
+  stat("치명", h.crit || 0, g.crit || 0, "%");
+  const dBase = RULES.defDmgStat(h.atk || 0, h.def || 0);
+  stat("방어 기반", dBase, RULES.defDmgStat((h.atk || 0) + (g.atk || 0), (h.def || 0) + (g.def || 0)) - dBase);
+  body.appendChild(sb);
+  // 장비 — 칸마다 아이콘 · 이름 · 스탯, 밑에 하는 일
+  {
+    body.appendChild(el("span", "bmsub", "장비"));
+    const gl = el("div", "bmgear");
+    const gg = R.gearOf(run, k);
+    for (const sl of RULES.SLOTS) {
+      const e = gg[sl] ? EQUIP[gg[sl]] : null;
+      const cell = el("div", "bmgslot" + (e ? "" : " empty"));
+      const head = el("div", "bmghead");
+      head.appendChild(e ? equipIcon(e, 40) : emptySlotIcon(sl, 40));
+      const t = el("div");
+      t.appendChild(el("b", null, e ? e.ko : `${sl} 없음`));
+      if (e) t.appendChild(el("span", null, statText(R.statsOf(e.id, k))));
+      head.appendChild(t);
+      cell.appendChild(head);
+      if (e) {
+        const lines = [];
+        const split = (txt, tag) => { for (const seg of String(txt || "").split(" · ")) { const m = seg.match(/^([^:]{1,14}):\s*(.+)$/); lines.push([m ? m[1] : null, shortText(m ? m[2] : seg), tag]); } };
+        if (e.effect) split(e.effect, null);
+        if (e.affinity === k && e.affinityPassive) split(e.affinityPassive, "애착");
+        for (const [nm, txt, tag] of lines.slice(0, 3)) {
+          const ln = el("p", "bmgfx");
+          if (tag) ln.appendChild(el("i", "bmgaff", tag));
+          if (nm) ln.appendChild(el("b", null, nm));
+          ln.appendChild(withKeywords(el("span"), txt, k));
+          cell.appendChild(ln);
+        }
+        cell.classList.add("eqtap");
+        cell.onclick = () => showEquip(e.id, { heroKey: k });
+      }
+      gl.appendChild(cell);
+    }
+    body.appendChild(gl);
   }
-  body.appendChild(stats);
-  const sec = (ko, text) => { if (!text) return; const d = el("div", "hsSec"); d.appendChild(el("h4", null, ko)); d.appendChild(withKeywords(el("p"), text, k)); body.appendChild(d); };
-  sec("패시브", h.passive);
-  if (h.keyword) { const d = el("div", "hsSec"); d.appendChild(el("h4", null, `전용 키워드 「${h.keyword.ko}」`)); d.appendChild(kwText(el("div"), h.keyword.text)); body.appendChild(d); }
-  if (h.ult) sec(`고학년 스킬 「${h.ult.ko}」 · 게이지 ${h.ult.cost}%`, h.ult.text);
-  const gear = R.gearOf(run, k);
-  const gl = Object.entries(gear).map(([slot, id]) => `${slot} 「${(EQUIP[id] || {}).ko || id}」`).join(" · ");
-  sec("장비", gl || "아직 낀 장비가 없습니다");
+  // 패시브 — 규칙 한 줄씩(이름 · 글). 읽힌 규칙이 없으면 기획서 글 그대로
+  if (h.passive) {
+    body.appendChild(el("span", "bmsub", "패시브"));
+    const kws = h.keyword ? [h.keyword.ko] : [];
+    const rules = (h.passiveRules || parsePassive(h.passive, kws)).filter((r) => r.text);
+    const pl = el("dl", "bmterms bmpass");
+    if (rules.length) for (const r of rules) {
+      pl.appendChild(el("dt", null, r.name || "패시브"));
+      pl.appendChild(withKeywords(el("dd"), shortText(r.text), k));
+    }
+    else pl.appendChild(withKeywords(el("dd"), shortText(h.passive), k));
+    body.appendChild(pl);
+  }
+  if (h.keyword && h.keyword.ko) {
+    body.appendChild(el("span", "bmsub", "키워드"));
+    const kl = el("dl", "bmterms");
+    kl.appendChild(el("dt", null, h.keyword.ko));
+    kl.appendChild(kwText(el("dd"), h.keyword.text || ""));
+    body.appendChild(kl);
+  }
+  if (h.ult) {
+    body.appendChild(el("span", "bmsub", `고학년 스킬 · 게이지 ${h.ult.cost}%`));
+    const ul = el("dl", "bmterms");
+    ul.appendChild(el("dt", null, h.ult.ko));
+    ul.appendChild(withKeywords(el("dd"), cardParts({ text: h.ult.text }, k).action, k));
+    body.appendChild(ul);
+  }
+  // 이 사도의 덱 카드 — 신탁 · 축복이 붙었으면 붙은 모습으로. 누르면 크게
+  const sec = deckSections(run, run.deck || []).find((x) => x.hero === k);
+  if (sec) {
+    body.appendChild(el("span", "bmsub", `덱의 카드 ${sec.ids.reduce((a, id) => a + sec.count.get(id), 0)}장`));
+    const grid = el("div", "hsCards");
+    for (const id of sec.ids) {
+      const c = runCard(run, id);
+      const w = el("div", "hsCard");
+      if (sec.count.get(id) > 1) w.appendChild(el("span", "ev2-n", `×${sec.count.get(id)}`));
+      const big = bigCard(c, CARDART.pic[id] || null);
+      big.onclick = () => showCard(c, k);
+      w.appendChild(big);
+      grid.appendChild(w);
+    }
+    body.appendChild(grid);
+  }
+  const btns = el("div", "bmbtns");
+  const x = el("button", "bmclose", "닫기");
+  x.onclick = close;
+  btns.appendChild(x);
+  body.appendChild(btns);
   box.appendChild(body);
   document.body.appendChild(back);
 }
@@ -386,6 +478,8 @@ export function leftoverGlows(run, items, done) {
     body.appendChild(el("h3", "bmname", hero ? `은총 · ${HERO(g.hero).ko}` : `「${base.name}」 의 신탁`));
     body.appendChild(el("p", "bmtext", hero ? "이 고유 카드를 덱에 넣을 수 있습니다." : "하나를 골라 이 카드에 붙일 수 있습니다. 이미 붙은 신탁이 있으면 바뀝니다."));
     const row = el("div", "cprow");
+    // 어느 카드에 붙는지 — 신탁 줄 맨 앞에 원래 카드(이미 신탁이 붙었으면 지금 모습)를(2026-10 사용자: 기존 카드가 뭔지 안 보였다)
+    if (!hero) row.appendChild(flashTarget(base, cardId, run));
     const go = el("button", "bmuse", hero ? "덱에 넣습니다" : "신탁을 고르세요");
     go.disabled = !hero; if (hero) pick = null;
     g.options.forEach((o, i) => {
@@ -690,7 +784,7 @@ function flashPick(c, id, n) {
   b.appendChild(card);
   return b;
 }
-// 신탁이 붙을 카드 — 보상 · 수련 · 이벤트의 신탁 줄 맨 앞. 그림 아래에 효과를 글로 한 번 더(고르는 신탁과 견주게).
+// 신탁이 붙을 카드 — 보상 · 수련 · 이벤트의 신탁 줄 맨 앞. 카드 면에 효과가 다 있으니 아래 글은 따로 두지 않는다(2026-10 사용자: 같은 글이 두 번).
 // 이미 신탁이 붙은 카드(이벤트의 「신탁 바꾸기」)면 지금 모습과 「지금」 — 전에는 원래 글을 「지금」 이라고 보였다
 function flashTarget(c, id, run) {
   const n = run && run.flash && run.flash[id];
@@ -700,7 +794,6 @@ function flashTarget(c, id, run) {
   const card = bigCard(now, (id && CARDART.pic[id]) || null);
   card.onclick = () => showCard(now, c.hero);
   box.appendChild(card);
-  box.appendChild(effectBox(now, n ? "지금" : "원래 효과", `「${c.name}」 · 코스트 ${now.xcost ? "X" : now.cost}${n && now.flashKo ? ` · 신탁 「${now.flashKo}」` : ""}`));
   return box;
 }
 
