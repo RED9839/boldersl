@@ -3870,3 +3870,9 @@ body { word-break: keep-all; overflow-wrap: break-word; }
   background: linear-gradient(90deg, #5a3a0000, #5a3a00dd 25%, #5a3a00dd 75%, #5a3a0000); animation: foeban 1.5s ease forwards; }
 .winban b { font-size: 34px; font-weight: 900; letter-spacing: .5em; color: #ffe9a8; text-shadow: 0 2px 0 #3a2400, 0 0 18px #ffd23f; }
 @media (prefers-reduced-motion: reduce) { .bossintro .bitop, .bossintro .bibot, .bossintro .bitext, .winban { animation: none; opacity: 0; } }
+/* 상태 칩 — 새로 붙으면 튀어나오고, 값이 바뀌면 한 번 반짝 */
+.chips .chip.cnew { animation: chipnew .45s cubic-bezier(.2, .9, .3, 1.3); }
+.chips .chip.cchg { animation: chipchg .4s ease-out; }
+@keyframes chipnew { 0% { transform: scale(0); opacity: 0; } 60% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes chipchg { 0% { filter: none; } 35% { filter: brightness(1.8); transform: scale(1.2); } 100% { filter: none; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .chips .chip.cnew, .chips .chip.cchg { animation: none; } }

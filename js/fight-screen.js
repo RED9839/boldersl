@@ -1478,8 +1478,17 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     for (const k of keys) k.share = shares.filter((x) => x.id === k.id);
     return { buffs, debuffs, keys };
   }
+  // 칩이 새로 붙거나 값이 바뀌면 한 번 튄다 — 무엇이 걸렸는지 눈이 간다. 「사람」 → { 이름 → 값 }
+  const chipSeen = new Map();
   function chips(u) {
     const box = el("div", "chips");
+    const was = chipSeen.get(ukey(u)), now = new Map();
+    const mark = (c, k, v) => {
+      now.set(k, v);
+      if (!was || calmNow()) return;
+      if (!was.has(k)) c.classList.add("cnew");
+      else if (was.get(k) !== v) c.classList.add("cchg");
+    };
     const { buffs, debuffs, keys } = effectsOf(u);
     // 증감은 종류마다 한 칸 — 값은 합, 턴은 가장 먼저 끝나는 것. 누르거나 올리면 출처
     const group = (list, cls) => {
@@ -1502,6 +1511,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         if (g.left < 999) c.appendChild(el("i", "cturn", String(g.left)));
         c.dataset.lab = g.stat ? `${STAT_KO[g.stat] || g.stat} ${pctTxt(g.v)}` : g.id;
         c.title = g.src.join("\n");
+        mark(c, g.stat || "#" + g.id, c.dataset.lab + "|" + g.left);
         box.appendChild(c);
       }
     };
@@ -1515,8 +1525,10 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       c.appendChild(el("b", "cnum", String(k.n)));
       c.dataset.lab = `${k.id} ${k.n}`;
       c.title = `${k.id} ${k.n}` + k.share.map((x) => `\n${STAT_KO[x.stat]} ${pctTxt(x.v)}`).join("");
+      mark(c, "@" + k.id, String(k.n));
       box.appendChild(c);
     }
+    chipSeen.set(ukey(u), now);
     return box;
   }
 
