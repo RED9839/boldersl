@@ -895,6 +895,7 @@ function hurt(s, u, v, { from, pure, crit, tags, card, counter, pierce, fixed, d
   if (u.invuln && !pure) { say(s, `${u.side === "party" ? "파티" : u.ko}에게 닿지 않는다`); cue(s, "status", u, { id: "무적!", up: true }); return; }
   const plain = pure || fixed;              // 상태 · 상성 · 증감을 안 탄다
   if (card && u.side === "enemy") u.hitSeq = s.actSeq;   // 이 카드에 맞았다 — 전용 키워드의 「발동하면 사라진다」(kwConsume)
+  if (card && crit && from && from.side === "party") s.critSeq = s.actSeq;   // 이 카드가 치명타를 냈다 — 치명 키워드는 그때만 1 준다(kwConsume)
   let d = plain ? v : taken(s, u, v);
   // 때리는 사도의 상태 — 적은 dealt 가 이미 넣었다(머리 위 숫자와 같게)
   if (!plain && card && from && from.side === "party") {
@@ -1651,6 +1652,8 @@ const KW_USE = new Set(["dealt", "atk", "crit", "taken"]);
 function kwConsume(s, owner, c) {
   for (const kw of Object.values(s.kw || {})) {
     if (!kw.consume || !(kw.per || []).some((p) => KW_USE.has(p.stat))) continue;
+    // 치명만 올리는 키워드(「은총」 · 「별빛」 · 「행운」 …)는 치명타가 터졌을 때가 발동이다 — 공격 카드만 내도 줄던 것을 고쳤다(2026-10 사용자)
+    if ((kw.per || []).every((p) => p.stat === "crit") && s.critSeq !== s.actSeq) continue;
     const cut = (n) => (kw.consume === "all" ? 0 : Math.max(0, n - kw.consume));
     if (kw.carrier === "self") {
       if (!owner || owner.key !== kw.owner || c.type !== "공격") continue;

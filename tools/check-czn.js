@@ -835,5 +835,19 @@ console.log("스마트 봇 — 새 수를 셈한다");
   check(bot.score(y, false) < bot.score(x, false), "「모자 속 쪽지」 를 쥐고 넘기면 손해로 본다");
 }
 
+console.log("");
+console.log("치명 키워드 — 치명타가 터졌을 때만 1 준다(「은총」 · 2026-10 사용자)");
+{
+  const atk = Object.keys(CARDS).find((k) => CARDS[k].hero === "티그" && CARDS[k].type === "공격");
+  for (const [crit, want] of [[0, 3], [100, 2]]) {
+    const s = C.newCombat({ partyKeys: ["비비_신성", "티그", "네르"], deck: [atk], enemyIds: ["buseuleogi"], seed: 5 });
+    for (const u of s.party) u.crit = crit;
+    s.enemies[0].hp = s.enemies[0].maxHp = 99999;
+    s.pool.status["은총"] = 3; s.hand = [atk]; s.ap = 9;
+    C.playCard(s, 0, 0);
+    check((s.pool.status["은총"] || 0) === want, `치명 ${crit}% 로 공격 — 은총 3 → ${s.pool.status["은총"] || 0}(기대 ${want})`);
+  }
+}
+
 console.log(bad ? `실패 ${bad}개` : "카제나 전투 체계가 규칙대로 돈다");
 process.exit(bad ? 1 : 0);
