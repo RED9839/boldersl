@@ -137,18 +137,7 @@ export function mapScreen(run, onEnter, onQuit) {
   }
   head.appendChild(party);
   // 장비 — 사도마다 무기 · 방어구 · 장신구. 전투 밖이면 지도에서도 끼고 바꿔 낀다(빼기는 없다 — 바꿔 끼면 낀 것은 팔린다)
-  const openGear = () => {
-    const box = centerModal("gearmodal");
-    const body = el("div", "bmbody");
-    body.appendChild(el("h3", "bmname", "장비"));
-    body.appendChild(el("span", "bmkind", "전투 밖이면 언제든 끼고 바꿀 수 있습니다"));
-    const redraw = () => { const old = body.querySelector(".gearpanel"); const gp = gearPanel(run, "empty", () => { redraw(); }, hint); if (old) old.replaceWith(gp); else body.appendChild(gp); };
-    redraw();
-    const x = el("button", "bmclose", "닫기");
-    x.onclick = () => { closeCenter(); mapScreen(run, onEnter, onQuit); };
-    const row = el("div", "bmbtns"); row.appendChild(x); body.appendChild(row);
-    box.appendChild(body);
-  };
+  const openGear = () => openGearModal(run, { onClose: () => mapScreen(run, onEnter, onQuit) });
   const gearBtn = el("button", "mdeck", `장비${run.bag.length ? ` · 가방 ${run.bag.length}` : ""}`);
   gearBtn.onclick = openGear;
   const gold = goldLabel("span", "mgold", `${run.gold} 골드`);
@@ -512,6 +501,20 @@ function flashTarget(c, id, run) {
   box.appendChild(card);
   box.appendChild(effectBox(now, n ? "지금" : "원래 효과", `「${c.name}」 · 비용 ${now.xcost ? "X" : now.cost}${n && now.flashKo ? ` · 신탁 「${now.flashKo}」` : ""}`));
   return box;
+}
+
+// 장비 창 — 지도의 「장비」 단추 · 전투 중 떨어진 장비 띠(fight-screen)가 같이 쓴다
+export function openGearModal(run, { sub, onClose } = {}) {
+  const box = centerModal("gearmodal");
+  const body = el("div", "bmbody");
+  body.appendChild(el("h3", "bmname", "장비"));
+  body.appendChild(el("span", "bmkind", sub || "전투 밖이면 언제든 끼고 바꿀 수 있습니다"));
+  const redraw = () => { const old = body.querySelector(".gearpanel"); const gp = gearPanel(run, "empty", () => { redraw(); }, hint); if (old) old.replaceWith(gp); else body.appendChild(gp); };
+  redraw();
+  const x = el("button", "bmclose", "닫기");
+  x.onclick = () => { closeCenter(); if (onClose) onClose(); };
+  const row = el("div", "bmbtns"); row.appendChild(x); body.appendChild(row);
+  box.appendChild(body);
 }
 
 function gearPanel(run, mode, onChange, say) {

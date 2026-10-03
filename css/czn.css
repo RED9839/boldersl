@@ -1280,6 +1280,35 @@ body:has(#screen.mapscreen) .top { display: none; }
 /* 휴대폰 — 머리 줄(턴 · 메뉴) 밑, 좁게 */
 .phone #screen.battle .lootbox { top: 56px; right: 10px; width: 190px; padding: 7px; }
 .phone .ltrow b { font-size: 12px; }
+/* 얻은 것 — 카제나식 띠. 상자 없이 오른쪽에 알약 모양 띠가 쌓인다(장비 주황 · 골드 · 카드 어두운 판), 끝에 ⊕ */
+#screen.battle .lootbox { background: none; border: none; box-shadow: none; backdrop-filter: none; padding: 0; width: 280px; align-items: flex-end; }
+#screen.battle .lootbox.done { border: none; box-shadow: none; }
+#screen.battle .lootbox .lthead { align-self: flex-end; padding: 2px 12px; border-radius: 99px; background: #0d0b16b3; }
+.ltlist { align-items: flex-end; overflow-x: hidden; padding: 2px 4px 4px 12px; }
+.ltrow.ltpill {
+  position: relative; justify-content: flex-end; gap: 10px; min-height: 46px; width: 100%; box-sizing: border-box;
+  padding: 6px 34px 6px 18px; border-radius: 99px; border: 1.5px solid #ffffff59;
+  background: linear-gradient(90deg, #14121cd9, #1d1a28f2); box-shadow: 0 4px 14px #0009, inset 0 0 0 1px #0006;
+}
+.ltpill .lttext { display: flex; flex-direction: column; align-items: flex-end; text-align: right; min-width: 0; line-height: 1.15; }
+.ltpill .lttext b { font-size: 15px; font-weight: 900; color: #fff; text-shadow: 0 1px 2px #000a; }
+.ltpill .lttext span { font-size: 11px; color: #e6e1f7; }
+.ltpill .lttext .ltnum { font-size: 15px !important; font-weight: 900; color: #fff !important; }
+.ltplus { position: absolute; right: 8px; top: 50%; width: 16px; height: 16px; margin-top: -8px; border-radius: 50%; border: 1.5px solid #ffffffcc; box-sizing: border-box; font-style: normal; }
+.ltplus::before { content: "✦"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 9px; color: #fff; }
+/* 장비 — 주황 띠, 눌러서 장착 */
+.ltrow.ltpill.lteq { background: linear-gradient(90deg, #ff9a1fe6, #ffb33a 60%, #ffa21f); border-color: #ffe2a8; box-shadow: 0 0 0 1px #ffcf7a66, 0 0 22px #ff9a1f88, 0 6px 16px #000a; }
+.lteq .lttext b { color: #fff; text-shadow: 0 1px 0 #a24d00, 0 0 6px #a24d0088; }
+.lteq .lttext span { color: #fff6e6; font-weight: 700; }
+.lteq .eicon { filter: drop-shadow(0 1px 1px #7a3a00); }
+.lteq:hover { filter: brightness(1.08); }
+.ltrow.ltpill.ltnew { animation: ltpill .45s cubic-bezier(.2, .8, .3, 1); }
+.ltrow.ltpill.ltdark.ltnew { border-color: #f6d58e; }
+@keyframes ltpill { 0% { transform: translateX(110%); opacity: 0; } 70% { transform: translateX(-6px); opacity: 1; } 100% { transform: none; } }
+.ltpill .ltthumb { width: 30px; height: 38px; }
+.phone #screen.battle .lootbox { width: 220px; }
+.phone .ltrow.ltpill { min-height: 38px; padding: 4px 30px 4px 14px; }
+@media (prefers-reduced-motion: reduce) { .ltrow.ltpill.ltnew { animation: none; } }
 /* 도는 장비 효과 — 흐리지 않게 */
 .eeff.on { color: inherit; }
 .eeff.on .eoff { background: #f6d58e26; color: #f6d58e; }

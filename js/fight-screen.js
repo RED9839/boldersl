@@ -172,9 +172,20 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   let selHint = false;                      // 「대상을 누르거나 …」 를 띄워 두었나
   const goneFoes = new Set();              // 쓰러져 골드를 떨군 적 — 한 번만
 
-  // ── 얻은 것 — 오른쪽 목록 ─────────────────────────────────────────────
+  // ── 얻은 것 — 오른쪽에 쌓이는 띠(카제나식: 장비는 주황 띠, 골드 · 카드는 어두운 띠) ─────────
   const lootBox = el("div", "lootbox");
   lootBox.appendChild(el("div", "lthead", "얻은 것"));
+  // 띠 한 줄 — 글(이름 · 덧말)은 오른쪽으로 붙이고, 그 옆에 그림, 끝에 ⊕
+  const pill = (kind, icon, name, sub) => {
+    const row = el("div", "ltrow ltpill " + kind);
+    const t = el("div", "lttext");
+    t.appendChild(el("b", null, name));
+    if (sub) t.appendChild(el("span", null, sub));
+    row.appendChild(t);
+    row.appendChild(icon);
+    row.appendChild(el("i", "ltplus"));
+    return row;
+  };
   const lootList = el("div", "ltlist");
   lootBox.appendChild(lootList);
   s.appendChild(lootBox);
@@ -227,8 +238,13 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (!goldRow) { goldRow = el("div", "ltrow ltgold"); addLoot(goldRow); }
     else { goldRow.classList.add("ltnew"); setTimeout(() => goldRow.classList.remove("ltnew"), 900); }
     goldRow.innerHTML = "";
+    goldRow.classList.add("ltpill", "ltdark");
+    const t = el("div", "lttext");
+    t.appendChild(el("b", null, "골드"));
+    t.appendChild(el("span", "ltnum", `+${lootGold}`));
+    goldRow.appendChild(t);
     goldRow.appendChild(goldIcon("lticon coin"));
-    goldRow.appendChild(el("b", null, `+${lootGold} 골드`));
+    goldRow.appendChild(el("i", "ltplus"));
   }
   // 바닥의 금화 하나를 줍는다 — 목록으로 날아가고 골드 줄이 오른다
   function pickCoin(c) {
@@ -282,27 +298,22 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     card.classList.add("dropcard");
     const z = zNow();
     flyTo(card, from || { x: (innerWidth || 1600) / 2, y: (innerHeight || 900) * 0.4 });
-    const row = el("div", "ltrow");
     const th = el("span", "ltthumb");
     const pic = CARDART.pic[id];
     if (pic) th.appendChild(img(pic)); else th.appendChild(el("b", null, c.name.slice(0, 1)));
-    row.appendChild(th);
-    const t = el("div");
-    t.appendChild(el("b", null, c.name));
-    t.appendChild(el("span", null, label));
-    row.appendChild(t);
+    const row = pill("ltdark ltcard", th, c.name, label);
     row.onclick = () => showCard(c, c.hero);
     addLoot(row);
   }
   function dropEquip(id) {
     const e = EQUIP[id];
-    const row = el("div", "ltrow");
-    row.appendChild(equipIcon(e, 34));
-    const t = el("div");
-    t.appendChild(el("b", null, e.ko));
-    t.appendChild(el("span", null, `${e.slot} · ${e.grade} — 가방으로`));
-    row.appendChild(t);
-    row.onclick = () => showEquip(id, { note: "가방에 들어갑니다 — 전투가 끝나면 지도 · 캠프 · 상점에서 낍니다" });
+    const row = pill("lteq", equipIcon(e, 34), e.ko, `${e.slot} · ${e.grade} · 눌러서 장착`);
+    // 누르면 곧장 장비 창 — 가방에 먼저 넣고(이기면 넣던 것을 앞당긴다) 누구에게 낄지 고른다.
+    // 바뀐 장비는 다음 전투부터 — 이 싸움의 능력치는 싸움을 열 때 정해졌다
+    row.onclick = () => {
+      if (loot && !loot.equipTaken) { R.takeEquip(run, id); if (!st.over) writeSave(run, st); }
+      import("./ui.js").then((ui) => ui.openGearModal(run, { sub: "떨어진 장비는 가방에 들어갔습니다 · 누구에게 낄지 고르세요 — 바꾼 장비는 다음 전투부터 힘을 씁니다" }));
+    };
     addLoot(row);
   }
   // 적 칸 — 미리보기를 그 위에 얹으려고 idx 로 들고 있는다
