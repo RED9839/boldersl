@@ -318,3 +318,35 @@ html.rv-nojua { --rv-w: 800; }
 /* 말풍선은 원래처럼 밝게(사도의 말) */
 .lb-bubble { background: #fffaf0f2; border-color: var(--rv-ink); }
 .lb-line { color: #3a2f22; }
+
+/* ═══ ⑥ 낀 장비 — 싸움터 왼쪽 사도 칸 · 사도 정보 창 ═════════════════════════════════════════ */
+.battle .ally .atop { flex-wrap: nowrap; }
+.agear { display: inline-flex; gap: 2px; margin-left: auto; }
+.agear > * { width: 20px !important; height: 20px !important; border-radius: 6px; border: 1.5px solid var(--rv-line); background: var(--rv-cream); overflow: hidden; flex: none; cursor: pointer; }
+.agear > * img { width: 100%; height: 100%; object-fit: contain; }
+.agear > .empty, .agear > [class*="empty"] { opacity: .35; cursor: default; }
+.bmgearwrap { display: flex; flex-direction: column; gap: 8px; }
+.bmodal .bmgear { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: stretch; }
+.bmodal .bmgslot { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px 10px; }
+.bmghead { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.bmghead > div { display: flex; flex-direction: column; min-width: 0; }
+.bmodal .bmghead b { font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bmgfx { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--rv-text); word-break: keep-all; }
+.bmgfx b { color: #ffcf3f; font-weight: 800; margin-right: 4px; }
+.bmgaff { font-style: normal; font-size: 11px; font-weight: 900; color: var(--rv-ink); background: #ff9ac0; border: 1.5px solid var(--rv-line); border-radius: 99px; padding: 0 6px; margin-right: 4px; }
+.bmodal .bmgslot.eqtap { cursor: pointer; }
+.bmodal .bmgslot.eqtap:hover { border-color: var(--rv-sun); }
+.phone .bmodal .bmgear { grid-template-columns: 1fr; }
+.bmodal .bmgslot .bmgfx span { color: var(--rv-text); font-size: inherit; }
+.bmodal .bmghead { flex-direction: row; justify-content: flex-start; text-align: left; }
+.battle .ally > .agear { position: absolute; right: 8px; bottom: -10px; margin: 0; gap: 3px; padding: 2px 4px; border-radius: 99px; background: var(--rv-paper); border: 2px solid var(--rv-line); z-index: 2; }
+.battle .ally > .agear > * { width: 18px !important; height: 18px !important; border: 0; background: transparent; }
+.battle .allies, .phone .battle .allies { gap: 14px; }
+.gslot .gfx { display: block; font-size: 11.5px; font-weight: 800; color: #ffcf3f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 낱말 풀이 쪽지 — 꾸밈말은 작게, 규칙은 한 줄에 하나 */
+.kwnote .kwflavor { margin: 0 0 6px; font-size: 12.5px; color: var(--rv-ink2); font-style: italic; }
+.kwnote .kwrules { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 3px; font-size: 14px; line-height: 1.45; }
+.kwnote .kwrules li::marker { color: #ffcf3f; }
+.bmodal .bsgear { font-style: normal; color: #ffcf3f; margin-left: 3px; font-size: .9em; }
+.bmodal .bmstats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; }
+.bmodal .bmstat { min-width: 0; }

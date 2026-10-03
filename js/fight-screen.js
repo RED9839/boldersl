@@ -4,7 +4,7 @@ import { TRAITS } from "./data/traits.js";
 import { ENEMIES } from "./data/enemies.js";
 import { EQUIP } from "./cardbook.js";
 import CARDART from "./data/cardart.js";
-import { cardParts } from "./card-text.js";
+import { cardParts, shortText } from "./card-text.js";
 import * as C from "./combat.js";
 import * as RULES from "./rules.js";
 import * as FX from "./run-fx.js";
@@ -1357,6 +1357,19 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const nat = C.natureOf(u.key);
     if (nat) top.appendChild(el("span", "nature n" + nat, nat));
     top.appendChild(el("span", "row", ROW_KO[u.row]));
+    // 낀 장비 — 이름 줄 위 오른쪽에 작은 아이콘 셋(누르면 그 장비 자세히). 빈 칸은 흐린 자리만
+    let gearRow = null;
+    const gg = R.gearOf(run, u.key);
+    if (Object.keys(gg).length) {
+      const gs = el("span", "agear");
+      for (const sl of RULES.SLOTS) {
+        const e = gg[sl] ? EQUIP[gg[sl]] : null;
+        const ic = e ? equipIcon(e, 20) : emptySlotIcon(sl, 20);
+        if (e) { ic.title = `${e.ko} · ${statText(R.statsOf(e.id, u.key))}`; ic.onpointerdown = stopEv; ic.onclick = (ev) => { stopEv(ev); showEquip(e.id, { heroKey: u.key }); }; }
+        gs.appendChild(ic);
+      }
+      gearRow = gs;
+    }
     box.appendChild(top);
     box.appendChild(chips(u));
 
@@ -1403,6 +1416,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     }
 
     n.appendChild(box);
+    if (gearRow) n.appendChild(gearRow);
     return n;
   }
 
@@ -2283,8 +2297,9 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       const d = now - (base + gear);
       if (d) { v.appendChild(el("span", "bsarrow", "→")); v.appendChild(el("b", "bsnow " + (d > 0 ? "up" : "down"), `${now}${unit}`)); }
       r.appendChild(v);
+      // 장비 몫은 숫자 옆에 금빛으로(+3) 보인다 — 밑에 「장비 +3」 을 또 적지 않는다. 버프 · 키워드 출처만 아래에
+      if (gear) v.firstChild.innerHTML = `${base}<i class="bsgear">+${gear}${unit}</i>`;
       const why = [];
-      if (gear) why.push(...(gearWhy ? gearWhy.filter(Boolean) : [`장비 +${gear}${unit}`]));
       // 회복력은 공격력 버프도 탄다 — 그 출처도 같이 적는다
       for (const x of all) if (x.stat === stat || (stat === "heal" && x.stat === "atk")) why.push(`${pctTxt(x.v)} ${x.src || ""}${x.always ? "" : ` (${turnTxt(x.left)})`}`.trim());
       for (const k of keys) for (const sh of k.share) if (sh.stat === stat) why.push(`${pctTxt(sh.v)} 「${k.id}」 ${k.n}개`);
@@ -2594,6 +2609,51 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   }
 
   // 사도 정보 — 체력 · 걸린 것 · 패시브 · 전용 키워드 · 고학년 스킬
+  // 키워드 풀이를 짧게 — 앞의 꾸밈말(「— 」 앞뒤의 그림 같은 문장)은 걷고, 패시브 목록에 이미 뜬 규칙(「X」가 N개가 되면 …)도 뺀다.
+  // 남는 것: 「최대 5 · 1개당 공격력 +5% · 적에게 거는 표식」 같은 수치. 원문은 올리면(title) 다 보인다
+  function kwBrief(text, rules) {
+    const shown = new Set((rules || []).map((r) => String(r.text || "").replace(/\s+/g, "")));
+    const parts = String(text || "").split(/(?<=[.다])\s+/).map((x) => x.trim()).filter(Boolean);
+    const keep = parts.filter((x, i) => !(i === 0 && /—/.test(x)) && !shown.has(x.replace(/[.\s]/g, "").replace(/:$/, "")) && !/^「[^」]+」(?:이|가)\s*\d+개가 되면/.test(x))
+      .map((x) => shortText(x).replace(/[.]$/, "").replace(/^(?:적에게|아군에게) 거는 표식이다$/, (m) => m.replace("이다", "")));
+    return keep.join(" · ") || shortText(String(text || "").split(" — ").pop());
+  }
+  // 장비 칸 셋 — 아이콘 · 이름(애착이면 표시) · 스탯, 그 밑에 그 장비가 하는 일(효과 · 애착 줄을 이름: 글 로 나눠 한 줄씩)
+  function gearSection(u) {
+    const wrap = el("div", "bmgearwrap");
+    wrap.appendChild(el("span", "bmsub", "장비"));
+    const gl = el("div", "bmgear");
+    const gg = R.gearOf(run, u.key);
+    for (const sl of RULES.SLOTS) {
+      const e = gg[sl] ? EQUIP[gg[sl]] : null;
+      const cell = el("div", "bmgslot" + (e ? "" : " empty"));
+      const head = el("div", "bmghead");
+      head.appendChild(e ? equipIcon(e, 40) : emptySlotIcon(sl, 40));
+      const t = el("div");
+      t.appendChild(el("b", null, e ? e.ko : `${sl} 없음`));
+      if (e) t.appendChild(el("span", null, statText(R.statsOf(e.id, u.key))));
+      head.appendChild(t);
+      cell.appendChild(head);
+      if (e) {
+        const lines = [];
+        const split = (txt, tag) => { for (const seg of String(txt || "").split(" · ")) { const m = seg.match(/^([^:]{1,14}):\s*(.+)$/); lines.push([m ? m[1] : null, shortText(m ? m[2] : seg), tag]); } };
+        if (e.effect) split(e.effect, null);
+        if (e.affinity === u.key && e.affinityPassive) split(e.affinityPassive, "애착");
+        for (const [nm, txt, tag] of lines.slice(0, 3)) {
+          const ln = el("p", "bmgfx");
+          if (tag) ln.appendChild(el("i", "bmgaff", tag));
+          if (nm) ln.appendChild(el("b", null, nm));
+          ln.appendChild(withKeywords(el("span"), txt, u.key));
+          cell.appendChild(ln);
+        }
+        cell.classList.add("eqtap");
+        cell.onclick = () => showEquip(e.id, { heroKey: u.key });
+      }
+      gl.appendChild(cell);
+    }
+    wrap.appendChild(gl);
+    return wrap;
+  }
   function openHero(u) {
     const h = HERO(u.key);
     const box = openModal("heromodal");
@@ -2630,12 +2690,15 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     // 능력치 — 기본(+장비) → 지금, 무엇 때문인지
     const sb = statBlock(u);
     if (sb) body.appendChild(sb);
+    // 장비 — 능력치 바로 밑에(맨 아래에 묻혀 있었다). 칸마다 아이콘 · 이름 · 스탯, 그 밑에 하는 일을 한 줄씩
+    body.appendChild(gearSection(u));
     // 패시브 — 규칙 한 줄마다 지금 형편(N장째 · 이번 턴 발동했나)
     const rules = (st.passives || {})[u.key] || [];
-    if (rules.length) {
+    if (rules.some((r) => !r.gear)) {
       body.appendChild(el("span", "bmsub", "패시브"));
       const pl = el("dl", "bmterms bmpass");
       rules.forEach((r, i) => {
+        if (r.gear) return;                 // 장비 줄은 위 장비 칸에 이미 있다(두 번 읽히던 것)
         const id = `${u.key}|${i}`;
         const tags = [];
         // 누구 것을 세나를 칩에도 — 「에르핀 공격 1/3」(그 사도 것만) · 「파티 2장」(파티 전체, 이번 턴)
@@ -2656,7 +2719,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         if (r.when.on === "fightStart") tags.push("전투 시작에 했음");
         const dt = el("dt", null, r.gear ? `${r.name} · 장비` : r.name);
         pl.appendChild(dt);
-        const dd = withKeywords(el("dd"), r.text, u.key);
+        const dd = withKeywords(el("dd"), shortText(r.text), u.key);
         for (const t of tags) dd.appendChild(el("span", "bmtag" + (/끝|했음/.test(t) ? " spent" : ""), t));
         pl.appendChild(dd);
       });
@@ -2678,7 +2741,8 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         const self = ((st.stacks || {})[u.key] || {})[h.keyword.ko] || 0;
         const now = kw && kw.carrier !== "self" ? (held.length ? held.join(" · ") : "아무도 없음") : `${self}개`;
         kl.appendChild(el("dt", null, `${h.keyword.ko} · 내 것`));
-        const dd = el("dd", null, h.keyword.text || "");
+        const dd = el("dd", null, kwBrief(h.keyword.text, rules));
+        dd.title = h.keyword.text || "";
         dd.appendChild(el("span", "bmtag", `지금 ${now}`));
         kl.appendChild(dd);
       }
@@ -2686,28 +2750,14 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
         if (mine && k.id === h.keyword.ko && k.owner === u.key) continue;
         const oh = HERO(k.owner);
         kl.appendChild(el("dt", null, `${k.id} ${k.n} · ${oh.ko}에게서`));
-        const dd = el("dd", null, (oh.keyword || {}).text || "");
+        const dd = el("dd", null, kwBrief((oh.keyword || {}).text, []));
+        dd.title = (oh.keyword || {}).text || "";
         for (const sh of k.share) dd.appendChild(el("span", "bmtag", `${STAT_KO[sh.stat]} ${pctTxt(sh.v)}`));
         kl.appendChild(dd);
       }
       body.appendChild(kl);
     }
-    // 장비 — 무기 · 방어구 · 장신구
-    body.appendChild(el("span", "bmsub", "장비"));
-    const gl = el("div", "bmgear");
-    const gg = R.gearOf(run, u.key);
-    for (const sl of RULES.SLOTS) {
-      const e = gg[sl] ? EQUIP[gg[sl]] : null;
-      const cell = el("div", "bmgslot" + (e ? "" : " empty"));
-      cell.appendChild(e ? equipIcon(e, 40) : emptySlotIcon(sl, 40));
-      const t = el("div");
-      t.appendChild(el("b", null, e ? e.ko : `${sl} — 비어 있음`));
-      if (e) t.appendChild(el("span", null, statText(R.statsOf(e.id, u.key)) + (e.affinity === u.key ? " · 애착" : "")));
-      cell.appendChild(t);
-      if (e) { cell.classList.add("eqtap"); cell.onclick = () => showEquip(e.id, { heroKey: u.key }); }
-      gl.appendChild(cell);
-    }
-    body.appendChild(gl);
+
     const ult = C.ultOf(u.key);
     if (ult) {
       body.appendChild(el("span", "bmsub", `고학년 스킬 · 게이지 ${ult.cost}%`));
