@@ -192,10 +192,14 @@ for (const file of files) {
             // 공짜 카드가 크면 한 번만 — 에슈르 「고대 마법서 필사본」 ⑤ 가 0코에 전투 내내 공격력 +20% 였다
             // ② 경량은 같은 카드를 공짜로 만드는 보상이다 — 기본 카드보다 세지만 않으면 된다
             if (f.kind === "경량") { if (valueOf(ffx) > valueOf(fx) * 1.05) errs.push(`「${u.ko}」 경량 — 0코판이 기본 카드보다 세다`); }
-            else if (valueOf(ffx) > 1.0 && !ffx.some((x) => x.k === "tag" && x.id === "소멸"))
+            // 연계 · 천상의 값(비용 없이 저절로 나간다)은 0코 카드에 덤이 아니다 — 이미 공짜다. 그 값은 빼고 본다
+            else if (valueOf(ffx.filter((x) => !(x.k === "tag" && (x.id === "연계" || x.id === "천상")))) > 1.0 && !ffx.some((x) => x.k === "tag" && x.id === "소멸"))
               errs.push(`「${u.ko}」 ${nm} — 0코인데 효과가 크다(값어치 ${valueOf(ffx).toFixed(1)}) — 줄이거나 소멸을 붙인다`);
           }
           if (c === 3 && u.cost !== 3) three++;
+          // 연계 · 천상은 비용 없이 저절로 나간다 — 코스트를 올린 신탁은 덤만 커지고 값은 안 낸다(2026-10 사용자). 신탁 글(고른 뒤의 전문)에 붙어 있으면 코스트를 올리지 않는다
+          const auto = ffx.find((x) => x.k === "tag" && (x.id === "연계" || x.id === "천상"));
+          if (auto && typeof u.cost === "number" && typeof c === "number" && c > u.cost) errs.push(`「${u.ko}」 ${nm} — ${auto.id} 카드는 코스트를 올리는 신탁을 두지 않는다(비용 없이 나간다)`);
         });
         // 신탁은 기본보다 나아야 한다 — 손해 · 하나 마나 · 소멸 남발 금지(tools/lib/card-value.js oracleRules · docs/12-신탁.md)
         for (const e of oracleRules({ fx, cost: u.cost, tags: [...u.tags, ...tagsOf(fx)] }, u.flash.map((f) => ({ fx: pe(f.text), at: `「${u.ko}」 ${f.kind || `「${f.ko}」`}` }))))
@@ -272,6 +276,8 @@ for (const file of files) {
         ...h.unique.filter((u) => u.type !== "강화").flatMap((u) => u.flash.filter((f) => marked(f.text)).map((f) => `「${u.ko}」 신탁 「${f.ko}」`))];
       if (paths.length > 1) errs.push(`강화 길이 ${paths.length}개(${paths.join(" · ")}) — 사도마다 하나까지(기본 카드 하나 또는 신탁 하나)`);
       if (paths.length) notes.push(`강화 카드: ${paths[0]}`);
+      // v4 이후 사도는 강화 길이 꼭 하나(docs/15 §7) — 없는 것도 잡는다(엘프 묶음이 찾은 빈틈)
+      if (!paths.length && V4.has(h.ko)) errs.push("강화 길이 없다 — 고유 카드 하나를 강화로, 또는 신탁 하나를 「강화 카드.」 로(docs/15 §7)");
       // 시그니처에는 강화 길을 두지 않는다 — 쓰면 판에서 사라져 사도의 대표 카드가 없어진다
       for (const u of h.unique) if ((u.tags || []).includes("시그니처")) if (u.type === "강화" || u.flash.some((f) => marked(f.text))) errs.push(`「${u.ko}」 — 시그니처 카드에는 강화 길을 두지 않는다(쓰면 판에서 사라진다)`);
       for (const u of h.unique) {

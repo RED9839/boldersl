@@ -54,6 +54,9 @@ const TRIGGERS = [
   // 「방어나 실드를 얻으면」 「실드를 얻으면」 — 이 사도에게 방어 · 실드가 붙을 때(제 카드 · 아군이 준 것 · 패시브 모두).
   // 「아군이 …」 면 누구에게 붙든
   [/(아군이\s*)?(방어나\s*실드|방어|실드)를\s*얻으면/, (m) => ({ on: "guard", kind: m[2] === "방어" ? "block" : m[2] === "실드" ? "shield" : null, ...(m[1] ? { who: "any" } : {}) })],
+  // 「적을 격파하면」 — 이 사도의 카드 · 패시브가 강인도를 0 으로 만들었을 때 · 「적이 격파되면」 — 누가 했든(combat toughHit 의 emit "break")
+  [/적을\s*격파하면/, () => ({ on: "break", mine: true })],
+  [/적이\s*격파되면/, () => ({ on: "break" })],
   [/적을\s*처치하면/, () => ({ on: "kill", mine: true })],
   [/적이\s*쓰러지면/, () => ({ on: "kill" })],
   [/아군이\s*피해를\s*받으면/, () => ({ on: "hurt", who: "any" })],
@@ -74,6 +77,8 @@ const CONDS = [
   [/「(.+?)」\s*(?:이|가)?\s*(\d+)\s*개?\s*이상이면/, (m) => ({ c: "stack", id: m[1], n: Number(m[2]) })],
   [/「(.+?)」\s*(?:이|가)?\s*(?:이미\s*)?있으면/, (m) => ({ c: "stack", id: m[1], n: 1 })],
   [/HP가\s*(\d+)\s*%\s*이하이면/, (m) => ({ c: "hp", pct: Number(m[1]) / 100 })],
+  // 「자신 사기가 3 이상이면」 — 이 사도에게 지금 걸린 상태의 겹(장비 · 패시브가 상태를 쌓은 만큼 보상)
+  [/(?:자신\s*)?(사기|불굴|결의|결정화|반격|열의|강건|집중|온정)(?:이|가)\s*(\d+)\s*(?:겹\s*)?이상이면/, (m) => ({ c: "status", id: m[1], n: Number(m[2]) })],
   [/적이\s*(\d+)\s*명\s*이상이면/, (m) => ({ c: "foes", n: Number(m[1]) })],
   [/혼자\s*남으면/, () => ({ c: "alone" })],
   // 덱 무게(docs/11 §3-3) — 이번 턴 **파티가** 낸 카드 장수. 장수로 세니 신탁으로 코스트가 내려간 카드도 같다.
@@ -310,6 +315,7 @@ function condOk(s, owner, r, info) {
       if (stackOn(s, holder, c.id, owner) < c.n) return false;
     }
     if (c.c === "hp" && owner.hp / owner.maxHp > c.pct) return false;
+    if (c.c === "status" && (((owner.status || {})[c.id]) || 0) < c.n) return false;
     if (c.c === "foes" && s.enemies.filter((e) => !e.dead).length < c.n) return false;
     if (c.c === "alone" && s.party.filter((u) => !u.dead && u !== owner).length) return false;
     if (c.c === "row" && owner.row !== c.row) return false;
@@ -343,6 +349,7 @@ function matches(s, owner, w, ev, info, kwOf) {
       return true;
     case "guard": return (w.who === "any" ? info.who.side === "party" : info.who === owner) && (!w.kind || info.k === w.kind);
     case "kill": return !w.mine || info.by === owner.key;
+    case "break": return !w.mine || info.by === owner.key;
     case "hurt": return w.who === "any" ? info.who.side === "party" : info.who === owner;
     case "lowHp": return info.who === owner && info.before > w.pct && info.after <= w.pct;
     case "allyDown": return info.who !== owner;

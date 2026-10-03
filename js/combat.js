@@ -276,11 +276,14 @@ function beginTurn(s) {
   // 원작의 중독은 지속 피해가 아니라 공격력을 깎는 것이다. 그래서 턴 시작에 아무 일도 안 한다.
   // 촉수는 턴이 끝날 때 때린다(프리클) — 아래 endTurn 에 있다.
   // 격파된 적은 내 턴이 다시 오면 일어선다 — 강인도가 다 찬다(덜 깎인 칸은 그대로)
-  for (const e of alive(s.enemies)) if (e.broken) { e.broken = false; e.tough = e.toughMax; say(s, `${e.ko}: 격파에서 일어선다 — 강인도 회복`); cue(s, "tough", e, { from: 0, to: e.tough, up: true }); }
+  const risen = alive(s.enemies).filter((e) => e.broken);
+  for (const e of risen) { e.broken = false; e.tough = e.toughMax; say(s, `${e.ko}: 격파에서 일어선다 — 강인도 회복`); cue(s, "tough", e, { from: 0, to: e.tough, up: true }); }
   for (const e of alive(s.enemies)) { rollIntent(s, e); e.rushCnt = 0; e.rushedTurn = false; }
   // 이벤트 「첫 턴 적 전체 즉시 행동 N장 늦춤」 — 카운트는 턴마다 0 으로 돌아가니 첫 턴에 걸어야 산다
   if (s.turn === 1 && s.firstRushDown) for (const e of alive(s.enemies)) e.rushCnt -= s.firstRushDown;
   resetFoePassives(s);
+  // 적 패시브 「격파에서 일어서면」(recover) — 새 수를 예고한 뒤에 돈다(일어선 성난 몸이 이번 턴 수에 실린다)
+  for (const e of risen) foePassives(s, "recover", { target: e });
   foePassives(s, "turnStart");
 
   // 신탁 '성급한 손' — SP 를 더 받는 대신 손패가 한 장 적다
@@ -501,7 +504,7 @@ function rushEnemies(s) {
 // 적 데이터의 passives: [{ name, on, do, ...조건 }]. 규칙은 data/enemies.js 머리말.
 //   on   fightStart · turnStart · turnEnd · hurt(이 적이 맞음) · lowHp(at 비율 아래로 처음) · allyDown(동료가 쓰러짐)
 //        card(파티가 카드를 냄 — type 이 있으면 그 종류만, every 가 있으면 이번 턴 N장째마다) · rushed(즉시 행동으로 당겨짐)
-//        debuffed(이 적에게 디버프가 걸림)
+//        debuffed(이 적에게 디버프가 걸림) · broken(이 적이 격파됨) · recover(이 적이 격파에서 일어섬 — 다음 내 턴 시작, 새 수를 예고한 뒤)
 //   do   수와 같은 모양({t, v, …} — attack · back · attackAll · multi · block · guard · heal · buff · debuff · jam)
 //        + thorns v(때린 사도에게 그대로 v) · selfHeal v(자기 회복)
 //   limit  한 턴에 몇 번(기본 1). fightStart · lowHp 는 한 번뿐. 0 이면 제한 없음
@@ -512,7 +515,7 @@ function foePassives(s, ev, info = {}) {
     const ps = (ENEMIES[e.key] || {}).passives; if (!ps) continue;
     for (const p of ps) {
       if (p.on !== ev) continue;
-      if ((ev === "hurt" || ev === "lowHp" || ev === "rushed" || ev === "debuffed") && info.target !== e) continue;
+      if ((ev === "hurt" || ev === "lowHp" || ev === "rushed" || ev === "debuffed" || ev === "broken" || ev === "recover") && info.target !== e) continue;
       if (ev === "allyDown" && info.target === e) continue;
       if (ev === "lowHp" && !(info.before > p.at && info.after <= p.at)) continue;
       if (ev === "card" && ((p.type && info.type !== p.type) || (p.every && info.nth % p.every !== 0))) continue;
@@ -550,6 +553,28 @@ function actEnemy(s, e, it = e.intent, passive = false) {
   const seq0 = s.actSeq; s.actSeq = s.seqN = (s.seqN || 0) + 1;
   try { foeAct(s, e, it); } finally { s.actSeq = seq0; }
 }
+// 적이 사도에게 거는 상태 — 고통은 층 피해 배율(e.dmgx)을 곱한다: 방어를 뚫는 피해라 치는 수와 같은 눈금이어야 뒤층에서도 아프다
+function foeStatus(s, e, t, id, n) {
+  if (!t || t.dead || !id) return 0;
+  const v = id === "고통" && e.dmgx && e.dmgx !== 1 ? Math.max(1, Math.round(n * e.dmgx)) : n;
+  addSt(t, id, v); cue(s, "status", t, { id });
+  return v;
+}
+// 적이 얻는 방어 — 강건이면 +20%(1 준다), 손상이면 -50%(shieldGain). 사도가 적에게 건 손상이 적의 방어 수를 깎는다
+function foeBlock(s, x, v) {
+  if (v > 0 && st(x, "강건") > 0 && charge(s, x, "강건")) v = Math.round(v * (1 + R.STATUS_V.강건));
+  v = shieldGain(s, x, v);
+  x.block += v; gainCue(s, x, "block", v);
+  return v;
+}
+// 강인도를 되찾는다(수 · 패시브의 tough N) — 격파된 동안은 안 찬다(격파는 다음 내 턴에 일어서며 다 찬다)
+function regainTough(s, x, n) {
+  if (!x.toughMax || x.broken || x.dead || x.tough >= x.toughMax) return;
+  const from = x.tough;
+  x.tough = Math.min(x.toughMax, x.tough + n);
+  cue(s, "tough", x, { from, to: x.tough, up: true });
+  say(s, `${x.ko}: 강인도 +${x.tough - from}`);
+}
 function foeAct(s, e, it) {
   // say · t · rush — 화면이 「무엇을 하는지」 를 적 머리 위에 잠깐 띄운다(fight-screen foeTell). 판에는 아무 영향 없다
   cue(s, "act", e, { anim: ["attack", "back", "attackAll", "multi"].includes(it.t) ? "attack" : "skill", say: it.say || null, t: it.t, rush: !!s.rushing });
@@ -559,34 +584,36 @@ function foeAct(s, e, it) {
       const d = dealt(e, it.v); hurt(s, t, d, { from: e });
       say(s, `${e.ko}: ${it.say} → ${t.ko} (${d})`);
       // 맞은 사람에게 상태를 건다 — 「창끝으로 찌른다」 취약 따위
-      if (it.id && !t.dead) { addSt(t, it.id, it.n || 1); cue(s, "status", t, { id: it.id }); say(s, `${t.ko}: ${it.id} +${it.n || 1}`); }
+      if (it.id && !t.dead) { const v = foeStatus(s, e, t, it.id, it.n || 1); say(s, `${t.ko}: ${it.id} +${v}`); }
     }
   } else if (it.t === "multi") {
     // 한 번마다 새로 고른다 — 앞사람이 쓰러지면 다음 사람에게 간다
     const d = dealt(e, it.v);
-    for (let k = 0; k < (it.n || 1); k++) { const t = pickTarget(s, false); if (!t) break; hurt(s, t, d, { from: e }); }
-    say(s, `${e.ko}: ${it.say} (${d}×${it.n})`);
+    for (let k = 0; k < (it.n || 1); k++) { const t = pickTarget(s, false); if (!t) break; hurt(s, t, d, { from: e }); if (it.id) foeStatus(s, e, t, it.id, it.per || 1); }
+    say(s, `${e.ko}: ${it.say} (${d}×${it.n})${it.id ? ` · ${it.id}` : ""}`);
   } else if (it.t === "charge") {
     say(s, `${e.ko}: ${it.say} — 다음 턴 ${it.next.say}`);
   } else if (it.t === "guard") {
-    for (const x of alive(s.enemies)) { x.block += it.v; gainCue(s, x, "block", it.v); }
+    for (const x of alive(s.enemies)) foeBlock(s, x, it.v);
     say(s, `${e.ko}: ${it.say} (적 전체 방어 +${it.v})`);
   } else if (it.t === "heal") {
     const x = alive(s.enemies).sort((p, q) => p.hp / p.maxHp - q.hp / q.maxHp)[0];
     if (x) { const v = Math.min(it.v, x.maxHp - x.hp), h0 = x.hp; x.hp += v; healCue(s, x, h0); say(s, `${e.ko}: ${it.say} (${x.ko} +${v})`); }
   } else if (it.t === "attackAll") {
-    for (const t of alive(s.party)) { const d = dealt(e, it.v); hurt(s, t, d, { from: e }); }
-    say(s, `${e.ko}: ${it.say} (${it.v})`);
-  } else if (it.t === "block") { e.block += it.v; gainCue(s, e, "block", it.v); say(s, `${e.ko}: ${it.say}`); }
-  else if (it.t === "buff") { addSt(e, it.id, it.v); cue(s, "status", e, { id: it.id, up: true }); say(s, `${e.ko}: ${it.say} (${it.id} +${it.v})`); }
+    for (const t of alive(s.party)) { const d = dealt(e, it.v); hurt(s, t, d, { from: e }); if (it.id) foeStatus(s, e, t, it.id, it.n || 1); }
+    say(s, `${e.ko}: ${it.say} (${it.v})${it.id ? ` · ${it.id} ${it.n || 1}` : ""}`);
+  } else if (it.t === "block") { foeBlock(s, e, it.v); say(s, `${e.ko}: ${it.say}`); }
+  // all — 적 전체에 건다(사기 · 강건 · 불굴로 동료를 북돋운다)
+  else if (it.t === "buff") { for (const x of it.all ? alive(s.enemies) : [e]) { addSt(x, it.id, it.v); cue(s, "status", x, { id: it.id, up: true }); } say(s, `${e.ko}: ${it.say} (${it.all ? "적 전체 " : ""}${it.id} +${it.v})`); }
   else if (it.t === "jam") {
     // 원작의 감전이 공격·이동속도를 늦추듯, 방해는 SP 수급을 늦춘다
     s.apJam += it.v;
     say(s, `${e.ko}: ${it.say} (다음 턴 AP -${it.v})`);
   }
   else if (it.t === "debuff") {
-    for (const t of alive(s.party)) { addSt(t, it.id, it.v); cue(s, "status", t, { id: it.id }); }
-    say(s, `${e.ko}: ${it.say} (${it.id} +${it.v})`);
+    let v = it.v;
+    for (const t of alive(s.party)) v = foeStatus(s, e, t, it.id, it.v);
+    say(s, `${e.ko}: ${it.say} (${it.id} +${v})`);
   }
   // 상태 카드를 끼워 넣는다(카제나의 상태 카드) — to: draw(뽑을 더미에 섞는다) · discard(버린 더미) · hand(손, 가득 차면 버린 더미).
   // 이 전투에만 있다 — 판의 덱(run.deck)에는 안 들어간다(run.js afterFight 는 더미를 보지 않는다)
@@ -602,6 +629,8 @@ function foeAct(s, e, it) {
     cue(s, "status", e, { id: `「${CARDS[id].name}」 +${n}` });
     say(s, `${e.ko}: ${it.say} (「${CARDS[id].name}」 ${n}장 → ${to === "hand" ? "손" : to === "draw" ? "뽑을 더미" : "버린 더미"})`);
   }
+  // tough N — 그 수와 함께 강인도를 되찾는다(guard · all 이면 적 전체)
+  if (it.tough) for (const x of it.t === "guard" || it.all ? alive(s.enemies) : [e]) regainTough(s, x, it.tough);
   // 공격하는 수는 적의 약화 · 사기를 한 번 쓴다(dealt 가 이미 넣었다)
   if (FOE_HITS.includes(it.t)) { if (st(e, "약화") > 0) charge(s, e, "약화"); if (st(e, "사기") > 0) charge(s, e, "사기"); }
 }
@@ -731,6 +760,9 @@ function toughHit(s, e, n) {
   say(s, `${e.ko}: 격파! (AP +${ap} · 즉시 행동 ${R.TOUGH.delay}장 늦춤)`);
   hitCue(s, e, "break", { ap });
   emit(s, "break", { target: e, by: s.acting });
+  // brk — 「격파되면 흩어진다」 고 적힌 수(모으기 · 그 큰 수)는 격파로 끊긴다(enemies.js). 깨는 손에 주는 몫
+  if (e.intent && e.intent.brk && !e.dead) { say(s, `${e.ko}: 격파 — ${을를(e.intent.say)} 놓쳤다`); cue(s, "status", e, { id: "끊김!" }); e.intent = null; }
+  if (!e.dead) foePassives(s, "broken", { target: e });
   handAuto(s, "break", { target: e });
 }
 // 강인도 쪽지는 그 적이 맞은 쪽지 바로 뒤에 — 맞자마자 적 패시브(「맞으면」)가 움직이면 그 몸짓 뒤로 밀려 격파가 늦게 떴다

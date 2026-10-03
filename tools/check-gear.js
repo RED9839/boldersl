@@ -152,6 +152,9 @@ for (const c of Object.values(neutral)) {
     if (zero && (fc !== 0 || !gone || !body.some((x) => x.k === "ap" && x.v === 1))) errs.push(`${at}0코 예외 카드의 신탁은 0코 · 소멸 · AP +1 그대로`);
     if (typeof fc === "number" && fc > 3) errs.push(`${at}3코 위로 올리지 않는다`);
     if (c.cost !== "X" && fc > c.cost && gone) errs.push(`${at}코스트를 올린 신탁에 소멸을 같이 붙이지 않는다`);
+    // 연계 · 천상은 비용 없이 저절로 나간다 — 신탁 글에 붙어 있으면 코스트를 올리지 않는다(사도 고유 카드와 같은 규칙, check-hero)
+    { const auto = r.fx.find((x) => x.k === "tag" && (x.id === "연계" || x.id === "천상"));
+      if (auto && typeof c.cost === "number" && typeof fc === "number" && fc > c.cost) errs.push(`${at}${auto.id} 카드는 코스트를 올리는 신탁을 두지 않는다(비용 없이 나간다)`); }
     if (typeof fc === "number" && fc >= 2 && body.some((x) => x.k === "draw" && x.v > 0)) errs.push(`${at}2코 이상에 드로우를 붙이지 않는다`);
     if (body.some((x) => MODS.includes(x.k) && (x.turns || 1) >= 999) && !(c.oneOnly && gone)) errs.push(`${at}이번 전투 동안 증감은 덱에 1장만 카드 + 소멸`);
     if (body.some((x) => x.k === "ap" && x.v > 1)) errs.push(`${at}교주 카드는 AP +1 까지`);

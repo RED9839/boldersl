@@ -30,7 +30,8 @@ for (let i = 0; i < lines.length; i++) {
 }
 
 if (!fs.existsSync(dir)) { console.log(`${dir} 가 없습니다`); process.exit(1); }
-const files = fs.readdirSync(dir).filter((f) => f.endsWith(".md")).sort();
+// 사도 글만 — 묶음 공통 지침(BRIEF.md · README.md 같은 대문자 이름)은 건너뛴다
+const files = fs.readdirSync(dir).filter((f) => f.endsWith(".md") && !/^[A-Z_]+.md$/.test(f)).sort();
 const repl = [];
 let bad = 0;
 for (const f of files) {

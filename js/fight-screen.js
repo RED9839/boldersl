@@ -2571,20 +2571,24 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   // 적 정보 — 글을 줄이고 낱말로 읽는다(2026-10 사용자 「적 설명도 글이 너무 많다」).
   // 수는 한 알씩 — 아이콘 · 낱말 · 값 · 대상(아이콘은 싸움터의 마름모와 같은 INTENT_ICON). 대사(「…」)는 옆에 흐리게.
   // 판(단계)은 접어 두고 지금 판만 펼친다. 상태 · 대상의 아는 낱말(약화 · 방어 · AP …)은 밑줄 — 누르면 풀이
-  const MOVE_KW = (it, v = it.v) => {
-    const on = it.id ? `${it.id} ${it.n || 1}` : "";      // 맞은 사람에게 거는 상태
+  // 고통은 층 피해 배율을 곱해 건다(combat.js foeStatus) — 보이는 수도 같게
+  const painN = (id, n, u) => (id === "고통" && u && u.dmgx && u.dmgx !== 1 ? Math.max(1, Math.round(n * u.dmgx)) : n);
+  const MOVE_KW = (it, v = it.v, u = null) => {
+    const on = it.id ? `${it.id} ${painN(it.id, it.n || 1, u)}${it.t === "multi" ? " (한 대마다)" : ""}` : "";      // 맞은 사람에게 거는 상태
+    // 덤 — 강인도를 되찾는 수 · 격파로 끊기는 모으기
+    const extra = [it.tough ? `강인도 +${it.tough}${it.t === "guard" || it.all ? " (적 전체)" : ""}` : "", it.t === "charge" ? (it.brk ? "격파하면 끊김" : "격파로는 못 끊음") : ""];
     return {
       attack: ["공격", v, ["전열", on]], back: ["공격", v, ["후열", on]], attackAll: ["공격", v, ["전체", on]],
-      multi: ["연타", `${v}×${it.n}`, ["전열", on]], block: ["방어", v, ["자신"]], guard: ["방어", v, ["적 전체"]],
+      multi: ["연타", `${v}×${it.n}`, ["전열", on]], block: ["방어", v, ["자신", ...extra]], guard: ["방어", v, ["적 전체", ...extra]],
       heal: ["회복", v, ["다친 적"]], selfHeal: ["회복", v, ["자신"]], thorns: ["반격", v, ["때린 사도"]],
-      buff: [it.id || "강화", `+${v}`, ["자신"]], debuff: [it.id || "상태", v, ["파티 전체"]], jam: ["AP", `-${v}`, ["다음 턴"]],
-      charge: ["모으기", "", ["다음 턴"]],
+      buff: [it.id || "강화", `+${v}`, [it.all ? "적 전체" : "자신", ...extra]], debuff: [it.id || "상태", painN(it.id, v, u), ["파티 전체"]], jam: ["AP", `-${v}`, ["다음 턴"]],
+      charge: ["모으기", "", ["다음 턴", ...extra]],
       // 상태 카드 — 「「끈적한 점액」 2 → 버린 더미」(docs/16)
       addCard: ["상태 카드", `「${it.id}」 ×${it.n || 1}`, [it.to === "hand" ? "손" : it.to === "draw" ? "뽑을 더미" : "버린 더미"]],
     }[it.t] || [it.t, v != null ? v : "", []];
   };
-  const movePill = (it, v) => {
-    const [kw, val, tgt] = MOVE_KW(it, v);
+  const movePill = (it, v, u) => {
+    const [kw, val, tgt] = MOVE_KW(it, v, u);
     const p = el("span", "fpill i-" + it.t);
     p.appendChild(el("i", "fico", INTENT_ICON[it.t] || "·"));
     p.appendChild(withKeywords(el("b", "fkw"), kw));
@@ -2598,8 +2602,8 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   // u — 그 적. 치는 수의 값에 층마다 피해 배율을 곱해 보인다(combat.js foeV)
   const moveKeys = (it, v, u) => {
     const k = el("span", "fkeys");
-    k.appendChild(movePill(it, v != null ? v : C.foeV(u, it)));
-    if (it.t === "charge" && it.next) { k.appendChild(el("span", "farrow", "→")); k.appendChild(movePill(it.next, C.foeV(u, it.next))); }
+    k.appendChild(movePill(it, v != null ? v : C.foeV(u, it), u));
+    if (it.t === "charge" && it.next) { k.appendChild(el("span", "farrow", "→")); k.appendChild(movePill(it.next, C.foeV(u, it.next), u)); }
     return k;
   };
   const rushTag = (rn) => {
@@ -2612,6 +2616,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     fightStart: "전투 시작", turnStart: "턴 시작", turnEnd: "턴 끝", hurt: "맞으면", rushed: "당겨지면",
     debuffed: "디버프 받으면", allyDown: "동료 쓰러지면", lowHp: `HP ${Math.round((p.at || 0) * 100)}%↓`,
     card: `${p.type ? p.type + " " : ""}카드 ${p.every ? `${p.every}장째` : "낼 때마다"}`,
+    broken: "격파되면", recover: "격파에서 일어서면",
   }[p.on] || p.on);
   const FOE_LIMIT = (p) => (p.on === "fightStart" || p.on === "lowHp") ? "1회" : p.limit === 0 ? "" : `턴 ${p.limit || 1}회`;
   function openFoe(u) {

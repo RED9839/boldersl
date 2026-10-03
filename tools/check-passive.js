@@ -109,34 +109,34 @@ console.log("본보기 — 네르 「기도」(셋이 차는 그 턴에 계시)"
 }
 
 console.log("");
-console.log("본보기 — 나이아 「물보라」(넘친 회복을 모아 쏜다)");
+console.log("본보기 — 나이아 「물총알」(넘친 회복을 모아 쏜다)");
 {
   const s = fight(["나이아", "네르", "티그"]); tough(s);
-  const splash = () => stackOf(s, "나이아", "물보라");
-  // 다 찬 파티를 씻기면 넘친다 — 회복 한 번 · 대상 하나에 「물보라」 +1
+  const splash = () => stackOf(s, "나이아", "물총알");
+  // 다 찬 파티를 씻기면 넘친다 — 회복 한 번 · 대상 하나에 「물총알」 +1
   const wash = idOf("나이아", "그게 씻은거야?");
   const heals = (CARDS[wash].fx || []).filter((f) => f.k === "heal").length;
   play(s, wash);
-  check(splash() === heals, `다 찬 아군을 씻기면 「회복량이 최대 HP를 초과하면」 — 회복 ${heals}번에 「물보라」 +${heals} (지금 ${splash()})`);
+  check(splash() === heals, `다 찬 아군을 씻기면 「회복량이 최대 HP를 초과하면」 — 회복 ${heals}번에 「물총알」 +${heals} (지금 ${splash()})`);
   check(s.log.some((l) => l.includes("나이아 · 퓨퓨~")), "발동하면 기록에 이름이 남는다");
   // 다친 파티면 넘치지 않는다
   const t = fight(["나이아", "네르", "티그"]); tough(t);
   for (const u of t.party) u.hp = 1;
   play(t, wash);
-  check(stackOf(t, "나이아", "물보라") === 0, `다친 아군을 채우면 넘치지 않는다 (${stackOf(t, "나이아", "물보라")})`);
+  check(stackOf(t, "나이아", "물총알") === 0, `다친 아군을 채우면 넘치지 않는다 (${stackOf(t, "나이아", "물총알")})`);
   // 남이 넘치게 채운 것은 세지 않는다 — 네르의 회복
   const u = fight(["나이아", "네르", "티그"]); tough(u);
   play(u, kitOf("네르").start.find((c) => c.fx.some((f) => f.k === "heal")).id, 0);
-  check(stackOf(u, "나이아", "물보라") === 0, "다른 사도의 넘친 회복은 나이아의 「물보라」 가 아니다");
+  check(stackOf(u, "나이아", "물총알") === 0, "다른 사도의 넘친 회복은 나이아의 「물총알」 가 아니다");
   // 다섯이 되면 물총 — 다 쓰고 적을 친다
-  s.stacks["나이아"]["물보라"] = 4;
+  s.stacks["나이아"]["물총알"] = 4;
   const hp0 = foeHp(s);
   play(s, wash);
-  check(splash() <= heals && foeHp(s) < hp0, `「물보라」 다섯 — 물총으로 쏘고 비운다 (남은 ${splash()} · 적 HP ${hp0} → ${foeHp(s)})`);
-  // 「얼굴에 물총」 — 모은 물보라를 탄알로
-  s.stacks["나이아"]["물보라"] = 3;
+  check(splash() <= heals && foeHp(s) < hp0, `「물총알」 다섯 — 물총으로 쏘고 비운다 (남은 ${splash()} · 적 HP ${hp0} → ${foeHp(s)})`);
+  // 「얼굴에 물총」 — 모은 물총알를 탄알로
+  s.stacks["나이아"]["물총알"] = 3;
   play(s, idOf("나이아", "얼굴에 물총"));
-  check(splash() === 0, `「얼굴에 물총」 — 「물보라」 를 전부 쏜다 (${splash()})`);
+  check(splash() === 0, `「얼굴에 물총」 — 「물총알」 를 전부 쏜다 (${splash()})`);
 }
 
 console.log("");

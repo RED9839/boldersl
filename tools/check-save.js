@@ -93,7 +93,9 @@ function step(g) {
   if (g.end || run.done) return null;
   if (w.k === "map") {
     const reach = M.reachable(run);
-    const node = M.enterNode(run, reach[(run.step || 0) % reach.length]);
+    // 상점을 아직 못 되살려 봤으면 상점 캠프로 간다 — 길은 싸움 길이(난이도)에 따라 갈려 상점을 한 번도 안 지나는 판이 생긴다
+    const shopNode = !seen["상점"] && reach.find((id) => (M.nodeById(M.mapOf(run), id) || {}).type === "campshop");
+    const node = M.enterNode(run, shopNode || reach[(run.step || 0) % reach.length]);
     if (["fight", "elite", "boss"].includes(node.type)) { openFight(g); return "지도→싸움"; }
     if (node.type === "event") {
       if (!EV.eventLeft(run)) return "지도→빈 이벤트";

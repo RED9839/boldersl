@@ -5,7 +5,7 @@
 //   피해 한 명 100% = 0.83 · 전체 ×1.6 · 무작위 ×0.9 · X 코스트는 3타로 친다
 //   방어·실드 200% = 0.8 · 회복 80% = 0.8 (아군 전원은 ×2)
 //   드로우 1 = 0.4 · AP 1 = 0.9 · 게이지 10% = 0.1 · 기절 0.8 · 취약·약화 1턴 0.2 · 증감 10%·1턴 0.2
-//   키워드 +1 = 0.3
+//   키워드 +1 = 0.3 · 강인도 1칸 0.3 · 카제나 태그(연계 0.6 · 천상 0.45 …)와 조건(파괴 ×0.4 · 연속 ×0.5 · 감응 ×0.85)은 아래 TAG_VAL · COND_VAL
 // 코스트 c 의 기준 값어치 = 0.5 + c  (1코 1.5 · 2코 2.5 · 3코 3.5)
 // 정밀한 값이 아니다 — 크게 어긋난 카드(공짜나 다름없는 것, 코스트만 비싼 것)를 찾는 체다.
 
@@ -14,14 +14,34 @@ export const STATUS_VAL = { 사기: 0.35, 불굴: 0.3, 취약: 0.25, 약화: 0.2
   열의: 0.57, 강건: 0.67, 집중: 0.57, 온정: 0.4 };
 const area = (t) => (t === "allEnemies" || t === "allAllies" ? 1.6 : t === "randomEnemy" ? 0.9 : 1);
 
+// 카제나 키워드(docs/16) — 글 맨 앞 낱말 하나로 서는 태그의 값어치. 0 으로 두면 봇 · 신탁 견주기가 이 키워드들을 없는 것으로 본다
+//   연계 — 다른 사도의 카드를 내면 비용 없이 저절로(1코 연계면 AP 1 을 거의 늘 아낀다 — 때를 못 고르니 AP 값 0.9 보다 조금 덜)
+//   천상 — 비용 2 이상 카드를 내면 저절로(깨우는 카드가 연계보다 드물다)
+//   신속 — 적의 즉시 행동 셈을 안 늘린다(「즉시 행동 1장 늦춤」 0.15 와 같은 몫) · 주도 — 반반의 확률로 그 턴 비용 -1
+//   증발 — 턴 끝 손에 있으면 사라진다(벌칙)
+//   잔불 · 잔광 · 분쇄 · 약점 — 그 카드 피해의 덤(격파된 적 · 방어가 있는 적을 칠 확률을 곱한 몫) + 잔광 · 약점은 강인도 1칸
+export const TAG_VAL = { 연계: 0.6, 천상: 0.45, 신속: 0.15, 주도: 0.2, 증발: -0.15 };
+// 피해 태그 — 그 카드 피해 값어치에 곱하는 덤(잔불 +30% × 격파된 적 ~1/3 · 잔광 +50% × ~1/3 · 분쇄 +20% × 방어 있는 적 ~1/3 · 약점 +10%)
+export const HIT_TAG_VAL = { 잔불: 0.1, 잔광: 0.15, 분쇄: 0.06, 약점: 0.1 };
+// 강인도 1칸 — 보통 적 3칸을 깨면 AP +1(0.9) · 즉시 행동 1장 늦춤(0.15)이니 한 칸 0.3 언저리
+export const TOUGH_VAL = 0.3;
+// 조건 뒤의 효과 — 그 조건이 설 확률만큼만 친다. 파괴(그 적이 격파돼 있다) · 연속(바로 앞 카드가 같은 성격) · 감응(뽑힐 때 — 거의 늘 돈다)
+export const COND_VAL = { ifBroken: 0.4, ifChain: 0.5, draw: 0.85 };
+
 export function valueOf(fx) {
-  let v = 0, per = 1;
+  let v = 0, per = 1, cond = 1, dmgV = 0, dmgArea = 1;
+  const tags = [];
   for (const f of fx || []) {
     const n = f.hits || 1;
+    const v0 = v;
     switch (f.k) {
+      case "tag": tags.push(f.id); break;
+      case "ifBroken": case "ifChain": cond = COND_VAL[f.k]; break;
+      case "when": if (f.on === "draw") cond = COND_VAL.draw; break;
+      case "tough": v += TOUGH_VAL * (f.v || 1) * area(f.target); break;
       // 「「X」 1개당 …」 은 바로 뒤 피해 한 줄을 쌓인 수만큼 친다 — 보통 쌓여 있는 셋으로 센다
       case "perStack": per = 3; break;
-      case "dmg": v += f.ratio * n * 0.83 * area(f.target) * (f.xHits ? 3 : 1) * per; per = 1; break;
+      case "dmg": { const d = f.ratio * n * 0.83 * area(f.target) * (f.xHits ? 3 : 1) * per; if (!dmgV) dmgArea = area(f.target); v += d; dmgV += d * cond; per = 1; break; }
       case "block": case "shield": v += (f.ratio / 2) * 0.8 * (f.target === "allAllies" ? 2 : 1); break;
       case "heal": v += (f.ratio / 0.8) * 0.8 * (f.target === "allAllies" ? 2 : 1); break;
       case "draw": v += 0.4 * (f.v || 1); break;
@@ -44,6 +64,12 @@ export function valueOf(fx) {
       case "immune": v += f.target === "allAllies" ? 1.0 : 0.5; break;
       case "trigger": v += 0.3 * (f.v || 1); break;
     }
+    if (cond !== 1) v = v0 + (v - v0) * cond;   // 조건 뒤의 몫은 확률만큼
+  }
+  for (const t of tags) {
+    v += TAG_VAL[t] || 0;
+    if (HIT_TAG_VAL[t] && dmgV > 0) v += dmgV * HIT_TAG_VAL[t];
+    if ((t === "잔광" || t === "약점") && dmgV > 0) v += TOUGH_VAL * dmgArea;
   }
   return v;
 }

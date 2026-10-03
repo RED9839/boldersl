@@ -10,6 +10,7 @@ import { STATUS_CARDS } from "../js/data/status-cards.js";
 import { CURSES } from "../js/data/events.js";
 import { CARDS, STATUS_CARD_ID, NEUTRAL_IDS } from "../js/cardbook.js";
 import { parseEffect } from "../js/effects.js";
+import { parsePassive } from "../js/passive.js";
 import { packCombat, unpackCombat } from "../js/save.js";
 import { makeBots } from "./lib/bot.js";
 import B from "../js/data/built.js";
@@ -420,11 +421,86 @@ console.log("docs/16 베껴 쓰는 줄 — 엔진이 모두 읽는다");
   const fs = await import("node:fs");
   const t = fs.readFileSync(new URL("../docs/16-카제나전투.md", import.meta.url), "utf8");
   const sec = t.slice(t.indexOf("## 6."), t.indexOf("## 7."));
-  const lines = sec.split("```").filter((_, i) => i % 2).flatMap((b) => b.split(/\r?\n/).filter(Boolean));
+  // 블록 첫 줄이 「패시브」 면 패시브 문법(js/passive.js — 「적을 격파하면」 · 「자신 사기가 N 이상이면」), 아니면 카드 글
+  const blocks = sec.split("```").filter((_, i) => i % 2).map((b) => b.split(/\r?\n/));
+  const lines = blocks.filter((b) => b[0].trim() !== "패시브").flatMap((b) => b.filter(Boolean));
+  const pas = blocks.filter((b) => b[0].trim() === "패시브").flatMap((b) => b.slice(1).filter(Boolean));
   const bad = lines.filter((l) => { const r = parseEffect(l); return r.left || !r.fx.length; });
   check(lines.length >= 50 && !bad.length, `${lines.length}줄 모두 읽힌다${bad.length ? " — 못 읽음: " + bad.join(" | ") : ""}`);
+  const badP = pas.filter((l) => { const rs = parsePassive(l); return !rs.length || rs.some((r) => r.left || !r.fx.length || r.when.on === "always" || !r.when.on); });
+  check(pas.length >= 4 && !badP.length, `패시브 ${pas.length}줄 모두 읽힌다${badP.length ? " — 못 읽음: " + badP.join(" | ") : ""}`);
   const pct = lines.filter((l) => /(주는 피해|받는 피해|공격력|방어력|치명 확률|회복력)\s*[+\-]\s*\d+\s*%/.test(l) && !/판 내내/.test(l));
   check(!pct.length, `% 증감은 「판 내내」 밖에 없다${pct.length ? " — " + pct.join(" | ") : ""}`);
+}
+
+console.log("");
+console.log("적의 새 수 — 깃발 · 강인도 되찾기 · 강건/손상 · 한 대마다 상태 · 고통 눈금 · 격파로 끊기 · 격파/일어섬 패시브(v5 적)");
+{
+  // 데이터 — 패시브의 때 · brk 는 모으기에만 · 상태 카드 이름(판 · 둘째 판 · 패시브까지)
+  const KNOWN_ON = new Set(["fightStart", "turnStart", "turnEnd", "hurt", "lowHp", "allyDown", "card", "rushed", "debuffed", "broken", "recover"]);
+  const moves = (d) => [...(d.intents || []), ...(d.open ? [d.open] : []), ...((d.phase || {}).intents || []), ...((d.phase2 || {}).intents || [])];
+  const wrong = [];
+  for (const d of Object.values(ENEMIES)) {
+    for (const p of d.passives || []) if (!KNOWN_ON.has(p.on)) wrong.push(`${d.ko} 때 ${p.on}`);
+    for (const it of moves(d)) if (it.brk && it.t !== "charge") wrong.push(`${d.ko} brk ${it.say}`);
+    for (const x of [...moves(d).flatMap((it) => [it, it.next]), ...(d.passives || []).map((p) => p.do)].filter(Boolean))
+      if (x.t === "addCard" && !STATUS_CARD_ID[x.id]) wrong.push(`${d.ko} 카드 ${x.id}`);
+  }
+  check(!wrong.length, `적 데이터 — 패시브 때 · brk 는 모으기에만 · 상태 카드 이름${wrong.length ? " — " + wrong.join(" | ") : ""}`);
+  const pull = (s, e, it) => { e.intent = it; e.rushCnt = 2; e.rushedTurn = false; play(s, A, "방어력 100% 방어", { type: "스킬", target: "없음" }); };
+  // 깃발 — buff all: 적 전체에 건다
+  const a = mk({ foes: [FOE, FOE] });
+  pull(a, a.enemies[0], { t: "buff", id: "사기", v: 2, all: true, say: "시험 — 깃발", rush: 3 });
+  check(a.enemies.every((e) => st(e, "사기") === 2), `깃발(all) — 적 전체 사기 2 (${a.enemies.map((e) => st(e, "사기")).join(" · ")})`);
+  // 강인도 되찾기 — tough N(guard 면 적 전체). 격파된 동안은 안 찬다
+  const b = mk({ foes: [FOE, FOE] });
+  b.enemies[0].tough = 1; b.enemies[1].tough = 0; b.enemies[1].broken = true;
+  pull(b, b.enemies[0], { t: "guard", v: 5, tough: 1, say: "시험 — 굳히기", rush: 3 });
+  check(b.enemies[0].tough === 2 && b.enemies[1].tough === 0 && b.enemies[1].broken, `tough 1 — 강인도 1 → ${b.enemies[0].tough}, 격파된 동료는 그대로 (${b.enemies[1].tough})`);
+  // 적이 얻는 방어 — 강건 +20% · 손상 -50%, 한 번에 1 준다
+  const c = mk({ foes: [FOE, FOE, FOE] });
+  c.enemies[1].status.강건 = 1; c.enemies[2].status.손상 = 1;
+  pull(c, c.enemies[0], { t: "guard", v: 10, say: "시험 — 벽", rush: 3 });
+  check(c.enemies.map((e) => e.block).join(",") === `10,${Math.round(10 * (1 + V.강건))},${Math.round(10 * (1 - V.손상))}` && !st(c.enemies[1], "강건") && !st(c.enemies[2], "손상"),
+    `적 방어 — 그대로 · 강건 · 손상 (${c.enemies.map((e) => e.block).join(" · ")})`);
+  // 연타 id — 한 대마다 상태 1, 고통은 층 피해 배율을 곱한다
+  const d = mk(); d.enemies[0].dmgx = 2; d.taunt = A; d.tauntLeft = 9;
+  pull(d, d.enemies[0], { t: "multi", v: 1, n: 3, id: "고통", say: "시험 — 긁기", rush: 3 });
+  check(st(hero(d, A), "고통") === 6, `연타 고통 — 세 대 × 1 × 층 피해 배율 2 = ${st(hero(d, A), "고통")}`);
+  const g = mk();
+  pull(g, g.enemies[0], { t: "attackAll", v: 1, id: "손상", n: 2, say: "시험 — 전체", rush: 3 });
+  check(g.party.every((u) => st(u, "손상") === 2), `전체 공격 id — 맞은 사람마다 손상 2 (${g.party.map((u) => st(u, "손상")).join(" · ")})`);
+  const g2 = mk(); g2.enemies[0].dmgx = 3;
+  pull(g2, g2.enemies[0], { t: "debuff", id: "고통", v: 2, say: "시험 — 저주", rush: 3 });
+  check(g2.party.every((u) => st(u, "고통") === 6), `디버프 고통 2 × 층 피해 배율 3 = ${st(g2.party[0], "고통")} (다른 상태는 그대로)`);
+  // 격파로 끊기 — brk 가 붙은 모으기는 그 턴에 격파하면 흩어지고, 안 붙은 것은 그대로
+  const h = mk({ foes: ["nururingwarrior_fairy"] }), he = h.enemies[0];
+  const ch = ENEMIES.nururingwarrior_fairy.intents.find((x) => x.t === "charge");
+  he.intent = ch; he.tough = 1;
+  play(h, A, "적 1명에게 공격력 10% 피해");
+  check(he.broken && he.intent === null, `brk — 「${ch.say}」 를 격파로 끊는다`);
+  C.endTurn(h);
+  check(he.intent !== ch.next && hero(h, A).hp === 9999 && h.party.every((u) => u.hp === u.maxHp), "끊긴 큰 수는 다음 턴에 오지 않는다");
+  const n = mk({ foes: ["droneg_sentry"] }), ne = n.enemies[0];
+  const ch2 = ENEMIES.droneg_sentry.intents.find((x) => x.t === "charge");
+  ne.intent = ch2; ne.tough = 1; ne.block = 0;
+  play(n, A, "적 1명에게 공격력 10% 피해");
+  check(ne.broken && ne.intent === ch2, `brk 없는 모으기(「${ch2.say}」)는 격파로 안 끊긴다 — 기절 · 봉인`);
+  // 패시브 — 격파되면(broken) · 격파에서 일어서면(recover)
+  const m = mk({ foes: ["marshmallowtanker"] }), me = m.enemies[0];
+  me.tough = 1;
+  play(m, A, "적 1명에게 공격력 10% 피해");
+  check(me.broken && st(me, "취약") === 2, `격파되면 — 탱탱 멜로 「푹 꺼진다」 취약 ${st(me, "취약")}`);
+  const r = mk({ foes: ["elfsoldiercloserange_honor"] }), re = r.enemies[0];
+  re.tough = 1;
+  play(r, A, "적 1명에게 공격력 10% 피해");
+  check(re.broken && !st(re, "사기"), "의장대 격파 — 아직 사기 없음");
+  C.endTurn(r);
+  check(!re.broken && st(re, "사기") === 2, `격파에서 일어서면 — 「의장대의 체면」 사기 ${st(re, "사기")}`);
+  // 상태 카드 — 새로 넣은 볼제나 카드도 장부에 있고 글을 다 읽는다(위 「상태 카드 · 저주」 가 하나하나 본다). 쓰는 적이 있다
+  const used = new Set(Object.values(ENEMIES).flatMap((d2) => moves(d2).filter((it) => it.t === "addCard").map((it) => it.id)));
+  const idle = Object.keys(STATUS_CARDS).filter((ko) => !used.has(ko));
+  check(!idle.length, `상태 카드 ${Object.keys(STATUS_CARDS).length}장 모두 쓰는 적이 있다${idle.length ? " — 안 쓰임: " + idle.join(" · ") : ""}`);
 }
 
 console.log("");
