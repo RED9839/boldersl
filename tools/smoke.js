@@ -744,12 +744,13 @@ console.log("\n장비");
       return { eq: t.eq / n, ne: t.ne / n, g: t.g };
     };
     const f1 = rate((q) => { q.floor = 0; q.node = 0; });
-    check(Math.abs(f1.eq - RU.DROP.fight.equip) < 0.03 && Object.keys(f1.g).every((g) => g === "일반"), `일반 싸움 1층 — 장비 ${(f1.eq * 100).toFixed(1)}%(일반만)`);
+    check(Math.abs(f1.eq - RU.DROP.fight.equip) < 0.03 && Object.keys(f1.g).every((g) => g === "일반" || g === "고급"), `일반 싸움 1층 — 장비 ${(f1.eq * 100).toFixed(1)}%(일반 · 고급만 ${JSON.stringify(f1.g)})`);
     const f3 = rate((q) => { q.floor = 2; q.node = 0; });
     check(!f3.g["일반"] && !f3.g["전설"], `일반 싸움 3층 — 고급 · 희귀만 (${JSON.stringify(f3.g)})`);
     const el = rate((q) => { q.floor = 0; q.node = 0; q.elite = true; }, 400);
     const bo = rate((q) => { q.floor = 0; q.node = 3; }, 400);
     check(el.eq === 1 && bo.eq === 1, "엘리트 · 보스는 장비가 늘 떨어진다");
+    check(Object.keys(el.g).every((g) => g === "고급") && Object.keys(bo.g).every((g) => g === "전설"), `1층 엘리트는 고급 · 층 보스는 전설 (${JSON.stringify(el.g)} · ${JSON.stringify(bo.g)})`);
     check(f1.ne + f3.ne + el.ne + bo.ne === 0, "교주 카드는 싸움에서 안 떨어진다 — 상점 · 이벤트에서만");
     // 같은 장비도 떨어진다 — 1층 일반 싸움의 일반 장비를 하나 빼고 다 가져도, 가진 것이 다시 나온다
     {
