@@ -55,13 +55,13 @@ console.log("본보기 — 에르핀 「케이크」(모아 쏘거나, 다섯이
   // 다섯이 되면 먹는다 — AP +2 · 회복
   const me = s.party.find((u) => u.key === "에르핀");
   s.stacks["에르핀"]["케이크"] = 4; me.hp = 10; s.ap = 3;
-  play(s, idOf("에르핀", "무한의 케이크"));            // 1코 · 케이크 +2 → 5 에 닿는다
-  check(cake() === 0, `「케이크」 다섯 — 전부 먹는다 (지금 ${cake()})`);
+  play(s, idOf("에르핀", "무한의 케이크"));            // 1코 · 케이크 +2 → 5 에 닿아 먹고, 넘친 1 은 다시 쌓인다(run-fx 넘침)
+  check(cake() === 1, `「케이크」 다섯 — 전부 먹고 넘친 1 이 남는다 (지금 ${cake()})`);
   check(s.ap === 3 - 1 + 2 && me.hp > 10, `먹으면 AP +2 · HP 회복 (AP ${s.ap}, HP ${me.hp})`);
   // 무전취식 — 처치하면 +1
   s.enemies[0].hp = 1;
   play(s, idOf("에르핀", "마력탄"), s.enemies[0].idx);
-  check(s.enemies[0].dead && cake() === 1, `「무전취식」 — 적을 처치하면 「케이크」 +1 (지금 ${cake()})`);
+  check(s.enemies[0].dead && cake() === 2, `「무전취식」 — 적을 처치하면 「케이크」 +1 (지금 ${cake()})`);
 }
 
 console.log("");
@@ -422,15 +422,16 @@ console.log("폭주 검사 — 턴당 횟수 제한이 없다. 거센 턴(AP +3,
         if (!key.startsWith(k + "|")) continue;
         const dm = v.dmg / me.atk;
         worst.ap = Math.max(worst.ap, v.ap); worst.draw = Math.max(worst.draw, v.draw); worst.dmg = Math.max(worst.dmg, dm);
-        if (v.ap > 2) over.ap.push(`${HERO_DATA[k].ko} ${v.ap}`);
-        if (v.draw > 3) over.draw.push(`${HERO_DATA[k].ko} ${v.draw}`);
+        // 「N개가 되면」 의 AP 한 턴 한 번 제한을 없앤 뒤(2026-10 사용자) 거센 턴의 위가 하나씩 올랐다 — +3 · 4장까지 본다
+        if (v.ap > 3) over.ap.push(`${HERO_DATA[k].ko} ${v.ap}`);
+        if (v.draw > 4) over.draw.push(`${HERO_DATA[k].ko} ${v.draw}`);
         if (dm > 15) over.dmg.push(`${HERO_DATA[k].ko} ${Math.round(dm * 100)}%`);
       }
     }
   }
   const uniq = (a) => [...new Set(a)].slice(0, 6).join(", ");
-  check(!over.ap.length, `패시브 AP — 한 턴에 +2 까지 (가장 많이 +${worst.ap})${over.ap.length ? " · 넘음 " + uniq(over.ap) : ""}`);
-  check(!over.draw.length, `패시브 드로우 — 한 턴에 3장까지 (가장 많이 ${worst.draw})${over.draw.length ? " · 넘음 " + uniq(over.draw) : ""}`);
+  check(!over.ap.length, `패시브 AP — 한 턴에 +3 까지 (가장 많이 +${worst.ap})${over.ap.length ? " · 넘음 " + uniq(over.ap) : ""}`);
+  check(!over.draw.length, `패시브 드로우 — 한 턴에 4장까지 (가장 많이 ${worst.draw})${over.draw.length ? " · 넘음 " + uniq(over.draw) : ""}`);
   check(!over.dmg.length, `패시브 피해 — 한 턴에 공격력의 15배까지 (가장 많이 ${Math.round(worst.dmg * 100)}%)${over.dmg.length ? " · 넘음 " + uniq(over.dmg) : ""}`);
   // 규칙이 제 효과로 다시 돌지 않는다 — 「적에게 디버프를 걸면 … 약화」 는 디버프 카드 한 장에 한 번만
   // 적 전체에 상태를 거는 카드를 가진 사도 하나로 본다

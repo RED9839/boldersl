@@ -253,16 +253,30 @@ export function runFx(s, fxList, ctx, api) {
           if (kw.carrier === "enemy" && !FOE.includes(tg)) tg = "oneEnemy";
           for (const t of once(resolve(s, ctx, tg))) {
             t.status = t.status || {};
-            const before = t.status[f.id] || 0;
-            let next = Math.max(0, before + f.v);
-            if (kw.cap != null) next = Math.min(kw.cap, next);
-            if (next) t.status[f.id] = next; else delete t.status[f.id];
-            if (api.stackChanged) api.stackChanged(owner.key, f.id, before, next, t);
+            // 최대를 넘게 한 번에 쌓으면 — 최대까지 채워 「N개가 되면」 을 터뜨리고(다 쓰면 비니) 남은 몫을 다시 쌓는다.
+            // 「개굴비」 +6(최대 3)이면 두 번 터진다(2026-10 사용자). 터져도 안 비면(쓰지 않는 규칙) 남은 몫은 버린다
+            let left = f.v;
+            for (let guard = 0; guard < 20; guard++) {
+              const before = t.status[f.id] || 0;
+              let next = Math.max(0, before + left);
+              if (kw.cap != null) next = Math.min(kw.cap, next);
+              if (next) t.status[f.id] = next; else delete t.status[f.id];
+              if (api.stackChanged) api.stackChanged(owner.key, f.id, before, next, t);
+              left -= next - before;
+              if (left <= 0 || next === before || (t.status[f.id] || 0) >= next) break;
+            }
           }
         } else {
-          const before = stackOf(s, owner.key, f.id);
-          addStack(s, owner.key, f.id, f.v);
-          if (api.stackChanged) api.stackChanged(owner.key, f.id, before, stackOf(s, owner.key, f.id), owner);
+          // 최대를 넘게 한 번에 쌓으면 최대까지 → 터지고 비면 남은 몫을 다시(위 표식과 같다)
+          let left = f.v;
+          for (let guard = 0; guard < 20; guard++) {
+            const before = stackOf(s, owner.key, f.id);
+            addStack(s, owner.key, f.id, left);
+            const next = stackOf(s, owner.key, f.id);
+            if (api.stackChanged) api.stackChanged(owner.key, f.id, before, next, owner);
+            left -= next - before;
+            if (left <= 0 || next === before || stackOf(s, owner.key, f.id) >= next) break;
+          }
         }
         break;
       }

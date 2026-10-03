@@ -71,6 +71,7 @@ for (const [ko, c] of Object.entries(CURSES)) {
 // 저주(골칫거리)와 같이 주인 없는 카드다. 글은 카드 글 문법으로 읽는다
 import { STATUS_CARDS } from "./data/status-cards.js";
 import { parseEffect } from "./effects.js";
+import CARDART from "./data/cardart.js";
 export const STATUS_CARD_ID = {};
 for (const [ko, c] of Object.entries(STATUS_CARDS)) {
   const { fx, left } = parseEffect(c.text);
@@ -92,7 +93,20 @@ for (const [id, c] of Object.entries(OLD)) {
   book[id] = { ...c, built: false };
 }
 
-export const CARDS = book;
+// 맨 카드 — 전투 중에 만들어진 카드(패시브 · 키워드의 「「X」 N장 생성」)는 신탁 · 기적이 붙지 않은 원래 카드다(2026-10 사용자: 시온이 만든 「진혼의 탄환」 에 신탁이 붙었다).
+// 신탁 · 기적은 카드 id 에 걸리니, 만든 카드는 id 뒤에 PLAIN 을 붙인 따로 된 카드로 든다. 처음 찾을 때 원래 카드를 베껴 둔다 —
+// 목록(Object.keys)에는 안 나오게(보상 · 상점 · 도감이 집지 않게), 그림도 원래 카드의 것을 쓴다
+export const PLAIN = "~";
+export const baseId = (id) => (typeof id === "string" && id.endsWith(PLAIN) ? id.slice(0, -1) : id);
+const plainGet = (make) => (t, k) => {
+  if (typeof k === "string" && !(k in t) && k.endsWith(PLAIN) && k.length > 1) {
+    const b = t[k.slice(0, -1)];
+    if (b !== undefined) Object.defineProperty(t, k, { value: make(b, k), enumerable: false, configurable: true });
+  }
+  return t[k];
+};
+export const CARDS = new Proxy(book, { get: plainGet((c, k) => ({ ...c, id: k, plain: true })) });
+if (CARDART && CARDART.pic) CARDART.pic = new Proxy(CARDART.pic, { get: plainGet((src) => src) });
 
 // 그 사도의 시작 덱 — 기획서에 있으면 기획서, 없으면 옛 것
 export function starterOf(heroKey) {

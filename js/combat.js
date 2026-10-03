@@ -2,7 +2,7 @@
 // 그래서 tools/sim.js 가 화면 없이 그대로 돌려 볼 수 있다.
 
 import { HEROES } from "./data/heroes.js";
-import { CARDS, starterOf, HERO_DATA, hasBuilt, flashed, STATUS_CARD_ID } from "./cardbook.js";
+import { CARDS, starterOf, HERO_DATA, hasBuilt, flashed, STATUS_CARD_ID, PLAIN } from "./cardbook.js";
 import { STARTER } from "./data/cards.js";
 import { runFx } from "./run-fx.js";
 import * as P from "./passive.js";
@@ -280,7 +280,7 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, partyHp,
   // 강화 카드는 판에 아무것도 남기지 않는다 — 낸 카드는 이 전투에서만 사라지고(s.gone), 버프는 이 전투 끝까지
   s.gained = { cards: [], flash: [] };
   s.freeOnce = {};                          // 신탁이 붙은 카드 — 이번에 내는 것은 비용 0
-  s.freeTurn = {};                          // 은총으로 얻은 카드 — 그 턴 비용 0
+  s.freeTurn = {};                          // 은총으로 얻은 카드 — 그 턴 비용 0. 카드 id → 공짜인 장수(같은 카드가 더 생겨도 그 장수만)
   // 이벤트가 걸어 둔 「다음 전투」 효과(docs/08-이벤트.md) — 이 전투에서 한 번
   if (next) {
     if (next.ap) { s.startSp += next.ap; say(s, `이벤트 — 첫 턴 AP ${next.ap > 0 ? "+" : ""}${next.ap}`); }
@@ -336,7 +336,8 @@ function emit(s, ev, info) {
       g.dmg += Math.max(0, foe0 - s.enemies.reduce((a, e) => a + Math.max(0, e.hp), 0));
     }
     // 패시브가 AP 를 주면 기록과 꼬리표로 알린다 — 말없이 늘면 AP 가 제멋대로 느는 것처럼 보였다
-    if (s.ap > ap0) { say(s, `${owner.ko}: AP +${s.ap - ap0}`); cue(s, "status", owner, { id: `AP +${s.ap - ap0}`, up: true }); }
+    // 맨 바깥 패시브에서만 — 패시브 안에서 돈 패시브(우이 「혓바닥 한 번」 → 「개굴비」)마다 알리면 AP +1 이 두 번 떴다(2026-10 사용자)
+    if (top && s.ap > ap0) { say(s, `${owner.ko}: AP +${s.ap - ap0}`); cue(s, "status", owner, { id: `AP +${s.ap - ap0}`, up: true }); }
     checkOver(s);
   });
 }
@@ -1223,9 +1224,20 @@ export function useUlt(s, heroKey, targetIdx = 0) {
   return { ok: true, ult };
 }
 
-export function costOf(s, cardId) {
+// 은총으로 얻은 카드의 「그 턴 비용 0」 — 그 장수만큼만. 손의 같은 카드 가운데 앞에서부터 그 장수가 공짜다.
+// 전에는 카드 id 로 걸어 둬서, 패시브가 같은 카드를 손에 더 넣으면 그것도 0 이 됐다(2026-10 사용자: 시온 「진혼의 탄환」).
+// handIdx 를 모르면(미리보기 · 자세히) 공짜로 본다
+export function graceFree(s, cardId, handIdx) {
+  const n = s.freeTurn ? Number(s.freeTurn[cardId]) || 0 : 0;     // 옛 저장의 true 는 1
+  if (n <= 0) return false;
+  if (handIdx == null || s.hand[handIdx] !== cardId) return true;
+  let before = 0;
+  for (let i = 0; i < handIdx; i++) if (s.hand[i] === cardId) before++;
+  return before < n;
+}
+export function costOf(s, cardId, handIdx) {
   const c = cardOf(s, cardId);
-  if ((s.freeOnce && s.freeOnce[cardId]) || (s.freeTurn && s.freeTurn[cardId])) return 0;
+  if ((s.freeOnce && s.freeOnce[cardId]) || graceFree(s, cardId, handIdx)) return 0;
   const divine = s.shin && R.shinKindOf(CARDS[cardId], s.shin[cardId]) === "cost" ? 1 : 0;      // 기적 「비용 -1」(고유 축복의 코스트 -1 도)
   // 주도 — 턴 시작에 굴려 붙은 것(beginTurn), 그 턴 아직 아무 카드도 안 냈을 때만
   const lead = s.leadOn && s.leadOn[cardId] && !(s.playedThisTurn > 0) ? 1 : 0;
@@ -1252,7 +1264,7 @@ export function applyEpiphany(s, cardId, choice) {
     say(s, `신탁! 「${CARDS[cardId].name}」 → ${f.kind || ""} ${f.ko || ""}${opt.shin ? " · 기적" : ""}`);
   } else {
     if (s.hand.length < R.HAND_MAX) s.hand.push(opt); else s.discard.push(opt);
-    s.freeTurn[opt] = true;
+    s.freeTurn[opt] = (Number(s.freeTurn[opt]) || 0) + 1;
     s.gained.cards.push(opt);
     say(s, `은총! ${HERO(g.hero).ko} — 「${CARDS[opt].name}」`);
   }
@@ -1260,11 +1272,11 @@ export function applyEpiphany(s, cardId, choice) {
 }
 
 // 낼 수 있는가 — 낼 수 없으면 왜인지 돌려준다(화면이 그대로 보여 준다)
-export function canPlay(s, cardId, { free } = {}) {
+export function canPlay(s, cardId, { free, handIdx } = {}) {
   const c = cardOf(s, cardId);
   if (hasTag(c, "사용불가")) return "낼 수 없는 카드입니다";
   if (s.finaleLock) return "종극 — 이번 턴은 끝났습니다";
-  if (!free && costOf(s, cardId) > s.ap) return "AP가 모자랍니다";
+  if (!free && costOf(s, cardId, handIdx) > s.ap) return "AP가 모자랍니다";
   const owner = c.hero ? s.party.find((u) => u.key === c.hero) : null;
   if (c.hero && (!owner || owner.dead)) return `${이가(HERO(c.hero).ko)} 나설 수 없습니다`;
   if (c.need && c.need.row && owner && owner.row !== c.need.row)
@@ -1277,7 +1289,7 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   if (s.over) return { ok: false, why: "전투가 끝났습니다" };
   const cardId = s.hand[handIdx];
   if (!cardId) return { ok: false, why: "그런 카드가 없습니다" };
-  const why = canPlay(s, cardId);
+  const why = canPlay(s, cardId, { handIdx });
   if (why) return { ok: false, why };
 
   const c = cardOf(s, cardId);
@@ -1286,7 +1298,8 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   const owner = c.hero ? s.party.find((u) => u.key === c.hero) : null;
 
   // X 코스트는 남은 AP 를 전부 쓴다. 그 수가 곧 X 다.
-  const paid = c.xcost ? s.ap : costOf(s, cardId);
+  const grace = !(s.freeOnce && s.freeOnce[cardId]) && graceFree(s, cardId, handIdx);
+  const paid = c.xcost ? s.ap : costOf(s, cardId, handIdx);
   // 조율(v6 카제나) — 이 카드의 비용이 낼 때 남은 AP 와 같다(「조율: …」 의 뒤가 돈다)
   const tune = !c.xcost && paid === s.ap;
   s.ap -= paid;
@@ -1296,6 +1309,7 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   }
   s.nextCheaper = 0;
   if (s.freeOnce) delete s.freeOnce[cardId];
+  if (grace) { const left = (Number(s.freeTurn[cardId]) || 1) - 1; if (left > 0) s.freeTurn[cardId] = left; else delete s.freeTurn[cardId]; }
   s.hand.splice(handIdx, 1);
   s.discardPick = Array.isArray(opts.discard) ? opts.discard.slice() : null;
 
@@ -1364,12 +1378,15 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
     if (coffer) { s.ap += coffer; say(s, `곳간 — AP +${coffer}`); }
   }
 
-  // 강화 카드(rules.js isPower) — 내면 이 전투에서만 사라진다(소멸처럼 s.gone). 판의 덱에는 남아 다음 전투에 다시 쓴다
-  const spent = R.isPower(c);                 // c — 신탁을 얹은 카드. 「강화 카드.」 신탁을 고른 카드도 강화 카드다
-  if (spent) say(s, `강화 카드 「${c.name}」 — 이 전투에서 사라진다`);
-  if (!sealed) kwConsume(s, owner, c);
   // 소멸 N(v6 카제나) — 이 전투에서 N 번 내면 소멸 · 회수(N) — 버린 더미 대신 손으로(한 전투에 N 번)
   const useN = (c.fx || []).find((f) => f.k === "tag" && f.id === "소멸N");
+  // 강화 카드 — 사도의 것(rules.js isPower)과 소멸인 교주 강화 카드는 내면 이 전투에서만 사라진다(s.gone). 판의 덱에는 남아 다음 전투에 다시 쓴다.
+  // 신탁 글에 「소멸」 을 따로 적지 않는다 — 기본 카드가 소멸이면 신탁을 골라도 소멸이다(2026-10 사용자: 「어차피 강화 카드라 한 번 쓰면 소멸」).
+  // 「소멸 N」 신탁이면 N 번까지(아래 goneN). 소멸이 아닌 교주 강화 카드(「사기진작」 — 연계로 거듭 나간다)는 그대로
+  const base0 = CARDS[cardId.endsWith(PLAIN) ? cardId.slice(0, -1) : cardId] || c;
+  const spent = (R.isPower(c) || (c.type === "강화" && (base0.tags || []).includes("소멸"))) && !useN;   // c — 신탁을 얹은 카드. 「강화 카드.」 신탁을 고른 카드도 강화 카드다
+  if (spent) say(s, `강화 카드 「${c.name}」 — 이 전투에서 사라진다`);
+  if (!sealed) kwConsume(s, owner, c);
   if (useN) s.useCount = { ...(s.useCount || {}), [cardId]: ((s.useCount || {})[cardId] || 0) + 1 };
   const goneN = !!useN && s.useCount[cardId] >= useN.n;
   const recall = (c.fx || []).find((f) => f.k === "tag" && f.id === "회수");
@@ -1679,6 +1696,8 @@ function glowUse(s) {
 }
 const glowOn = (s) => !!s.actSeq && s.glowSeq === s.actSeq;
 // run-fx 가 쓰는 손잡이 — 엔진 속을 그쪽에 통째로 넘기지 않으려고 좁게 연다
+// 시험 도구가 효과를 바로 돌려 볼 때(tools/check-czn.js)
+export const fxApiFor = (s) => fxApi(s);
 function fxApi(s) {
   return {
     hurt: (t, v, o) => hurt(s, t, v, o),
@@ -1701,7 +1720,9 @@ function fxApi(s) {
       const all = Object.keys(CARDS).filter((id) => CARDS[id].name === name || CARDS[id].ko === name);
       const id = all.find((x) => owner && CARDS[x].hero === owner.key) || all[0];
       if (!id) { say(s, `(만들 카드가 없다: 「${name}」)`); return; }
-      for (let k = 0; k < n; k++) { if (s.hand.length < R.HAND_MAX) s.hand.push(id); else s.discard.push(id); }
+      // 만든 카드는 맨 카드(cardbook PLAIN) — 덱의 같은 카드에 붙은 신탁 · 기적을 따라가지 않는다
+      const made = id + PLAIN;
+      for (let k = 0; k < n; k++) { if (s.hand.length < R.HAND_MAX) s.hand.push(made); else s.discard.push(made); }
       say(s, `「${CARDS[id].name}」 ${n}장 — 손으로`); cue(s, "status", owner || alive(s.party)[0], { id: `「${CARDS[id].name}」 +${n}`, up: true });
     },
     // 카드로 처음 칠 때 — 충격(공격 카드의 대상이 되면 고정 피해 80%, 실드 · 방어가 있으면 +50%) · 충격파(카드로 맞으면 다른 모든 적에게 고정 피해 300%). 둘 다 1 쓴다

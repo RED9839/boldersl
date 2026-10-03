@@ -137,7 +137,9 @@ for (const c of Object.values(neutral)) {
     if (r.left) errs.push(`${at}못 읽은 말: 「${r.left}」`);
     ofx.push({ fx: r.fx, at: at.slice(0, -3) });
     // 신탁을 고른 카드는 신탁 글이 전문이다 — 머리 태그(소멸 등)는 엔진이 보지 않는다(js/combat.js hasTag). 그래서 여기서도 신탁 글의 태그만 본다
-    const fc = flashCost(c.cost, r.fx), ftags = tagsOf(r.fx);
+    // 강화 카드는 내면 저절로 사라진다(combat.js playCard) — 신탁 글에 「소멸」 을 안 적어도 소멸로 친다(「소멸 N」 이면 그 글대로)
+    const ftags0 = tagsOf(r.fx), ftags = c.type === "강화" && tags.includes("소멸") && !ftags0.includes("소멸") && !ftags0.includes("소멸N") ? [...ftags0, "소멸"] : ftags0;
+    const fc = flashCost(c.cost, r.fx);
     const body = r.fx.filter((x) => x.k !== "costSet" && x.k !== "costDelta");
     const fv = cardValue(body, ftags), gone = ftags.includes("소멸");
     statFree(body, at);

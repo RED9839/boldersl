@@ -2310,16 +2310,16 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     });
     for (const { id, i } of order) {
       const c = C.cardOf(st, id);
-      const why = C.canPlay(st, id);
+      const why = C.canPlay(st, id, { handIdx: i });
       // 도감 카드와 같은 꼴로 세운다 — 그림이 카드를 채우고 글자가 그 위에 얹힌다.
       const pic = CARDART.pic[id] || null;
       const full = !!pic && pic.includes("/cardart/");
       const b = el("button", "card gcard k-" + (TKIND[c.type] || "skill") + natureClass(c)
         + (full ? " full" : "") + (why ? " no" : "") + (selCard === i ? " sel" : "") + (c.ego ? " ego" : "")
-        + (C.glowOf(st, id) ? " glow glow-" + C.glowOf(st, id).kind : "") + (st.freeTurn && st.freeTurn[id] ? " fresh" : ""));
+        + (C.glowOf(st, id) ? " glow glow-" + C.glowOf(st, id).kind : "") + (C.graceFree(st, id, i) ? " fresh" : ""));
 
       const chead = el("div", "ghead");
-      chead.appendChild(el("span", "gcost", c.xcost ? "X" : `${C.costOf(st, id)}`));
+      chead.appendChild(el("span", "gcost", c.xcost ? "X" : `${C.costOf(st, id, i)}`));
       const ctitle = el("div", "gtitle");
       ctitle.appendChild(el("b", null, c.name));
       const cty = el("span", "gtype");

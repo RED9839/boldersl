@@ -849,5 +849,58 @@ console.log("치명 키워드 — 치명타가 터졌을 때만 1 준다(「은�
   }
 }
 
+console.log("은총으로 얻은 카드의 「그 턴 비용 0」 은 그 한 장만(2026-10 사용자: 시온 「진혼의 탄환」)");
+{
+  const id = "시온더다크불릿_u3";
+  const s = C.newCombat({ partyKeys: ["시온더다크불릿", "티그", "네르"], deck: [], enemyIds: ["buseuleogi"], seed: 5 });
+  s.enemies[0].hp = s.enemies[0].maxHp = 99999;
+  s.hand = [id]; s.freeTurn = { [id]: 1 }; s.ap = 5;
+  s.hand.push(id);                                   // 패시브가 같은 카드를 한 장 더 넣었다
+  check(C.costOf(s, id, 0) === 0 && C.costOf(s, id, 1) === CARDS[id].cost, `은총 카드만 0, 새로 들어온 같은 카드는 ${CARDS[id].cost} (${C.costOf(s, id, 0)} · ${C.costOf(s, id, 1)})`);
+  C.playCard(s, 0, 0);
+  check(s.ap === 5 && !s.freeTurn[id], `은총 카드를 내면 AP 그대로(${s.ap}) · 공짜가 끝난다`);
+  const i = s.hand.indexOf(id);
+  check(i >= 0 && C.costOf(s, id, i) === CARDS[id].cost, "남은 같은 카드는 제 비용");
+}
+
+console.log("만든 카드는 맨 카드 — 덱의 같은 카드에 붙은 신탁을 따라가지 않는다(2026-10 사용자: 시온 「마탄」 → 「진혼의 탄환」)");
+{
+  const id = "시온더다크불릿_u3";
+  const atk = Object.keys(CARDS).find((k) => CARDS[k].hero === "시온더다크불릿" && CARDS[k].type === "공격" && k !== id);
+  const s = C.newCombat({ partyKeys: ["시온더다크불릿", "티그", "네르"], deck: [atk], enemyIds: ["buseuleogi"], seed: 5, flash: { [id]: 1 } });
+  s.enemies[0].hp = s.enemies[0].maxHp = 99999;
+  s.stacks = { 시온더다크불릿: { 마탄: 4 } }; s.hand = [atk]; s.ap = 9;
+  C.playCard(s, 0, 0);
+  const made = [...s.hand, ...s.discard].find((x) => x.startsWith(id));
+  check(!!made && made !== id, `「마탄」 5 — 「진혼의 탄환」 이 맨 카드로 들어온다 (${made})`);
+  check(made && C.cardOf(s, made).text === CARDS[id].text && C.cardOf(s, id).text !== CARDS[id].text, "만든 카드는 원래 글, 덱의 카드는 신탁 글");
+  check(!Object.keys(CARDS).some((k) => k.endsWith("~")), "맨 카드는 카드 목록(보상 · 상점 · 도감)에 안 나온다");
+}
+
+console.log("키워드가 최대를 넘게 한 번에 쌓이면 그만큼 터진다 · AP 한 턴 한 번 제한 없음(2026-10 사용자: 우이 「개굴비」)");
+{
+  const RF = await import("../js/run-fx.js");
+  const s = C.newCombat({ partyKeys: ["우이", "티그", "네르"], deck: [], enemyIds: ["buseuleogi"], seed: 3 });
+  s.enemies[0].hp = s.enemies[0].maxHp = 99999;
+  s.ap = 0;
+  const owner = s.party.find((u) => u.key === "우이");
+  const api = C.fxApiFor(s);
+  {
+    RF.runFx(s, [{ k: "stack", id: "개굴비", v: 6, target: "auto" }], { owner, targetIdx: 0 }, api);
+    check(s.ap === 2, `「개굴비」 +6 (최대 3) — 두 번 터져 AP +2 (${s.ap})`);
+  }
+}
+
+console.log("강화 카드는 「소멸」 없이도 내면 사라진다 · 「소멸 2」 신탁은 두 번(2026-10 사용자: 교주 「자기 계발」)");
+{
+  const id = "중립_자기계발";
+  const mk = (n) => { const s = C.newCombat({ partyKeys: ["우이", "티그", "네르"], deck: [], enemyIds: ["buseuleogi"], seed: 3, flash: n ? { [id]: n } : {} }); s.enemies[0].hp = s.enemies[0].maxHp = 99999; s.hand = [id]; s.ap = 9; return s; };
+  for (const n of [0, 3]) { const s = mk(n); C.playCard(s, 0, 0); check(s.gone.includes(id), `신탁 ${n || "없음"} — 내면 사라진다`); }
+  const s = mk(2); C.playCard(s, 0, 0); const first = s.discard.includes(id);
+  s.hand = [id]; s.discard = []; C.playCard(s, 0, 0);
+  check(first && s.gone.includes(id), "「소멸 2」 — 첫 번째는 버린 더미, 두 번째에 사라진다");
+  check(!Object.values(CARDS).some((c) => c.type === "강화" && (c.flash || []).some((f) => /소멸(?!\s*\d)/.test(f.text || ""))), "강화 카드 신탁 글에 뜻 없는 「소멸」 이 없다");
+}
+
 console.log(bad ? `실패 ${bad}개` : "카제나 전투 체계가 규칙대로 돈다");
 process.exit(bad ? 1 : 0);

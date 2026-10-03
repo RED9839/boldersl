@@ -249,9 +249,8 @@ export function setupPassives(s, heroOf, gearFx = {}) {
     const gearRules = gearFx[u.key] ? parsePassive(gearFx[u.key], kws).filter((r) => r.fx.length && !r.left).map((r) => ({ ...r, gear: true })) : [];
     // 키워드 규칙에는 표식이 어디 붙는지(kwOf)를 달아 둔다 — 아군에게 거는 표식의 「카드를 낼 때마다 「X」가 있으면」 은
     // 그 표식을 든 아군이 낼 때다(matches · condOk). 주인 혼자 낼 때만 보던 것을 고쳤다(실비아 「초청객」)
-    // 「「X」가 N개가 되면: … AP +N」 — AP 는 한 턴에 한 번(apOnce). 한 장이 겹을 크게 쌓고 다음 장이 또 채우면 같은 턴에 두 번 터져 AP 가 샜다.
-    // 규칙 자체(소모 · 나머지 효과)는 그대로 돈다 — 막으면 겹이 꽉 찬 채 다시는 「되면」 이 안 온다
-    const kwRules = kw ? kw.rules.map((r) => ({ ...r, kwOf: kw.carrier, ...(!r.limit && r.fx.some((f) => f.k === "ap" && f.v > 0) ? { apOnce: true } : {}) })) : [];
+    // 「N개가 되면: … AP +N」 의 한 턴 한 번 제한은 없앴다(2026-10 사용자 — 스킬로 「개굴비」 6을 한 번에 쌓으면 두 번 터져야 한다)
+    const kwRules = kw ? kw.rules.map((r) => ({ ...r, kwOf: kw.carrier })) : [];
     const rules = [...(h.passiveRules || parsePassive(h.passive, kws)), ...kwRules, ...gearRules];
     s.passives[u.key] = rules;
     if (kw) s.kw[kw.id] = { ...kw, owner: u.key };
@@ -411,7 +410,6 @@ export function emit(s, ev, info, run) {
         }
         if (!r.fx.length) return;
         let fx = r.fx;
-        if (r.apOnce) { const ak = `${id}|ap|${s.turn}`; if (s.fired[ak]) fx = fx.filter((f) => !(f.k === "ap" && f.v > 0)); else s.fired[ak] = 1; }
         const target = info.target && info.target.side === "enemy" ? info.target : null;
         const holder = ev === "stackReach" && info.target && info.target !== owner ? info.target : null;
         const ally = info.who && info.who.side === "party" && !info.who.dead ? info.who : owner;

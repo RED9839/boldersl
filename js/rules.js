@@ -17,7 +17,8 @@ export const EVENT_FLOOR_SHARE = 0.7;
 // 적 체력 배율 — 난이도 손잡이. enemies.js 의 수치에 곱한다.
 // 기준: 아무 생각 없는 손(tools/sim.js, 시작 덱)이 1층을 30~40% 완주하게. 사람은 이보다 훨씬 잘한다.
 // (스킬이 실제로 돌게 되자 같은 손이 69~100% 를 깼다 — 그래서 올렸다)
-export const ENEMY_HP = 1.3;
+// 2026-10-04 사용자 「너무 루즈하다」 — 전투 템포를 빠르게: 1.3 → 0.85(×0.65). 짧아진 만큼 적 피해(FLOOR_DMG)를 올려 판 완주 30% 안팎으로
+export const ENEMY_HP = 0.85;
 
 // ── 눈금(v6, 2026-10 사용자 — 카제나 눈금) ─────────────────────────────────
 // 옛 수치(사도 HP 55~100 · 공격 6~15 · 방어 2~7 · 적 체력 수십)를 열 배로 옮겼다 — 사도 HP 550~1100 · 공격 60~150 · 방어 25~80,
@@ -54,7 +55,7 @@ export const BOSS_HP = { 1: 0.7, 2: 0.65, 3: 0.6, final: 0.8 };
 // v6 사도는 스탯 식이 바뀌어(딜러 HP 620 · 방어 29) 2층부터 버티지 못했다. 1층은 거의 그대로 두고 2층 · 3층 · 마지막을 절반 가까이 내렸다.
 // --parties 4 --runs 3(씨앗 0) 26.7% + --parties 6 --runs 3(씨앗 1) 21.7% = 300판 23.7% — 쓰러진 층 9 · 36.5 · 26 · 4.7,
 // 일반 싸움 4.0~4.9턴 · 보스 7.1~8.6턴. 편성(한 칸 30판이라 ±10) TTS 50 · TSD 40 · TTT 37 · TTD 30 · SSS 27 · SSD 27 · TSS 23 · SDD 3 · TDD 0 · DDD 0.
-export const FLOOR_DMG = { 1: 1.9, 2: 2.3, 3: 3.6, final: 4.2 };
+export const FLOOR_DMG = { 1: 2.4, 2: 2.4, 3: 3.8, final: 5.3 };
 // floor — run.floor(0부터). final 이면 마지막 싸움(우로스)
 export function foeScale(floor, { boss = false, final = false, elite = false } = {}) {
   const k = final ? "final" : floor + 1;
