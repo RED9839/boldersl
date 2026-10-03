@@ -823,6 +823,7 @@ export function settleGear(run, then, { save = () => writeSave(run) } = {}) {
   while (run.bag.length && !EQUIP[run.bag[0]]) run.bag.shift();   // 데이터에서 사라진 장비는 조용히 버린다
   if (!run.bag.length) { if (then) then(); return; }
   const id = run.bag[0], e = EQUIP[id], price = R.sellPrice(id);
+  const bought = R.isBought(run, id);               // 상점에서 산 것 — 팔기는 없고 껴야 한다
   const box = centerModal("gearmodal gearpick", then || null);
   const back = box.parentNode;
   if (back) back.onclick = null;                  // 바깥을 눌러도 안 닫힌다
@@ -837,11 +838,13 @@ export function settleGear(run, then, { save = () => writeSave(run) } = {}) {
 
   const body = el("div", "bmbody");
   body.appendChild(el("span", "bmkind", `장비를 얻었습니다${run.bag.length > 1 ? ` · 정할 장비 ${run.bag.length}점 — 하나씩 묻습니다` : ""}`));
-  body.appendChild(el("h3", "bmname", `「${e.ko}」 — 낄까요, 팔까요?`));
-  body.appendChild(el("p", "gbagh", `사도 하나에게 끼거나 ${price} 골드에 팝니다 · 찬 칸에 끼면 낀 것은 팔립니다 · 넣어 둘 가방은 없습니다`));
+  body.appendChild(el("h3", "bmname", bought ? `「${e.ko}」 — 누구에게 낄까요?` : `「${e.ko}」 — 낄까요, 팔까요?`));
+  body.appendChild(el("p", "gbagh", bought
+    ? "산 장비는 사도에게 낍니다 · 찬 칸에 끼면 낀 것은 팔립니다 — 낀 장비는 이렇게 바꿔 낄 때만 팝니다"
+    : `사도 하나에게 끼거나 ${price} 골드에 팝니다 · 찬 칸에 끼면 낀 것은 팔립니다 · 넣어 둘 가방은 없습니다`));
 
   let pick = null;                                  // 사도 key 또는 "sell"
-  const go = el("button", "bmuse", "낄 사도나 팔기를 고르세요");
+  const go = el("button", "bmuse", bought ? "낄 사도를 고르세요" : "낄 사도나 팔기를 고르세요");
   go.disabled = true;
   const opts = el("div", "gpk-opts");
   const choose = (cell, what, label) => {
@@ -892,12 +895,13 @@ export function settleGear(run, then, { save = () => writeSave(run) } = {}) {
   st.appendChild(el("span", "gsl", `아무에게도 끼지 않고 사는 값의 ${Math.round(RULES.EQUIP_SELL * 100)}% 에 팝니다`));
   sell.appendChild(st);
   sell.onclick = () => choose(sell, "sell", `팝니다 +${price} 골드`);
-  opts.appendChild(sell);
+  if (!bought) opts.appendChild(sell);
   body.appendChild(opts);
 
   go.onclick = () => {
     if (!pick) return;
     const sold = pick === "sell" || !!R.gearOf(run, pick)[e.slot];
+    if (pick === "sell" && bought) return;
     const why = pick === "sell" ? R.sellEquip(run, id) : R.equip(run, pick, id, { replace: true });
     save();
     if (why) { hint(why); return; }

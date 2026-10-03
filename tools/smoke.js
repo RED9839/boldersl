@@ -842,16 +842,19 @@ console.log("\n장비");
   check(r.shop.items.filter((it) => it.kind === "equip").length === 3, "골디의 상점에 장비 세 점");
   check(count(sp, "sh-bag") === 0 && !/가방/.test(sp.textContent), "상점에 「가방」 이 없다");
   {
-    // 사면 그 자리에서 끼기 or 팔기 창 — 상점 밖으로 나가지 않고 판다(2026-10 사용자)
+    // 사면 그 자리에서 끼는 창 — 산 장비는 팔 수 없고 껴야 한다. 찬 칸에 끼면 낀 것이 팔린다 — 낀 장비를 파는 길은 이것뿐(2026-10 사용자)
     const idx = r.shop.items.findIndex((it) => it.kind === "equip");
     const it = r.shop.items[idx], nN = r.shop.items.filter((x) => x.kind === "neutral").length;
     const g0 = r.gold;
     clickAll(sp, (n) => n.classList.contains("sh-buy"))[nN].onclick();
     const pk = gearPick();
-    check(it.sold && r.gold === g0 - it.price && r.bag.length === 1 && !!pk && pk.textContent.includes(`「${EQUIP[it.id].ko}」`), "장비를 사면 곧장 끼기 or 팔기 창이 뜬다");
-    clickAll(pk, (n) => n.classList.contains("gpk-sellopt"))[0].onclick();
+    check(it.sold && r.gold === g0 - it.price && r.bag.length === 1 && !!pk && pk.textContent.includes(`「${EQUIP[it.id].ko}」`), "장비를 사면 곧장 끼는 창이 뜬다");
+    check(count(pk, "gpk-sellopt") === 0 && count(pk, "gpk-opt") === r.party.length && !!R.sellEquip(r, it.id), "산 장비는 팔기가 없다 — 사도 셋 가운데 골라 낀다");
+    const k = r.party[0], old = R.gearOf(r, k)[EQUIP[it.id].slot], g1 = r.gold;
+    clickAll(pk, (n) => n.classList.contains("gpk-opt"))[0].onclick();
     clickAll(pk, (n) => n.classList.contains("bmuse"))[0].onclick();
-    check(!r.bag.length && r.gold === g0 - it.price + R.sellPrice(it.id) && !gearPick(), "상점 안에서 바로 판다 — 판 값이 곧장 들어온다");
+    check(!r.bag.length && !r.bagBought.length && R.gearOf(r, k)[EQUIP[it.id].slot] === it.id && r.gold === g1 + (old ? R.sellPrice(old) : 0) && !gearPick(),
+      "끼면 창이 닫히고, 찬 칸이었으면 낀 것이 팔린다");
   }
   // 사도가 나가면 장비는 가방으로
   const outK = r.party[0], nGear = Object.keys(R.gearOf(r, outK)).length, bagN = r.bag.length;

@@ -44,6 +44,8 @@ export function makeRunner({ C, B, R, RULES, M, EV, ENEMIES, FLOORS, bots }) {
         if (g > gain) { gain = g; best = k; }
       }
       // 가방이 없다(2026-10 사용자) — 낄 사도가 없으면 판다. 생각 없는 봇도 남겨 두지 않는다
+      // 상점에서 산 것은 팔 수 없다 — 낄 곳이 마땅치 않아도 첫 사도에게
+      if (!best && R.isBought(run, id)) best = run.party[0];
       if (best) R.equip(run, best, id, { replace: true });
       else R.sellEquip(run, id);
     }
