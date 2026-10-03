@@ -233,7 +233,7 @@ check(started.party.join(",") === "에르핀,티그,네르", `자리를 바꾼 �
     for (let turn = 0; turn < 3 && !t.over; turn++) {
       for (let g = 0; g < 6; g++) {
         const i = t.hand.findIndex((id) => !C2.canPlay(t, id)); if (i < 0) break; C2.playCard(t, i, 0);
-        buff = buff || t.party.some((u) => (u.mods || []).some((m) => m.stat === "dealt" && m.v > 0 && /서 있는 열에 따라/.test(m.src || "")));
+        buff = buff || t.party.some((u) => ((u.status || {})["사기"] || 0) > 0);   // 후열 줄 — 아군 전원 사기(옛 「주는 피해 +15%」, tools/convert-mods.js)
       }
       if (!t.over) C2.endTurn(t);
     }
@@ -242,7 +242,7 @@ check(started.party.join(",") === "에르핀,티그,네르", `자리를 바꾼 �
   };
   const mid = lit("mid"), back = lit("back"), front = lit("front");
   check(mid.row === "mid" && mid.fired && mid.ap && !mid.buff, `죠안 중열 — 중열 줄(AP +1)만 (게이지 ${mid.gauge}%)`);
-  check(back.row === "back" && back.fired && back.buff && !back.ap, "죠안 후열 — 후열 줄(아군 주는 피해 +15%)만");
+  check(back.row === "back" && back.fired && back.buff && !back.ap, "죠안 후열 — 후열 줄(아군 전원 사기)만");
   check(front.row === "front" && front.fired && !front.ap && !front.buff, "죠안 전열 — 중열 · 후열 줄은 꺼진다");
 }
 
@@ -887,8 +887,8 @@ console.log("AP · 고학년 게이지 · 상성 (기획서 규칙)");
   check(R.natureEdge("활발", "우울") === 1 && R.natureEdge("우울", "활발") === 1, "활발과 우울은 서로 유리");
   check(R.natureEdge("공명", "순수") === 0, "공명은 상성이 없다");
 
-  // 취약·약화는 기획서 수치(+10% / -10%)
-  check(R.FRAIL === 0.10 && R.WEAK === 0.10, `취약 +${R.FRAIL * 100}% · 약화 -${R.WEAK * 100}%`);
+  // 취약 · 약화는 카제나 수치(+50% / -25%, 2026-10 사용자) — rules.js STATUS_V 한 표
+  check(R.STATUS_V.취약 === 0.5 && R.STATUS_V.약화 === 0.25, `취약 +${R.STATUS_V.취약 * 100}% · 약화 -${R.STATUS_V.약화 * 100}%`);
 }
 
 console.log("");

@@ -116,7 +116,7 @@ console.log("대상");
   const pick = (ko) => Object.values(B.cards).find((c) => c.ko === ko);
   const want = [
     // 한 카드에 대상이 여럿 — 스킬 재구성 뒤의 마력 난타(docs/07-스킬구성.md)
-    ["마력 난타", "takenMod", "self"], ["마력 난타", "dmg", "oneEnemy"],   // v3 — 한 놈에게 몰아친다(docs/14)
+    ["마력 난타", "status", "self"], ["마력 난타", "dmg", "oneEnemy"],   // v3 — 한 놈에게 몰아친다(docs/14). 「자신 불굴 1」(옛 받는 피해 -20%)
   ];
   for (const [ko, k, t] of want) {
     const c = pick(ko);
@@ -146,7 +146,7 @@ console.log("X 코스트");
   // (AP 3 + 왕마력 2) = 5회 × 공격력 50% (v4 에서 70% → 50%, docs/15)
   const one = Math.round(me.atk * 0.5);
   dealt >= one * 4 ? ok(`(AP+왕마력)회 때린다 — 준 피해 ${dealt} (한 대 ${one})`) : fail(`한두 번만 쳤다 — 준 피해 ${dealt}`);
-  (me.mods || []).some((m) => m.stat === "taken" && m.v < 0) ? ok("받는 피해 감소는 자기에게") : fail("받는 피해 감소가 자기에게 안 들어왔다");
+  ((me.status || {})["불굴"] || 0) > 0 ? ok("불굴(받는 피해 감소)은 자기에게") : fail("불굴이 자기에게 안 들어왔다");
 }
 
 // ── 피해 미리보기 — 보여 준 값과 실제로 들어간 값이 같은가 ─────────────
@@ -247,12 +247,41 @@ console.log("적의 수");
   kinds.size >= 6 ? ok(`여러 수를 섞어 쓴다 (${kinds.size}가지)`) : fail(`수가 단조롭다 (${kinds.size}가지)`);
 
   // 모든 적의 수가 엔진이 아는 종류다
-  const KNOWN = new Set(["attack", "back", "attackAll", "multi", "charge", "block", "guard", "heal", "buff", "debuff", "jam"]);
+  const KNOWN = new Set(["attack", "back", "attackAll", "multi", "charge", "block", "guard", "heal", "buff", "debuff", "jam", "addCard"]);   // addCard — 상태 카드(docs/16)
   const bad = [];
   for (const [k, e] of Object.entries(ENEMIES))
     for (const it of [...e.intents, ...(e.open ? [e.open] : []), ...((e.phase || {}).intents || []), ...((e.phase2 || {}).intents || [])])
       for (const x of [it, ...(it.next ? [it.next] : [])]) if (!KNOWN.has(x.t)) bad.push(`${k}:${x.t}`);
   bad.length === 0 ? ok("적의 수가 전부 엔진이 아는 종류다") : fail(`모르는 수 ${bad.join(", ")}`);
+}
+
+// ── 강인도 · 격파(카제나) — 새 글이 읽히고 실행기가 엔진 손잡이를 부르는가. 엔진 쪽 규칙은 tools/check-toughness.js ──
+console.log("");
+console.log("강인도 · 격파");
+{
+  const { parseEffect } = await import("../js/effects.js");
+  const p = (t) => parseEffect(t);
+  const a = p("분쇄. 잔불. 약점. 적 1명에게 2회 × 공격력 50% 피해, 강인도 피해 2. 파괴: AP +1");
+  const ks = a.fx.map((f) => (f.k === "tag" ? f.id : f.k)).join(" ");
+  !a.left && ks === "분쇄 잔불 약점 dmg tough ifBroken ap" ? ok(`다섯 낱말이 읽힌다 (${ks})`) : fail(`읽기 ${ks} · 남음 「${a.left}」`);
+  // 실행 — 카드의 첫 타격에 한 번(약점이면 더) · 강인도 피해 N · 파괴는 격파된 적에게만
+  const b = board("에르핀");
+  const calls = [];
+  b.api.tough = (t, n) => { calls.push([t.key, n]); if ((t.tough = (t.tough ?? 3) - n) <= 0) t.broken = true; };
+  b.api.weak = (from, t, tags) => !!(tags && tags.약점);
+  b.s.ap = 0;
+  runFx(b.s, a.fx, { owner: b.me, targetIdx: 0, card: true, tags: { 약점: true } }, b.api);
+  const want = JSON.stringify([["적1", R.TOUGH.hit + R.TOUGH.weak], ["적1", 2]]);
+  JSON.stringify(calls) === want ? ok(`두 번 쳐도 첫 타격에 한 번 · 강인도 피해 2 (${JSON.stringify(calls)})`) : fail(`강인도 손잡이 ${JSON.stringify(calls)} (${want} 여야)`);
+  b.s.ap === 1 ? ok("격파된 적이라 「파괴: AP +1」 이 돈다") : fail(`파괴 뒤 AP ${b.s.ap}`);
+  const c = board("에르핀");
+  c.api.tough = () => {}; c.s.ap = 0;
+  runFx(c.s, p("적 1명에게 공격력 50% 피해. 파괴: AP +1").fx, { owner: c.me, targetIdx: 0, card: true }, c.api);
+  c.s.ap === 0 ? ok("격파 안 된 적이면 「파괴:」 뒤가 안 돈다") : fail(`격파 전 파괴가 돌았다 (AP ${c.s.ap})`);
+  const d = board("에르핀"), n = [];
+  d.api.tough = (t, v) => n.push(v);
+  runFx(d.s, p("적 1명에게 공격력 50% 피해").fx, { owner: d.me, targetIdx: 0 }, d.api);
+  n.length === 0 ? ok("카드가 아닌 피해(패시브)는 강인도를 안 깎는다") : fail(`패시브 피해가 강인도를 깎았다 ${n}`);
 }
 
 // ── 안 도는 조각을 세는가 ──────────────────────────────────────────────

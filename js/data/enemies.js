@@ -14,6 +14,8 @@
 //                기절·봉인으로 멈추게 하거나 수를 흐트러뜨리면 모은 힘이 흩어진다
 //   block v      자기 방어 · guard v  적 전체 방어 · heal v  체력 비율이 가장 낮은 적을 회복
 //   buff         자기 강화 · debuff  아군 전체에 상태 · jam  다음 턴 AP 를 깎는다
+//   addCard      상태 카드(js/data/status-cards.js)를 n 장 끼워 넣는다 — to: draw(뽑을 더미에 섞는다) · discard(버린 더미) · hand(손).
+//                이 전투에만 있다(판의 덱에는 안 들어간다, docs/16)
 //
 // 고르는 법 — 전에는 모두 정해진 순서를 돌아서 두 판만 하면 다 외워졌다.
 //   pick: "cycle"(기본)  적힌 순서대로. 보스는 읽히는 편이 공정하다
@@ -27,6 +29,15 @@
 //   on  fightStart · turnStart · turnEnd · hurt · lowHp(at) · allyDown · card(type · every) · rushed · debuffed
 //   do  수와 같은 모양 {t, v, …} 또는 thorns v(때린 사도에게) · selfHeal v
 //   limit  턴당 몇 번(기본 1, 0 은 제한 없음). fightStart · lowHp 는 한 번
+// weak [성격…]  약점 성격(강인도 · 격파, rules.js TOUGH) — 안 적으면 상성에서(그 성격을 이기는 성격). 성격 없는 적(누루링 · 원작 보스)은 적어 둔다
+//   원작에서 이들은 모두 「성격없음」 이다(나무위키 「트릭컬 리바이브/몬스터」 누루링 시리즈 · 「트릭컬 리바이브/콘텐츠/엘리아스 프론티어」 —
+//   프론티어 보스는 무속성. 사본 .omc/research/namu/_몬스터.txt · _트릭컬_리바이브_콘텐츠_엘리아스_프론티어.txt). 그래서 원작 설정에서 고른다(2026-10, docs/16):
+//   누루링-요정  우울 — 교주의 기록 「단 것에 집착하고 … 힘자랑 … 찹찹 치대며 격려」: 당이 오른 들뜬 무리(활발 꼴, 이웃 고혈당 요정도 활발) → 활발을 이기는 우울
+//   누루링-엘프  광기 — 「엘프 도시 근처 … 감시」: 엘프 돌격병-순수(원작 「징병제 군인」)와 같은 규율의 무리(순수 꼴) → 순수를 이기는 광기
+//   누루링-마녀  순수 — 마녀의 땅을 다스리는 햇팽이 마녀가 냉정(마녀의 의식이 옮겨 간 몸) → 냉정을 이기는 순수
+//   M.E.O.W     순수 — 엘레나(냉정)가 만든 기계. 차갑게 계산하는 몸(냉정 꼴) → 냉정을 이기는 순수
+//   우로스      활발 — 우로스 문서의 친밀 대사 「슈로였을 때의 활발하고 개구쟁이 같던 성격이 가끔 튀어나온다」 · 슈로의 「침울한 톤」: 지금은 가라앉은 우울 꼴 → 우울을 이기는 활발
+// tough N  강인도 칸 — 안 적으면 보통 3 · 엘리트 4 · 보스 5(rules.js TOUGH). 우로스만 6
 // row: front / back — 뒷줄 적은 관통(pierce)이 있어야 닿는다
 // skin  스파인 스킨을 직접 고른다(art.js) — 성격이 없는 원작 보스는 Skin_None, 누루링은 종족 스킨(Skin_Elf).
 //       nature 를 안 적으면 성격 없음 — 성격 스킨 · 성격별 동작 없이 선다. 공격 동작도 스킨 끝말(Attack1_1_Elf · _None)을 먼저 찾는다
@@ -53,6 +64,7 @@ export const ENEMIES = {
       { t: "attack", v: 11, say: "달려든다", w: 2, rush: 9 },
       { t: "multi", v: 4, n: 3, say: "우르르 몰려든다", rush: 10 },
       { t: "block", v: 8, say: "웅크린다", rush: 0 },
+      { t: "addCard", id: "어지럼", n: 1, to: "draw", say: "당이 떨어져 비틀거린다", rush: 9 },   // 상태 카드 — 뽑히면 AP -1
     ],
   },
   fairymoblongrange: {
@@ -66,6 +78,7 @@ export const ENEMIES = {
       { t: "jam", v: 1, say: "왁자지껄 떠든다", rush: 3 },
       { t: "attack", v: 6, say: "스쳐 지나간다", rush: 4 },
       { t: "debuff", id: "약화", v: 1, say: "장난을 친다", rush: 3 },
+      { t: "addCard", id: "왁자지껄", n: 1, to: "hand", say: "수다를 퍼뜨린다", rush: 3 },   // 상태 카드 — 손 한 칸을 막고 턴 끝에 흩어진다
     ],
   },
   magicfork: {
@@ -182,7 +195,7 @@ export const ENEMIES = {
   nururingtanker_fairy: {
     // 「요정 왕국 근처에서 영향을 받아 단 것에 집착 · 통통하게 젤리가 올라서 고통에 둔감하다」
     // 공략: 맞을 때마다(턴 두 번) 방어 +3 — 작은 카드로 쪼개 치면 젤리만 두꺼워진다, 큰 카드로. 감싸기 ⚡3 (방패)
-    ko: "누루링-요정 탱커", hp: 50, row: "front", art: "nururingtanker", skin: "Skin_Fairy", tint: "#f0c890",
+    ko: "누루링-요정 탱커", hp: 50, row: "front", art: "nururingtanker", skin: "Skin_Fairy", weak: ["우울"], tint: "#f0c890",
     passives: [
       { name: "통통한 젤리", on: "hurt", limit: 2, do: { t: "block", v: 3 } },
     ],
@@ -196,7 +209,7 @@ export const ENEMIES = {
   nururingwarrior_fairy: {
     // 「젤리 살이 아니라 근육이라 주장하며 힘자랑을 한다」
     // 공략: 힘자랑 ⚡3 — 그 턴엔 두 장까지. 팔을 걷으면(⚡0) 다음 턴 16 — 끊거나 막아라 (강화 · 차지꾼)
-    ko: "누루링-요정 전사", hp: 36, row: "front", art: "nururingwarrior", skin: "Skin_Fairy", tint: "#f0b878",
+    ko: "누루링-요정 전사", hp: 36, row: "front", art: "nururingwarrior", skin: "Skin_Fairy", weak: ["우울"], tint: "#f0b878",
     pick: "shuffle",
     intents: [
       { t: "attack", v: 9, say: "젤리 주먹", w: 2, rush: 5 },
@@ -207,7 +220,7 @@ export const ENEMIES = {
   nururingarcher_fairy: {
     // 원작 「누루링-요정 마법사」(파일은 archer) — 「마력이 깃든 빵을 먹은 듯하다」
     // 공략: 약화 · 취약을 번갈아 건다 — 빵 마법(⚡3)이 보이면 두 장까지, 28 체력이니 관통으로 먼저 (디버퍼)
-    ko: "누루링-요정 마법사", hp: 28, row: "back", art: "nururingarcher", skin: "Skin_Fairy", tint: "#e8b0a0",
+    ko: "누루링-요정 마법사", hp: 28, row: "back", art: "nururingarcher", skin: "Skin_Fairy", weak: ["우울"], tint: "#e8b0a0",
     pick: "shuffle",
     intents: [
       { t: "debuff", id: "약화", v: 1, say: "빵 부스러기 마법", rush: 3 },
@@ -218,7 +231,7 @@ export const ENEMIES = {
   nururingsupporter_fairy: {
     // 「다른 누루링들의 젤리층을 찹찹 치대며 격려해준다」
     // 공략: 치대기 · 격려 ⚡3 — 두면 동료를 메운다, 먼저 잡아라. 톡 치기는 ⚡5라 잡는 동안은 몰아 써도 된다 (치유사)
-    ko: "누루링-요정 서포터", hp: 30, row: "back", art: "nururingsupporter", skin: "Skin_Fairy", tint: "#f0d0a0",
+    ko: "누루링-요정 서포터", hp: 30, row: "back", art: "nururingsupporter", skin: "Skin_Fairy", weak: ["우울"], tint: "#f0d0a0",
     pick: "shuffle",
     intents: [
       { t: "heal", v: 7, say: "젤리층을 찹찹 치댄다", rush: 3 },
@@ -416,7 +429,7 @@ export const ENEMIES = {
   // 누루링-엘프 — 「엘프 도시 근처에서 그 영향을 크게 받아 다른 누루링들과 사이가 안 좋다. 기름이 발라져 있어 고소하다」. Skin_Elf
   nururingtanker: {
     // 공략: 방패·굳기 ⚡3 — 한 턴에 적게 세게. 디버프가 걸리면 주워 온 장비로 막으니 약화·취약은 아끼고 공격으로 벗겨라 (방패 · 반격꾼)
-    ko: "누루링-엘프 탱커", hp: 64, row: "front", skin: "Skin_Elf", tint: "#c8b878",
+    ko: "누루링-엘프 탱커", hp: 64, row: "front", skin: "Skin_Elf", weak: ["광기"], tint: "#c8b878",
     passives: [
       { name: "주워 온 장비", on: "debuffed", do: { t: "block", v: 6 } },
     ],
@@ -429,7 +442,7 @@ export const ENEMIES = {
   },
   nururingwarrior: {
     // 공략: 창을 젖히면(⚡0) 다음 턴 큰 한 방 — 끊어라. 두 장째·네 장째로 스킬을 내면 감시하던 눈이 찌르니 스킬은 첫 장·셋째 장에 (차지꾼)
-    ko: "누루링-엘프 전사", hp: 44, row: "front", skin: "Skin_Elf", tint: "#d0a868",
+    ko: "누루링-엘프 전사", hp: 44, row: "front", skin: "Skin_Elf", weak: ["광기"], tint: "#d0a868",
     pick: "shuffle",
     passives: [
       { name: "감시하는 눈", on: "card", type: "스킬", every: 2, do: { t: "attack", v: 5 } },
@@ -443,7 +456,7 @@ export const ENEMIES = {
   nururingarcher: {
     // 원작 이름은 「누루링-엘프 마법사」 — 그런데 쓰는 것이 마법이 아닌 것 같다(나무위키). 파일 이름은 archer
     // 공략: 웅얼거림·기름 연기 ⚡3 — 그 수 앞에선 카드를 아끼고 32 체력을 관통 큰 한 장으로. 쏘기·튀기기는 ⚡5 (재촉꾼 · 디버퍼)
-    ko: "누루링-엘프 마법사", hp: 32, row: "back", skin: "Skin_Elf", tint: "#b8a070",
+    ko: "누루링-엘프 마법사", hp: 32, row: "back", skin: "Skin_Elf", weak: ["광기"], tint: "#b8a070",
     pick: "shuffle",
     intents: [
       { t: "back", v: 10, say: "마법 같은 것을 쏜다", w: 2, rush: 5 },
@@ -455,7 +468,7 @@ export const ENEMIES = {
   nururingsupporter: {
     // 공략: 기름 덧바르기·연설 ⚡3 — 두면 동료를 메우고 AP 를 깎는다, 먼저 잡아라. 깃대 찌르기는 ⚡5 라 잡는 동안은 몰아 써도 된다.
     //       다른 누루링과 사이가 나빠 동료가 쓰러지면 오히려 신이 나 힘이 붙는다 — 이 녀석부터 (치유사 · 격노)
-    ko: "누루링-엘프 서포터", hp: 34, row: "back", skin: "Skin_Elf", tint: "#c0b080",
+    ko: "누루링-엘프 서포터", hp: 34, row: "back", skin: "Skin_Elf", weak: ["광기"], tint: "#c0b080",
     pick: "shuffle",
     passives: [
       { name: "사이 나쁜 동료", on: "allyDown", do: { t: "buff", id: "힘", v: 2 } },
@@ -502,7 +515,7 @@ export const ENEMIES = {
   nururingtanker_witch: {
     // 「간사한 말로 주변을 도발한다」
     // 공략: 당기면 간사한 말로 파티 전체 취약 — 몰아 쓰지 말고 적게 세게. 꼬드기기 · 약 올리기 ⚡3 (방패 · 반격꾼)
-    ko: "누루링-마녀 탱커", hp: 70, row: "front", art: "nururingtanker", skin: "Skin_Witch", tint: "#a080b0",
+    ko: "누루링-마녀 탱커", hp: 70, row: "front", art: "nururingtanker", skin: "Skin_Witch", weak: ["순수"], tint: "#a080b0",
     passives: [
       { name: "간사한 말", on: "rushed", do: { t: "debuff", id: "취약", v: 1 } },
     ],
@@ -516,7 +529,7 @@ export const ENEMIES = {
   nururingwarrior_witch: {
     // 「의외로 힘이 강한 것 같다」
     // 공략: 젤리 근육을 부풀리면(⚡0) 다음 턴 26 — 기절 · 봉인으로 끊어라. 약초 씹기 ⚡3 (강화 · 차지꾼)
-    ko: "누루링-마녀 전사", hp: 50, row: "front", art: "nururingwarrior", skin: "Skin_Witch", tint: "#9070a0",
+    ko: "누루링-마녀 전사", hp: 50, row: "front", art: "nururingwarrior", skin: "Skin_Witch", weak: ["순수"], tint: "#9070a0",
     pick: "shuffle",
     intents: [
       { t: "attack", v: 13, say: "의외로 센 주먹", w: 2, rush: 6 },
@@ -527,7 +540,7 @@ export const ENEMIES = {
   nururingarcher_witch: {
     // 원작 「누루링-마녀 마법사」 — 「재채기를 하려고 노력한다」
     // 공략: 코끝이 간질거리면(⚡0) 다음 턴 재채기 마법이 파티 전체에 12 — 관통으로 먼저 잡거나 끊어라. 재채기 참기 ⚡3 (차지꾼 · 디버퍼)
-    ko: "누루링-마녀 마법사", hp: 40, row: "back", art: "nururingarcher", skin: "Skin_Witch", tint: "#b090c0",
+    ko: "누루링-마녀 마법사", hp: 40, row: "back", art: "nururingarcher", skin: "Skin_Witch", weak: ["순수"], tint: "#b090c0",
     intents: [
       { t: "back", v: 12, say: "주문을 쏜다", rush: 6 },
       { t: "debuff", id: "약화", v: 2, say: "재채기를 참는다", rush: 3 },
@@ -537,7 +550,7 @@ export const ENEMIES = {
   nururingsupporter_witch: {
     // 「다른 누루링들을 가르친다」
     // 공략: 약초 바르기 · 훈계 ⚡3 — 두면 동료를 메운다, 먼저 잡아라. 동료를 먼저 잡으면 남은 것을 감싼다(적 전체 방어 +8) (치유사)
-    ko: "누루링-마녀 서포터", hp: 42, row: "back", art: "nururingsupporter", skin: "Skin_Witch", tint: "#c0a0c8",
+    ko: "누루링-마녀 서포터", hp: 42, row: "back", art: "nururingsupporter", skin: "Skin_Witch", weak: ["순수"], tint: "#c0a0c8",
     pick: "shuffle",
     passives: [
       { name: "가르치는 누루링", on: "allyDown", do: { t: "guard", v: 8 } },
@@ -601,7 +614,7 @@ export const ENEMIES = {
     intents: [
       { t: "block", v: 16, say: "모자 속으로 숨는다", rush: 0 },
       { t: "attack", v: 11, say: "느릿느릿 들이받는다", rush: 9 },
-      { t: "debuff", id: "약화", v: 1, say: "끈적한 길을 남긴다", rush: 8 },
+      { t: "addCard", id: "끈적한 점액", n: 2, to: "discard", say: "끈적한 길을 남긴다", rush: 8 },   // 상태 카드(docs/16) — 기어간 자리의 점액
       { t: "attack", v: 13, say: "껍질 대신 모자로 굴러든다", rush: 10 },
     ],
   },
@@ -617,6 +630,7 @@ export const ENEMIES = {
       { t: "debuff", id: "취약", v: 2, say: "음흉하게 웃는다", rush: 4 },
       { t: "charge", say: "모자 속 저주가 끓는다", next: { t: "attackAll", v: 12, say: "저주를 쏟는다" } },
       { t: "block", v: 12, say: "모자 깊이 숨는다", rush: 5 },
+      { t: "addCard", id: "모자 속 쪽지", n: 1, to: "draw", say: "모자 속 쪽지를 흘린다", rush: 4 },   // 상태 카드 — 손에 든 채 넘기면 파티가 아프다
     ],
   },
   hatsnail_jolly: {
@@ -713,7 +727,7 @@ export const ENEMIES = {
     //       한 턴 네 장째마다 관측 AI 가 기관총을 긁으니 큰 손은 세 장에서 끊어라. 드론을 부수면 남은 것을 방패로 감싸니
     //       드론은 같은 턴에 둘 다, 아니면 본체만. 튜브를 꽂으면(60%) 레이저(⚡0)와 미사일 폭격 — 둘러치기 ⚡3 은 적게 세게 벗겨라.
     //       4분의 1 아래로 가면 폭주 — 출력 올리기 ⚡3 이 잦으니 남은 체력을 몰아 밀어라
-    ko: "M.E.O.W", hp: 232, row: "front", boss: true, skin: "Skin_None", tint: "#8fa8c8",
+    ko: "M.E.O.W", hp: 232, row: "front", boss: true, skin: "Skin_None", weak: ["순수"], tint: "#8fa8c8",
     scale: 0.58,         // 원작 그림이 화면을 꽉 채운다 — 커버러스만 하게(머리가 싸움터 안에, 옆 사도를 안 덮게)
     passives: [
       { name: "관측 AI", on: "card", every: 4, do: { t: "multi", v: 4, n: 3 } },
@@ -791,7 +805,7 @@ export const ENEMIES = {
     //       검에 불꽃을 모으면(⚡0) 다음 턴 일섬 — 기절·봉인으로 끊어라(행동불가에 약하다). 결계 ⚡3 앞에선 카드를 아껴라.
     //       60% 아래 — 땅속으로 파고들면(⚡0) 솟구치기, 불꽃 거세지기 ⚡3. 30% 아래 — 다시 열반(방어)에 들고 뿌리의 불씨를 빨아 회복(⚡3) —
     //       일섬과 회복 사이에 몰아 밀어라
-    ko: "우로스", hp: 332, row: "front", boss: true, skin: "Skin_None", tint: "#c8504a",
+    ko: "우로스", hp: 332, row: "front", boss: true, skin: "Skin_None", weak: ["활발"], tough: 6, tint: "#c8504a",
     scale: 0.66,         // 원작 그림이 화면을 꽉 채운다 — 커버러스만 하게
     passives: [
       { name: "열반", on: "fightStart", do: { t: "block", v: 30 } },

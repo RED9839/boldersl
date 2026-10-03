@@ -9,6 +9,7 @@
 // 코스트 c 의 기준 값어치 = 0.5 + c  (1코 1.5 · 2코 2.5 · 3코 3.5)
 // 정밀한 값이 아니다 — 크게 어긋난 카드(공짜나 다름없는 것, 코스트만 비싼 것)를 찾는 체다.
 
+export const STATUS_VAL = { 사기: 0.35, 불굴: 0.3, 취약: 0.25, 약화: 0.25, 고통: 0.13, 손상: 0.15, 표식: 0.8, 결의: 0.2, 결정화: 0.32, 반격: 0.4, 감전: 0.2, 중독: 0.2, 침묵: 0.2 };
 const area = (t) => (t === "allEnemies" || t === "allAllies" ? 1.6 : t === "randomEnemy" ? 0.9 : 1);
 
 export function valueOf(fx) {
@@ -24,7 +25,10 @@ export function valueOf(fx) {
       case "draw": v += 0.4 * (f.v || 1); break;
       case "ap": v += 0.9 * f.v; break;
       case "gauge": v += f.v / 100; break;
-      case "status": v += f.id === "기절" ? 0.8 : f.id === "도발" ? 0.3 : 0.2 * (f.turns || 1) * area(f.target); break;
+      // 상태(겹 규칙 — 숫자는 횟수, rules.js STATUS_V) — 한 겹의 값어치. 옛 증감(「+N% T턴」 = 2·N%·T)을 바꾼 비율(tools/convert-mods.js)과 맞춘다:
+      //   사기 0.35 · 불굴 0.3(옛 「+10% 1턴」 0.2 의 1.5배 언저리). 취약 · 약화 한 겹은 옛 「1턴」(0.2) 언저리 0.25 — 옛 「취약 N턴」 이 「취약 1」 로 바뀐 기본 카드가 신탁보다 비싸지지 않게.
+      //   고통 · 손상 · 표식 · 결의 · 결정화 · 반격은 하는 일에서
+      case "status": v += f.id === "기절" ? 0.8 : f.id === "도발" ? 0.3 : (STATUS_VAL[f.id] ?? 0.2) * (f.turns || 1) * area(f.target); break;
       case "dealtMod": case "takenMod": case "atkMod": case "defMod": case "critMod":
         v += Math.abs(f.v) * 2 * Math.min(f.turns || 1, 4) * area(f.target); break;
       // 회복력 증감은 회복에만 붙는다 — 피해 · 방어까지 오르는 증감의 절반으로 친다
@@ -59,7 +63,8 @@ export function flashCost(baseCost, fx) {
 const PEN_MODS = ["dealtMod", "takenMod", "atkMod", "defMod", "critMod", "healMod"];
 const ALLY_T = ["self", "oneAlly", "allAllies", "lowAlly"];
 // 제 편에게 거는 벌칙 — 「이번 턴 자신 받는 피해 +20%」 · 「자신 주는 피해 -10%」. valueOf 는 크기만 보고 더한다
-const penalty = (f) => PEN_MODS.includes(f.k) && ALLY_T.includes(f.target) && (f.k === "takenMod" ? f.v > 0 : f.v < 0);
+const penalty = (f) => (PEN_MODS.includes(f.k) && ALLY_T.includes(f.target) && (f.k === "takenMod" ? f.v > 0 : f.v < 0))
+  || (f.k === "status" && ALLY_T.includes(f.target) && ["취약", "약화", "고통", "손상"].includes(f.id));
 export const tagsOf = (fx) => (fx || []).filter((f) => f.k === "tag").map((f) => f.id);
 
 // 카드 한 장의 값 — tags 는 그 카드에 실제로 붙는 태그(신탁을 고른 카드는 신탁 글의 태그만 · js/combat.js hasTag)
@@ -67,7 +72,8 @@ export const tagsOf = (fx) => (fx || []).filter((f) => f.k === "tag").map((f) =>
 export function cardValue(fx, tags = tagsOf(fx)) {
   let v = valueOf(fx);
   for (const f of fx || []) {
-    if (penalty(f)) v -= 2 * Math.abs(f.v) * 2 * Math.min(f.turns || 1, 4) * area(f.target) * (f.k === "healMod" ? 0.5 : 1);
+    if (penalty(f) && f.k === "status") v -= 2 * (STATUS_VAL[f.id] ?? 0.2) * (f.turns || 1) * area(f.target);
+    else if (penalty(f)) v -= 2 * Math.abs(f.v) * 2 * Math.min(f.turns || 1, 4) * area(f.target) * (f.k === "healMod" ? 0.5 : 1);
     if (f.k === "payHp") v -= 0.035 * f.v;
     if (f.k === "payHpPct") v -= 3 * f.v;
     if (f.k === "discard") v -= f.v === "all" ? 0.3 : 0.1 * f.v;

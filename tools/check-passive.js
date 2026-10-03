@@ -24,7 +24,8 @@ const check = (c, m) => (c ? ok(m) : fail(m));
 const kit = (k) => { const x = kitOf(k); return [...x.start, ...x.unique].map((c) => c.id); };
 const fight = (party, enemies = ["gluttonbear", "fairymobcloserange"], seed = 3) =>
   newCombat({ partyKeys: party, rows: {}, deck: party.flatMap(kit), enemyIds: enemies, seed });
-const tough = (s) => { for (const e of s.enemies) { e.maxHp = e.hp = 5000; } };
+// 강인도는 끈다(toughMax 0) — 격파의 AP +1 · 덤 피해가 패시브 몫에 섞이지 않게. 격파는 tools/check-toughness.js 가 따로 본다
+const tough = (s) => { for (const e of s.enemies) { e.maxHp = e.hp = 5000; e.tough = e.toughMax = 0; } };
 const idOf = (hero, ko) => Object.keys(CARDS).find((id) => CARDS[id].hero === hero && CARDS[id].name === ko);
 const play = (s, id, t = 0) => { s.hand.unshift(id); s.ap = Math.max(s.ap, 3); return playCard(s, 0, t); };
 
@@ -69,21 +70,22 @@ console.log("본보기 — 네르 「기도」(셋이 차는 그 턴에 계시)"
   const pray = () => stackOf(s, "네르", "기도");
   const tig = s.party.find((u) => u.key === "티그");
   check(pray() === 1, `「잠이 아니라 기도」 — 첫 턴 시작부터 「기도」 +1 (지금 ${pray()})`);
-  const d0 = statMod(s, tig, "dealt"), b0 = tig.block || 0;
-  // 기도 카드를 먼저 내면 셋이 차 그 턴 파티 피해가 오른다 — 수치는 기획서 키워드 줄에서 읽는다
-  const burst = +((/「기도」가 3개가 되면:[^\n]*?주는 피해 \+(\d+)%/.exec(fs.readFileSync(DESIGN_DOC, "utf8")) || [])[1] || 0) / 100;
+  const morale = (u) => (u.status || {})["사기"] || 0;     // 사기(겹 — rules.js STATUS_V). 옛 「주는 피해 +N%」 는 상태로 바뀌었다(tools/convert-mods.js)
+  const d0 = morale(tig), b0 = tig.block || 0;
+  // 기도 카드를 먼저 내면 셋이 차 파티에 사기가 붙는다 — 겹 수는 기획서 키워드 줄에서 읽는다
+  const burst = +((/「기도」가 3개가 되면:[^\n]*?사기 (\d+)/.exec(fs.readFileSync(DESIGN_DOC, "utf8")) || [])[1] || 0);
   play(s, idOf("네르", "꿈으로 올리는 기도"));
   check(pray() === 0, `셋이 차면 「기도」 를 다 쓴다 (지금 ${pray()})`);
-  check(burst > 0 && Math.abs(statMod(s, tig, "dealt") - d0 - burst) < 1e-9 && (tig.block || 0) > b0, `계시 — 이번 턴 아군 전원 주는 피해 +${Math.round(burst * 100)}% · 방어 (티그 ${statMod(s, tig, "dealt").toFixed(2)} · 방어 ${tig.block})`);
+  check(burst > 0 && morale(tig) - d0 === burst && (tig.block || 0) > b0, `계시 — 아군 전원 사기 ${burst} · 방어 (티그 사기 ${morale(tig)} · 방어 ${tig.block})`);
   check(s.log.some((l) => l.includes("네르 · 기도")), "계시가 내리면 키워드 규칙이 기록에 남는다");
   endTurn(s);
-  check(Math.abs(statMod(s, tig, "dealt") - d0) < 1e-9 && pray() === 1, `계시는 그 턴(적의 차례까지)만 — 다음 턴엔 풀리고 기도는 다시 1 (${statMod(s, tig, "dealt").toFixed(2)} · 기도 ${pray()})`);
-  // 시그니처 — 2턴간 아군 전원 주는 피해(카드 글에서 읽는다)
+  check(morale(tig) === d0 + burst && pray() === 1, `사기는 턴으로 안 준다(쓸 때 1 씩) — 다음 턴에도 남고 기도는 다시 1 (사기 ${morale(tig)} · 기도 ${pray()})`);
+  // 시그니처 — 아군 전원 사기(카드 글에서 읽는다)
   const sigId = idOf("네르", "세계수의 계시");
-  const give = (CARDS[sigId].fx || []).filter((f) => f.k === "dealtMod" && f.target === "allAllies").reduce((a, f) => a + f.v, 0);
-  const d1 = statMod(s, tig, "dealt");
+  const give = (CARDS[sigId].fx || []).filter((f) => f.k === "status" && f.id === "사기" && f.target === "allAllies").reduce((a, f) => a + (f.turns || 1), 0);
+  const d1 = morale(tig);
   play(s, sigId);
-  check(give > 0 && Math.abs(statMod(s, tig, "dealt") - d1 - give) < 1e-9, `「세계수의 계시」 — 아군 전원 주는 피해 +${Math.round(give * 100)}%`);
+  check(give > 0 && morale(tig) - d1 === give, `「세계수의 계시」 — 아군 전원 사기 ${give} (티그 ${d1} → ${morale(tig)})`);
   // 도발 — 적이 네르만 친다 · 무적은 적의 차례까지 막는다(「여왕님 앞은 못 지나가요」)
   const s2 = fight(["에르핀", "네르", "티그"], ["fairymoblongrange"]); tough(s2);
   for (const u of s2.party) { u.maxHp = u.hp = 999; }
@@ -173,9 +175,10 @@ console.log("본보기 — 비비 「수은」(쌓일수록 중독, 다섯에 �
   // 다섯이 되면 터진다 — 그 적의 받는 피해가 오른다
   const e0 = s.enemies[0];
   e0.status["수은"] = 4;
-  const t0 = statMod(s, e0, "taken");
+  const vul = (e) => (e.status || {})["취약"] || 0;      // 옛 「받는 피해 +30% 2턴」 → 취약(겹)
+  const t0 = vul(e0);
   play(s, idOf("비비", "소녀에게 오시려구요?"));
-  check(merc(e0) === 0 && statMod(s, e0, "taken") - t0 >= 0.3 - 1e-9, `「수은」 다섯 — 다 터지고 받는 피해 +30% (받는 피해 ${t0.toFixed(2)} → ${statMod(s, e0, "taken").toFixed(2)})`);
+  check(merc(e0) === 0 && vul(e0) > t0, `「수은」 다섯 — 다 터지고 취약 (취약 ${t0} → ${vul(e0)})`);
 }
 
 console.log("");
@@ -411,7 +414,7 @@ console.log("폭주 검사 — 턴당 횟수 제한이 없다. 거센 턴(AP +3,
     for (let n = 0; n < 3; n++) {
       const party = [k, keys[(i + 1 + n * 7) % keys.length], keys[(i + 50 + n * 13) % keys.length]].filter((x, j, a) => a.indexOf(x) === j);
       const s = newCombat({ partyKeys: party, rows: {}, deck: party.flatMap(kit2), enemyIds: ["gluttonbear", "fairymobcloserange", "fairymobcloserange"], seed: 7 + n });
-      for (const e of s.enemies) e.maxHp = e.hp = 99999;
+      for (const e of s.enemies) { e.maxHp = e.hp = 99999; e.tough = e.toughMax = 0; }   // 강인도는 끈다 — 격파 AP · 덤 피해는 패시브 몫이 아니다
       for (let t = 0; t < 8 && !s.over; t++) {
         s.ap += 3;
         let g = 0;

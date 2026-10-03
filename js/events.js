@@ -48,12 +48,12 @@ const RULES_OUT = [
   [/^다음\s*전투:\s*첫\s*턴\s*AP\s*([+\-])\s*(\d+)$/, (m) => ({ k: "next", ap: (m[1] === "-" ? -1 : 1) * Number(m[2]) })],
   [/^다음\s*전투:\s*(?:고학년\s*)?게이지\s*\+\s*(\d+)\s*%$/,(m) => ({ k: "next", gauge: Number(m[1]) })],
   [/^다음\s*전투:\s*첫\s*손패\s*\+\s*(\d+)$/, (m) => ({ k: "next", hand: Number(m[1]) })],
-  [/^다음\s*전투:\s*아군\s*전원\s*약화\s*(\d+)\s*턴$/, (m) => ({ k: "next", weak: Number(m[1]) })],
+  [/^다음\s*전투:\s*아군\s*전원\s*약화\s*(\d+)\s*턴?$/, (m) => ({ k: "next", weak: Number(m[1]) })],   // 겹(rules.js 겹 규칙) — 옛 글 「N턴」 도 받는다
   [/^다음\s*전투:\s*HP\s*-\s*(\d+)\s*%$/, (m) => ({ k: "next", hpCut: Number(m[1]) / 100 })],
   // 새 적 규칙과 엮인 것(docs/12) — 첫 턴 즉시 행동 늦추기 · 적 취약 · 적 패시브 잠재우기.
   // 글은 「즉시 행동 N장 늦춤」, 옛 글 「즉시 행동 -N」 도 읽는다
   [/^다음\s*전투:\s*첫\s*턴\s*적\s*전체\s*즉시\s*행동\s*(?:-\s*(\d+)|(\d+)\s*장\s*늦춤)$/, (m) => ({ k: "next", rush: Number(m[1] || m[2]) })],
-  [/^다음\s*전투:\s*적\s*전체\s*취약\s*(\d+)\s*턴$/, (m) => ({ k: "next", foeVuln: Number(m[1]) })],
+  [/^다음\s*전투:\s*적\s*전체\s*취약\s*(\d+)\s*턴?$/, (m) => ({ k: "next", foeVuln: Number(m[1]) })],
   [/^다음\s*전투:\s*적\s*패시브\s*꺼짐\s*(\d+)\s*턴$/, (m) => ({ k: "next", quiet: Number(m[1]) })],
 ];
 function who(s) {
@@ -335,16 +335,16 @@ const nextLabel = (o) => "다음 전투: " + [
   o.ap != null && `첫 턴 AP ${o.ap > 0 ? "+" : ""}${o.ap}`,
   o.gauge != null && `고학년 게이지 +${o.gauge}%`,
   o.hand != null && `첫 손패 +${o.hand}`,
-  o.weak != null && `아군 전원 약화 ${o.weak}턴`,
+  o.weak != null && `아군 전원 약화 ${o.weak}`,
   o.hpCut != null && `파티 전원 HP -${Math.round(o.hpCut * 100)}%`,
   o.rush != null && `첫 턴 적 전체 즉시 행동 ${o.rush}장 늦춤`,
-  o.foeVuln != null && `적 전체 취약 ${o.foeVuln}턴`,
+  o.foeVuln != null && `적 전체 취약 ${o.foeVuln}`,
   o.quiet != null && `적 패시브 꺼짐 ${o.quiet}턴`,
 ].filter(Boolean).join(" · ");
 
 function neutralOffer(run, grade, n) {
   const has = new Set(run.deck);
-  const pool = NEUTRAL_IDS.filter((id) => CARDS[id].playable && (!grade || CARDS[id].grade === grade) && !(CARDS[id].oneOnly && has.has(id)));
+  const pool = NEUTRAL_IDS.filter((id) => CARDS[id].playable && (!grade || CARDS[id].grade === grade) && !(R.isOnly(CARDS[id]) && has.has(id)));
   const out = [];
   while (out.length < n && pool.length) out.push(...pool.splice(Math.floor(run.rng() * pool.length), 1));
   return out;
@@ -397,7 +397,7 @@ export function resolve(run, value) {
     case "dupe": {
       if (!run.deck.includes(value)) return "덱에 없는 카드입니다";
       if (powerCard(run, value)) return "강화 카드는 한 장만 — 복제할 수 없습니다";
-      if (!dupeOk(value)) return "덱에 1장만 넣는 카드는 복제할 수 없습니다";
+      if (!dupeOk(value, run)) return "유일 — 덱에 한 장만 넣는 카드는 복제할 수 없습니다";
       const extra = dupeExtra(run, value);
       if (extra) {
         if ((run.gold || 0) < extra) return `신탁 · 기적이 붙은 카드는 복제에 골드 ${extra} ${josa(String(extra), "이가")} 더 듭니다 (지금 ${run.gold || 0})`;
@@ -490,7 +490,7 @@ function ownRandom(run, c) {
   return own.length ? own[Math.floor(run.rng() * own.length)] : null;
 }
 // 강화 카드(rules.js isPower)도 한 장만 — 복제할 수 없다. run 을 주면 「강화 카드.」 신탁을 붙인 카드도 막는다
-export function dupeOk(id, run) { const c = CARDS[id]; return !!c && !c.oneOnly && !R.isPower(run ? flashed(c, (run.flash || {})[id]) : c); }
+export function dupeOk(id, run) { const c = CARDS[id]; return !!c && !R.isOnly(run ? flashed(c, (run.flash || {})[id]) : c); }
 export function dupeExtra(run, id) { return (run.flash || {})[id] || (run.shin || {})[id] ? R.DUPE_FLASH_EXTRA : 0; }
 
 // 이벤트를 닫는다 — 다음 칸으로

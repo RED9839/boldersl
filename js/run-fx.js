@@ -71,11 +71,19 @@ function addStack(s, key, id, v) {
 export function runFx(s, fxList, ctx, api) {
   const { owner } = ctx;
   let gate = true;                 // ifStack 이 거짓이면 그 뒤가 안 돈다
+  // 때 붙은 마디 — 「감응: …」(뽑힐 때) · 「턴 끝에 손에 있으면: …」. 그 표시 뒤의 조각은 그때(ctx.when)만 돌고, 카드를 낼 때는 안 돈다
+  let part = null;
 
   for (const f of fxList || []) {
+    if (f.k === "when") { part = f.on; gate = true; continue; }
+    if ((ctx.when || null) !== part) continue;
     if (!gate && f.k !== "ifStack") continue;
     switch (f.k) {
       // ── 조건·대상 고르기 ──────────────────────────────────────────
+      // 「파괴: …」 — 고른 적이 격파된 상태일 때만 뒤가 돈다(그 카드의 앞선 타격으로 격파됐어도)
+      case "ifBroken": { const t = resolve(s, ctx, "oneEnemy")[0]; gate = !!t && !!t.broken; break; }
+      // 「연속: …」 — 이번 턴 바로 앞에 낸 카드가 이 카드와 같은 속성(사도 성격)이면 뒤가 돈다(combat playCard 가 ctx.chain 을 정한다)
+      case "ifChain": gate = !!ctx.chain; break;
       case "ifStack": {
         const kw = (s.kw || {})[f.id];
         if (kw && kw.carrier === "enemy") {
@@ -106,7 +114,17 @@ export function runFx(s, fxList, ctx, api) {
             // 축복 — 불타는 웅변은 늘, 약점 공략은 취약인 적에게만 ×1.3
             const boost = ctx.shin === "power" || (ctx.shin === "weakSpot" && ((t.status || {})["취약"] || 0) > 0);
             const v = hitAmount(api, owner, f.ratio, { flash: ctx.flash || 0, shin: boost, global: ctx.global || 0, crit });
-            api.hurt(t, v, { from: owner, crit });
+            api.hurt(t, v, { from: owner, crit, tags: ctx.tags, card: !!ctx.card });
+            // 강인도 — 카드(고학년 포함) 한 장이 그 적을 처음 칠 때 한 번. 약점이면 더, 잔광이면 또 더(rules.js TOUGH). 패시브의 피해는 안 깎는다
+            // 표식(적의 상태)도 그때 한 번 — 덤 타격 + 강인도 1
+            if (ctx.card && api.tough && t.side === "enemy" && !t.dead) {
+              const hit = (ctx.toughed = ctx.toughed || new Set());
+              if (!hit.has(t)) {
+                hit.add(t);
+                api.tough(t, R.TOUGH.hit + (api.weak && api.weak(owner, t, ctx.tags) ? R.TOUGH.weak : 0) + (ctx.tags && ctx.tags.잔광 ? R.TOUGH.glow : 0));
+                if (api.mark && !t.dead) api.mark(owner, t, ctx);
+              }
+            }
             if (ctx.shin === "frost" && !t.dead) api.addStatus(t, "취약", 1, 1);   // 눈보라 예보
             if (ctx.shin === "thorn" && !t.dead) api.addStatus(t, "중독", 2, 0);   // 가시 돋친 꿈
           }
@@ -119,8 +137,9 @@ export function runFx(s, fxList, ctx, api) {
       // 양보하는 마음(축복) — 방어 · 실드 ×1.3
       case "block": case "shield": {
         if (!owner) break;
-        const v = guardAmount(api, owner, f.ratio, ctx.shin);
-        for (const t of resolve(s, ctx, f.target)) { t[f.k] = (t[f.k] || 0) + v; if (api.gain) api.gain(t, f.k, v); }
+        const v0 = guardAmount(api, owner, f.ratio, ctx.shin);
+        // 손상 — 받는 쪽마다 얻는 양이 준다(api.guardGain)
+        for (const t of resolve(s, ctx, f.target)) { const v = api.guardGain ? api.guardGain(t, v0) : v0; t[f.k] = (t[f.k] || 0) + v; if (api.gain) api.gain(t, f.k, v); }
         break;
       }
       // 회복은 회복력 기준 — 낸 사도의 회복력
@@ -151,6 +170,8 @@ export function runFx(s, fxList, ctx, api) {
       case "gauge": s.gauge = Math.max(0, Math.min(R.GAUGE_MAX, s.gauge + f.v)); break;
 
       // ── 상태 ──────────────────────────────────────────────────────
+      // 「강인도 피해 N」 — 약점과 상관없이 그만큼 깎는다
+      case "tough": for (const t of resolve(s, ctx, f.target)) if (t.side === "enemy" && api.tough) api.tough(t, f.v); break;
       case "rushDown": {
         for (const t of resolve(s, ctx, f.target)) if (t.side === "enemy") t.rushCnt = (t.rushCnt || 0) - f.v;   // 0 밑으로도 — 첫 장으로 내도 그만큼 여유가 쌓인다(새 수 · 새 턴에 0)
         break;

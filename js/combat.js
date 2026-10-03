@@ -2,7 +2,7 @@
 // 그래서 tools/sim.js 가 화면 없이 그대로 돌려 볼 수 있다.
 
 import { HEROES } from "./data/heroes.js";
-import { CARDS, starterOf, HERO_DATA, hasBuilt, flashed } from "./cardbook.js";
+import { CARDS, starterOf, HERO_DATA, hasBuilt, flashed, STATUS_CARD_ID } from "./cardbook.js";
 import { STARTER } from "./data/cards.js";
 import { runFx } from "./run-fx.js";
 import * as P from "./passive.js";
@@ -28,6 +28,10 @@ export const ROW_KO = (r) => (r === "front" ? "앞" : r === "mid" ? "가운데" 
 //  상성으로 정했다. 기획서가 원본이다.)
 export const natureOf = (k) => (designOf(k) || {}).nature || REL.nature[k] || null;
 export const natureEdge = R.natureEdge;
+// 적의 약점 성격 — enemies.js 의 weak 가 있으면 그것, 없으면 상성에서(그 성격을 이기는 성격). 성격 없는 적은 weak 를 적어야 약점이 있다
+export const weakOf = (key) => { const d = ENEMIES[key] || {}; return d.weak || (d.nature ? R.weakTo(d.nature) : []); };
+// 강인도 칸 수 — 적마다 tough 를 적으면 그것, 아니면 보스 · 엘리트 · 보통(rules.js TOUGH)
+export const toughOf = (key, elite) => { const d = ENEMIES[key] || {}; return d.tough || (d.boss ? R.TOUGH.boss : elite ? R.TOUGH.elite : R.TOUGH.fight); };
 
 
 // ── 난수 (씨앗을 주면 같은 판이 재현된다) ───────────────────────────────
@@ -41,15 +45,41 @@ export function makeRng(seed = Date.now()) {
 }
 
 // ── 상태 이상 ──────────────────────────────────────────────────────────
-const BAD = ["취약", "약화", "감전", "중독"];
-const st = (u, id) => u.status[id] || 0;
-const addSt = (u, id, v) => { u.status[id] = Math.max(0, st(u, id) + v); if (!u.status[id]) delete u.status[id]; };
+// 걸리면 손해인 것 — 「디버프 해제」 가 이 차례로 지운다(rules.js BAD_ST)
+const BAD = R.BAD_ST;
+const st = (u, id) => (u.status && u.status[id]) || 0;
+// 겹은 더해진다(중첩). 고통 · 결정화는 최대가 있다(rules.js STATUS_V)
+const addSt = (u, id, v) => {
+  u.status = u.status || {};
+  let n = Math.max(0, st(u, id) + v);
+  const cap = R.STATUS_V[id + "Max"];
+  if (cap != null) n = Math.min(cap, n);
+  u.status[id] = n; if (!u.status[id]) delete u.status[id];
+};
+// 횟수로 도는 상태(rules.js 겹 규칙) — 한 번의 일(s.actSeq)에 한 번만 1 줄인다. 그 일 안의 다음 타격도 같은 효과를 받는다.
+// 돌았으면 true. u.stUse — 상태마다 마지막으로 쓴 일 번호(저장에 남아도 해가 없다)
+function charge(s, u, id) {
+  if (!u) return false;
+  const seq = s.actSeq || 0;
+  u.stUse = u.stUse || {};
+  if (u.stUse[id] === seq && seq) return true;
+  if (st(u, id) <= 0) return false;
+  addSt(u, id, -1);
+  u.stUse[id] = seq;
+  return true;
+}
+// AP 를 얻는다 — 적의 차례 · 턴을 넘기는 중이면 다음 턴으로 쌓아 둔다(그때 주면 턴이 바뀌며 사라진다)
+function gainAp(s, n) {
+  if (!n) return;
+  if (s.foeTurn || s.ending) s.apCarry = (s.apCarry || 0) + n; else s.ap += n;
+}
 
 // ── 전투 시작 ──────────────────────────────────────────────────────────
 // gauge — 지난 전투에서 남은 고학년 게이지(run.gauge). 전투가 끝나도 이어진다
 // enemyHp · enemyDmg — 적 체력 · 피해 배율(run.js openFight 가 rules.js foeScale 로 층마다 정한다). 없으면 ENEMY_HP · 1
 // boons — 강화 카드가 남긴 「판 내내」 버프(run.boons: { 사도키: [{ stat, v, src }] }). 전투를 열 때 늘 걸린 증감으로 다시 건다
-export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noNature, traits, gear, gearFx, flash, enemyHp, enemyDmg, next, shin, glow, gauge, boons }) {
+// elite — 엘리트 칸(강인도 칸이 하나 더, rules.js TOUGH)
+export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, noNature, traits, gear, gearFx, flash, enemyHp, enemyDmg, next, shin, glow, gauge, boons, elite }) {
   const rng = makeRng(seed);
   const party = partyKeys.map((key, i) => {
     // 스탯은 기획서가 원본이다. 기획서에 없는 사도만 옛 heroes.js 를 본다.
@@ -81,8 +111,10 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
   const enemies = enemyIds.map((id, i) => {
     const e = ENEMIES[id];
     const ehp = Math.round(e.hp * hpx);
+    const tm = toughOf(id, elite);
     return { key: id, side: "enemy", ko: e.ko, tint: e.tint, maxHp: ehp, hp: ehp,
-      row: e.row, block: 0, status: {}, idx: i, dead: false, boss: !!e.boss, step: 0, intent: null, dmgx };
+      row: e.row, block: 0, status: {}, idx: i, dead: false, boss: !!e.boss, step: 0, intent: null, dmgx,
+      tough: tm, toughMax: tm, broken: false };
   });
 
   const s = {
@@ -143,9 +175,9 @@ export function newCombat({ partyKeys, rows, deck, enemyIds, hp, maxHp, seed, no
     if (next.ap) { s.startSp += next.ap; say(s, `이벤트 — 첫 턴 AP ${next.ap > 0 ? "+" : ""}${next.ap}`); }
     if (next.gauge) { s.gauge = Math.min(R.GAUGE_MAX, s.gauge + next.gauge); say(s, `이벤트 — 고학년 게이지 +${next.gauge}%`); }
     if (next.hand) { s.opening = (s.opening || 0) + next.hand; say(s, `이벤트 — 첫 손패 +${next.hand}`); }
-    if (next.weak) { for (const u of s.party) if (!u.dead) addSt(u, "약화", next.weak); say(s, `이벤트 — 아군 전원 약화 ${next.weak}턴`); }
+    if (next.weak) { for (const u of s.party) if (!u.dead) addSt(u, "약화", next.weak); say(s, `이벤트 — 아군 전원 약화 ${next.weak}`); }
     if (next.rush) { s.firstRushDown = next.rush; say(s, `이벤트 — 첫 턴 적 전체 즉시 행동 ${next.rush}장 늦춤`); }
-    if (next.foeVuln) { for (const e of alive(s.enemies)) addSt(e, "취약", next.foeVuln); say(s, `이벤트 — 적 전체 취약 ${next.foeVuln}턴`); }
+    if (next.foeVuln) { for (const e of alive(s.enemies)) addSt(e, "취약", next.foeVuln); say(s, `이벤트 — 적 전체 취약 ${next.foeVuln}`); }
     if (next.quiet) { s.foeQuiet = next.quiet; say(s, `이벤트 — 적 패시브가 ${next.quiet}턴 동안 잠잠하다`); }
     if (next.hpCut) { for (const u of s.party) if (!u.dead) u.hp = Math.max(1, u.hp - Math.round(u.maxHp * next.hpCut)); say(s, `이벤트 — 시작하자마자 오작동, 파티 전원 HP -${Math.round(next.hpCut * 100)}%`); }
   }
@@ -220,11 +252,14 @@ function beginTurn(s) {
   s.turn++;
   // AP 는 **이월되지 않는다**(기획서). 매 턴 새로 받는다.
   const gain = Math.max(0, s.apPerTurn - s.apJam)
-    + (s.turn === 1 ? s.startSp : 0);
+    + (s.turn === 1 ? s.startSp : 0) + (s.apCarry || 0);   // apCarry — 적의 차례에 격파해 얻은 AP(그때 주면 턴이 바뀌며 사라진다)
+  s.apCarry = 0;
   if (s.apJam) say(s, `방해로 AP -${s.apJam}`);
   s.apJam = 0;
   s.ap = gain;
   s.lastHero = null; s.nextCheaper = 0; s.erpinSp = 0; s.nerWorked = false;
+  s.ending = false;
+  s.prevNat = null;           // 연속 — 이번 턴 바로 앞에 낸 카드의 속성(사도 성격). 턴이 바뀌면 없다
   s.playedThisTurn = 0;
   s.playedBy = {};            // 사도마다 이번 턴 낸 장수 — 「이번 턴 에르핀의 카드를 내지 않았으면」(passive.js)
   s.rushedThisTurn = false;   // 「적이 즉시 행동했으면」
@@ -240,6 +275,8 @@ function beginTurn(s) {
 
   // 원작의 중독은 지속 피해가 아니라 공격력을 깎는 것이다. 그래서 턴 시작에 아무 일도 안 한다.
   // 촉수는 턴이 끝날 때 때린다(프리클) — 아래 endTurn 에 있다.
+  // 격파된 적은 내 턴이 다시 오면 일어선다 — 강인도가 다 찬다(덜 깎인 칸은 그대로)
+  for (const e of alive(s.enemies)) if (e.broken) { e.broken = false; e.tough = e.toughMax; say(s, `${e.ko}: 격파에서 일어선다 — 강인도 회복`); cue(s, "tough", e, { from: 0, to: e.tough, up: true }); }
   for (const e of alive(s.enemies)) { rollIntent(s, e); e.rushCnt = 0; e.rushedTurn = false; }
   // 이벤트 「첫 턴 적 전체 즉시 행동 N장 늦춤」 — 카운트는 턴마다 0 으로 돌아가니 첫 턴에 걸어야 산다
   if (s.turn === 1 && s.firstRushDown) for (const e of alive(s.enemies)) e.rushCnt -= s.firstRushDown;
@@ -248,6 +285,10 @@ function beginTurn(s) {
 
   // 신탁 '성급한 손' — SP 를 더 받는 대신 손패가 한 장 적다
   draw(s, 5 + (s.turn === 1 ? (s.opening || 0) : 0) - tr(s, "handdown"));
+  // 주도 — 턴 시작에 손에 든 주도 카드는 반반으로 이번 턴 비용 -1(그 턴 다른 카드를 먼저 내면 풀린다 · costOf)
+  s.finaleLock = false;
+  s.leadOn = {};
+  for (const id of s.hand) if (hasTag(cardOf(s, id), "주도") || blessTag(s, id, "주도")) if (s.rng() < 0.5) s.leadOn[id] = true;
   emit(s, "turnStart", {});
   checkOver(s);
 }
@@ -263,11 +304,13 @@ function rollIntent(s, e, fresh) {
   if (d.phase && !e.phased && e.hp <= e.maxHp * d.phase.at) {
     e.phased = true; e.step = 0;
     say(s, `${e.ko}: ${d.phase.say}`);
+    refillTough(s, e);
   }
   // 둘째 판(phase2) — 앞판이 바뀐 뒤 더 떨어지면 한 번 더 바뀐다(마지막 보스의 셋째 판)
   if (d.phase2 && e.phased && !e.phased2 && e.hp <= e.maxHp * d.phase2.at) {
     e.phased2 = true; e.step = 0;
     say(s, `${e.ko}: ${d.phase2.say}`);
+    refillTough(s, e);
   }
   const list = e.phased2 ? d.phase2.intents : e.phased ? d.phase.intents : d.intents;
   let it;
@@ -296,9 +339,14 @@ export function intentHit(e) {
 export function endTurn(s) {
   s.freeTurn = {};                          // 은총으로 얻은 카드의 「그 턴 비용 0」은 여기까지
   if (s.over) return s;
+  s.ending = true;                          // 이제부터 얻는 AP 는 다음 턴으로(gainAp)
   emit(s, "turnEnd", {});
   P.tickTurnEnd(s, (t, v, o) => hurt(s, t, v, o), (t) => say(s, t));
   checkOver(s); if (s.over) return s;
+  statusTurnEnd(s);
+  checkOver(s); if (s.over) return s;
+  // 「턴 끝에 손에 있으면: …」(상태 카드 따위) — 손에 남은 카드의 그 효과가 돈다
+  for (const id of s.hand.slice()) if (cardOf(s, id) && (cardOf(s, id).fx || []).some((f) => f.k === "when" && f.on === "handEnd")) { cardWhen(s, id, "handEnd"); if (s.over) return s; }
 
   // 네르의 보호 — 체력이 가장 적은 아군을 감싼다
   const ner = s.party.find((u) => u.key === "ner" && !u.dead);
@@ -321,19 +369,25 @@ export function endTurn(s) {
     say(s, `가시 촉수 ${s.tentacles}개가 ${을를(alive(s.enemies)[0] ? alive(s.enemies)[0].ko : "적")} 친다`);
   }
 
+  // 증발 — 턴이 끝날 때 손에 있으면 이 전투에서 사라진다(보존보다 앞선다)
+  const gone = s.hand.filter((id) => hasTag(cardOf(s, id), "증발") || blessTag(s, id, "증발"));
+  if (gone.length) { s.gone.push(...gone); say(s, `증발 — ${gone.map((id) => `「${cardOf(s, id).name}」`).join(" ")} 사라진다`); }
   // 보존 카드는 손에 남는다
-  const keep = s.hand.filter((id) => hasTag(cardOf(s, id), "보존") || blessTag(s, id, "보존"));
-  s.discard.push(...s.hand.splice(0).filter((id) => !cardOf(s, id).temp && !keep.includes(id)));
+  const keep = s.hand.filter((id) => !gone.includes(id) && (hasTag(cardOf(s, id), "보존") || blessTag(s, id, "보존")));
+  s.discard.push(...s.hand.splice(0).filter((id) => !cardOf(s, id).temp && !keep.includes(id) && !gone.includes(id)));
   s.hand.push(...keep);
   checkOver(s); if (s.over) return s;
 
   // 적의 차례에 사도에게 새로 걸린 상태 — 이번에는 줄이지 않는다(2026-10 사용자: 「약화 1턴」 이 걸리자마자 풀려 아무 일도 안 했다).
   // 걸린 뒤 내 턴을 한 번 거치고 나서 줄어든다. 적에게 건 것은 그대로(내 턴에 걸고 → 적의 차례를 거쳐 → 줄어든다)
-  const TICK = ["취약", "약화", "감전", "침묵", "중독"];
+  // 취약 · 약화는 턴으로 줄지 않는다 — 돌 때마다 1 씩(rules.js 겹 규칙 · charge)
+  const TICK = ["감전", "침묵", "중독"];
   const before = new Map(s.party.map((u) => [u, Object.fromEntries(TICK.map((id) => [id, st(u, id)]))]));
+  s.foeTurn = true;                         // 적의 차례 — 이때 격파해 얻은 AP 는 다음 턴으로(apCarry)
   foePassives(s, "turnEnd");
-  checkOver(s); if (s.over) return s;
+  checkOver(s); if (s.over) { s.foeTurn = false; return s; }
   enemyPhase(s);
+  s.foeTurn = false;
   checkOver(s); if (s.over) return s;
   for (const e of s.enemies) if (e.stunGuard) e.stunGuard--;
   // 도발은 정한 턴만큼 간다
@@ -342,13 +396,45 @@ export function endTurn(s) {
   for (const u of [...alive(s.party), ...alive(s.enemies)]) {
     const was = before.get(u);
     const fresh = (id) => was && st(u, id) > was[id];       // 방금 적이 건 것
-    for (const id of ["취약", "약화", "감전", "침묵"]) if (st(u, id) > 0 && !fresh(id)) addSt(u, id, -1);
+    for (const id of ["감전", "침묵"]) if (st(u, id) > 0 && !fresh(id)) addSt(u, id, -1);
     // 중독은 천천히 풀린다. 안 풀리게 뒀더니 쌓이기만 해서 적이 내내 반토막 났다(완주율 76%).
     // 이제는 계속 덧발라야 한다 — 그게 마요를 굴리는 맛이기도 하다.
     if (st(u, "중독") > 0 && !fresh("중독")) addSt(u, "중독", -1);
   }
   beginTurn(s);
   return s;
+}
+
+// 턴 끝의 상태(rules.js STATUS_V) — 내 턴이 끝날 때 아군 · 적 모두. 결의 · 결정화는 실드, 고통은 고정 피해
+function statusTurnEnd(s) {
+  const V = R.STATUS_V;
+  for (const u of [...alive(s.party), ...alive(s.enemies)]) {
+    s.actSeq = s.seqN = (s.seqN || 0) + 1;    // 사람마다 한 번의 일
+    const defOf = () => Math.max(0, Math.round((u.def || 0) * (1 + P.statMod(s, u, "def"))));
+    if (st(u, "결의") > 0) {
+      const v = shieldGain(s, u, Math.max(1, Math.round(defOf() * V.결의)));
+      u.shield = (u.shield || 0) + v; gainCue(s, u, "shield", v);
+      addSt(u, "결의", -1);
+      say(s, `${u.ko}: 결의 — 실드 +${v}`);
+    }
+    if (st(u, "결정화") > 0) {
+      const v = shieldGain(s, u, Math.max(1, Math.round(defOf() * V.결정화 * st(u, "결정화"))));
+      u.shield = (u.shield || 0) + v; gainCue(s, u, "shield", v);
+      say(s, `${u.ko}: 결정화 ${st(u, "결정화")} — 실드 +${v}`);
+    }
+    if (st(u, "고통") > 0) {
+      const n = st(u, "고통"), v = Math.max(1, Math.round(n * V.고통));
+      say(s, `${u.ko}: 고통 ${n} — ${v} 피해`);
+      addSt(u, "고통", -(n - Math.floor(n / 2)));
+      hurt(s, u, v, { pure: true });
+      if (s.over) return;
+    }
+  }
+}
+// 손상 — 얻는 방어 · 실드가 줄어든다(한 번의 일에 1 씩)
+function shieldGain(s, u, v) {
+  if (v > 0 && st(u, "손상") > 0 && charge(s, u, "손상")) return Math.max(0, Math.round(v * (1 - R.STATUS_V.손상)));
+  return v;
 }
 
 function enemyPhase(s) {
@@ -460,6 +546,11 @@ function actEnemy(s, e, it = e.intent, passive = false) {
     if (it.next) e.intent = null;          // 모으던 힘도 흩어진다
     return;
   }
+  // 적의 수 하나가 한 번의 일이다 — 취약 · 불굴 · 반격 · 약화 · 사기가 이 수에 한 번만 돈다(charge)
+  const seq0 = s.actSeq; s.actSeq = s.seqN = (s.seqN || 0) + 1;
+  try { foeAct(s, e, it); } finally { s.actSeq = seq0; }
+}
+function foeAct(s, e, it) {
   // say · t · rush — 화면이 「무엇을 하는지」 를 적 머리 위에 잠깐 띄운다(fight-screen foeTell). 판에는 아무 영향 없다
   cue(s, "act", e, { anim: ["attack", "back", "attackAll", "multi"].includes(it.t) ? "attack" : "skill", say: it.say || null, t: it.t, rush: !!s.rushing });
   if (it.t === "attack" || it.t === "back") {
@@ -497,6 +588,22 @@ function actEnemy(s, e, it = e.intent, passive = false) {
     for (const t of alive(s.party)) { addSt(t, it.id, it.v); cue(s, "status", t, { id: it.id }); }
     say(s, `${e.ko}: ${it.say} (${it.id} +${it.v})`);
   }
+  // 상태 카드를 끼워 넣는다(카제나의 상태 카드) — to: draw(뽑을 더미에 섞는다) · discard(버린 더미) · hand(손, 가득 차면 버린 더미).
+  // 이 전투에만 있다 — 판의 덱(run.deck)에는 안 들어간다(run.js afterFight 는 더미를 보지 않는다)
+  else if (it.t === "addCard") {
+    const id = STATUS_CARD_ID[it.id] || it.id;
+    if (!CARDS[id]) { say(s, `(알 수 없는 상태 카드: ${it.id})`); return; }
+    const n = it.n || 1, to = it.to || "discard";
+    for (let k = 0; k < n; k++) {
+      if (to === "hand" && s.hand.length < R.HAND_MAX) s.hand.push(id);
+      else if (to === "draw") s.draw.splice(Math.floor(s.rng() * (s.draw.length + 1)), 0, id);
+      else s.discard.push(id);
+    }
+    cue(s, "status", e, { id: `「${CARDS[id].name}」 +${n}` });
+    say(s, `${e.ko}: ${it.say} (「${CARDS[id].name}」 ${n}장 → ${to === "hand" ? "손" : to === "draw" ? "뽑을 더미" : "버린 더미"})`);
+  }
+  // 공격하는 수는 적의 약화 · 사기를 한 번 쓴다(dealt 가 이미 넣었다)
+  if (FOE_HITS.includes(it.t)) { if (st(e, "약화") > 0) charge(s, e, "약화"); if (st(e, "사기") > 0) charge(s, e, "사기"); }
 }
 
 // 앞줄이 먼저 맞는다. 뒤를 노리는 수(back)는 거꾸로 뒷줄부터.
@@ -522,10 +629,11 @@ const CUT_FLOOR = 0.5;
 function dealt(from, v) {
   if (from.dmgx && from.dmgx !== 1 && v > 0) v = Math.max(1, Math.round(v * from.dmgx));   // 층마다 적 피해(rules.js foeScale)
   let m = 1;
-  if (st(from, "약화") > 0) m *= 1 - R.WEAK;
+  if (st(from, "약화") > 0) m *= 1 - R.STATUS_V.약화;
   if (st(from, "감전") > 0) m *= 0.9;
   if (st(from, "중독") > 0) m *= Math.max(0.7, 1 - 0.02 * st(from, "중독"));
-  return Math.max(0, Math.round((v + st(from, "힘")) * Math.max(CUT_FLOOR, m)));
+  const up = st(from, "사기") > 0 ? 1 + R.STATUS_V.사기 : 1;   // 사기는 깎는 것들의 바닥과 따로 곱한다
+  return Math.max(0, Math.round((v + st(from, "힘")) * Math.max(CUT_FLOOR, m) * up));
 }
 
 // 성격 상성 — 유리하면 주는 피해 +10%, 받는 피해 -5%
@@ -536,14 +644,36 @@ function natureMod(s, from, to) {
   if (e < 0) return 1 - R.NATURE_DEF;
   return 1;
 }
-// 기획서: 취약 받는 피해 +10% · 약화 주는 피해 -10% (전에는 +50%/-25% 로 내가 정했었다)
-const taken = (to, v) => Math.max(0, Math.round(st(to, "취약") > 0 ? v * (1 + R.FRAIL) : v));
+// 맞는 쪽의 상태 — 취약 받는 피해 +50% · 불굴 -20%(카제나, rules.js STATUS_V). 한 번의 일에 1 씩 준다(charge)
+function taken(s, to, v) {
+  let m = 1;
+  if (st(to, "취약") > 0 && charge(s, to, "취약")) m *= 1 + R.STATUS_V.취약;
+  if (st(to, "불굴") > 0 && charge(s, to, "불굴")) m *= 1 - R.STATUS_V.불굴;
+  return Math.max(0, Math.round(v * m));
+}
 
-function hurt(s, u, v, { from, pure, crit } = {}) {
+// tags — 카드의 키워드(분쇄 · 잔불 · 약점). 사도가 적을 칠 때 약점이면 상성 유리와 같은 +10%(rules.js NATURE_DMG)
+// card — 사도의 카드(고학년 포함)가 친 것. 사도의 사기 · 약화는 카드의 피해에만 붙고 카드 한 장에 1 씩 준다(패시브 · 지속 피해는 안 쓴다)
+function hurt(s, u, v, { from, pure, crit, tags, card, counter } = {}) {
   if (u.invuln && !pure) { say(s, `${u.ko}에게 닿지 않는다`); return; }
-  let d = pure ? v : taken(u, v);
-  // 성격 상성 — 때리는 쪽이 유리하면 +10%, 맞는 쪽이 유리하면 -5%
-  if (!pure && from) d = Math.round(d * natureMod(s, from, u));
+  let d = pure ? v : taken(s, u, v);
+  // 때리는 사도의 상태 — 적은 dealt 가 이미 넣었다(머리 위 숫자와 같게)
+  if (!pure && card && from && from.side === "party") {
+    let m = 1;
+    if (st(from, "사기") > 0 && charge(s, from, "사기")) m *= 1 + R.STATUS_V.사기;
+    if (st(from, "약화") > 0 && charge(s, from, "약화")) m *= 1 - R.STATUS_V.약화;
+    if (m !== 1) d = Math.round(d * m);
+  }
+  // 성격 상성 — 때리는 쪽이 유리하면 +10%, 맞는 쪽이 유리하면 -5%. 사도 → 적은 약점(weakOf · 「약점」)이 곧 유리다
+  if (!pure && from) d = Math.round(d * (from.side === "party" && u.side === "enemy" && isWeakHit(s, from, u, tags) ? 1 + R.NATURE_DMG : natureMod(s, from, u)));
+  // 분쇄 · 잔불 · 잔광(rules.js STATUS_V) — 분쇄는 방어 · 실드가 깎이기 전에 본다. 격파 자체의 덤은 없다(카제나)
+  if (!pure && u.side === "enemy") {
+    let k = 1;
+    if (tags && tags.잔불 && u.broken) k *= 1 + R.STATUS_V.잔불;
+    if (tags && tags.잔광 && u.broken) k *= 1 + R.STATUS_V.잔광;
+    if (tags && tags.분쇄 && ((u.block || 0) > 0 || (u.shield || 0) > 0)) k *= 1 + R.STATUS_V.분쇄;
+    if (k !== 1) d = Math.round(d * k);
+  }
   // 패시브·키워드·카드가 건 증감 — 주는 피해(때리는 쪽) × 받는 피해(맞는 쪽). 아무리 깎여도 10% 는 들어간다
   if (!pure) {
     const m = (1 + (from ? P.statMod(s, from, "dealt") : 0)) * (1 + P.statMod(s, u, "taken"));
@@ -563,10 +693,100 @@ function hurt(s, u, v, { from, pure, crit } = {}) {
     emit(s, "hurt", { who: u, from });
     emit(s, "lowHp", { who: u, before, after: u.hp / u.maxHp });
   }
+  // 반격 — 적에게 맞으면(방어 · 실드로 막아도) 그 적에게 방어력 반격% 피해. 적의 수 하나에 한 번 · 1 씩 준다
+  if (!pure && !counter && u.side === "party" && !u.dead && from && from.side === "enemy" && !from.dead && st(u, "반격") > 0) {
+    u.ctrSeq = u.ctrSeq || 0;
+    if (u.ctrSeq !== s.actSeq && charge(s, u, "반격")) {
+      u.ctrSeq = s.actSeq;
+      const v = Math.max(1, Math.round((u.def || 0) * (1 + P.statMod(s, u, "def")) * R.STATUS_V.반격));
+      say(s, `${u.ko}: 반격 → ${from.ko} (${v})`);
+      cue(s, "status", u, { id: "반격!", up: true });
+      hurt(s, from, v, { from: u, counter: true });
+    }
+  }
   if (u.side === "enemy" && d > 0 && !pure) {
     foePassives(s, "hurt", { target: u, from });
     if (!u.dead) foePassives(s, "lowHp", { target: u, before, after: u.hp / u.maxHp });
   }
+}
+
+// ── 강인도 · 격파 (rules.js TOUGH) ─────────────────────────────────────
+// 약점으로 쳤나 — 사도 성격이 그 적의 약점 성격이거나(상성을 끄면 안 본다), 카드에 「약점」 이 붙었다
+export function isWeakHit(s, from, to, tags) {
+  if (!from || !to || from.side !== "party" || to.side !== "enemy") return false;
+  if (tags && tags.약점) return true;
+  return !s.noNature && weakOf(to.key).includes(natureOf(from.key));
+}
+// 강인도를 n 깎는다. 0 이 되면 격파 — AP +1 · 즉시 행동 셈 늦춤 · 받는 피해 증가(hurt). 격파된 적 · 쓰러진 적은 더 안 깎인다
+function toughHit(s, e, n) {
+  if (!e || e.side !== "enemy" || e.dead || e.broken || !(n > 0) || !e.toughMax) return;
+  const from = e.tough;
+  e.tough = Math.max(0, e.tough - n);
+  hitCue(s, e, "tough", { from, to: e.tough });
+  if (e.tough > 0) return;
+  e.broken = true;
+  const ap = R.TOUGH.ap || 0;
+  gainAp(s, ap);
+  e.rushCnt = (e.rushCnt || 0) - (R.TOUGH.delay || 0);
+  say(s, `${e.ko}: 격파! (AP +${ap} · 즉시 행동 ${R.TOUGH.delay}장 늦춤)`);
+  hitCue(s, e, "break", { ap });
+  emit(s, "break", { target: e, by: s.acting });
+  handAuto(s, "break", { target: e });
+}
+// 강인도 쪽지는 그 적이 맞은 쪽지 바로 뒤에 — 맞자마자 적 패시브(「맞으면」)가 움직이면 그 몸짓 뒤로 밀려 격파가 늦게 떴다
+function hitCue(s, e, k, more) {
+  if (!s.fx) return;
+  let at = -1;
+  for (let i = s.fx.length - 1; i >= 0; i--) { const f = s.fx[i]; if (f.k === "hurt" && f.side === "enemy" && f.idx === e.idx) { at = i; break; } }
+  if (at < 0 || !s.fx.slice(at + 1).some((f) => f.k === "act")) return cue(s, k, e, more);
+  let j = at + 1;
+  while (j < s.fx.length && s.fx[j].side === "enemy" && s.fx[j].idx === e.idx && (s.fx[j].k === "tough" || s.fx[j].k === "break")) j++;
+  s.fx.splice(j, 0, { k, side: e.side, idx: e.idx, ...more });
+}
+// 보스의 판이 바뀌면 강인도가 다 찬다(격파도 풀린다)
+function refillTough(s, e) {
+  if (!e.toughMax || (e.tough === e.toughMax && !e.broken)) return;
+  e.broken = false; e.tough = e.toughMax;
+  cue(s, "tough", e, { from: 0, to: e.tough, up: true });
+}
+
+// ── 손에서 저절로 나가는 카드(카제나 연계 · 천상) ─────────────────────────
+// 「손에 있을 때 X 가 일어나면 비용 없이 낸다」. HAND_AUTO: 카드 태그 → 그 태그를 깨우는 일(문자열) 또는 { on, ok(s, card, info) }.
+//   연계  다른 사도의 카드를 내면(카제나 「다른 전투원의 카드 사용 시」). 교주 카드는 사도의 카드가 아니라 안 깨운다
+//   천상  비용 2 이상인 카드를 내면(적힌 비용 — X 는 낸 AP). 저절로 나간 카드는 비용 0 이라 천상을 안 깨운다
+// 고리를 막는다 — 저절로 나간 카드도 다른 카드를 깨울 수 있지만(연계 → 연계), 한 장이 일으킨 사슬은 AUTO_DEPTH 겹까지,
+// 그리고 한 사슬에서 같은 카드는 한 번뿐이다(나간 카드는 손을 떠나니 다시 안 걸린다). 즉시 행동 셈은 여느 카드처럼 센다
+export const AUTO_DEPTH = 3;
+const sameHero = (a, b) => !!a && !!b && a === b;
+export const HAND_AUTO = {
+  연계: { on: "play", ok: (s, c, info) => !!info.hero && !!c.hero && !sameHero(c.hero, info.hero) || (!c.hero && !!info.hero) },
+  천상: { on: "play", ok: (s, c, info) => (info.cost || 0) >= 2 },
+};
+const AUTO_KO = { 연계: "연계!", 천상: "천상!" };
+function handAuto(s, ev, info = {}) {
+  if (s.over) return;
+  const depth = s.autoDepth || 0;
+  if (depth >= AUTO_DEPTH) return;
+  const tags = Object.keys(HAND_AUTO).filter((t) => (typeof HAND_AUTO[t] === "string" ? HAND_AUTO[t] : HAND_AUTO[t].on) === ev);
+  if (!tags.length) return;
+  s.autoDepth = depth + 1;
+  const tried = new Set();
+  try {
+    for (let i = 0; i < s.hand.length && !s.over;) {
+      const id = s.hand[i], c = cardOf(s, id);
+      const tag = !tried.has(id) && tags.find((t) => (hasTag(c, t) || blessTag(s, id, t)) && (typeof HAND_AUTO[t] === "string" || HAND_AUTO[t].ok(s, c, info)));
+      if (!tag) { i++; continue; }
+      tried.add(id);
+      if (canPlay(s, id, { free: true })) { i++; continue; }      // 주인이 쓰러졌거나 낼 수 없는 카드
+      s.freeOnce[id] = true;
+      say(s, `${AUTO_KO[tag] || ""} 「${c.name}」 — 손에서 저절로`.trim());
+      const owner = c.hero ? s.party.find((u) => u.key === c.hero) : null;
+      cue(s, "auto", owner || alive(s.party)[0], { tag, label: AUTO_KO[tag] || "저절로!", name: c.name, cost: c.xcost ? "X" : c.cost, type: c.type, hero: c.hero || null,
+        target: info.target && !info.target.dead ? info.target.idx : null });
+      const t = info.target && !info.target.dead ? info.target.idx : (alive(s.enemies)[0] || {}).idx;
+      if (!playCard(s, i, t ?? 0, { auto: true }).ok) { delete s.freeOnce[id]; i++; }
+    }
+  } finally { s.autoDepth = depth; }
 }
 
 // 적의 치는 수의 값 — 층마다 피해 배율(e.dmgx)을 곱한 것. 힘 · 약화는 빼고(그건 dealt 가 더한다). 적 정보 창 · 가시가 쓴다
@@ -602,6 +822,8 @@ function kill(s, u, byPoison) {
   say(s, u.side === "party" ? `${u.ko} 주말농장으로` : `${u.ko} 쓰러짐`);
   if (u.side === "party") emit(s, "allyDown", { who: u });
   else {
+    // 적 처치 — 파티 AP +1(카제나 「적 처치 시 1 회복」, rules.js KILL_AP). 마지막 적이면 전투가 끝나 쓸 일이 없다
+    if (R.KILL_AP && alive(s.enemies).length) { gainAp(s, R.KILL_AP); say(s, `처치 — AP +${R.KILL_AP}`); cue(s, "status", u, { id: `AP +${R.KILL_AP}`, up: true }); }
     if (s.acting) (s.killNow = s.killNow || {})[s.acting] = (s.killNow[s.acting] || 0) + 1;
     emit(s, "kill", { by: s.acting, target: u }); foePassives(s, "allyDown", { target: u });
   }
@@ -637,11 +859,36 @@ export function blessTag(s, cardId, id) {
 
 // 카드의 태그 — 개전(첫 손패에 든다) · 보존(턴이 끝나도 손에 남는다) · 소멸(내면 이 전투에서 사라진다).
 // 신탁을 고른 카드는 신탁 글이 전문이다 — 머리의 태그는 기본 카드의 것이라 보지 않는다.
-// (주도·종극은 기획서에 풀이가 없어 아직 아무 일도 안 한다)
+// 주도(턴 시작 50% 비용 -1 · beginTurn · costOf)와 종극(내면 턴이 끝난다 · playCard)도 태그로 돈다
 export function hasTag(c, id) {
   if (!c) return false;
   if ((c.fx || []).some((f) => f.k === "tag" && f.id === id)) return true;
   return !c.flashOn && (c.tags || []).includes(id);
+}
+
+// 카드 키워드 가운데 피해에 붙는 것 — 분쇄 · 잔불 · 약점(rules.js STATUS_V · hurt · isWeakHit)
+const HIT_TAGS = ["분쇄", "잔불", "잔광", "약점"];
+const fxTags = (fx) => { const o = {}; for (const f of fx || []) if (f.k === "tag" && HIT_TAGS.includes(f.id)) o[f.id] = true; return o; };
+function cardTags(s, id, c) {
+  const o = {};
+  for (const t of HIT_TAGS) if (hasTag(c, t) || blessTag(s, id, t)) o[t] = true;
+  return o;
+}
+
+// 카드의 때 붙은 효과(「감응: …」 · 「턴 끝에 손에 있으면: …」)를 그 자리에서 돌린다 — 카드는 손에 그대로 있다
+function cardWhen(s, id, on) {
+  const c = cardOf(s, id);
+  const owner = c.hero ? s.party.find((u) => u.key === c.hero && !u.dead) : null;
+  if (c.hero && !owner) return;
+  const prev = s.acting, src0 = s.modSrc, seq0 = s.actSeq;
+  s.acting = c.hero || null; s.modSrc = `「${c.name}」 ${on === "draw" ? "감응" : "턴 끝"}`;
+  s.actSeq = s.seqN = (s.seqN || 0) + 1;
+  say(s, `「${c.name}」 — ${on === "draw" ? "감응" : "손에 남아"}`);
+  if (on === "draw") cue(s, "status", owner || alive(s.party)[0], { id: `감응 「${c.name}」`, up: !c.status && !c.curse });
+  const tgt = (alive(s.enemies)[0] || {}).idx ?? 0;
+  try { runFx(s, c.fx, { owner, combo: null, targetIdx: tgt, tags: cardTags(s, id, c), card: true, type: c.type, when: on }, fxApi(s)); }
+  finally { s.acting = prev; s.modSrc = src0; s.actSeq = seq0; }
+  checkOver(s);
 }
 
 export function draw(s, n) {
@@ -657,6 +904,13 @@ export function draw(s, n) {
     s.drawn = (s.drawn || 0) + 1;            // 뽑은 장수 — 패시브가 준 드로우를 셀 때(passiveGain)
     if (s.hand.length >= R.HAND_MAX) { s.gone.push(id); burned++; continue; }
     s.hand.push(id);
+    // 감응 — 뽑히면 「감응: …」 이 돈다. 감응이 또 뽑게 해도 세 겹까지
+    const c = cardOf(s, id);
+    if (c && (c.fx || []).some((f) => f.k === "when" && f.on === "draw") && (s.senseDepth || 0) < 3) {
+      s.senseDepth = (s.senseDepth || 0) + 1;
+      try { cardWhen(s, id, "draw"); } finally { s.senseDepth--; }
+      if (s.over) break;
+    }
   }
   if (burned) say(s, `손이 가득 차 ${burned}장이 사라졌다 (최대 ${R.HAND_MAX}장)`);
 }
@@ -703,7 +957,7 @@ export function useUlt(s, heroKey, targetIdx = 0) {
   if (ult.fx && ult.fx.length) {
     const prev = s.acting, src0 = s.modSrc; s.acting = heroKey; s.modSrc = `${owner.ko} 「${ult.ko}」`;
     s.actSeq = s.seqN = (s.seqN || 0) + 1;
-    runFx(s, ult.fx, { owner, combo: null, targetIdx }, fxApi(s));
+    runFx(s, ult.fx, { owner, combo: null, targetIdx, tags: fxTags(ult.fx), card: true }, fxApi(s));
     s.acting = prev; s.modSrc = src0;
   } else s.ultPending = (s.ultPending || 0) + 1;
   emit(s, "ult", { hero: heroKey });
@@ -715,7 +969,9 @@ export function costOf(s, cardId) {
   const c = cardOf(s, cardId);
   if ((s.freeOnce && s.freeOnce[cardId]) || (s.freeTurn && s.freeTurn[cardId])) return 0;
   const divine = s.shin && R.shinKindOf(CARDS[cardId], s.shin[cardId]) === "cost" ? 1 : 0;      // 기적 「비용 -1」(고유 축복의 코스트 -1 도)
-  return Math.max(0, c.cost - divine - s.nextCheaper);
+  // 주도 — 턴 시작에 굴려 붙은 것(beginTurn), 그 턴 아직 아무 카드도 안 냈을 때만
+  const lead = s.leadOn && s.leadOn[cardId] && !(s.playedThisTurn > 0) ? 1 : 0;
+  return Math.max(0, c.cost - divine - lead - s.nextCheaper);
 }
 
 // ── 신탁 ─────────────────────────────────────────────────────────────
@@ -746,9 +1002,11 @@ export function applyEpiphany(s, cardId, choice) {
 }
 
 // 낼 수 있는가 — 낼 수 없으면 왜인지 돌려준다(화면이 그대로 보여 준다)
-export function canPlay(s, cardId) {
+export function canPlay(s, cardId, { free } = {}) {
   const c = cardOf(s, cardId);
-  if (costOf(s, cardId) > s.ap) return "AP가 모자랍니다";
+  if (hasTag(c, "사용불가")) return "낼 수 없는 카드입니다";
+  if (s.finaleLock) return "종극 — 이번 턴은 끝났습니다";
+  if (!free && costOf(s, cardId) > s.ap) return "AP가 모자랍니다";
   const owner = c.hero ? s.party.find((u) => u.key === c.hero) : null;
   if (c.hero && (!owner || owner.dead)) return `${이가(HERO(c.hero).ko)} 나설 수 없습니다`;
   if (c.need && c.need.row && owner && owner.row !== c.need.row)
@@ -784,7 +1042,12 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   // 기적 — true(이벤트의 옛 값) · "power" 는 피해 ×1.3
   const sh = s.shin && s.shin[cardId];
   // opts.ally — 적과 아군을 둘 다 고르는 카드(「적 1명 …, 아군 1명 …」)의 아군 쪽. 화면이 한 번 더 묻는다
-  const ctx = { owner, combo: null, targetIdx, allyIdx: opts.ally, x: c.xcost ? paid : 0, shin: R.shinKindOf(CARDS[cardId], sh) };
+  // tags — 이 카드의 키워드(분쇄 · 잔불 · 약점). card — 카드(고학년 포함)의 피해만 강인도를 깎는다(패시브 · 축복 덤은 안 깎는다)
+  // chain — 연속: 이번 턴 바로 앞에 낸 카드의 속성(사도 성격)이 이 카드와 같다. 교주 카드는 속성이 없다
+  const nat = owner ? natureOf(owner.key) : null;
+  const ctx = { owner, combo: null, targetIdx, allyIdx: opts.ally, x: c.xcost ? paid : 0, shin: R.shinKindOf(CARDS[cardId], sh), tags: cardTags(s, cardId, c), card: true,
+    type: c.type, chain: !!nat && s.prevNat === nat };
+  s.prevNat = nat;
   s.acting = c.hero || null;
   s.modSrc = `${owner ? owner.ko + " " : ""}「${c.name}」`;   // 버프 · 디버프의 출처(정보 창)
   s.boonSrc = `「${c.name}」`;                                  // 「판 내내」 버프의 출처 — 판에 적는다(run.boons)
@@ -843,7 +1106,11 @@ export function playCard(s, handIdx, targetIdx, opts = {}) {
   checkOver(s);
   // 적 패시브 「카드를 낼 때마다」, 그다음 즉시 행동 — 이 카드로 수의 장수를 채웠으면 적이 예고한 수를 당겨서 한다
   if (!s.over) { foePassives(s, "card", { type: c.type, nth: s.playedThisTurn }); checkOver(s); }
-  if (!s.over) { rushEnemies(s); checkOver(s); }
+  // 신속 — 이 카드는 적의 즉시 행동 셈을 늘리지 않는다(카제나 「적의 행동 카운트를 감소시키지 않음」)
+  if (!s.over && !(hasTag(c, "신속") || blessTag(s, cardId, "신속"))) { rushEnemies(s); checkOver(s); }
+  if (!s.over) handAuto(s, "play", { target: tgt, hero: c.hero || null, cost: opts.auto ? 0 : c.xcost ? paid : c.cost });
+  // 종극 — 이 카드를 내면 턴이 끝난다. 화면은 이것을 보고 턴을 넘기고(fight-screen), 봇은 더 낼 카드가 없어 넘긴다
+  if (!s.over && (hasTag(c, "종극") || blessTag(s, cardId, "종극"))) { s.finaleLock = true; say(s, `「${c.name}」 — 종극: 턴이 끝난다`); return { ok: true, finale: true }; }
   return { ok: true };
 }
 
@@ -887,8 +1154,11 @@ export function previewCard(s, handIdx, targetIdx) {
     const after = (random ? runs.find(([i]) => i === e.idx) : runs[0])[1][e.idx];
     const hp = e.hp - Math.max(0, after.hp);
     const guard = Math.max(0, (e.block || 0) - (after.block || 0) + (e.shield || 0) - (after.shield || 0));
-    if (hp <= 0 && guard <= 0 && !after.dead) return null;
-    return { hp, guard, kill: !!after.dead, max: random };
+    // 강인도 — 깎일 칸 · 이 수로 격파되나(격파된 뒤의 덤 피해는 hp 에 이미 들었다)
+    const tough = e.broken || after.dead ? 0 : Math.max(0, (e.tough || 0) - (after.tough || 0));
+    const brk = !e.broken && !!after.broken && !after.dead;
+    if (hp <= 0 && guard <= 0 && !after.dead && !tough) return null;
+    return { hp, guard, kill: !!after.dead, max: random, tough, brk };
   });
 }
 
@@ -917,8 +1187,11 @@ export function previewUlt(s, heroKey, targetIdx) {
     const after = (random ? runs.find(([i]) => i === e.idx) : runs[0])[1][e.idx];
     const hp = e.hp - Math.max(0, after.hp);
     const guard = Math.max(0, (e.block || 0) - (after.block || 0) + (e.shield || 0) - (after.shield || 0));
-    if (hp <= 0 && guard <= 0 && !after.dead) return null;
-    return { hp, guard, kill: !!after.dead, max: random };
+    // 강인도 — 깎일 칸 · 이 수로 격파되나(격파된 뒤의 덤 피해는 hp 에 이미 들었다)
+    const tough = e.broken || after.dead ? 0 : Math.max(0, (e.tough || 0) - (after.tough || 0));
+    const brk = !e.broken && !!after.broken && !after.dead;
+    if (hp <= 0 && guard <= 0 && !after.dead && !tough) return null;
+    return { hp, guard, kill: !!after.dead, max: random, tough, brk };
   });
 }
 
@@ -1081,10 +1354,27 @@ function applyFx(s, c, f, ctx) {
   }
 }
 
+// 좋은 상태 — 적에게 걸려도 「디버프를 걸면」 이 아니다
+const BUFF_ST = new Set(["사기", "불굴", "결의", "반격", "결정화"]);
 // run-fx 가 쓰는 손잡이 — 엔진 속을 그쪽에 통째로 넘기지 않으려고 좁게 연다
 function fxApi(s) {
   return {
     hurt: (t, v, o) => hurt(s, t, v, o),
+    // 강인도 — 카드의 첫 타격(run-fx dmg) · 「강인도 피해 N」(run-fx tough)
+    tough: (t, n) => toughHit(s, t, n),
+    // 표식 — 공격 카드가 표식 걸린 적을 처음 칠 때: 공격력 표식% 덤 타격 + 강인도 1, 표식 1 감소(rules.js STATUS_V)
+    mark: (owner, t, ctx) => {
+      if (!owner || t.dead || ctx.type !== "공격" || st(t, "표식") <= 0) return;
+      addSt(t, "표식", -1);
+      say(s, `${t.ko}: 표식 — 덤 타격`);
+      cue(s, "status", t, { id: "표식!" });
+      const v = R.finalDamage({ stat: Math.max(1, Math.round(owner.atk * (1 + P.statMod(s, owner, "atk")))), ratio: R.STATUS_V.표식 });
+      hurt(s, t, v, { from: owner, tags: ctx.tags, card: true });
+      if (!t.dead) toughHit(s, t, 1);
+    },
+    // 손상 — 얻는 방어 · 실드를 줄인다
+    guardGain: (t, v) => shieldGain(s, t, v),
+    weak: (from, t, tags) => isWeakHit(s, from, t, tags),
     draw: (n) => draw(s, n),
     // 연출 쪽지 — 회복 · 방어 · 실드(run-fx 가 직접 채우는 것)
     // 넘친 회복(over > 0) — 「회복량이 최대 HP를 초과하면」 패시브(passive.js). 누가 채웠는지는 지금 움직이는 사람(acting)
@@ -1105,7 +1395,7 @@ function fxApi(s) {
         if (t.side === "party") { s.taunt = t.key; s.tauntLeft = n; say(s, `${t.ko}: 도발 — 적이 이쪽을 본다`); }
       } else addSt(t, id, n);
       if (v > 0 && (id !== "기절" || t.sealed) && (id !== "도발" || t.side === "party")) cue(s, "status", t, { id });
-      if (t.side === "enemy" && v > 0) { emit(s, "debuff", { by: s.acting, target: t, id, seq: s.actSeq }); foePassives(s, "debuffed", { target: t }); }
+      if (t.side === "enemy" && v > 0 && !BUFF_ST.has(id)) { emit(s, "debuff", { by: s.acting, target: t, id, seq: s.actSeq }); foePassives(s, "debuffed", { target: t }); }
     },
     statOf: (u, stat) => P.statMod(s, u, stat),
     // run — 「판 내내」(강화 카드). 아군에게 건 것만 판에 적는다(gained.boons → run.js afterFight → run.boons)

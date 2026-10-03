@@ -298,7 +298,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
     const meta = el("div", "cbmeta");
     meta.appendChild(el("span", "sh-grade g-" + (c.grade || ""), c.grade || "교주"));
     if (c.price) meta.appendChild(goldLabel("span", "cbprice", String(c.price)));
-    if (c.oneOnly) meta.appendChild(el("span", "cbone", "한 장만"));
+    if (RULES.isOnly(c) && !c.unique) meta.appendChild(el("span", "cbone", "유일"));   // 유일(rules.js isOnly) — 강화 카드는 제 꼬리표가 말한다
     cell.appendChild(meta);
     cell.appendChild(withKeywords(el("p", "cbtext"), c.text, null));
     if (c.blurb) cell.appendChild(el("p", "cbblurb", c.blurb));

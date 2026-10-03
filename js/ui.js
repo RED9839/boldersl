@@ -1565,10 +1565,10 @@ export function eventScreen(run, onDone, onFight) {
         const w = el("button", "ev2-card");
         const n = run.deck.filter((x) => x === id).length;
         if (n > 1) w.appendChild(el("span", "ev2-n", `×${n}`));
-        // 복제 — 덱에 1장만 카드는 못 고르고, 신탁 · 기적이 붙은 카드는 골드를 더 받는다
+        // 복제 — 유일(rules.js isOnly) 카드는 못 고르고, 신탁 · 기적이 붙은 카드는 골드를 더 받는다
         const locked = p.k === "dupe" && !EV.dupeOk(id, run);
         const extra = p.k === "dupe" ? EV.dupeExtra(run, id) : 0;
-        if (locked) { w.disabled = true; w.classList.add("off"); w.appendChild(el("span", "ev2-n", "1장만")); }
+        if (locked) { w.disabled = true; w.classList.add("off"); w.appendChild(el("span", "ev2-n", "유일")); }
         else if (extra) w.appendChild(el("span", "ev2-n", `+${extra}골드`));
         w.appendChild(bigCard(c, CARDART.pic[id] || null));
         if (!locked) w.onclick = () => ts.pick(w, id, c.name);

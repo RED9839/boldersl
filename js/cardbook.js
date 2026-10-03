@@ -62,9 +62,24 @@ import { CURSES } from "./data/events.js";
 for (const [ko, c] of Object.entries(CURSES)) {
   book[c.id] = {
     id: c.id, hero: null, curse: true, name: ko, cost: c.cost, xcost: false,
-    type: "스킬", text: c.text, fx: [], built: true, target: "없음",
+    type: "저주", text: c.text, fx: [], built: true, target: "없음",
     unique: false, signature: false, flash: null, tags: c.tags.slice(), playable: true,
   };
+}
+
+// 상태 카드 — 적이 이 전투에만 끼워 넣는 방해 카드(js/data/status-cards.js · docs/16). 판의 덱에는 안 들어간다.
+// 저주(골칫거리)와 같이 주인 없는 카드다. 글은 카드 글 문법으로 읽는다
+import { STATUS_CARDS } from "./data/status-cards.js";
+import { parseEffect } from "./effects.js";
+export const STATUS_CARD_ID = {};
+for (const [ko, c] of Object.entries(STATUS_CARDS)) {
+  const { fx, left } = parseEffect(c.text);
+  book[c.id] = {
+    id: c.id, hero: null, status: true, name: ko, cost: c.cost, xcost: false,
+    type: "상태", text: c.text, fx, built: true, target: targetOf({ fx }), blurb: c.blurb || null,
+    unique: false, signature: false, flash: null, tags: [], playable: true, unparsed: left || null,
+  };
+  STATUS_CARD_ID[ko] = c.id;
 }
 
 // 장비 — 사도당 무기·방어구·장신구 한 칸씩. 지금은 스탯 줄과 애착 Lv.3 스탯만 돈다.

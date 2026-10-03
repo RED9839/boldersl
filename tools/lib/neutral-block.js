@@ -32,7 +32,8 @@ export function parseNeutral(text, warn = () => {}) {
     if (!m) { warn(`교주 카드 머리를 못 읽었다: ${ko}`); continue; }
     const tags = m[3].split(",").map((t) => t.trim()).filter(Boolean);
     let body = m[4];
-    const oneOnly = /덱에 1장만\./.test(body);
+    // 유일(카제나 키워드, rules.js isOnly) — 「유일.」 은 카드 글에 남겨 키워드로 읽는다. 옛 글 「덱에 1장만.」 도 같은 뜻으로 받는다(글에서는 뗀다)
+    const oneOnly = /(?:덱에 1장만|유일)\./.test(body);
     body = body.replace(/덱에 1장만\.\s*/, "");
     const shown = body.replace(/\s*\[[^\]]+\]/g, "").trim();   // [주는 피해] 는 전역 증가의 종류 표시 — 효과가 아니다
     const flash = [];

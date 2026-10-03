@@ -69,6 +69,7 @@ export function openFight(run, { hpx = 1, dmgx = 1 } = {}) {
     enemyHp: foeScaleOf(run).hp * hpx, enemyDmg: foeScaleOf(run).dmg * dmgx,   // 층마다 · 엘리트 칸(이벤트 엘리트도) 체력 ×1.5
     next, shin: run.shin, gauge: run.gauge || 0,   // 기적이 붙은 카드 · 고학년 게이지는 전투 사이에 이어진다
     boons: run.boons || {},                        // 강화 카드의 「판 내내」 버프 — 판이 끝날 때까지 전투마다
+    elite: run.eventFight ? !!run.eventFight.elite : !!run.elite,   // 엘리트 칸 — 강인도 칸이 하나 더(rules.js TOUGH)
     glow: run.forceGlow || rollEpiphany(run),   // 신탁 — 이 전투에서 빛날 카드(카제나). forceGlow 는 시험 도구가 정해 넣는 것
     seed: (run.seed + run.floor * 101 + run.node * 7 + (run.step || 0) * 13 + (run.eventFight ? 555 : 0)) >>> 0,
   });
@@ -201,10 +202,11 @@ export function flashOk(run, cardId, n) {
   if (!c || !R.isPower(flashed(c, n)) || R.isPower(c)) return true;
   return run.deck.filter((x) => x === cardId).length <= 1;
 }
+// 유일(rules.js isOnly — 강화 카드 · 「유일.」 · 교주 「덱에 1장만.」)은 덱에 한 장만. 강화 카드는 쓴 뒤에도 다시 안 들어온다
+export const onlyCard = (run, cardId) => !!CARDS[cardId] && R.isOnly(flashed(CARDS[cardId], (run.flash || {})[cardId]));
 export function powerWhy(run, cardId) {
-  if (!powerCard(run, cardId)) return null;
-  if ((run.spent || []).includes(cardId)) return "이 판에서 이미 쓴 강화 카드입니다 — 강화 카드는 쓰면 사라집니다";
-  if (run.deck.includes(cardId)) return "강화 카드는 덱에 한 장만 넣을 수 있습니다";
+  if (powerCard(run, cardId) && (run.spent || []).includes(cardId)) return "이 판에서 이미 쓴 강화 카드입니다 — 강화 카드는 쓰면 사라집니다";
+  if (onlyCard(run, cardId) && run.deck.includes(cardId)) return "유일 — 덱에 한 장만 넣을 수 있습니다";
   return null;
 }
 
@@ -264,7 +266,7 @@ export function campTrain(run, pick) {
 // 진열 — 교주 카드 셋(흔한 것이 자주) + 장비 셋. 고유 카드는 팔지 않는다(은총으로만)
 function shelf(run) {
   const has = new Set(run.deck);
-  const pool = NEUTRAL_IDS.filter((id) => CARDS[id].playable && !(CARDS[id].oneOnly && has.has(id)));
+  const pool = NEUTRAL_IDS.filter((id) => CARDS[id].playable && !(R.isOnly(CARDS[id]) && has.has(id)));
   const neutral = [];
   while (neutral.length < R.SHOP_NEUTRAL && pool.length) {
     const w = pool.map((id) => R.SHOP_GRADE_WEIGHT[CARDS[id].grade] || 1);
@@ -498,15 +500,32 @@ export function advance(run) {
   if (!wasBoss) { run.node++; return { swap: false }; }
   // 보스를 이기면 주말농장에 간 사도가 최대 HP 의 20% 로 돌아온다(rules.js BOSS_REVIVE)
   const revived = reviveDown(run, R.BOSS_REVIVE);
+  // 층 보스의 몫 — 가진 고유 카드 하나를 한 장 더(마지막 싸움은 판이 끝나니 빼고)
+  const copied = isFinal(run) ? null : bossCopy(run);
   // 마지막 층의 보스 뒤에 마지막 싸움이 있으면 층을 넘지 않고 그리로(node 4) — 캠프 한 번을 거친다(main.js finalCamp)
-  if (!isFinal(run) && run.floor === FLOORS.length - 1 && FLOORS[run.floor].final) { run.node = 4; return { swap: false, final: true, revived }; }
+  if (!isFinal(run) && run.floor === FLOORS.length - 1 && FLOORS[run.floor].final) { run.node = 4; return { swap: false, final: true, revived, copied }; }
   run.floor++; run.node = 0;
-  if (run.floor >= FLOORS.length) { run.done = "clear"; return { swap: false, revived }; }
+  if (run.floor >= FLOORS.length) { run.done = "clear"; return { swap: false, revived, copied }; }
   // 층 사이에 조금 쉰다 — 몸도 마음도. 사도 교체는 없다(처음 고른 셋으로 끝까지 간다)
   for (const k of run.party) {
     run.hp[k] = Math.min(run.maxHp[k], run.hp[k] + 10);
   }
-  return { swap: false, revived };
+  return { swap: false, revived, copied };
+}
+
+// 층 보스 보상 — 덱에 **가진** 사도 고유 카드 가운데 무작위 한 장을 복제한다. 강화 카드(한 장만 — 신탁으로 강화가 된 것 포함)는 뺀다.
+// 가진 고유 카드가 없으면 아무것도 안 한다. 복제한 카드 id 를 돌려준다(main.js 가 알린다)
+export function bossCopy(run) {
+  const owned = [...new Set(run.deck)].filter((id) => {
+    const c = CARDS[id];
+    if (!c || !c.unique || !c.hero) return false;
+    if (R.isOnly(flashed(c, (run.flash || {})[id]))) return false;      // 유일(강화 카드 포함)은 복제하지 않는다
+    return !(run.spent || []).includes(id);
+  });
+  if (!owned.length) return null;
+  const id = owned[Math.floor(run.rng() * owned.length)];
+  run.deck.push(id);
+  return id;
 }
 
 // 쓰러진 사도를 최대 HP 의 ratio 로 돌려보낸다 — 돌아온 사도 키를 돌려준다

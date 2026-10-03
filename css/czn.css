@@ -3820,3 +3820,108 @@ body { word-break: keep-all; overflow-wrap: break-word; }
   filter: drop-shadow(0 3px 3px #0009) drop-shadow(0 0 10px #ff9a1fcc);
 }
 .calm .groundequip { animation: none; }
+
+/* ── 강인도 · 격파(카제나) — 적 체력 막대 밑의 칸 · 약점 성격 · 격파 ───────────────── */
+.tpips { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 3px; line-height: 1; }
+.tpips .tcells { display: flex; gap: 3px; }
+.tpips .tcells i {
+  width: 16px; height: 9px; transform: skewX(-18deg); border-radius: 2px;
+  background: #1a1726cc; border: 1px solid #000a; box-shadow: inset 0 0 0 1px #ffffff14;
+}
+.tpips .tcells i.on { background: linear-gradient(180deg, #f2f6ff, #a9b8d8); border-color: #2a3350; box-shadow: 0 0 4px #c9d8ff66; }
+.tpips .tcells i.pvcut { animation: pvblink 0.6s ease-in-out infinite alternate; background: linear-gradient(180deg, #ffe08a, #ff8a5c); }
+.tpips .tcells i.crack { animation: tcrack .42s ease-out; }
+.tpips .tcells i.refill { animation: trefill .5s ease-out; }
+@keyframes tcrack {
+  0% { background: #fff; transform: skewX(-18deg) scale(1.35); box-shadow: 0 0 10px #fff; }
+  45% { background: #ffd27a; transform: skewX(-18deg) scale(1.1) rotate(8deg); opacity: .9; }
+  100% { transform: skewX(-18deg); }
+}
+@keyframes trefill { from { box-shadow: 0 0 0 #fff0; filter: brightness(2.2); } to { filter: none; } }
+.tpips .tweak { display: flex; gap: 1px; }
+.tpips .tweak i {
+  font-style: normal; font-size: 11px; font-weight: 900; width: 17px; height: 17px; line-height: 15px; text-align: center;
+  border-radius: 50%; background: #0c0a16d9; border: 1.5px solid currentColor; text-shadow: 0 1px 1px #000;
+}
+.tpips .tweak i.n순수 { color: #7fd3a8; } .tpips .tweak i.n광기 { color: #d9737f; } .tpips .tweak i.n냉정 { color: #7fd6f5; }
+.tpips .tweak i.n우울 { color: #b6a8e0; } .tpips .tweak i.n활발 { color: #f5dc5a; } .tpips .tweak i.n공명 { color: #e8e8f0; }
+.tpips .tbrk {
+  font-size: 12px; font-weight: 900; padding: 0 7px; border-radius: 3px; line-height: 17px; color: #2a1600;
+  background: linear-gradient(180deg, #ffe7a3, #ffb23c); box-shadow: 0 0 8px #ffb23caa; transform: skewX(-8deg);
+}
+.tpips.broken .tcells i { background: #3a2a10cc; border-color: #ffb23c88; }
+/* 격파된 적 — 몸이 금빛으로 흐트러져 보인다(올리면 칸 줄에 풀이) */
+.battle .foe.broken .art { filter: drop-shadow(0 0 8px #ffb23c) saturate(.75) brightness(1.08); }
+.battle .foe.broken .hpwrap .bar { border-color: #ffb23c; box-shadow: 0 0 0 1px #ffb23c, 0 0 8px #ffb23c88; }
+/* 미리보기 — 깎일 칸 · 격파 */
+.foe .pv .pvt { font-size: 11.5px; font-weight: 900; color: #e8eeff; text-shadow: 0 1px 2px #000; }
+.foe .pv .pvt.brk, .foe .pv .pvt.on { color: #ffd27a; text-shadow: 0 1px 2px #000, 0 0 8px #ff9a1f; }
+.foe.pvbrk .tpips .tcells { filter: drop-shadow(0 0 4px #ffb23c); }
+/* 격파! — 큰 글자 · 번쩍 */
+.brkburst {
+  position: absolute; z-index: 9; transform: translate(-50%, -50%); pointer-events: none; text-align: center;
+  display: flex; flex-direction: column; align-items: center; animation: brkin 1.2s cubic-bezier(.2, 1.4, .4, 1) forwards;
+}
+.brkburst b {
+  font-size: 44px; font-weight: 900; color: #fff3c8; letter-spacing: .04em; font-style: italic;
+  -webkit-text-stroke: 1.5px #6a3a00; text-shadow: 0 3px 0 #6a3a00, 0 0 18px #ffb23c, 0 0 36px #ff7a1c;
+}
+.brkburst small { font-size: 14px; font-weight: 900; color: #9fe8ff; text-shadow: 0 1px 2px #000, 0 0 8px #3cb4ff; }
+@keyframes brkin {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(2.2); }
+  18% { opacity: 1; transform: translate(-50%, -50%) scale(.95); }
+  28% { transform: translate(-50%, -50%) scale(1.05); }
+  75% { opacity: 1; transform: translate(-50%, -62%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -78%) scale(1); }
+}
+.brkflash { position: absolute; inset: 0; z-index: 8; pointer-events: none; background: radial-gradient(circle, #ffd27a55, #ffb23c18 45%, transparent 70%); animation: fxvig .42s ease-out forwards; }
+/* 보스 띠 · 적 정보 창 */
+.bossbar .tpips { justify-content: flex-start; margin-top: 4px; }
+.ftough { display: flex; align-items: center; gap: 10px; margin: 2px 0 6px; }
+.ftough .tpips { margin: 0; }
+.ftough .ftoughn { font-size: 13px; font-weight: 700; color: #d9d2f2; }
+.ftag.weak { border-style: dashed; }
+.phone .tpips .tcells i { width: 12px; height: 7px; }
+.phone .tpips .tweak i { width: 14px; height: 14px; font-size: 9.5px; line-height: 12px; }
+.phone .tpips .tbrk { font-size: 10.5px; line-height: 14px; padding: 0 5px; }
+.phone .brkburst b { font-size: 34px; }
+@media (prefers-reduced-motion: reduce) {
+  .tpips .tcells i.crack, .tpips .tcells i.refill, .tpips .tcells i.pvcut, .brkburst, .brkflash { animation: none; }
+  .brkflash { display: none; }
+}
+.calm .brkburst, .calm .brkflash { display: none; }
+
+/* ── 카제나 카드 체계(docs/16) — 연계 · 천상 꼬리표, 날아가는 카드, 저주 · 상태 카드, 겹 칩 ───────────── */
+.autoburst {
+  position: absolute; z-index: 9; transform: translate(-50%, -50%); pointer-events: none; text-align: center;
+  display: flex; flex-direction: column; align-items: center; animation: autoin 1.1s cubic-bezier(.2, 1.4, .4, 1) forwards;
+}
+.autoburst b {
+  font-size: 30px; font-weight: 900; font-style: italic; letter-spacing: .03em; color: #fff4c8;
+  -webkit-text-stroke: 1.2px #5a3a00; text-shadow: 0 2px 0 #5a3a00, 0 0 14px #ffc94a, 0 0 28px #ff9a1c;
+}
+.autoburst.heaven b { color: #eaf6ff; -webkit-text-stroke-color: #1c3a66; text-shadow: 0 2px 0 #1c3a66, 0 0 14px #9fd0ff, 0 0 28px #5aa8ff; }
+.autoburst small { font-size: 12.5px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px #000, 0 0 6px #000; }
+@keyframes autoin {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(1.8); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(.95); }
+  30% { transform: translate(-50%, -50%) scale(1.05); }
+  75% { opacity: 1; transform: translate(-50%, -64%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -80%) scale(1); }
+}
+.autocard {
+  position: fixed !important; margin: 0 !important; z-index: 76; width: 90px !important; height: 124px !important; pointer-events: none; border-radius: 9px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 8px 6px;
+  border: 2px solid #ffd27a; box-shadow: 0 0 14px #ffb23c, 0 6px 14px #0008; color: #fff; text-align: center;
+}
+.autocard .gcost { position: absolute; left: 5px; top: 4px; font-size: 15px; font-weight: 900; }
+.autocard b { font-size: 12.5px; line-height: 1.2; text-shadow: 0 1px 2px #000; }
+.autocard i { font-style: normal; font-size: 18px; opacity: .85; }
+/* 저주(골칫거리 — 판의 덱에 남는다) · 상태 카드(적이 이 전투에만 넣는다) */
+.gcard.k-curse { background: linear-gradient(170deg, #2a1830 0, #140c18 62%); border-color: #7a3a6a; }
+.gcard.k-curse .gtype i { color: #e07ad0; }
+.gcard.k-status { background: repeating-linear-gradient(135deg, #24262c 0 10px, #1c1e24 10px 20px); border-color: #7a8090; border-style: dashed; }
+.gcard.k-status .gtype i { color: #c8d0e0; }
+.phone .autoburst b { font-size: 24px; }
+@media (prefers-reduced-motion: reduce) { .autoburst { animation: none; } }
+.calm .autoburst { display: none; }
