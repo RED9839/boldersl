@@ -374,7 +374,7 @@ html.rv-nojua { --rv-w: 800; }
 .cardinspect .cibig .gtext { font-size: 19px; line-height: 1.5; -webkit-line-clamp: unset; }
 .cardinspect .cibig .gtitle b { font-size: 24px; }
 @keyframes cipop { from { transform: scale(.85) !important; opacity: 0; } }
-.ciside { display: flex; flex-direction: column; gap: 10px; width: min(360px, 44vw); max-height: 86vh; overflow: auto; }
+.ciside { display: flex; flex-direction: column; gap: 10px; width: min(360px, calc(var(--app-w, 100vw) * .44)); max-height: calc(var(--app-h, 100vh) * .86); overflow: auto; }
 .ciwho { display: flex; flex-wrap: wrap; gap: 6px; }
 .ciwho span { font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 14px; color: var(--rv-text); background: var(--rv-paper); border: 2px solid var(--rv-line); border-radius: 99px; padding: 1px 12px; }
 .cinone, .cihint { margin: 0; color: var(--rv-ink2); font-size: 13px; }
@@ -933,3 +933,18 @@ body:has(#screen.battle) .bottom { top: 84px; }
   #screen.battle .ally.uready::after, #screen.battle .ally.ujust { animation: none; }
 }
 .calm .fxpierce, .calm .fxsweep, .calm #screen.battle .pbdmg { display: none; }
+
+/* ═══ ⑪ 가벼운 판 — 전투 화면의 검은 판을 걷어 낸다(2026-10 사용자 「뒤에 검은 배경들 없애야 — 화면이 좁아 보임」) ═══
+   판은 옅은 유리(반투명 + 흐림)로만 두고 무거운 테 · 그림자를 뺀다. 글자는 그림자로 읽히게 */
+#screen.battle :is(.bhead .partybox, .turntag, .foe .intent, .gauge, .ally, .apbox, .pile2) {
+  background: linear-gradient(180deg, #120d1c59, #120d1c26) !important;
+  border-color: #ffffff2e !important; border-width: 2px !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(3px);
+  text-shadow: 0 1px 2px #000c, 0 0 6px #0008;
+}
+#screen.battle .pile2::before { background: #ffffff1f !important; border-color: #ffffff2e !important; }
+/* 쓸 수 있는 고학년 · 위험한 파티 HP 는 테로 알린다 — 배경 없이도 보이게 */
+#screen.battle .ally.uready { border-color: var(--rv-sun) !important; box-shadow: 0 0 0 1px #ffcf3f60, 0 0 14px #ffcf3f55 !important; }
+#screen.battle .gauge.ready, #screen.battle .gauge.full { border-color: var(--rv-sun) !important; box-shadow: 0 0 14px #ffcf3f55 !important; }
+#screen.battle .bhead .partybox.danger { border-color: #ff6a6aaa !important; }

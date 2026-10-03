@@ -2618,7 +2618,8 @@ body:has(#screen.lobby2) .top { display: none; }
 
 /* 창 — 메인 사도 바꾸기 · 설정 */
 .lb-modal { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: #06050bb8; backdrop-filter: blur(5px); }
-.lb-box { width: min(900px, 92vw); max-height: 84vh; display: flex; flex-direction: column; border-radius: 20px; background: #16131f; border: 1px solid #ffffff22; color: #f6f2e4; box-shadow: 0 30px 80px #000a; overflow: hidden; }
+.lb-box { width: min(900px, calc(var(--app-w, 100vw) * .92)); max-height: calc(var(--app-h, 100vh) * .84); }   /* vw · vh 는 화면 배율(zoom)을 먹어 넓은 화면에서 창이 위아래로 잘렸다 — stage.js 의 --app-w · --app-h */
+.lb-box { display: flex; flex-direction: column; border-radius: 20px; background: #16131f; border: 1px solid #ffffff22; color: #f6f2e4; box-shadow: 0 30px 80px #000a; overflow: hidden; }
 .lb-settings { width: min(620px, 94vw); }
 .lb-settings .setpanel { overflow-y: auto; scrollbar-width: thin; padding: 4px 18px 18px; }
 .lb-boxhead { display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-bottom: 1px solid #ffffff14; }
@@ -2628,7 +2629,7 @@ body:has(#screen.lobby2) .top { display: none; }
 .lb-chips i.tm-fci { display: inline-grid; place-items: center; flex: none; width: 18px; height: 18px; font-style: normal; }
 .lb-chips i.tm-fci > img { width: 100%; height: 100%; object-fit: contain; }
 .lb-modal .lb-x { min-height: 0; width: 36px; height: 36px; padding: 0; border-radius: 10px; font-size: 20px; background: transparent; border: 1px solid #ffffff22; color: #ddd; }
-.lb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); grid-auto-rows: 118px; gap: 10px; padding: 16px 18px 18px; overflow-y: auto; scrollbar-width: thin; }
+.lb-grid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); grid-auto-rows: 118px; gap: 10px; padding: 16px 18px 18px; overflow-y: auto; scrollbar-width: thin; }
 .lb-modal .lb-pick {
   display: flex; flex-direction: column; align-items: center; gap: 4px; height: 118px; min-height: 0; padding: 6px 4px 8px; border-radius: 12px;
   background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--tone) 40%, transparent), #1f1b2b 75%); border: 1px solid #ffffff1a; color: #f6f2e4;
@@ -2738,7 +2739,7 @@ body:has(#screen.lobby2) .top { display: none; }
 
 /* ── 버릴 카드 고르기(ui.js pickDiscard) ── */
 .dcpick { position: fixed; inset: 0; z-index: 95; display: grid; place-items: center; background: #06050bcc; backdrop-filter: blur(4px); }
-.dcbox { width: min(1100px, 94vw); max-height: 88vh; display: flex; flex-direction: column; gap: 14px; padding: 20px 22px; border-radius: 20px; background: #16131f; border: 1px solid #ffffff22; box-shadow: 0 30px 80px #000a; color: #f4f1ff; }
+.dcbox { width: min(1100px, calc(var(--app-w, 100vw) * .94)); max-height: calc(var(--app-h, 100vh) * .88); display: flex; flex-direction: column; gap: 14px; padding: 20px 22px; border-radius: 20px; background: #16131f; border: 1px solid #ffffff22; box-shadow: 0 30px 80px #000a; color: #f4f1ff; }
 .dchead { display: flex; flex-direction: column; gap: 4px; }
 .dchead b { font-size: 22px; font-weight: 900; }
 .dchead span { font-size: 13px; color: #b9b2d6; }
