@@ -21,6 +21,8 @@
 // 총구 — playFx 의 track(함수, 화면 좌표를 준다)을 주면 매 프레임 그 자리에 붙어 따라간다(스파인 본 — spine-view 의 boneScreen).
 // bare 면 TUNE 의 dx · dy 를 안 쓴다(발밑에서 총구까지 손으로 맞춘 몫이라 본에 붙이면 필요 없다)
 
+import { rate as battleRate, now as battleNow, sleep as battleSleep } from "./speed.js";
+
 const BASE = new URL("../assets/fx/", import.meta.url).href;
 const BAKED = new URL("../assets/fx-baked/", import.meta.url).href;
 const PPU = 16;            // 유니티 1단위 = 16px (scale 1). 유닛 키가 150px 쯤인 전장에 맞췄다 — 원작 궁극기는 유닛 두세 배로 핀다
@@ -620,7 +622,8 @@ function runOrigin(s, run) {
 }
 
 function tick(s, now) {
-  const dt = Math.min(MAX_DT, Math.max(0, (now - (s.last || now)) / 1000));
+  // 전투 배속(js/speed.js) — 입자도 그만큼 빨리 산다
+  const dt = Math.min(MAX_DT, Math.max(0, (now - (s.last || now)) / 1000)) * battleRate();
   s.last = now;
   attach(s);
   for (const run of s.runs) {
@@ -726,17 +729,18 @@ export async function playUltFx(heroKey, o = {}) {
   if (o.calm || calmNow() || !(await loadFx()) || !hasUltFx(heroKey)) return false;
   const from = o.from || o.to, to = o.to || o.from;
   if (!from) return false;
-  const t0 = performance.now();
+  // 시각은 전투 시계(js/speed.js)로 — SD 동작 · 타격이 배속으로 당겨지면 이펙트 차례도 같이
+  const t0 = battleNow();
   await preloadUltFx(heroKey);
   const plan = ultPlan(heroKey, o.pick);
   const flip = to.x < from.x;
   const base = { container: o.container, scale: o.scale, calm: false, top: o.top };
-  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const wait = battleSleep;
   const sync = o.impact != null, lag = plan.some((p) => p.at === "move") ? 330 : 0;
   // 한 벌은 타격 뒤 1.2초(모두 합쳐 적어도 1.6초)면 걷힌다 — 원작 루프 · 긴 잔불이 다음 수까지 남지 않게
   const end = sync ? Math.max(1.6, (Math.max(o.impact, o.end || 0) + lag) / 1000 + 0.9)
     : Math.max(1.6, ultImpactMs(heroKey) / 1000 + 1.2);
-  const left = () => Math.max(FADE, end - (performance.now() - t0) / 1000);
+  const left = () => Math.max(FADE, end - (battleNow() - t0) / 1000);
   // 같은 차례 안에서 _1 · _2 … 는 조금씩 어긋나게
   const fire = (list, gap) => Promise.all(list.map((p, i) => wait(i * gap).then(() => {
     if (p.at === "move") return playFx(p.name, { ...base, x: from.x, y: from.y, flip, move: { from, to, dur: 0.35 }, until: left() });
@@ -749,7 +753,7 @@ export async function playUltFx(heroKey, o = {}) {
   const pending = [];
   if (sync) {
     // 그림을 받느라 늦은 만큼은 빼고 기다린다 — SD 동작은 이미 돌고 있다
-    const until = (ms) => wait(Math.max(0, ms - (performance.now() - t0)));
+    const until = (ms) => wait(Math.max(0, ms - (battleNow() - t0)));
     if (o.dash) {
       pending.push(fire(pre.filter((p) => p.at === "caster"), 60));
       const near = pre.filter((p) => p.at !== "caster");

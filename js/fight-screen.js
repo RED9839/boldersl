@@ -18,6 +18,7 @@ import { DEV } from "./dev.js";
 import { spineView } from "./spine-view.js";
 import { loadFx, preloadUltFx, playUltFx, ultImpactMs, ultLagMs, playFx, preloadFx } from "./fx-burst.js";
 import { speak } from "./voice.js";
+import * as SP from "./speed.js";
 import { cardMotion } from "./data/card-motion.js";
 import { HERO, TINT, NTINT, el, kwNote, hint, screen, TMARK, TKIND, goldIcon, mistletoeIcon, openHelp, img, withKeywords, kwText, showCard, showPiles, natureClass, bigCard, effectBox, setStageBg, withNumbers, statText, equipIcon, emptySlotIcon, showEquip } from "./ui-common.js";
 
@@ -49,6 +50,7 @@ const ROW_KO = { front: "전열", mid: "중열", back: "후열" };
 export function fightScreen(run, onDone, onQuit, opts = {}) {
   const s = screen();
   s.classList.add("battle");
+  SP.enterBattle(s);                        // 배속(js/speed.js)은 이 화면이 붙어 있는 동안만
   const floor = R.currentFloor(run);
   // 싸움터 배경 — 층마다 한 장, 보스·이벤트 전투는 따로. 그림이 없으면(assets 는 저장소에 없다) 어두운 바탕이 남는다.
   setStageBg(s, run);
@@ -88,6 +90,19 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   for (let k = 0; k < 3; k++) menuBtn.appendChild(el("i"));
   menuBtn.onclick = () => openMenu();
   s.appendChild(menuBtn);
+  // 배속 — 메뉴 왼쪽. 카제나처럼 1× · 2× 를 번갈아. 누르면 진행 중인 연출도 그 자리에서 빨라진다(js/speed.js). 설정에 남는다
+  const speedBtn = el("button", "bspeed");
+  speedBtn.type = "button";
+  const paintSpeed = () => {
+    const v = SP.getSpeed();
+    speedBtn.textContent = v + "×";
+    speedBtn.classList.toggle("on", v > 1);
+    speedBtn.title = v > 1 ? "전투 2배속 — 누르면 1배속" : "전투 1배속 — 누르면 2배속";
+    speedBtn.setAttribute("aria-pressed", v > 1 ? "true" : "false");
+  };
+  speedBtn.onclick = (e) => { if (e && e.stopPropagation) e.stopPropagation(); SP.setSpeed(SP.getSpeed() > 1 ? 1 : 2); paintSpeed(); };
+  paintSpeed();
+  s.appendChild(speedBtn);
 
   // 위쪽 안내는 두지 않는다 — 고르고 끄는 법은 해 보면 안다. 막혔을 때(AP 모자람 등)만 잠깐 띄우고 지운다
   let sayT = 0;
@@ -219,13 +234,13 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     node.style.setProperty("--dx", ((to.left + 30) - from.x) / z + "px");
     node.style.setProperty("--dy", ((to.top + 40) - from.y) / z + "px");
     document.body.appendChild(node);
-    setTimeout(() => node.remove(), 1200);
+    SP.after(1200, () => node.remove());
   }
   function addLoot(row) {
     lootBox.classList.add("on");
     row.classList.add("ltnew");
     lootList.appendChild(row);
-    setTimeout(() => row.classList.remove("ltnew"), 900);
+    SP.after(900, () => row.classList.remove("ltnew"));
   }
   function dropGold(node, u) {
     const r = node.getBoundingClientRect ? node.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
@@ -250,7 +265,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   function addGold(g) {
     lootGold += g;
     if (!goldRow) { goldRow = el("div", "ltrow ltgold"); addLoot(goldRow); }
-    else { goldRow.classList.add("ltnew"); setTimeout(() => goldRow.classList.remove("ltnew"), 900); }
+    else { goldRow.classList.add("ltnew"); SP.after(900, () => goldRow.classList.remove("ltnew")); }
     goldRow.innerHTML = "";
     goldRow.classList.add("ltpill", "ltdark");
     const t = el("div", "lttext");
@@ -294,12 +309,12 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       n.style.transform = `translateX(${(W - r.left) / z + 160}px)`;
       n.classList.add("walking");
     });
-    const t0 = performance.now();
+    const t0 = SP.now();
     const tick = () => {
       // 누구든 금화를 지나가면 줍는다
       const xs = heroes.map((n) => { const r = n.getBoundingClientRect(); return r.left + r.width * 0.65; });
       for (const c of ground) if (!c.taken && xs.some((x) => x >= c.x)) pickCoin(c);
-      if (performance.now() - t0 < DUR + heroes.length * 120 + 150) requestAnimationFrame(tick);
+      if (SP.now() - t0 < DUR + heroes.length * 120 + 150) requestAnimationFrame(tick);
       else { for (const c of ground) pickCoin(c); then(); }
     };
     requestAnimationFrame(tick);
@@ -365,8 +380,10 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   st.fx = [];
   const FOE_MOOD = { 순수: "Naive", 광기: "Mad", 냉정: "Cool", 우울: "Gloomy", 활발: "Jolly" };   // 적의 공격 동작 끝말(Attack1_1_Mad 따위)
   const calmNow = () => typeof document === "object" && !!document.documentElement && document.documentElement.classList.contains("calm");
-  const later = (ms, fn) => setTimeout(fn, ms);
-  let fxEnd = 0;                            // 지금 붙인 몸짓이 다 끝나는 때(performance.now 기준)
+  // 연출 시각은 모두 전투 시계(js/speed.js)로 — 2배속이면 ms 의 절반 뒤에 온다. 돌려받은 것은 SP.cancel 로 걷는다.
+  // 사람 손에 걸린 것(길게 누르기 · 끌기 · 안내 문구)은 그대로 setTimeout 이다
+  const later = (ms, fn) => SP.after(ms, fn);
+  let fxEnd = 0;                            // 지금 붙인 몸짓이 다 끝나는 때(전투 시계 SP.now 기준)
   // 보이는 체력 — 엔진은 이미 다 깎았지만 막대 · 숫자는 맞는 순간까지 맞기 전 값을 보인다. 「side:idx」 → 체력.
   // 몸짓이 다 끝나면(settle) 비운다 — 그때부터는 판의 값 그대로. 움직임 줄이기면 아예 안 쓴다
   const shownHp = new Map();
@@ -376,7 +393,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   const ukey = (u) => hkey(u.side, u.idx);
   const hpOf = (u) => (shownHp.has(ukey(u)) ? shownHp.get(ukey(u)) : Math.max(0, u.hp));
   let beatT = [];                           // 걸어 둔 몸짓 — 새 수가 오면 걷어 낸다(낡은 값이 늦게 덮지 않게)
-  const beat = (ms, fn) => { beatT.push(setTimeout(fn, ms)); };
+  const beat = (ms, fn) => { beatT.push(SP.after(ms, fn)); };
   function showHp(u, hp) {
     const b = bars.get(ukey(u));
     if (!b) return;
@@ -405,7 +422,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (!live || !heldFresh) heldGuard = null;
     heldFresh = false;
     if (!live || q.length) {
-      for (const t of beatT) clearTimeout(t);
+      for (const t of beatT) SP.cancel(t);
       beatT = [];
       try { SFX.stopPending(); } catch { /* 소리 */ }   // 걸어 둔 동작 소리도(새 수의 소리와 겹치지 않게)
       shownHp.clear();
@@ -507,7 +524,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (n) {
       const ms = p.cut || Math.min(4000, 1000 * [name, ...[].concat(chain || [])].reduce((t, a) => t + (v.duration(a) || 0), 0));
       n.classList.add("acting");
-      clearTimeout(n.actingT);
+      SP.cancel(n.actingT);
       n.actingT = later(ms, () => n.classList.remove("acting"));
     }
     return p;
@@ -587,7 +604,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (hit) v.play(hit);
     const cls = hit ? "fxflash" : "fxhit";
     // 흰 실루엣은 한 번 — 몰아치는 타격(고학년 레이저)마다 하얗게 뜨면 맞는 내내 하얀 덩어리로 보였다. 220ms 안의 다음 타격은 붉게만
-    const now = performance.now(), k = e.side + ":" + e.idx;
+    const now = SP.now(), k = e.side + ":" + e.idx;
     const quiet = now - (whiteT[k] || -1e9) < 220;
     if (!quiet) whiteT[k] = now;
     a.classList.remove("fxhit", "fxflash", "fxquiet");
@@ -650,7 +667,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (!n || !field.getBoundingClientRect) return;
     const a = artOf(n) || n, r = a.getBoundingClientRect(), fr = field.getBoundingClientRect(), z = zNow();
     const tag = /n-(blk|shd|guard|stt)/.test(cls);
-    const k = ukey(u) + (tag ? "t" : ""), now = performance.now();
+    const k = ukey(u) + (tag ? "t" : ""), now = SP.now();
     const p0 = popK[k] && now - popK[k].t < 900 ? popK[k].n + 1 : 0;
     popK[k] = { n: p0, t: now };
     const p = el("div", "fxnum " + cls);
@@ -849,7 +866,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     later(heavy ? 560 : 420, () => pb.classList.remove("phit", "phit2"));
     const hp = pb.querySelector(".hpwrap");
     if (!hp) return;
-    const now = performance.now();
+    const now = SP.now();
     const fresh = !pbHit || !pbHit.el.isConnected || now - pbHit.t > 900;
     if (fresh) {
       const box = el("div", "pbdmg");
@@ -871,7 +888,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     p.el.classList.remove("bump");
     void p.el.offsetWidth;
     p.el.classList.add("bump");
-    clearTimeout(p.el.t);
+    SP.cancel(p.el.t);
     p.el.t = later(1300, () => { p.el.remove(); if (pbHit === p) pbHit = null; });
   }
   // 관통 — 맞은 사도를 붉은 빛줄기가 꿰뚫고 지나간다 · 전체 공격 — 파티 쪽을 큰 반달 베기가 쓸고 간다
@@ -919,7 +936,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     tag.classList.remove("bump");
     void tag.offsetWidth;
     tag.classList.add("bump");
-    clearTimeout(tag.t);
+    SP.cancel(tag.t);
     tag.t = later(900, () => { tag.remove(); comboEls.delete(k); });
   }
   const comboEls = new Map();
@@ -1027,7 +1044,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   // 카메라 당김 — 맞은 자리 쪽으로 싸움터를 살짝 키웠다가 풀어 준다. 몰아치는 타격(고학년 여러 번)은 110ms 에 한 번만
   let punchT = 0;
   function punch(p, k, ms) {
-    const now = performance.now();
+    const now = SP.now();
     if (!p || !field.animate || now - punchT < 110) return;
     punchT = now;
     const fr = field.getBoundingClientRect(), z = zNow();
@@ -1091,7 +1108,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     reach = Math.max(0, Math.min(reach, (contact.x - from.x) * 0.6));
     const z = zNow();
     const total = plan.s ? plan.s.total : d.hit + 1000;
-    dash = { idx: u.idx, t0: performance.now(), go: d.go, hit: d.land, ret: d.home ? d.home[0] : total, end: d.home ? d.home[1] : total + d.cfg.back, home: !!d.home,
+    dash = { idx: u.idx, t0: SP.now(), go: d.go, hit: d.land, ret: d.home ? d.home[0] : total, end: d.home ? d.home[1] : total + d.cfg.back, home: !!d.home,
       dx: (contact.x - reach - from.x) / z, dy: (ef.y - from.y) / z, hop: !!d.cfg.hop, turned: false, raf: 0 };
     dash.raf = requestAnimationFrame(dashTick);
     return { from, to: contact };
@@ -1100,7 +1117,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const d = dash;
     if (!d) return;
     d.raf = 0;
-    const ms = performance.now() - d.t0;
+    const ms = SP.now() - d.t0;
     if (ms >= d.end) { dashStop(false); return; }
     let f = 0;
     if (ms >= d.hit && ms < d.ret) f = 1;
@@ -1180,7 +1197,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (!cut) return;
     const c = cut;
     cut = null;
-    clearTimeout(c.t);
+    SP.cancel(c.t);
     c.node.remove();                        // 스탠딩 캔버스도 같이 떨어진다 — spine-view 의 pool 로 돌아가 다음 컷인에 다시 쓴다
     if (go) c.go();
   }
@@ -1218,7 +1235,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     node.appendChild(txt);
     node.onclick = (e) => { e.stopPropagation(); endCut(true); };
     s.appendChild(node);
-    cut = { node, go, t: setTimeout(() => endCut(true), CUT) };
+    cut = { node, go, t: later(CUT, () => endCut(true)) };
     // 그림 — 스탠딩 스파인(상반신) → 이벤트 자리 그림 한 장(없으면 SD · 이름)
     const still = () => pic.appendChild(art.portrait(u.key, { ko: u.ko, tint: u.tint, size: 0, slot: "event", still: true }));
     if (art.slotOf(u.key, "event") === "standing") {
@@ -1321,7 +1338,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     else if (h.k === "shield") { popNum(u, `실드 +${h.v}`, "n-shd", null, fxIcon("실드")); glowFx(h, "fxguard"); }
     else if (h.k === "status") {
       // 같은 꼬리표가 같은 사람에게 잇달면(한 수에 같은 증감이 두 번 · 패시브가 겹쳐 걸림) 한 번만
-      const k = ukey(u) + "|" + h.id, t0 = performance.now();
+      const k = ukey(u) + "|" + h.id, t0 = SP.now();
       if (t0 - (sttAt.get(k) || -1e9) < 450) return;
       sttAt.set(k, t0);
       // 아이콘 — 증감(h.mod)은 칩과 같은 그림에 ▲▼, 상태는 그 그림, 사도 키워드(「초청객 +1」)는 금빛 동전
@@ -1384,7 +1401,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       if (b.act) b.act.group = plan && plan.snd ? plan.snd.group : null;     // 맞는 소리 갈래(land → SFX.land)
       if (b.act && go) beat(t, () => {
         const shown = actFx(b.act, plan && plan.act[0] ? plan : null);
-        const at0 = performance.now();
+        const at0 = SP.now();
         if (ult) {
           ultFx();
           if (!foe) {
@@ -1401,7 +1418,9 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
             shown.then((p) => {
               const sn = p && p.snd;
               if (p) b.act.group = sn ? sn.group : null;
-              if (sn && sn.group) SFX.action(pk, sn.group, sn.evs, { cast: sn.group, v: 0.85 });
+              // 이벤트 시각은 1배 기준 — 배속이면 스파인이 그만큼 빨리 돌아 소리도 당긴다(높낮이는 그대로)
+              const r = SP.rate(), evs = sn && sn.evs && r !== 1 ? sn.evs.map((x) => ({ ...x, t: x.t / r })) : sn && sn.evs;
+              if (sn && sn.group) SFX.action(pk, sn.group, evs, { cast: sn.group, v: 0.85 });
               else if (p) SFX.play(SFX.cardKey(b.act.card));
               else SFX.card(b.act.card, pk);
             }).catch(() => {});
@@ -1448,7 +1467,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       // 달려간 고학년은 그 자리에서 동작을 다 하고(에르핀 「억⋯?」) 제자리로 돌아올 때까지
       if (ult && s && plan.dash) t = Math.max(t, t0 + s.total + plan.dash.cfg.back);
     }
-    fxEnd = performance.now() + t;          // 이긴 판(cheerFx)이 기다릴 몫 — 컷인이 있으면 그 길이까지
+    fxEnd = SP.now() + t;          // 이긴 판(cheerFx)이 기다릴 몫 — 컷인이 있으면 그 길이까지
     const end = cutAt < 0 ? t : cutAt;
     // 적이 차례로 움직이는 동안만 손패 · 턴 넘기기를 잠근다(끝나면 바로 푼다)
     if (foes && end > 600) { s.classList.add("fxbusy"); beat(end, () => s.classList.remove("fxbusy")); }
@@ -1498,7 +1517,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
   // 이겼다 — 남은 몸짓이 끝나면 살아남은 사도들이 Victory. 걸어 나가기까지 얼마나 기다리면 되는지 돌려준다
   function cheerFx() {
     if (!groundOk || calmNow()) return 0;
-    const wait = Math.max(0, fxEnd - performance.now()) + 150;
+    const wait = Math.max(0, fxEnd - SP.now()) + 150;
     // 막 다시 그린 칸이라 그림(el.spine)은 조금 뒤에 붙는다 — 움직이는 그림인지(art-spine)만 보고 기다릴 몫을 정한다
     let any = false;
     for (const u of st.party) {
@@ -1517,7 +1536,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     const pick = clickable && !u.dead;
     const fresh = u.dead && !goneFoes.has(u.idx);
     const n = el("div", "foe" + (u.dead ? (fresh ? " dying" : " dead") : "") + (pick ? " tgt" : "") + (u.boss ? " boss" : ""));
-    if (fresh) { goneFoes.add(u.idx); setTimeout(() => dropGold(n, u), 30); }
+    if (fresh) { goneFoes.add(u.idx); SP.after(30, () => dropGold(n, u)); }
     n.dataset.idx = String(u.idx);          // 카드를 끌어 놓을 때 누구인지
     if (u.sealed) n.classList.add("sealed");
     if (u.broken && !u.dead) n.classList.add("broken");     // 격파 — 몸이 흐트러진 빛깔(css .foe.broken)
@@ -2285,11 +2304,11 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       const show = () => {
         if (shownTurn !== turn || !field.isConnected) return;
         // 적이 차례로 움직이는 동안(fxEnd)도 기다린다 — 둘째 적이 치는 사이에 「TURN 2」 가 끼어들었다. 길어야 4초
-        if (Date.now() - t0 < 4000 && (performance.now() < fxEnd - 200 || (field.querySelector && field.querySelector(".fxnum")) || (s.querySelector && s.querySelector(".bossintro")))) return setTimeout(show, 120);   // 보스 등장 띠가 걷힌 뒤에
+        if (Date.now() - t0 < 4000 && (SP.now() < fxEnd - 200 || (field.querySelector && field.querySelector(".fxnum")) || (s.querySelector && s.querySelector(".bossintro")))) return later(120, show);   // 보스 등장 띠가 걷힌 뒤에
         field.appendChild(ban);
-        setTimeout(() => ban.remove(), 1300);
+        later(1300, () => ban.remove());
       };
-      setTimeout(show, 0);                  // 이 draw 의 몸짓(playBeats → fxEnd)이 걸린 뒤에 잰다
+      later(0, show);                       // 이 draw 의 몸짓(playBeats → fxEnd)이 걸린 뒤에 잰다
     }
 
     // 코스트 창 — 카제나는 여기가 손패의 핵심이다
@@ -2436,7 +2455,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     }
     for (const [key, names] of fired) {
       const f = el("div", "pfire", names.join(" · "));
-      standEls.get(key).appendChild(f); setTimeout(() => f.remove(), 1600);
+      standEls.get(key).appendChild(f); SP.after(1600, () => f.remove());
     }
     for (; logShown < st.log.length; logShown++) {
       const line = st.log[logShown];
@@ -2458,7 +2477,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     later(0, paintLiftTips);                // 손패가 펼쳐진(부채꼴) 뒤 자리를 잰다
     runFx(fxq);
     // 새로 들어온 카드 — 적이 움직이는 동안(턴이 넘어간 때)은 그 몸짓이 끝난 뒤에
-    if (fresh.length && !st.over) dealIn(fresh, Math.max(0, fxEnd - performance.now() - 150));
+    if (fresh.length && !st.over) dealIn(fresh, Math.max(0, fxEnd - SP.now() - 150));
     phaseBanner();
     ultTip();
     if (st.over) finish();
@@ -2509,7 +2528,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       const ban = el("div", "phaseban");
       ban.appendChild(el("small", null, `${u.ko} · ${stage}/${total}단계`));
       ban.appendChild(el("b", null, ph.say || "판이 바뀐다"));
-      const wait = Math.max(0, Math.min(2600, fxEnd - performance.now()));
+      const wait = Math.max(0, Math.min(2600, fxEnd - SP.now()));
       later(wait, () => { if (!field.isConnected) return; s.appendChild(ban); later(2600, () => ban.remove()); });
     }
   }
@@ -3417,7 +3436,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     card.onclick = null;
     back.appendChild(card);
     document.body.appendChild(back);
-    setTimeout(() => back.remove(), typeof window === "object" ? 1700 : 0);
+    SP.after(typeof window === "object" ? 1700 : 0, () => back.remove());
   }
   function openEpiphany(cardId, g, done) {
     const back = el("div", "bmodal epimodal" + (g.kind === "card" && g.options.some((o) => o.shin) ? " divine" : ""));
@@ -3540,7 +3559,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     if (g && g.kind === "hero" && !C.canPlay(st, glowId)) {
       C.applyEpiphany(st, glowId, 0);
       showGrace(g.hero, g.options[0]);
-      setTimeout(() => lootCard(g.options[0], `은총 · ${HERO(g.hero).ko}`), 900);
+      SP.after(900, () => lootCard(g.options[0], `은총 · ${HERO(g.hero).ko}`));
       selCard = st.hand.indexOf(glowId);
     } else if (g && !C.canPlay(st, glowId)) {
       // 고르는 중인 신탁도 판에 적는다 — 닫을 수 없는 창이라, 새로고침해도 이 창으로 돌아와 고르게 한다
@@ -3598,7 +3617,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
     draw();
     if (r.ok) { fly(); blessFx(bcard, bsh); }
     // 종극 — 이 카드를 내면 턴이 끝난다(js/combat.js). 카드가 날아간 뒤 턴 넘기기를 누른 것처럼
-    if (r.ok && r.finale && !st.over) setTimeout(() => { if (!st.over && st.finaleLock) endBtn.onclick(); }, 650);
+    if (r.ok && r.finale && !st.over) SP.after(650, () => { if (!st.over && st.finaleLock) endBtn.onclick(); });
   }
 
   // 버릴 카드 고르기 — 낸 카드를 뺀 손패에서 N장. 다 고르면 「버리기」, 「취소」 면 카드를 안 낸다
@@ -3671,7 +3690,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       run.where = { k: "fightDone", result: st.over }; writeSave(run);
       // 졌다 — 남은 몸짓이 끝나면 싸움터가 잿빛으로 가라앉고 「전멸」 이 내려앉는다(바로 넘어가면 무엇이 끝났는지 몰랐다)
       const calm = !groundOk || calmNow();
-      const wait = calm ? 0 : Math.max(0, fxEnd - performance.now()) + 200;
+      const wait = calm ? 0 : Math.max(0, fxEnd - SP.now()) + 200;
       later(wait, () => {
         if (!calm) {
           s.classList.add("defeat");
@@ -3681,7 +3700,7 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
           field.appendChild(ban);
           try { SFX.play("defeat"); } catch { /* 소리 */ }
         }
-        setTimeout(() => { clearGround(); onDone(st.over); }, calm ? 700 : 2200);
+        SP.after(calm ? 700 : 2200, () => { clearGround(); onDone(st.over); });
       });
       return;
     }
@@ -3713,18 +3732,18 @@ export function fightScreen(run, onDone, onQuit, opts = {}) {
       // 장비를 주웠으면 장비 창 — 누구에게 낄지 고르고 닫으면 다음 칸으로(가방에는 이미 들어 있다)
       const gear = () => {
         if (gotEquip && groundOk) {
-          setTimeout(() => import("./ui.js").then((ui) => ui.openGearModal(run, {
+          SP.after(700, () => import("./ui.js").then((ui) => ui.openGearModal(run, {
             sub: `「${EQUIP[gotEquip].ko}」 ${josa(EQUIP[gotEquip].ko, "을를")} 주웠습니다 — 누구에게 낄지 고르세요 · 닫으면 다음 칸으로`,
             onClose: next,
-          })).catch(next), 700);
+          })).catch(next));
           return;
         }
-        setTimeout(next, loot ? 1300 : 500);
+        SP.after(loot ? 1300 : 500, next);
       };
       // 쓰지 못한 신탁 — 빛났지만 안 낸 카드가 남았으면 장비 창 앞에 하나씩 묻는다(2026-10 사용자, ui.js leftoverGlows)
       const left = Object.entries(st.glow || {}).filter(([, g]) => g && g.options && g.options.length).map(([cardId, g]) => ({ cardId, g }));
       if (left.length && groundOk) {
-        setTimeout(() => import("./ui.js").then((ui) => ui.leftoverGlows(run, left, gear)).catch(gear), 600);
+        SP.after(600, () => import("./ui.js").then((ui) => ui.leftoverGlows(run, left, gear)).catch(gear));
         return;
       }
       gear();

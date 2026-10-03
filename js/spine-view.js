@@ -11,6 +11,8 @@
 //
 // 게임 .skel 은 4.1 이다. 런타임도 4.1 이어야 한다 — 4.2 부터 바이너리 형식이 바뀌어 못 읽는다.
 
+import { rate as battleRate } from "./speed.js";
+
 const ROOT = "assets/spine";
 let manifest = null;
 let failed = false;
@@ -287,7 +289,8 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
     raf = 0;
     // 화면에서 떨어지면 멈춘다. 다시 붙을 때 wake() 가 이어 돌린다.
     if (dead || !canvas.isConnected) return;
-    const dt = now < frozen ? 0 : Math.min(0.1, (now - last) / 1000); last = now;
+    // 전투 배속(js/speed.js) — 전투 화면이 떠 있는 동안만 2배. 로비 · 편성의 그림은 늘 1배다
+    const dt = now < frozen ? 0 : Math.min(0.1, (now - last) / 1000) * battleRate(); last = now;
     if (grab.bone) { grab.bone.x = grab.bone.data.x; grab.bone.y = grab.bone.data.y; }
     state.update(dt); state.apply(skeleton);
     if (grab.bone) grabApply(dt);
@@ -366,7 +369,7 @@ export async function spineView(el, kind, key, { scale = 1, anim, flip = false, 
     },
     toRest() { if (rest) state.setAnimation(0, rest.name, true); },
     // ms 동안 동작을 멈춘다(그리기는 계속). 겹치면 더 늦게 풀리는 쪽으로
-    pause(ms) { frozen = Math.max(frozen, performance.now() + ms); },
+    pause(ms) { frozen = Math.max(frozen, performance.now() + ms / battleRate()); },
     // 교감 본을 잡는다 — re 에 맞는 본이 있으면 true. drag 는 누른 자리부터 움직인 양(화면 px), letGo 로 놓는다
     grab(re, max = 120) {
       const b = skeleton.bones.find((x) => re.test(x.data.name));

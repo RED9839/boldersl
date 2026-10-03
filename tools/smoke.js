@@ -1368,6 +1368,42 @@ console.log("판 이어하기 (js/save.js) — 새로고침해도 그 자리에�
   } finally { delete globalThis.localStorage; delete globalThis.innerWidth; delete globalThis.innerHeight; delete Node.prototype.querySelector; }
 }
 
+console.log("전투 배속 (js/speed.js)");
+{
+  // 2배로 바꾸면 설정에 적히고, 전투 화면이 떠 있는 동안만 걸린다 — 걸어 둔 시각(later)은 절반 뒤, 1배로 돌리면 다시 건다
+  const SP = await import("../js/speed.js");
+  const ST = await import("../js/settings.js");
+  const mem = {}, waits = [];
+  const realSet = globalThis.setTimeout;
+  globalThis.localStorage = { getItem: (k) => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); }, removeItem: (k) => { delete mem[k]; } };
+  globalThis.setTimeout = (fn, ms) => { waits.push(ms); return waits.length; };
+  try {
+    const box = new Node("div");
+    box.className = "battle";
+    SP.enterBattle(box);
+    SP.setSpeed(2);
+    const saved = JSON.parse(mem["bolzena.settings"] || "{}");
+    check(SP.getSpeed() === 2 && ST.getSettings().speed === 2 && saved.speed === 2, `2배속이 설정에 남는다 (저장 ${saved.speed})`);
+    check(SP.rate() === 2, "전투 화면에서는 배율 2");
+    let fired = 0;
+    waits.length = 0;
+    SP.after(1000, () => fired++);
+    check(Math.abs(waits[0] - 500) < 30, `1000ms 연출이 2배속이면 절반 뒤에 (${Math.round(waits[0])}ms)`);
+    SP.setSpeed(1);
+    check(Math.abs(waits[waits.length - 1] - 1000) < 30, `1배로 돌리면 걸어 둔 것도 다시 1배로 (${Math.round(waits[waits.length - 1])}ms)`);
+    SP.setSpeed(2);
+    box.className = "mapscreen";              // #screen 은 다른 화면이 비워 다시 쓴다
+    check(SP.rate() === 1, "전투 화면을 떠나면 배율 1 (저장된 2배는 그대로)");
+    const h = SP.after(50, () => fired++);
+    SP.cancel(h);
+    check(fired === 0, "걷은 것은 안 온다");
+  } finally {
+    globalThis.setTimeout = realSet;
+    SP.setSpeed(1);
+    delete globalThis.localStorage;
+  }
+}
+
 console.log("모듈이 읽히는가");
 {
   const JS = pathNode.join(pathNode.dirname(f2u(import.meta.url)), "..", "js");

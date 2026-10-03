@@ -6,6 +6,7 @@
 //   quality   그래픽 품질 — high · mid · low. 스파인을 그리는 픽셀 수(1 · 0.75 · 0.5배) — js/spine-view.js
 //   volMaster · volVoice · volSfx   전체 · 목소리 · 효과음 음량(0~100)
 //   lobbyHero 로비의 메인 사도
+//   speed     전투 배속 — 1 · 2. 전투 화면 오른쪽 위 1×/2× 단추가 바꾼다(js/speed.js)
 // 적어 두는 곳(localStorage)이 막힌 브라우저에서도 돈다 — 그때는 이번 판에만 남는다.
 import * as art from "./art.js";
 import { setResolution } from "./stage.js";
@@ -14,7 +15,7 @@ import { setRenderScale } from "./spine-view.js";
 const KEY = "bolzena.settings";
 // 옛 이름(볼더슬) 때 저장한 설정 — 새 열쇠가 비어 있으면 한 번 옮겨 온다
 try { if (!localStorage.getItem(KEY) && localStorage.getItem("boldersl.settings")) localStorage.setItem(KEY, localStorage.getItem("boldersl.settings")); } catch {}
-const DEF = { spine: true, calm: false, big: false, res: "auto", quality: "high", volMaster: 20, volVoice: 10, volSfx: 60, sv: 2 };
+const DEF = { spine: true, calm: false, big: false, res: "auto", quality: "high", volMaster: 20, volVoice: 10, volSfx: 60, speed: 1, sv: 2 };
 export const RES_CHOICES = ["auto", "1280x720", "1600x900", "1920x1080", "2560x1440"];
 export const QUALITY = { high: 1, mid: 0.75, low: 0.5 };
 let mem = null;
