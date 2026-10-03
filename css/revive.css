@@ -135,32 +135,37 @@
   overflow: hidden;
 }
 #screen.teamscreen3 .tf-slot:hover:not(:disabled) { transform: translateY(-5px); border-color: var(--rv-line); box-shadow: 0 12px 0 var(--rv-shadow), 0 24px 40px #000a; }
-.tf-slot > .art { inset: 0 0 32% 0; }
-.tf-fade { height: 34%; background: var(--rv-paper); border-top: 4px solid var(--rv-line); }
-.tf-plate { padding: 10px 14px 14px; gap: 2px; }
+.tf-plate { background: var(--rv-paper); border-top: 4px solid var(--rv-line); }
 .tf-star { color: var(--rv-sun); -webkit-text-stroke: 1.5px var(--rv-ink); paint-order: stroke fill; text-shadow: none; font-size: 15px; }
-.tf-plate > b { font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 28px; color: var(--rv-text); text-shadow: none; }
-.tf-sub { color: var(--rv-ink2); font-weight: 700; }
+.tf-namerow > b { font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 30px; color: var(--rv-text); text-shadow: none; }
+.tf-rowtag { font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 15px; letter-spacing: .04em; color: var(--rv-text); background: var(--rv-paper); border: 2.5px solid var(--rv-line); box-shadow: 0 2px 0 var(--rv-shadow); }
+/* 알약 — 열 역할 · 성격(성격 빛깔) · 종족 */
+.tf-tag { background: var(--rv-cream); border: 2px solid var(--rv-line); color: var(--rv-text); font-weight: 700; }
+.tf-tag.nat { background: color-mix(in srgb, var(--tint, #fff) 30%, #221c33); }
+.tf-kw { color: var(--rv-ink2); font-weight: 700; }
+.tf-kw b { font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 13px; color: var(--rv-text); background: #3d3418; border: 2px solid var(--rv-line); border-radius: 99px; padding: 0 9px; }
 .tf-stats span { border: 2px solid var(--rv-line); border-radius: 12px; background: var(--rv-cream); padding: 4px 2px 3px; }
 .tf-stats span:nth-child(1) { background: #1d3d33; } .tf-stats span:nth-child(2) { background: #4a2232; }
 .tf-stats span:nth-child(3) { background: #1f3550; } .tf-stats span:nth-child(4) { background: #3d3418; }
 .tf-stats small { color: var(--rv-ink2); font-weight: 800; }
 .tf-stats b { font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 19px; color: var(--rv-text); }
-.tf-b { background: var(--rv-paper); border: 2.5px solid var(--rv-line); border-radius: 50%; box-shadow: 0 2px 0 var(--rv-shadow); width: 34px; height: 34px; color: var(--rv-text); }
 .tf-tool { background: var(--rv-paper); border: 2.5px solid var(--rv-line); box-shadow: 0 2px 0 var(--rv-shadow); color: var(--rv-text); }
 .tf-tool:hover { border-color: var(--rv-line); background: var(--rv-cream); }
 .tf-x:hover { color: var(--rv-coral); border-color: var(--rv-line); }
-.tf-rowpick { background: var(--rv-paper); border: 3px solid var(--rv-line); bottom: 36%; }
+.tf-rowpick { background: var(--rv-cream); border: 2px solid var(--rv-line); }
+.tf-rowpick small { color: var(--rv-ink2); }
 .tf-rowb { color: var(--rv-text); font-family: var(--rv-font); font-weight: var(--rv-w); }
 .tf-rowb.on { background: var(--rv-sun); color: var(--rv-text); box-shadow: inset 0 0 0 2px var(--rv-line); }
-#screen.teamscreen3 .tf-slot.empty { background: #221c33aa; border: 4px dashed var(--rv-line); box-shadow: none; color: var(--rv-text); }
-#screen.teamscreen3 .tf-slot.empty:hover:not(:disabled) { background: #221c33e6; border-color: var(--rv-line); }
-.tf-plus { color: var(--rv-text); border: 4px solid var(--rv-line); background: var(--rv-sun); box-shadow: 0 4px 0 var(--rv-shadow); font-family: var(--rv-font); font-weight: var(--rv-w); }
-.tf-slot.empty b { font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 22px; }
-.tf-slot.empty > span:last-child { color: var(--rv-ink2); font-weight: 700; }
+/* 빈 자리 — 점선 큰 상자 대신 반투명 판 하나. 위에 열 이름, 가운데 + */
+#screen.teamscreen3 .tf-slot.empty { background: #1a1628b3; border: 3px solid #4f417099; box-shadow: 0 5px 0 #08060e88; color: var(--rv-text); }
+#screen.teamscreen3 .tf-slot.empty:hover:not(:disabled) { background: #221c33e6; border-color: var(--rv-sun); }
+.tf-erow { font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 17px; letter-spacing: .2em; color: var(--rv-sun); }
+.tf-plus { color: var(--rv-text); border: 3px solid var(--rv-line); background: var(--rv-sun); box-shadow: 0 4px 0 var(--rv-shadow); font-family: var(--rv-font); font-weight: var(--rv-w); }
+.tf-slot.empty b { font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 21px; }
+.tf-ehint { color: var(--rv-ink2); font-weight: 700; }
 #screen.teamscreen3 .tf-swap { background: var(--rv-sun); color: var(--rv-text); border: 3px solid var(--rv-line); box-shadow: 0 3px 0 var(--rv-shadow); width: 40px; height: 40px; }
 /* 오른쪽 — 종이 판들. 판 머리는 낱말을 띄운 대문자 대신 색 꼬리표 */
-.tf-side > section { backdrop-filter: none; box-shadow: 0 5px 0 var(--rv-shadow); padding: 14px 16px; }
+.tf-side > section { backdrop-filter: none; box-shadow: 0 5px 0 var(--rv-shadow); padding: 11px 16px 12px; }
 .tf-ftop small, .tf-label {
   align-self: flex-start; display: inline-flex; font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 14px; letter-spacing: 0;
   color: var(--rv-text); background: var(--rv-cream2); border: 2px solid var(--rv-line); border-radius: 99px; padding: 0 10px;
@@ -267,8 +272,7 @@
 }
 html.rv-nojua { --rv-w: 800; }
 
-/* 편성 — 이름표는 종이 칸 위쪽부터(빈 칸이 생기지 않게) · 오른쪽 판 안의 칩 */
-.tf-plate { top: 66%; justify-content: flex-start; padding-top: 8px; }
+/* 편성 — 오른쪽 판 안의 칩 */
 #screen.teamscreen3 .tm-fnatc { background: color-mix(in srgb, var(--tint, #fff) 30%, #221c33); color: var(--rv-text); border: 2px solid var(--rv-line); box-shadow: 0 2px 0 var(--rv-shadow); font-family: var(--rv-font); font-weight: var(--rv-w); }
 #screen.teamscreen3 .tm-fdkbig { background: var(--rv-sun); color: var(--rv-text); border: 2px solid var(--rv-line); box-shadow: 0 2px 0 var(--rv-shadow); font-family: var(--rv-font); font-weight: var(--rv-w); opacity: 1; }
 #screen.teamscreen3 .tm-fdkwho { color: var(--rv-text); font-family: var(--rv-font); font-weight: var(--rv-w); font-size: 14px; }
@@ -545,3 +549,8 @@ body { font-family: var(--rv-body); }
 @media (prefers-reduced-motion: reduce) {
   :is(.lb-modal .lb-x, .kwclose, .sh-close, .cp-close, .bmodal .bmclose, .cp-leave, .sh-leave, .twostep .tsok) { transition: none; }
 }
+
+/* 메인 사도 바꾸기 — 찾기 칸을 넓고 눈에 띄게(작은 「이름」 칸이라 있는 줄 몰랐다) */
+.lb-picker .lb-boxhead { gap: 12px; }
+.lb-picker .lb-search { flex: 1; width: auto; min-width: 0; max-width: 420px; margin-left: auto; padding: 9px 16px; font-size: 15px; }
+.lb-picker .lb-search::placeholder { color: var(--rv-ink2); opacity: .9; }

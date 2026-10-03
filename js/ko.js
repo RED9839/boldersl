@@ -23,3 +23,25 @@ export function josa(w, pair) {
   if (pair === "으로") return j && j !== 8 ? "으로" : "로";
   return j ? pair[0] : pair[1];
 }
+
+// 이름 찾기 — 초성으로도(「ㄷㅇㄴ」 → 디아나, 「ㅇㄹㅍ」 → 에르핀). 글자와 초성을 섞어도 된다(「디ㅇ」).
+// 빈칸 · 괄호는 무시한다(「다야퓨어」 → 다야(퓨어샤인)). 사용자 요청 2026-10
+const CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+const bare = (t) => String(t || "").replace(/[\s()（）·_-]/g, "");
+export function nameMatch(name, q) {
+  const n = bare(name), k = bare(q);
+  if (!k) return true;
+  if (n.includes(k)) return true;
+  // 이름의 글자마다 「그 글자 자체」 와 「그 초성」 을 모두 받아 준다
+  const fits = (ch, qc) => {
+    if (ch === qc) return true;
+    const c = ch.charCodeAt(0) - 0xac00;
+    return c >= 0 && c < 11172 && CHO[Math.floor(c / 588)] === qc;
+  };
+  for (let i = 0; i + k.length <= n.length; i++) {
+    let ok = true;
+    for (let j = 0; j < k.length && ok; j++) ok = fits(n[i + j], k[j]);
+    if (ok) return true;
+  }
+  return false;
+}

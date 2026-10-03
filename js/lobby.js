@@ -19,6 +19,7 @@ import { toggleFullscreen } from "./stage.js";
 import { voiceCatsFor } from "./motion-voice.js";
 import { settingsPanel } from "./settings-panel.js";
 import { sfx } from "./sfx.js";
+import { nameMatch } from "./ko.js";
 
 const node = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
@@ -307,7 +308,8 @@ export function lobbyScreen(onStart, { onDex, onHelp, resume } = {}) {
       act(firstOf("Pat_End") || pick(pool(/^(Happy|Smile)_\d+$/)), { voice: ["pat", "pleasure", "joy"] });
     } else if (st === "tickle") {                     // 간지럽히기 끝. 웃음은 좀 간지럽혔을 때만
       act(firstOf("Tickle_End") || pick(pool(/^(Happy|Laugh)_\d+$/)), { voice: Date.now() - g.tickleT0 > 600 ? ["tickleduring", "ticklestart", "joy"] : null, repeat: true });
-    } else if (st === "cheek" && g.moved >= TAP_PX) { // 볼을 끌었을 때만 → touch1 대사("당기지 마!")
+    } else if (st === "cheek") {                     // 볼을 잡았으면(Touch_Idle 로 볼이 늘어난 뒤) 조금만 끌어도 → touch1 대사("당기지 마!")
+      // 전에는 8px 안 끌고 떼면 「톡」 으로 쳐서 웃음 · 인사 목소리가 났다 — 볼이 잡힌 모습과 목소리가 어긋났다(2026-10 사용자)
       say(pick(lines.ouch));
       act(firstOf("Touch_End") || pick(pool(/^(Angry|Sulky)_\d+$/)), { voice: ["cheek", "anger"] });
     } else if (st === "touch" && g.zone === "head" && firstOf("Smash_End_1", "Smash_End")) {
@@ -372,7 +374,7 @@ export function lobbyScreen(onStart, { onDex, onHelp, resume } = {}) {
     const head = node("div", "lb-boxhead");
     head.appendChild(node("b", null, "메인 사도 바꾸기"));
     const q = node("input", "lb-search");
-    q.placeholder = "이름";
+    q.placeholder = "🔍 이름 · 초성 · 열로 찾기";
     head.appendChild(q);
     const x = node("button", "lb-x", "×");
     x.type = "button";
@@ -389,7 +391,7 @@ export function lobbyScreen(onStart, { onDex, onHelp, resume } = {}) {
         grid.replaceChildren();
         const f = (q.value || "").trim();
         for (const [k, h] of all) {
-          if (f && !h.ko.includes(f)) continue;
+          if (f && !findHero(h, f)) continue;   // 이름(초성으로도) · 열 — 편성 명단과 같은 찾기
           const b = node("button", "lb-pick" + (k === heroKey ? " on" : ""));
           b.type = "button";
           b.style.setProperty("--tone", TONES[h.nature] || "#d8cfa8");
@@ -397,7 +399,7 @@ export function lobbyScreen(onStart, { onDex, onHelp, resume } = {}) {
           b.onclick = () => { setSetting("lobbyHero", k); close(); standUp(k, ["decksetting", "greeting"]); };
           grid.appendChild(b);
         }
-        if (!grid.children.length) grid.appendChild(node("p", "lb-none", "그런 이름의 사도가 없습니다."));
+        if (!grid.children.length) grid.appendChild(node("p", "lb-none", "찾는 사도가 없습니다."));
       };
       q.oninput = draw;
       draw();
@@ -446,4 +448,12 @@ export function lobbyScreen(onStart, { onDex, onHelp, resume } = {}) {
 
   standUp(heroKey, true);
   return s;
+}
+
+// 메인 사도 찾기 — 이름(초성으로도) 또는 열(「전열」 · 「ㅎㅇ」). 「모든 열」 사도는 어느 열로 찾아도 나온다(편성 명단과 같은 규칙)
+const ROW_NAME = { front: "전열", mid: "중열", back: "후열" };
+function findHero(h, q) {
+  return nameMatch(h.ko, q)
+    || Object.values(ROW_NAME).some((r) => nameMatch(r, q) && (h.anyRow || ROW_NAME[h.row] === r))
+    || (!!h.anyRow && nameMatch("모든 열", q));
 }

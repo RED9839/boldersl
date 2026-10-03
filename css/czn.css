@@ -2920,68 +2920,94 @@ body:has(#screen.teamscreen3) .top { display: none; }
 .tf-title b { font-size: 24px; font-weight: 900; text-shadow: 0 2px 10px #000; }
 .tf-count { font-size: 14px; font-weight: 800; color: #f6d58e; }
 
-.tf-main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; padding: 6px 20px 20px; min-height: 0; }
-.tf-slots { display: flex; align-items: stretch; justify-content: center; min-height: 0; padding: 6px 0; }
-.tf-gap { width: 18px; flex: none; }
+/* 왼쪽(칸 셋)은 오른쪽 판을 뺀 자리의 가운데에 — 넓은 화면은 칸이 커지고 사이가 벌어진다 */
+.tf-main { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 24px; padding: 4px 24px 20px; min-height: 0; }
+.tf-slots { display: flex; align-items: center; justify-content: center; min-height: 0; padding: 6px 0 4px; }
+.tf-gap { width: clamp(16px, 2.2%, 40px); flex: none; }
 
-/* 칸 — 멈춘 스탠딩 그림을 꽉 채우고 아래에 이름 · 능력치 판 */
+/* 칸 — 위는 스탠딩(머리부터 무릎까지), 아래는 이름표(이름 · 알약 · 능력치 · 키워드) */
 #screen.teamscreen3 .tf-slot {
-  position: relative; flex: 1 1 0; max-width: 330px; min-width: 0; min-height: 0; padding: 0; overflow: hidden; border-radius: 22px; text-align: left;
+  position: relative; flex: 0 1 470px; align-self: stretch; min-width: 0; min-height: 0; max-height: 820px; padding: 0; overflow: hidden; border-radius: 22px; text-align: left;
+  display: flex; flex-direction: column;
   background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--tint, #8a7fb8) 55%, #1a1628), #0d0b16 88%);
   border: 2px solid #ffffff2e; box-shadow: 0 16px 40px #0009; transition: transform .15s, border-color .15s, box-shadow .15s; color: #f4f1ff;
 }
 #screen.teamscreen3 .tf-slot:hover:not(:disabled) { transform: translateY(-4px); border-color: color-mix(in srgb, var(--tint, #f6d58e) 70%, #fff); box-shadow: 0 22px 46px #000b, 0 0 24px color-mix(in srgb, var(--tint, #f6d58e) 40%, transparent); }
-.tf-slot > .art { position: absolute; inset: 0 0 18% 0; width: 100% !important; height: auto !important; background: transparent !important; }
-.tf-slot > .art img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 6%; }
-.tf-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 46%; background: linear-gradient(180deg, transparent, #0d0b16e8 45%, #0d0b16); pointer-events: none; }
-.tf-badges { position: absolute; left: 12px; top: 12px; display: flex; flex-direction: column; gap: 6px; }
-.tf-b { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; background: #0d0b16b3; font-style: normal; font-size: 13px; font-weight: 900; }
-.tf-b img { width: 26px; height: 26px; filter: drop-shadow(0 1px 2px #000); }
-.tf-tools { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
-.tf-tool { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: #0d0b16cc; border: 1px solid #ffffff33; font-size: 15px; cursor: pointer; }
+.tf-art { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.tf-art::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 22%; background: linear-gradient(180deg, transparent, #0d0b1699); pointer-events: none; }
+/* 머리가 열 이름표 · 단추 밑으로 들어가지 않게 위를 조금 띄운다.
+   캔버스는 칸보다 넓게(양옆 반 칸씩) — 몸 가운데로 밀어도(js centreOnBody) 무기 · 날개가 칸 끝까지 그려지고 거기서 잘린다 */
+.tf-art > canvas { position: absolute; left: -50%; top: 34px; display: block; width: 200% !important; height: calc(100% - 34px) !important; }
+/* 스파인이 없을 때의 그림 한 장(252 네모 SD) — 꽉 채워 자르지 않고 칸 바닥에 세운다 */
+.tf-art > .art { position: absolute; inset: 0; width: 100% !important; height: 100% !important; background: transparent !important; }
+.tf-art > .art img { width: 100%; height: 100%; object-fit: contain; object-position: 50% 100%; }
+.tf-rowtag { position: absolute; left: 14px; top: 12px; z-index: 2; padding: 3px 12px; border-radius: 99px; font-size: 13px; font-weight: 900; letter-spacing: .06em; background: #0d0b16b3; border: 1px solid #ffffff33; }
+.tf-tools { position: absolute; right: 12px; top: 12px; z-index: 2; display: flex; gap: 6px; }
+.tf-tool { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: #0d0b16b3; border: 1px solid #ffffff33; font-size: 14px; cursor: pointer; opacity: .78; transition: opacity .15s; }
+.tf-slot:hover .tf-tool, .touch .tf-tool { opacity: 1; }
 .tf-tool:hover { border-color: #f6d58e; }
 .tf-x:hover { border-color: #ff8a8a; color: #ff8a8a; }
-.tf-rowpick { position: absolute; left: 50%; transform: translateX(-50%); bottom: 37%; display: flex; gap: 4px; padding: 4px; border-radius: 99px; background: #0d0b16d9; border: 1px solid #f6d58e66; }
-.tf-rowb { padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 800; color: #d9d2f2; cursor: pointer; }
+.tf-plate { position: relative; flex: none; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 16px; }
+.tf-namerow { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.tf-namerow > b { font-size: 26px; font-weight: 900; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tf-star { font-size: 14px; color: #ffd76a; letter-spacing: 1px; white-space: nowrap; }
+.tf-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.tf-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px 2px 4px; border-radius: 99px; font-size: 12.5px; font-weight: 700; background: #ffffff10; border: 1px solid #ffffff22; white-space: nowrap; }
+#screen.teamscreen3 i.tf-tico { width: 18px; height: 18px; display: inline-grid; place-items: center; flex: none; font-style: normal; }
+#screen.teamscreen3 i.tf-tico > img { width: 100%; height: 100%; object-fit: contain; }
+.tf-rowpick { display: flex; align-items: center; gap: 4px; padding: 3px; border-radius: 99px; background: #0d0b16d9; border: 1px solid #f6d58e66; align-self: flex-start; }
+.tf-rowpick small { padding: 0 6px 0 8px; font-size: 11px; font-weight: 800; color: #b9b2d6; }
+.tf-rowb { padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 800; color: #d9d2f2; cursor: pointer; }
 .tf-rowb.on { background: #f6d58e; color: #2a1a05; }
-.tf-plate { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 3px; padding: 14px 16px 16px; }
-.tf-star { font-size: 13px; color: #ffd76a; letter-spacing: 1px; text-shadow: 0 1px 2px #000; }
-.tf-plate > b { font-size: 26px; font-weight: 900; line-height: 1.1; text-shadow: 0 2px 8px #000; }
-.tf-sub { font-size: 12.5px; color: #d9d2f2; }
-.tf-stats { display: flex; gap: 6px; margin-top: 6px; }
-.tf-stats span { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 6px 4px; border-radius: 10px; background: #ffffff10; border: 1px solid #ffffff1a; }
+.tf-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.tf-stats span { display: flex; flex-direction: column; align-items: center; padding: 5px 2px; border-radius: 10px; background: #ffffff10; border: 1px solid #ffffff1a; }
 .tf-stats small { font-size: 10.5px; color: #b9b2d6; }
 .tf-stats b { font-size: 17px; font-weight: 900; }
+/* 키워드 · 패시브 한 줄 — 두 줄에서 끊는다 */
+.tf-kw { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; height: 3em; font-size: 12.5px; line-height: 1.5; color: #d9d2f2; }
+.tf-kw b { display: inline; margin-right: 6px; padding: 0 8px; border-radius: 6px; font-size: 12px; line-height: 1; background: #f6d58e22; color: #f6d58e; border: 1px solid #f6d58e55; }
+/* 빈 자리 — 칸의 너비는 그대로, 키만 줄인 얌전한 자리표 */
 #screen.teamscreen3 .tf-slot.empty {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center;
-  background: #0d0b1680; border: 2px dashed #ffffff40; box-shadow: none;
+  align-self: center; height: min(56%, 420px); align-items: center; justify-content: center; gap: 10px; text-align: center;
+  background: #0d0b1666; border: 2px solid #ffffff22; box-shadow: none;
 }
 #screen.teamscreen3 .tf-slot.empty:hover:not(:disabled) { border-color: #f6d58e; background: #1a1628a0; }
-.tf-plus { width: 74px; height: 74px; border-radius: 50%; display: grid; place-items: center; font-size: 44px; font-weight: 300; color: #f6d58e; border: 2px solid #f6d58e88; }
+.tf-erow { position: absolute; left: 0; right: 0; top: 18px; font-size: 13px; font-weight: 900; letter-spacing: .3em; color: #f6d58e; }
+.tf-plus { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; font-size: 36px; font-weight: 300; color: #f6d58e; border: 2px solid #f6d58e88; }
 .tf-slot.empty b { font-size: 18px; }
-.tf-slot.empty > span:last-child { font-size: 12px; color: #b9b2d6; }
+.tf-ehint { font-size: 12px; color: #b9b2d6; }
 #screen.teamscreen3 .tf-swap { align-self: center; flex: none; width: 36px; height: 36px; margin: 0 -8px; z-index: 2; padding: 0; min-height: 0; border-radius: 50%; font-size: 17px; font-weight: 900; background: #0d0b16e6; border: 1px solid #f6d58e99; color: #f6d58e; }
 
 /* 오른쪽 */
-.tf-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+/* 판은 스스로 넘치지 않는다 — 줄어드는 몫은 시작 덱 하나가 맡고(그 안에서만 넘기기), 「떠납니다」 는 늘 맨 아래에 */
+.tf-side { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: hidden; }
+.tf-side > section { flex: none; }
+.tf-side > .tf-decksec { flex: 0 1 auto; min-height: 96px; }
 .tf-side > section { padding: 14px 16px; border-radius: 16px; background: #0d0b16c9; border: 1px solid #ffffff1f; backdrop-filter: blur(6px); }
-.tf-ftop { display: flex; flex-direction: column; gap: 2px; }
+/* 첫 층 — 이름 옆에 보스, 그 밑에 나오는 적(두 칸 모두 차지) */
+.tf-floor { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; align-items: start; }
+.tf-floor > .tf-label, .tf-floor > .tf-foes { grid-column: 1 / -1; }
+.tf-ftop { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .tf-ftop small { font-size: 11px; letter-spacing: 3px; font-weight: 900; color: #f6d58e; }
 .tf-ftop b { font-size: 20px; font-weight: 900; }
 .tf-ftop span { font-size: 12px; color: #b9b2d6; }
-.tf-boss { display: flex; gap: 10px; margin: 12px 0 8px; }
+.tf-boss { display: flex; gap: 10px; margin: 0 0 6px; }
 .tf-bossone { display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 6px; border-radius: 12px; background: #ff6a5414; border: 1px solid #ff6a5444; }
 .tf-bossone .art { width: 56px !important; height: 56px !important; border-radius: 10px; overflow: hidden; background: #0006 !important; }
 .tf-bossone .art img { width: 100%; height: 100%; object-fit: cover; }
 .tf-bossone small { display: block; font-size: 10.5px; color: #ff9d8c; font-weight: 800; }
 .tf-bossone b { font-size: 16px; }
-.tf-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 900; letter-spacing: .08em; color: #f6d58e; margin-bottom: 8px; }
+.tf-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 900; letter-spacing: .08em; color: #f6d58e; margin-bottom: 6px; }
 .tf-foes { display: flex; flex-wrap: wrap; gap: 6px; }
 .tf-foe .art { width: 46px !important; height: 46px !important; border-radius: 10px; overflow: hidden; background: #ffffff0d !important; border: 1px solid #ffffff1a; }
 .tf-foe .art img { width: 100%; height: 100%; object-fit: cover; }
 .tf-decksec { display: flex; flex-direction: column; min-height: 0; }
-.tf-decksec .tm-fdeck2 { max-height: 220px; }
-#screen.teamscreen3 .tf-go { margin-top: auto; padding: 18px; font-size: 20px; }
+.tf-decksec .tm-fdeck2 { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; gap: 8px; }
+/* 시작 덱 — 사도마다 넉 장을 두 칸씩 가지런히 */
+.tf-decksec .tm-fdkcards { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.tf-decksec .tm-fdk { min-width: 0; }
+.tf-decksec .tm-fdk > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#screen.teamscreen3 .tf-go { flex: none; margin-top: auto; padding: 12px; font-size: 20px; }
 
 /* 사도 고르기 창 */
 .tf-pick { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: #06050bc4; backdrop-filter: blur(5px); }
@@ -3001,9 +3027,19 @@ body:has(#screen.teamscreen3) .top { display: none; }
 .phone .tf-head { padding: 6px 10px 4px; }
 .phone .tf-title b { font-size: 18px; }
 .phone .tf-main { grid-template-columns: minmax(0, 1fr) 230px; gap: 10px; padding: 4px 10px 10px; }
-.phone .tf-plate > b { font-size: 17px; }
-.phone .tf-stats, .phone .tf-sub { display: none; }
-.phone .tf-b { width: 22px; height: 22px; } .phone .tf-b img { width: 19px; height: 19px; }
+.phone .tf-plate { gap: 5px; padding: 8px 10px 10px; }
+.phone .tf-namerow > b { font-size: 18px; }
+.phone .tf-tag { font-size: 11px; padding: 1px 7px 1px 3px; }
+.phone .tf-tag:last-child, .phone .tf-kw { display: none; }
+.phone .tf-stats { gap: 4px; }
+.phone .tf-stats span { padding: 2px 1px; }
+.phone .tf-stats small { font-size: 9.5px; }
+.phone .tf-stats b { font-size: 14px; }
+.phone .tf-rowtag { left: 8px; top: 8px; font-size: 11px; padding: 2px 8px; }
+.phone .tf-tools { right: 8px; top: 8px; }
+.phone .tf-tool { width: 28px; height: 28px; font-size: 12px; }
+.phone #screen.teamscreen3 .tf-slot.empty { height: min(64%, 300px); }
+.phone .tf-erow { top: 12px; }
 .phone .tf-foes, .phone .tf-decksec { display: none; }
 .phone .tf-roster .tm-fcard { height: 96px; }
 .phone .tf-roster { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
@@ -3017,20 +3053,24 @@ body:has(#screen.teamscreen3) .top { display: none; }
 #screen.teamscreen3 .tf-go:not(:disabled)::after { content: "  →"; white-space: pre; }
 
 /* 「떠납니다」 는 늘 보이게 — 오른쪽이 넘치면 아래에 붙는다. 휴대폰은 첫 층 칸을 보스만 남긴다 */
-#screen.teamscreen3 .tf-go { position: sticky; bottom: 0; z-index: 2; }
+#screen.teamscreen3 .tf-go { position: relative; z-index: 2; }
 .phone .tf-ftop span, .phone .tf-floor .tf-label { display: none; }
 .phone .tf-side > section { padding: 8px 10px; }
 .phone .tf-boss { margin: 6px 0 0; }
+.phone .tf-floor { grid-template-columns: minmax(0, 1fr); }
 .phone .tf-bossone .art { width: 38px !important; height: 38px !important; }
 .phone #screen.teamscreen3 .tf-go { padding: 10px; font-size: 16px; }
 
-/* 나오는 적 — 그림 + 이름 칩 */
-.tf-foes { display: flex; flex-wrap: wrap; gap: 6px; }
-.tf-foe { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 99px; background: #ffffff0d; border: 1px solid #ffffff1a; font-size: 12px; font-weight: 700; }
+/* 나오는 적 — 두 줄 칸에 작은 그림 + 이름. 엘리트는 이름 뒤 보랏빛 점(뜻은 머리의 범례) */
+.tf-foes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 6px; }
+.tf-foe { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 1px 8px 1px 1px; border-radius: 99px; background: #ffffff0d; border: 1px solid #ffffff1a; font-size: 12px; font-weight: 700; }
+.tf-foe > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tf-foe:not(:has(.art)) { padding-left: 10px; }
-.tf-foe .art { width: 28px !important; height: 28px !important; border-radius: 50%; overflow: hidden; background: #0005 !important; border: 0; flex: none; }
-.tf-foe.elite { background: #b07cff1a; border-color: #b07cff66; }
-.tf-elite { font-style: normal; font-size: 10px; font-weight: 900; padding: 1px 6px; border-radius: 99px; background: #8a5cff; color: #fff; }
+.tf-foe .art { width: 22px !important; height: 22px !important; border-radius: 50%; overflow: hidden; background: #0005 !important; border: 0; flex: none; }
+.tf-foe.elite { background: #b07cff14; border-color: #b07cff55; }
+.tf-elite { flex: none; width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: #a57cff; box-shadow: 0 0 6px #a57cffaa; }
+.tf-foekey { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #b9b2d6; }
+.tf-foekey .tf-elite { margin: 0; }
 
 /* 장비 팔기(ui.js gearPanel) — 한 번 누르면 붉게 「한 번 더 누르면 판매」 */
 .gsell { display: inline-flex; align-items: center; gap: 4px; min-height: 0; padding: 5px 10px; border-radius: 99px; font-size: 12px; font-weight: 800; background: #f6d58e1a; border: 1px solid #f6d58e66; color: #f6d58e; }
@@ -3773,3 +3813,10 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 @keyframes chipnew { 0% { transform: scale(0); opacity: 0; } 60% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); } }
 @keyframes chipchg { 0% { filter: none; } 35% { filter: brightness(1.8); transform: scale(1.2); } 100% { filter: none; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .chips .chip.cnew, .chips .chip.cchg { animation: none; } }
+/* 바닥에 떨어진 장비 — 금화처럼 쓰러진 자리에 놓였다가 이기면 사도들이 줍는다 */
+.groundequip {
+  position: fixed; z-index: 7; margin: -20px 0 0 -20px; pointer-events: none;
+  animation: groundcoin .6s cubic-bezier(.3, 1.6, .5, 1) both;
+  filter: drop-shadow(0 3px 3px #0009) drop-shadow(0 0 10px #ff9a1fcc);
+}
+.calm .groundequip { animation: none; }

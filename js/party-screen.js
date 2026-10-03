@@ -9,7 +9,9 @@ import * as RULES from "./rules.js";
 import * as art from "./art.js";
 import { speak } from "./voice.js";
 import { sfx } from "./sfx.js";
+import { spineView } from "./spine-view.js";
 import { el, hint, screen, NTINT, uiIcon, goldLabel, mistletoeIcon, openHelp, fsButton, img, withKeywords, kwText, showCard, showPiles, bigCard, BATTLE_BG, GRADE_COLOR, emptySlotIcon, equipCard } from "./ui-common.js";
+import { nameMatch } from "./ko.js";
 
 // ── 편성 ───────────────────────────────────────────────────────────────
 // 카제나의 「요원 도감 → 상세 정보」 얼개다.
@@ -20,6 +22,10 @@ import { el, hint, screen, NTINT, uiIcon, goldLabel, mistletoeIcon, openHelp, fs
 
 const NATURES = ["순수", "광기", "냉정", "우울", "활발", "공명"];
 const ROWS_KO = { front: "전열", mid: "중열", back: "후열" };
+// 찾기 — 이름(초성으로도, ko.js nameMatch) 또는 열(「전열」 · 「ㅈㅇ」 · 「후열」). 「모든 열」 사도는 어느 열로 찾아도 나온다(2026-10 사용자)
+const heroMatch = (h, q) => nameMatch(h.ko, q)
+  || Object.values(ROWS_KO).some((r) => nameMatch(r, q) && (h.anyRow || ROWS_KO[h.row] === r))
+  || (h.anyRow && nameMatch("모든 열", q));
 // 명단 · 도감에 적는 자리 — 「모든 열」 사도는 그렇게 적는다
 const rowLabel = (h) => (h && h.anyRow ? "모든 열" : ROWS_KO[h && h.row] || "");
 const ROLES = ["탱커", "딜러", "서포터"];
@@ -82,7 +88,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
     if (dexTab !== "사도") { s.appendChild(bar); bookBody(); s.appendChild(dexFoot().foot); return; }
 
     const search = el("input", "dsearch");
-    search.placeholder = "이름";
+    search.placeholder = "이름 · 초성 · 열";
     search.value = filter.q;
     search.oninput = () => { filter.q = search.value.trim(); fill(); };
     bar.appendChild(search);
@@ -184,7 +190,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
           if (filter.race && h.race !== filter.race) return false;
           if (filter.nature && h.nature !== filter.nature) return false;
           if (filter.role && h.role !== filter.role) return false;
-          if (filter.q && !h.ko.includes(filter.q)) return false;
+          if (filter.q && !heroMatch(h, filter.q)) return false;   // 이름(초성으로도) · 열
           return true;
         })
         .sort((x, y) => (desc ? 1 : -1) * SORTS[sort](x, y));
@@ -378,7 +384,9 @@ export function partyScreen(onStart, onBack, opts = {}) {
     const wt = el("div", "tf-ftop");
     wt.appendChild(el("small", null, "첫 층"));
     wt.appendChild(el("b", null, `${floor.n}층 · ${floor.name}`));
-    wt.appendChild(el("span", null, `${floor.sub} — 지도에서 길을 골라 12칸 끝의 보스까지`));
+    const sub = el("span", null, floor.sub);
+    sub.title = "지도에서 길을 골라 12칸 끝의 보스까지";
+    wt.appendChild(sub);
     where.appendChild(wt);
     const bossRow = el("div", "tf-boss");
     for (const id of floor.boss) {
@@ -392,7 +400,12 @@ export function partyScreen(onStart, onBack, opts = {}) {
       bossRow.appendChild(b);
     }
     where.appendChild(bossRow);
-    const foesHead = el("div", "tf-label", "나오는 적");
+    const foesHead = el("div", "tf-label");
+    foesHead.appendChild(el("span", null, "나오는 적"));
+    const foeKey = el("span", "tf-foekey");
+    foeKey.appendChild(el("i", "tf-elite"));
+    foeKey.appendChild(el("span", null, "엘리트"));
+    foesHead.appendChild(foeKey);
     where.appendChild(foesHead);
     // 나오는 적 — 작은 그림 + 이름 칩. 그림이 없는 적(엘리트 몇)은 이름만 — 이름 앞 세 글자만 떠서 「마시멜」 같은 낱말로 읽혔다
     const foes = el("div", "tf-foes");
@@ -404,8 +417,8 @@ export function partyScreen(onStart, onBack, opts = {}) {
       f.title = elites.has(id) ? `엘리트 · ${ENEMIES[id].ko}` : ENEMIES[id].ko;
       const pic = art.portrait(id, { ko: ENEMIES[id].ko, tint: ENEMIES[id].tint, size: 0, slot: "foe", still: true });
       if (!pic.classList.contains("art-ph")) f.appendChild(pic);
-      if (elites.has(id)) f.appendChild(el("i", "tf-elite", "엘리트"));
       f.appendChild(el("span", null, ENEMIES[id].ko));
+      if (elites.has(id)) f.appendChild(el("i", "tf-elite"));      // 엘리트는 이름 뒤 보랏빛 점 하나 — 뜻은 머리의 범례가
       foes.appendChild(f);
     }
     where.appendChild(foes);
@@ -435,23 +448,33 @@ export function partyScreen(onStart, onBack, opts = {}) {
     // 칸 하나 — 사도가 있으면 그 사도, 없으면 「+ 사도 넣기」
     function slotOf(key, i, row) {
       if (!key) {
+        // 빈 자리 — 크게 비워 두지 않고, 열 이름과 + 하나만 얌전히
         const n = el("button", "tf-slot empty");
+        n.appendChild(el("span", "tf-erow", row ? ROWS_KO[row] : "남은 자리"));
         n.appendChild(el("span", "tf-plus", "+"));
         n.appendChild(el("b", null, "사도 넣기"));
-        n.appendChild(el("span", null, `${row ? ROWS_KO[row] : "남은"} 자리 · 눌러서 명단`));
+        n.appendChild(el("span", "tf-ehint", "눌러서 명단"));
         n.onclick = () => openPicker(null);
         return n;
       }
       const h = HERO_DATA[key];
       const n = el("button", "tf-slot");
       n.style.setProperty("--tint", NTINT[h.nature]);
-      n.appendChild(art.portrait(key, { ko: h.ko, tint: NTINT[h.nature], size: 0, slot: "event", still: true }));
-      n.appendChild(el("div", "tf-fade"));
-      const badges = el("div", "tf-badges");
-      badges.appendChild(uiIcon("위치", ROWS_KO[rowOf(key)], "tf-b", ROWS_KO[rowOf(key)].slice(0, 1)));
-      badges.appendChild(uiIcon("성격", h.nature, "tf-b", h.nature.slice(0, 1)));
-      badges.appendChild(uiIcon("역할", h.role, "tf-b", h.role.slice(0, 1)));
-      n.appendChild(badges);
+      // 그림 — 컷인처럼 스탠딩 스파인을 머리부터 거의 발끝까지(bust). 스파인이 없거나 늦으면 그림 한 장이 그 자리를 지킨다
+      const pic = el("div", "tf-art");
+      pic.appendChild(art.portrait(key, { ko: h.ko, tint: NTINT[h.nature], size: 0, slot: "event", still: true }));
+      if (art.slotOf(key, "event") === "standing") {
+        spineView(pic, "standing", key, { bust: 0.9 }).then((v) => {
+          if (!v) return;
+          const st1 = pic.querySelector(":scope > .art");
+          if (st1) st1.remove();
+          pic.classList.add("live");
+          pic.spine = v;                     // 시험 도구가 몸 가운데를 잰다
+          centreOnBody(pic, v);
+        }, () => {});
+      }
+      n.appendChild(pic);
+      n.appendChild(el("span", "tf-rowtag", ROWS_KO[rowOf(key)]));
       const tools = el("div", "tf-tools");
       const info = el("span", "tf-tool tf-info", "🔍");
       info.title = "사도 정보";
@@ -461,9 +484,27 @@ export function partyScreen(onStart, onBack, opts = {}) {
       x.onclick = (e) => { e.stopPropagation(); sfx.play("ui.deselect"); remove(key); fill(); };
       tools.appendChild(info); tools.appendChild(x);
       n.appendChild(tools);
+      // 이름표 — 이름 · 성급, 그 밑에 알약(열 역할 · 성격 · 종족), 능력치 넷, 전용 키워드와 첫 패시브 한 줄
+      const plate = el("div", "tf-plate");
+      const nameRow = el("div", "tf-namerow");
+      nameRow.appendChild(el("b", null, h.ko));
+      nameRow.appendChild(el("span", "tf-star", "★".repeat(h.star)));
+      plate.appendChild(nameRow);
+      const tags = el("div", "tf-tags");
+      const tag = (kind, name, text, cls) => {
+        const t = el("span", "tf-tag" + (cls ? " " + cls : ""));
+        t.appendChild(uiIcon(kind, name, "tf-tico", ""));
+        t.appendChild(el("span", null, text));
+        tags.appendChild(t);
+      };
+      tag("역할", h.role, `${ROWS_KO[rowOf(key)]} ${h.role}`);
+      tag("성격", h.nature, h.nature, "nat");
+      tag("종족", h.race, h.race);
+      plate.appendChild(tags);
       // 「모든 열」 사도 — 어느 열에 설지 고른다. 선 열에 따라 패시브의 다른 줄이 켜진다
       if (h.anyRow) {
         const pick = el("div", "tf-rowpick");
+        pick.appendChild(el("small", null, "모든 열"));
         for (const r of ROW_ORDER) {
           const b = el("span", "tf-rowb" + (rowOf(key) === r ? " on" : ""), ROWS_KO[r]);
           const line = (h.passive || "").split(" · ").filter((t) => t.includes(`${ROWS_KO[r]}에 서 있으면`)).join(" · ");
@@ -471,21 +512,49 @@ export function partyScreen(onStart, onBack, opts = {}) {
           b.onclick = (e) => { e.stopPropagation(); rows[key] = r; fill(); };
           pick.appendChild(b);
         }
-        n.appendChild(pick);
+        plate.appendChild(pick);
       }
-      const plate = el("div", "tf-plate");
-      plate.appendChild(el("span", "tf-star", "★".repeat(h.star)));
-      plate.appendChild(el("b", null, h.ko));
-      plate.appendChild(el("span", "tf-sub", `${ROWS_KO[rowOf(key)]} ${h.role} · ${h.race}${h.anyRow ? " · 모든 열" : ""}`));
       const st = el("div", "tf-stats");
       for (const [k, v] of [["HP", h.hp], ["공격력", h.atk], ["방어력", h.def], ["회복력", RULES.healStat(h.atk, h.role)]]) { const d = el("span"); d.appendChild(el("small", null, k)); d.appendChild(el("b", null, String(v))); st.appendChild(d); }
       plate.appendChild(st);
+      // 키워드 · 패시브 한 줄 — 패시브의 첫 줄(「이름: 효과」 의 효과)만. 다 읽으려면 🔍
+      const first = [...String(h.passive || "").matchAll(/(^|\s·\s)([^·:]{1,30}):\s/g)];
+      const effect = first.length ? h.passive.slice(first[0].index + first[0][0].length, first[1] ? first[1].index : undefined) : "";
+      if (h.keyword || effect) {
+        const kw = el("div", "tf-kw");
+        if (h.keyword) kw.appendChild(el("b", null, h.keyword.ko));
+        if (effect) kw.appendChild(el("span", null, shortText(effect)));
+        kw.title = [h.passive, h.keyword && `${h.keyword.ko} — ${h.keyword.text}`].filter(Boolean).join("\n");
+        plate.appendChild(kw);
+      }
       n.appendChild(plate);
       n.title = `${h.ko} — 눌러서 다른 사도로 바꾸기`;
       n.onclick = () => openPicker(key);
       return n;
     }
     // 같은 열의 두 사도 사이 — 누르면 둘의 자리를 바꾼다(편성 순서 = 전투에서 선 순서 · 손패 순서)
+    // 스탠딩을 몸 가운데에 맞춘다 — bust 는 그림 전체(도끼 · 총 · 날개 · 꼬리까지)의 가운데를 칸 가운데에 두어서
+    // 큰 무기를 든 사도(디아나(왕년) · 시온더다크불릿)는 몸이 한쪽으로 쏠렸다(2026-10 사용자: 「왼쪽으로 치우쳐짐」).
+    // 머리 본(없으면 골반 · 몸통 본)이 칸 가운데에 오게 캔버스를 옆으로 민다. 캔버스는 칸보다 넓게 깔려 있어(css) 무기는 칸 끝에서 잘린다.
+    // 밀 거리는 캔버스 높이에 대한 몫으로 재 둔다 — bust 의 배율은 높이로만 정해지니 칸 크기가 바뀌어도 같은 몫이다
+    function centreOnBody(pic, v) {
+      const sk = v.skeleton;
+      const bone = sk && (sk.bones.find((b) => /(^|_)Head$/i.test(b.data.name))
+        || sk.bones.find((b) => /Pelvis/i.test(b.data.name)) || sk.bones.find((b) => /(^|_)Body/i.test(b.data.name)));
+      if (!bone) return;
+      let k = null;
+      const apply = () => {
+        const c = pic.querySelector(":scope > canvas");
+        if (!c) return;
+        if (k === null) { if (!c.height) return; k = bone.worldX / c.height; }
+        c.style.transform = `translateX(${(-k * c.clientHeight).toFixed(1)}px)`;
+      };
+      // 그리는 고리가 한 번 돌아 본 자리가 잡힌 뒤에 잰다
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        apply();
+        if (typeof ResizeObserver === "function") new ResizeObserver(apply).observe(pic);
+      }));
+    }
     function swapBtn(a, b) {
       const n = el("button", "tm-fswap tf-swap", "⇄");
       n.title = `${HERO_DATA[a].ko} ↔ ${HERO_DATA[b].ko} 자리 바꾸기 — 같은 열은 오른쪽(적 쪽)이 먼저 맞는다`;
@@ -526,7 +595,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
       chips = el("div", "tm-fchips");
       bar.appendChild(chips);
       search = el("input", "tm-fsearch");
-      search.placeholder = "이름으로 찾기";
+      search.placeholder = "이름 · 초성 · 열(전열 · 중열 · 후열)로 찾기";
       search.value = filter.q;
       search.oninput = () => { filter.q = search.value.trim(); fillRoster(); };
       bar.appendChild(search);
@@ -604,7 +673,7 @@ export function partyScreen(onStart, onBack, opts = {}) {
       const list = roster.filter(([k, h]) => {
         if (filter.nature && h.nature !== filter.nature) return false;
         if (filter.role && h.role !== filter.role) return false;
-        if (filter.q && !h.ko.includes(filter.q)) return false;
+        if (filter.q && !heroMatch(h, filter.q)) return false;   // 이름(초성으로도) · 열
         return true;
       }).sort(SORTS.성급);
       for (const [k, h] of list) grid.appendChild(rosterCard(k, h));
