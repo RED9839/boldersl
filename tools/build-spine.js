@@ -79,7 +79,9 @@ const msrc = path.join(AS, "monsterspine");
 if (!fs.existsSync(msrc)) trouble.push("적 스파인을 아직 안 꺼냈습니다 — python tools/extract-spine.py");
 else {
   for (const key of new Set(Object.keys(ENEMIES).map((k) => foeLook(k).art))) {
-    const got = copySet(path.join(msrc, key), path.join(OUT, "enemy", key));
+    // 소환물(후방 드론 따위)은 assets/minionspine 에 있다 — 몬스터 폴더에 없으면 거기서
+    const src = fs.existsSync(path.join(msrc, key)) ? path.join(msrc, key) : path.join(AS, "minionspine", key);
+    const got = copySet(src, path.join(OUT, "enemy", key));
     if (!got) { trouble.push(`enemy/${key} — 한 벌이 안 갖춰졌습니다`); continue; }
     if (got.error) { trouble.push(`enemy/${key} — ${got.error}`); continue; }
     manifest.enemy[key] = { atlas: got.atlas, skel: got.skel, pages: got.pages };

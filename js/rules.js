@@ -88,9 +88,10 @@ export const FLASH_CHANCE = 0.35;        // 옛 규칙(보상 신탁) — 이제
 // 일반 전투도 은총 하나는 반드시(2026-10 사용자 — 고유 카드 얻기가 드물었다). 사도당 확률 일반 20→25% · 이벤트 15→20%
 // 2026-10-04 사용자 「은총 확률 조금 올리자」 — 일반 25→30 · 엘리트 50→60 · 보스 60→70 · 이벤트 20→25%
 export const EPI_HERO = { fight: 0.3, elite: 0.6, boss: 0.7, event: 0.25 };
-export const EPI_CARD = { fight: 0.15, elite: 0.4, boss: 0.3, event: 0.1 };
+// 2026-10-04 사용자 「신탁 확률 조금 올리자」 — 일반 15→20 · 엘리트 40→50 · 보스 30→40 · 이벤트 10→15%
+export const EPI_CARD = { fight: 0.2, elite: 0.5, boss: 0.4, event: 0.15 };
 export const EPI_SURE = { hero: ["fight", "elite", "boss"], card: ["elite"] };
-export const DIVINE = 0.1;
+export const DIVINE = 0.15;   // 카드 신탁 선택지에 기적이 얹힐 확률 — 10 → 15%(2026-10-04 사용자)
 // 기적의 덤 — power 피해 ×1.3 · cost 비용 -1(1 이상일 때) · draw 내면 1장 더 뽑는다
 // 겨우살이의 축복(옛 이름 「기적」) — 기획서 「겨우살이의 축복」 탭의 카드 종류별 풀. 카드에 쓸모 있는 것만 뜬다(divineKindsFor)
 export const DIVINE_KINDS = {
