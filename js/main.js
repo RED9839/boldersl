@@ -9,7 +9,7 @@ import { initStage, toggleFullscreen } from "./stage.js";
 import { applySettings } from "./settings.js";
 import * as S from "./save.js";
 import { DEV } from "./dev.js";
-import { HERO_DATA } from "./cardbook.js";
+import { HERO_DATA, EQUIP } from "./cardbook.js";
 import * as RULES from "./rules.js";
 
 let run = null;
@@ -39,6 +39,14 @@ function devFight() {
   const rows = {};
   for (const k of DEV.party) rows[k] = HERO_DATA[k].row;
   run = R.newRun(DEV.party, rows);
+  if (DEV.foes && DEV.foes.length) run.eventFight = { enemies: DEV.foes, name: "시험 싸움" };   // 시험 — 고른 적과
+  if (DEV.gear) {
+    const all = Object.values(EQUIP);
+    for (const k of DEV.party) for (const sl of RULES.SLOTS) {
+      const e = all.find((x) => x.slot === sl && x.affinity === k) || all.filter((x) => x.slot === sl)[DEV.party.indexOf(k) * 3];
+      if (e) { run.bag.push(e.id); R.equip(run, k, e.id); }
+    }
+  }
   fight();
 }
 

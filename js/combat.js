@@ -385,7 +385,8 @@ function rushEnemies(s) {
     e.rushCnt = 0;
     e.rushedTurn = true;
     say(s, `${e.ko}: 카드 ${n}장 — 즉시 행동!`);
-    actEnemy(s, e);
+    s.rushing = true;
+    try { actEnemy(s, e); } finally { s.rushing = false; }
     s.rushedThisTurn = true;
     emit(s, "rush", { enemy: e });
     if (s.over) return;
@@ -443,7 +444,8 @@ function actEnemy(s, e, it = e.intent, passive = false) {
     if (it.next) e.intent = null;          // 모으던 힘도 흩어진다
     return;
   }
-  cue(s, "act", e, { anim: ["attack", "back", "attackAll", "multi"].includes(it.t) ? "attack" : "skill" });
+  // say · t · rush — 화면이 「무엇을 하는지」 를 적 머리 위에 잠깐 띄운다(fight-screen foeTell). 판에는 아무 영향 없다
+  cue(s, "act", e, { anim: ["attack", "back", "attackAll", "multi"].includes(it.t) ? "attack" : "skill", say: it.say || null, t: it.t, rush: !!s.rushing });
   if (it.t === "attack" || it.t === "back") {
     const t = pickTarget(s, it.t === "back");
     if (t) {

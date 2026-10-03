@@ -286,7 +286,15 @@ function showKeyword(kw) {
   head.appendChild(el("b", null, kw.ko));
   head.appendChild(el("span", "kwkind", kw.kind || ""));
   n.appendChild(head);
-  n.appendChild(el("p", null, kw.text || "기획서에 이름만 있고 풀이가 아직 없습니다."));
+  // 풀이 — 꾸밈말(「 — 」 앞의 그림 같은 문장)은 작게 따로, 규칙은 한 줄에 하나씩 짧게(card-text shortText)
+  const raw = String(kw.text || "기획서에 이름만 있고 풀이가 아직 없습니다.");
+  const dash = raw.indexOf(" — ");
+  const flavor = dash > 0 && dash < 60 ? raw.slice(0, dash) : "";
+  const rules = (flavor ? raw.slice(dash + 3) : raw).split(/(?<=[.다])\s+/).map((x) => shortText(x.trim()).replace(/[.]$/, "")).filter(Boolean);
+  if (flavor) n.appendChild(el("p", "kwflavor", flavor));
+  const ul = el("ul", "kwrules");
+  for (const r of rules) ul.appendChild(el("li", null, r));
+  n.appendChild(ul);
   const x = el("button", "kwclose", "닫기");
   x.onclick = () => { n.remove(); kwNote = null; };
   n.appendChild(x);
