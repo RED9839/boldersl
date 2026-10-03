@@ -164,9 +164,9 @@ check(/에르핀 · 티그 · 네르/.test(p.textContent), "도감 아래에 고
   clickAll(p, (n) => n.classList.contains("cbflashbtn"))[0].onclick();
   check(count(p, "cbf") === 5, `눌러서 신탁 다섯을 펼친다 (${count(p, "cbf")})`);
   tab("장비").onclick();
-  check(count(p, "ecard") === 29, `장비로 넘어가도 등급 거르개는 그대로 — 전설 ${count(p, "ecard")}점`);
+  check(count(p, "ecard") === 28, `장비로 넘어가도 등급 거르개는 그대로 — 전설 ${count(p, "ecard")}점`);
   clickAll(p, (n) => n.classList.contains("chip")).find((b) => b.textContent === "전체").onclick();
-  check(count(p, "ecard") === 87 && count(p, "eicon") >= 87, `장비 도감에 87점이 아이콘과 함께 (${count(p, "ecard")})`);
+  check(count(p, "ecard") === 86 && count(p, "eicon") >= 86, `장비 도감에 86점이 아이콘과 함께 (${count(p, "ecard")})`);
   clickAll(p, (n) => n.classList.contains("railbtn")).find((b) => b.textContent.includes("무기")).onclick();
   check(count(p, "ecard") === 30, `칸으로 거른다 — 무기 ${count(p, "ecard")}점`);
   check(/에르핀 · 티그 · 네르/.test(p.textContent) && count(p, "dfoot") === 1, "갈피를 옮겨도 아래에 고른 셋과 「편성으로」");
@@ -682,9 +682,9 @@ console.log("\n장비");
 {
   const { EQUIP } = await import("../js/cardbook.js");
   const ids = Object.keys(EQUIP);
-  check(ids.length === 87 && ids.every((id) => !EQUIP[id].global), `기획서의 장비 87종을 읽는다 — 글로벌 전용은 없다 (${ids.length})`);
+  check(ids.length === 86 && ids.every((id) => !EQUIP[id].global), `기획서의 장비 86종을 읽는다 — 글로벌 전용은 없다 (${ids.length})`);
   const slots = {}; for (const id of ids) slots[EQUIP[id].slot] = (slots[EQUIP[id].slot] || 0) + 1;
-  check(slots["무기"] === 30 && slots["방어구"] === 20 && slots["장신구"] === 37, `칸: 무기 ${slots["무기"]} · 방어구 ${slots["방어구"]} · 장신구 ${slots["장신구"]}`);
+  check(slots["무기"] === 30 && slots["방어구"] === 20 && slots["장신구"] === 36, `칸: 무기 ${slots["무기"]} · 방어구 ${slots["방어구"]} · 장신구 ${slots["장신구"]}`);
   check(ids.every((id) => Object.values(EQUIP[id].stats).some(Boolean)), "모든 장비에 스탯 줄이 있다");
   const r = R.newRun(run.party.slice(), { ...run.rows }, 31);
   const k = r.party[0];
